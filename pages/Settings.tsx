@@ -9,11 +9,9 @@ interface SettingsProps {
 }
 
 const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
+  // Local inputs state
   const [newOp, setNewOp] = useState('');
-  const [editingOp, setEditingOp] = useState<{ oldName: string; newName: string } | null>(null);
   const [newModel, setNewModel] = useState('');
-  const [editingModel, setEditingModel] = useState<{ oldName: string; newName: string } | null>(null);
-  
   const [syncUrlInput, setSyncUrlInput] = useState(state.syncUrl || '');
   const [syncKeyInput, setSyncKeyInput] = useState(state.syncKey || '');
   const [isManualSyncing, setIsManualSyncing] = useState(false);
@@ -35,12 +33,12 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     reader.onload = (event) => {
       try {
         const json = JSON.parse(event.target?.result as string);
-        if (confirm('Это полностью заменит все текущие данные. Вы уверены?')) {
+        if (confirm('Это заменит все текущие данные. Продолжить?')) {
           updateState(() => json);
-          alert('Данные успешно импортированы!');
+          alert('Данные импортированы!');
         }
       } catch (err) {
-        alert('Ошибка при чтении файла бэкапа.');
+        alert('Ошибка файла.');
       }
     };
     reader.readAsText(file);
@@ -48,216 +46,129 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
 
   const forcePull = async () => {
      if (!syncUrlInput || !syncKeyInput) {
-       alert('Введите URL и Anon Key');
+       alert('Заполните настройки синхронизации');
        return;
      }
-     if (!confirm('Загрузить последнюю версию из облака? Локальные несохраненные изменения будут потеряны.')) return;
      setIsManualSyncing(true);
-     const remote = await fetchFromCloud(syncUrlInput, syncKeyInput);
-     if (remote) {
-        updateState(() => remote);
-        alert('Данные успешно синхронизированы из облака!');
-     } else {
-        alert('Ошибка при загрузке. Проверьте URL, ключ и создана ли таблица app_storage.');
+     try {
+       const remote = await fetchFromCloud(syncUrlInput, syncKeyInput);
+       if (remote) {
+          updateState(() => remote);
+          alert('Синхронизировано успешно!');
+       } else {
+          alert('Данные не найдены или ошибка ключа.');
+       }
+     } catch (e) {
+       alert('Ошибка сети.');
+     } finally {
+       setIsManualSyncing(false);
      }
-     setIsManualSyncing(false);
   };
 
-  const saveSyncSettings = () => {
+  const saveSync = () => {
     updateState(prev => ({ ...prev, syncUrl: syncUrlInput, syncKey: syncKeyInput }));
-    alert('Настройки сохранены. Приложение начнет автоматическую синхронизацию.');
-  };
-
-  // Operators
-  const addOperator = () => {
-    if (!newOp || state.operators.includes(newOp)) return;
-    updateState(prev => ({ ...prev, operators: [...prev.operators, newOp] }));
-    setNewOp('');
-  };
-
-  const renameOperator = () => {
-    if (!editingOp || !editingOp.newName) { setEditingOp(null); return; }
-    const { oldName, newName } = editingOp;
-    updateState(prev => ({
-      ...prev,
-      operators: prev.operators.map(o => o === oldName ? newName : o),
-      incomeData: prev.incomeData.map(r => r.operator === oldName ? { ...r, operator: newName } : r),
-      operationsData: prev.operationsData.map(o => o.operator === oldName ? { ...o, operator: newName } : o)
-    }));
-    setEditingOp(null);
-  };
-
-  // Models
-  const addModel = () => {
-    if (!newModel || state.models.includes(newModel)) return;
-    updateState(prev => ({ ...prev, models: [...prev.models, newModel] }));
-    setNewModel('');
-  };
-
-  const renameModel = () => {
-    if (!editingModel || !editingModel.newName) { setEditingModel(null); return; }
-    const { oldName, newName } = editingModel;
-    updateState(prev => ({
-      ...prev,
-      models: prev.models.map(m => m === oldName ? newName : m),
-      incomeData: prev.incomeData.map(r => r.model === oldName ? { ...r, model: newName } : r)
-    }));
-    setEditingModel(null);
-  };
-
-  // Admins management
-  const updateAdminRate = (id: string, rate: number) => {
-    updateState(prev => ({
-      ...prev,
-      admins: prev.admins.map(a => a.id === id ? { ...a, rate } : a)
-    }));
+    alert('Настройки сохранены');
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+    <div className="space-y-8 pb-20 animate-in fade-in duration-500">
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold font-outfit text-white">Настройки</h1>
-          <p className="text-slate-400">Конфигурация системы и облачная синхронизация</p>
+          <p className="text-slate-400">Управление базой данных и параметрами системы</p>
         </div>
-        <div className="flex gap-3">
-          <label className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-2 transition-all">
-            <ICONS.Plus size={14} /> Импорт JSON
+        <div className="flex gap-2">
+          <label className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer">
+            Импорт JSON
             <input type="file" className="hidden" accept=".json" onChange={importData} />
           </label>
-          <button onClick={exportData} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-600/20">
-            <ICONS.Salary size={14} /> Экспорт JSON (Бэкап)
+          <button onClick={exportData} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all">
+            Экспорт JSON
           </button>
         </div>
       </header>
 
-      {/* Cloud Sync Section */}
-      <div className="glass-card p-8 rounded-[40px] border-indigo-500/20 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-8">
-           <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${state.syncUrl ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'}`}>
-              <div className={`w-1.5 h-1.5 rounded-full ${state.syncUrl ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
-              {state.syncUrl ? 'Supabase Connected' : 'Local Mode'}
-           </div>
-        </div>
-
+      {/* Cloud Sync */}
+      <div className="glass-card p-8 rounded-[32px] border-indigo-500/20 shadow-2xl">
         <div className="flex items-center gap-4 mb-8">
-          <div className="w-14 h-14 bg-indigo-500/10 text-indigo-400 rounded-2xl flex items-center justify-center border border-indigo-500/20">
-             <ICONS.Dashboard size={28} />
+          <div className="w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center">
+             <ICONS.Dashboard size={24} />
           </div>
           <div>
-            <h2 className="text-2xl font-bold font-outfit text-white">Supabase Cloud Sync</h2>
-            <p className="text-sm text-slate-400">Введите данные из раздела Project Settings &rarr; API</p>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-          <div className="space-y-3">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Project URL</label>
-            <input type="text" className="w-full bg-slate-900/80 border border-slate-700 rounded-2xl px-5 py-4 text-sm font-mono text-indigo-400 outline-none" placeholder="https://xyz.supabase.co" value={syncUrlInput} onChange={(e) => setSyncUrlInput(e.target.value)} />
-          </div>
-          <div className="space-y-3">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Anon Public Key</label>
-            <input type="password" className="w-full bg-slate-900/80 border border-slate-700 rounded-2xl px-5 py-4 text-sm font-mono text-emerald-400 outline-none" placeholder="eyJhbGciOiJIUzI1NiIsInR..." value={syncKeyInput} onChange={(e) => setSyncKeyInput(e.target.value)} />
+            <h2 className="text-xl font-bold text-white">Supabase Cloud</h2>
+            <p className="text-sm text-slate-500">Настройки синхронизации (Project Settings - API)</p>
           </div>
         </div>
 
-        <div className="flex gap-4">
-            <button onClick={saveSyncSettings} className="bg-indigo-600 hover:bg-indigo-500 text-white px-10 py-4 rounded-2xl font-bold text-sm transition-all shadow-xl shadow-indigo-600/20 active:scale-95">Сохранить и Синхронизировать</button>
-            <button onClick={forcePull} disabled={isManualSyncing} className="bg-slate-800 hover:bg-slate-700 text-white px-10 py-4 rounded-2xl font-bold text-sm transition-all flex items-center gap-2">
-                {isManualSyncing ? 'Загрузка...' : 'Загрузить из облака (Pull)'}
-                <ICONS.RotateCcw size={16} className={isManualSyncing ? 'animate-spin' : ''} />
-            </button>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Supabase URL</label>
+            <input 
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-mono outline-none" 
+              placeholder="https://abc.supabase.co"
+              value={syncUrlInput}
+              onChange={e => setSyncUrlInput(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Anon Key / API Key</label>
+            <input 
+              type="password"
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-mono outline-none" 
+              placeholder="eyJ..."
+              value={syncKeyInput}
+              onChange={e => setSyncKeyInput(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button onClick={saveSync} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-lg shadow-indigo-600/20">
+            Сохранить настройки
+          </button>
+          <button onClick={forcePull} disabled={isManualSyncing} className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2">
+            {isManualSyncing ? 'Загрузка...' : 'Загрузить из облака'}
+          </button>
         </div>
       </div>
 
-      {/* Admins Config Section */}
-      <div className="glass-card p-8 rounded-[32px] border-slate-800 shadow-xl space-y-6">
-          <h2 className="text-xl font-bold font-outfit text-white flex items-center gap-3">
-             <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400"><ICONS.Salary size={20} /></div>
-             Комиссии Администраторов
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {state.admins.map(admin => (
-              <div key={admin.id} className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800">
-                <p className="text-[10px] font-black text-slate-500 uppercase mb-2">{admin.name}</p>
-                <div className="flex items-center gap-3">
-                   <input 
-                      type="number" 
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-indigo-400 font-bold"
-                      value={admin.rate}
-                      onChange={(e) => updateAdminRate(admin.id, parseFloat(e.target.value) || 0)}
-                   />
-                   <span className="text-slate-500 font-bold">%</span>
-                </div>
-              </div>
-            ))}
-          </div>
-      </div>
-
+      {/* Basic Management */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Staff Management */}
-          <div className="glass-card p-8 rounded-[32px] border-slate-800 shadow-xl space-y-6">
-            <h2 className="text-xl font-bold font-outfit text-white flex items-center gap-3">
-               <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400"><ICONS.Reports size={20} /></div>
-               Штат Операторов
-            </h2>
-            <div className="flex gap-2">
-              <input value={newOp} onChange={e => setNewOp(e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none" placeholder="Имя нового оператора..."/>
-              <button onClick={addOperator} className="bg-sky-600 hover:bg-sky-500 text-white px-5 rounded-xl transition-all shadow-lg"><ICONS.Plus size={20}/></button>
-            </div>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-              {state.operators.map(o => (
-                <div key={o} className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl flex items-center justify-between group">
-                  {editingOp?.oldName === o ? (
-                    <div className="flex-1 flex gap-2">
-                      <input className="flex-1 bg-slate-800 border border-sky-500 rounded-lg px-3 py-1 text-sm text-white" value={editingOp.newName} onChange={e => setEditingOp({...editingOp, newName: e.target.value})} />
-                      <button onClick={renameOperator} className="text-emerald-400"><ICONS.Lock size={16}/></button>
-                    </div>
-                  ) : (
-                    <>
-                      <span className="text-slate-200 font-bold">{o}</span>
-                      <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => setEditingOp({ oldName: o, newName: o })} className="text-slate-500 hover:text-sky-400"><ICONS.Edit size={16}/></button>
-                        <button onClick={() => updateState(p => ({...p, operators: p.operators.filter(x => x !== o)}))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={16}/></button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
+        <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <ICONS.Reports size={18} className="text-sky-400" /> Штат операторов
+          </h2>
+          <div className="flex gap-2">
+             <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Имя..." value={newOp} onChange={e => setNewOp(e.target.value)}/>
+             <button onClick={() => { if(newOp) { updateState(p => ({...p, operators: [...p.operators, newOp]})); setNewOp(''); }}} className="bg-sky-600 px-3 rounded-lg"><ICONS.Plus size={18}/></button>
           </div>
+          <div className="space-y-2 max-h-[200px] overflow-y-auto">
+             {state.operators.map(o => (
+               <div key={o} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg">
+                 <span className="text-sm">{o}</span>
+                 <button onClick={() => updateState(p => ({...p, operators: p.operators.filter(x => x !== o)}))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
+               </div>
+             ))}
+          </div>
+        </div>
 
-          {/* Models Management */}
-          <div className="glass-card p-8 rounded-[32px] border-slate-800 shadow-xl space-y-6">
-            <h2 className="text-xl font-bold font-outfit text-white flex items-center gap-3">
-               <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400"><ICONS.Models size={20} /></div>
-               Список Анкет (Models)
-            </h2>
-            <div className="flex gap-2">
-               <input value={newModel} onChange={e => setNewModel(e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none" placeholder="Название анкеты..."/>
-               <button onClick={addModel} className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 rounded-xl shadow-lg"><ICONS.Plus size={20}/></button>
-            </div>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-               {state.models.map(m => (
-                 <div key={m} className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl flex items-center justify-between group">
-                   {editingModel?.oldName === m ? (
-                     <div className="flex-1 flex gap-2">
-                       <input className="flex-1 bg-slate-800 border border-indigo-500 rounded-lg px-3 py-1 text-sm text-white" value={editingModel.newName} onChange={e => setEditingModel({...editingModel, newName: e.target.value})} />
-                       <button onClick={renameModel} className="text-emerald-400"><ICONS.Lock size={16}/></button>
-                     </div>
-                   ) : (
-                     <>
-                       <span className="text-slate-200 font-bold">{m}</span>
-                       <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button onClick={() => setEditingModel({ oldName: m, newName: m })} className="text-slate-500 hover:text-indigo-400"><ICONS.Edit size={16}/></button>
-                         <button onClick={() => updateState(p => ({...p, models: p.models.filter(x => x !== m)}))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={16}/></button>
-                       </div>
-                     </>
-                   )}
-                 </div>
-               ))}
-            </div>
+        <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <ICONS.Models size={18} className="text-indigo-400" /> Модели
+          </h2>
+          <div className="flex gap-2">
+             <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Название..." value={newModel} onChange={e => setNewModel(e.target.value)}/>
+             <button onClick={() => { if(newModel) { updateState(p => ({...p, models: [...p.models, newModel]})); setNewModel(''); }}} className="bg-indigo-600 px-3 rounded-lg"><ICONS.Plus size={18}/></button>
           </div>
+          <div className="space-y-2 max-h-[200px] overflow-y-auto">
+             {state.models.map(m => (
+               <div key={m} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg">
+                 <span className="text-sm">{m}</span>
+                 <button onClick={() => updateState(p => ({...p, models: p.models.filter(x => x !== m)}))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
+               </div>
+             ))}
+          </div>
+        </div>
       </div>
     </div>
   );
