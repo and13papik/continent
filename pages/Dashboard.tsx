@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppState, AccountingPeriod } from '../types';
@@ -160,10 +159,10 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
             <thead>
               <tr className="bg-slate-900/50 text-slate-500 uppercase text-[10px] font-black tracking-widest border-b border-slate-800">
                 <th className="px-8 py-6">Оператор</th>
-                <th className="px-4 py-6 text-center">Прогресс (Gross)</th>
-                <th className="px-4 py-6 text-center">OF Staff Net</th>
-                <th className="px-4 py-6 text-center">PP Staff Net</th>
-                <th className="px-4 py-6 text-center">CR Staff Net</th>
+                <th className="px-4 py-6 text-center">Общий Gross</th>
+                <th className="px-4 py-6 text-center">OF (G / N)</th>
+                <th className="px-4 py-6 text-center">PP (G / N)</th>
+                <th className="px-4 py-6 text-center">CR (G / N)</th>
                 <th className="px-4 py-6 text-center">Остаток</th>
                 <th className="px-8 py-6 text-right">Статус</th>
               </tr>
@@ -185,13 +184,22 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
                     </div>
                   </td>
                   <td className="px-4 py-5 text-center">
-                    <div className="text-blue-400 font-mono font-bold">${row.ofN.toFixed(1)}</div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-slate-500 font-mono">${row.ofG.toFixed(0)}</span>
+                      <span className="text-blue-400 font-mono font-bold">${row.ofN.toFixed(1)}</span>
+                    </div>
                   </td>
                   <td className="px-4 py-5 text-center">
-                    <div className="text-sky-400 font-mono font-bold">${row.ppN.toFixed(1)}</div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-slate-500 font-mono">${row.ppG.toFixed(0)}</span>
+                      <span className="text-sky-400 font-mono font-bold">${row.ppN.toFixed(1)}</span>
+                    </div>
                   </td>
                   <td className="px-4 py-5 text-center">
-                    <div className="text-emerald-400 font-mono font-bold">${row.crN.toFixed(1)}</div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-slate-500 font-mono">${row.crG.toFixed(0)}</span>
+                      <span className="text-emerald-400 font-mono font-bold">${row.crN.toFixed(1)}</span>
+                    </div>
                   </td>
                   <td className="px-4 py-5 text-center">
                     <div className={`text-base font-black font-mono ${row.remainder >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>

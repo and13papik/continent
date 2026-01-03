@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AppState, IncomeRecord, OperationType, OperationRecord, Platform } from '../types';
@@ -190,15 +189,59 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
       )}
 
       {report && (
-        <div className="space-y-10">
-          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <InfoBox title="Period Brutto" value={report.totalBrutto} color="slate" />
-            <InfoBox title="Staff Net Total" value={report.totalNetto} color="emerald" />
+        <div className="space-y-6">
+          {/* Main Financial Overview */}
+          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <InfoBox title="Total Brutto" value={report.totalBrutto} color="slate" />
+            <InfoBox title="Total Staff Net" value={report.totalNetto} color="emerald" />
             <InfoBox title="Остаток к выплате" value={report.finalBalance} color="indigo" highlighted />
             <div className="glass-card p-6 rounded-3xl border-slate-800 flex flex-col justify-center">
                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2">Анкеты</p>
                <div className="flex flex-wrap gap-1.5">
                   {report.activeModels.map(m => <span key={m} className="bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-lg text-[10px] font-bold border border-indigo-500/10">{m}</span>)}
+               </div>
+            </div>
+          </section>
+
+          {/* Platform Detailed Summary */}
+          <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="glass-card p-6 rounded-3xl border-blue-500/20 bg-blue-500/5">
+               <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest mb-3">OnlyFans Summary</p>
+               <div className="flex justify-between items-end">
+                  <div>
+                    <p className="text-[9px] text-slate-500 uppercase font-bold">Gross</p>
+                    <p className="text-lg font-bold text-white font-mono">${report.platformStats.of.gross.toLocaleString()}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] text-blue-400 uppercase font-bold">Net</p>
+                    <p className="text-xl font-black text-blue-400 font-mono">${report.platformStats.of.net.toLocaleString()}</p>
+                  </div>
+               </div>
+            </div>
+            <div className="glass-card p-6 rounded-3xl border-sky-500/20 bg-sky-500/5">
+               <p className="text-[10px] font-black uppercase text-sky-500 tracking-widest mb-3">PayPal Summary</p>
+               <div className="flex justify-between items-end">
+                  <div>
+                    <p className="text-[9px] text-slate-500 uppercase font-bold">Gross</p>
+                    <p className="text-lg font-bold text-white font-mono">${report.platformStats.pp.gross.toLocaleString()}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] text-sky-400 uppercase font-bold">Net</p>
+                    <p className="text-xl font-black text-sky-400 font-mono">${report.platformStats.pp.net.toLocaleString()}</p>
+                  </div>
+               </div>
+            </div>
+            <div className="glass-card p-6 rounded-3xl border-emerald-500/20 bg-emerald-500/5">
+               <p className="text-[10px] font-black uppercase text-emerald-500 tracking-widest mb-3">Crypto Summary</p>
+               <div className="flex justify-between items-end">
+                  <div>
+                    <p className="text-[9px] text-slate-500 uppercase font-bold">Gross</p>
+                    <p className="text-lg font-bold text-white font-mono">${report.platformStats.cr.gross.toLocaleString()}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] text-emerald-400 uppercase font-bold">Net</p>
+                    <p className="text-xl font-black text-emerald-400 font-mono">${report.platformStats.cr.net.toLocaleString()}</p>
+                  </div>
                </div>
             </div>
           </section>
