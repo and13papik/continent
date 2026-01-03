@@ -20,11 +20,16 @@ const App: React.FC = () => {
 
   // Load from cloud on mount
   useEffect(() => {
-    if (state.syncUrl) {
+    if (state.syncUrl && state.syncKey) {
       setCloudStatus('loading');
-      fetchFromCloud(state.syncUrl).then(remoteData => {
+      fetchFromCloud(state.syncUrl, state.syncKey).then(remoteData => {
         if (remoteData && remoteData.accountingPeriods) {
-          setState(prev => ({ ...remoteData, syncUrl: prev.syncUrl })); // preserve local URL
+          // Preserve current sync settings but update the rest of the state
+          setState(prev => ({ 
+            ...remoteData, 
+            syncUrl: prev.syncUrl, 
+            syncKey: prev.syncKey 
+          }));
           setCloudStatus('success');
           setLastSyncTime(new Date().toLocaleTimeString());
         } else {
@@ -38,7 +43,7 @@ const App: React.FC = () => {
   useEffect(() => {
     saveLocal(state);
     
-    if (state.syncUrl && !isSyncing) {
+    if (state.syncUrl && state.syncKey && !isSyncing) {
       const timer = setTimeout(async () => {
         setIsSyncing(true);
         setCloudStatus('loading');

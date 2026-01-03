@@ -111,6 +111,7 @@ export interface AppState {
   modelBonuses: ModelBonus[];
   paidStatuses: PaidStatus[];
   syncUrl?: string;
-  dbUrl?: string; // Дополнительная БД для страховки
+  syncKey?: string; // Для защиты базы данных
+  dbUrl?: string;
   lastSyncedAt?: string;
 }

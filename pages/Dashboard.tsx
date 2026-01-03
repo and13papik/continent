@@ -43,7 +43,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       totals.cr.net += r.nettoCrypto;
     });
 
-    // Расчет комиссий каждого админа отдельно
     state.admins.forEach(admin => {
       totals.adminDetails.push({ 
         name: admin.name, 
@@ -55,75 +54,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     return totals;
   }, [state.incomeData, state.ownerManualIncomes, state.admins, activePeriodId]);
 
-  const handleCloseMonth = () => {
-    if (!activePeriod || activePeriod.status === 'closed') return;
-    
-    const confirmClose = window.confirm(
-      `Вы уверены, что хотите ЗАКРЫТЬ период "${activePeriod.label}"?\n\nПосле закрытия будет создан новый месяц, а этот станет доступен только для чтения.`
-    );
-
-    if (!confirmClose) return;
-
-    updateState(prev => {
-      const now = new Date();
-      // Определяем следующий месяц для названия
-      // Ищем последний созданный период, чтобы вычислить следующий за ним
-      const lastP = prev.accountingPeriods[prev.accountingPeriods.length - 1];
-      
-      // Попробуем распарсить название типа "Июнь 2024"
-      const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-      
-      let nextMonthIdx = now.getMonth();
-      let nextYear = now.getFullYear();
-
-      // Если в системе уже есть периоды, берем дату последнего и прибавляем месяц
-      if (lastP) {
-        const lastDate = new Date(lastP.startAt);
-        nextMonthIdx = lastDate.getMonth() + 1;
-        nextYear = lastDate.getFullYear();
-        if (nextMonthIdx > 11) {
-          nextMonthIdx = 0;
-          nextYear += 1;
-        }
-      }
-
-      const nextPeriodLabel = `${months[nextMonthIdx]} ${nextYear}`;
-      const nextPeriodId = String(Date.now());
-      
-      const newPeriod: AccountingPeriod = {
-        id: nextPeriodId,
-        label: nextPeriodLabel,
-        startAt: new Date(nextYear, nextMonthIdx, 1).toISOString(),
-        endAt: null,
-        status: 'open'
-      };
-
-      // Закрываем текущий и добавляем новый
-      const updatedPeriods = prev.accountingPeriods.map(p => 
-        p.id === activePeriodId ? { ...p, status: 'closed' as const, endAt: new Date().toISOString() } : p
-      );
-
-      return {
-        ...prev,
-        accountingPeriods: [...updatedPeriods, newPeriod],
-        selectedPeriodId: nextPeriodId
-      };
-    });
-  };
-
-  const toggleOperatorPaid = (op: string) => {
-    updateState(prev => {
-      const exists = prev.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
-      if (exists) {
-        return { ...prev, paidStatuses: prev.paidStatuses.filter(s => !(s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId)) };
-      } else {
-        return { ...prev, paidStatuses: [...prev.paidStatuses, { entityName: op, entityType: 'operator', periodId: activePeriodId }] };
-      }
-    });
-  };
-
   const operatorRows = useMemo(() => {
-    return state.operators.map(op => {
+    const raw = state.operators.map(op => {
       const incomes = state.incomeData.filter(r => r.operator === op && r.periodId === activePeriodId);
       const ops = state.operationsData.filter(o => o.operator === op && o.periodId === activePeriodId);
       
@@ -135,6 +67,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       const crN = incomes.reduce((sum, r) => sum + r.nettoCrypto, 0);
       
       const totalNet = ofN + ppN + crN;
+      const totalGross = ofG + ppG + crG;
       
       const adjPlus = ops.filter(o => o.type === 'bonus').reduce((sum, o) => sum + o.amount, 0);
       const adjMinus = ops.filter(o => ['penalty', 'refund', 'advance', 'salary_payment', 'internship'].includes(o.type)).reduce((sum, o) => sum + o.amount, 0);
@@ -144,151 +77,129 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
 
       const isPaid = state.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
 
-      return { 
-        op, 
-        totalGross: ofG + ppG + crG,
-        ofG, ofN,
-        ppG, ppN,
-        crG, crN,
-        paid, 
-        remainder,
-        isPaid
-      };
+      return { op, totalGross, ofG, ofN, ppG, ppN, crG, crN, paid, remainder, isPaid };
     });
+
+    const maxGross = Math.max(...raw.map(r => r.totalGross), 1);
+    return raw.map(r => ({ ...r, percentOfMax: (r.totalGross / maxGross) * 100 }));
   }, [state.incomeData, state.operationsData, state.operators, activePeriodId, state.paidStatuses]);
+
+  const handleCloseMonth = () => {
+    if (!activePeriod || activePeriod.status === 'closed') return;
+    const confirmClose = window.confirm(`Закрыть период "${activePeriod.label}"?`);
+    if (!confirmClose) return;
+
+    updateState(prev => {
+      const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+      const lastP = prev.accountingPeriods[prev.accountingPeriods.length - 1];
+      let nextMonthIdx = new Date().getMonth(), nextYear = new Date().getFullYear();
+      if (lastP) {
+        const lastDate = new Date(lastP.startAt);
+        nextMonthIdx = lastDate.getMonth() + 1; nextYear = lastDate.getFullYear();
+        if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
+      }
+      const nextPeriodLabel = `${months[nextMonthIdx]} ${nextYear}`;
+      const nextId = String(Date.now());
+      const newP: AccountingPeriod = { id: nextId, label: nextPeriodLabel, startAt: new Date(nextYear, nextMonthIdx, 1).toISOString(), endAt: null, status: 'open' };
+      return { ...prev, accountingPeriods: [...prev.accountingPeriods.map(p => p.id === activePeriodId ? { ...p, status: 'closed' as const, endAt: new Date().toISOString() } : p), newP], selectedPeriodId: nextId };
+    });
+  };
+
+  const toggleOperatorPaid = (op: string) => {
+    updateState(prev => {
+      const exists = prev.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
+      if (exists) return { ...prev, paidStatuses: prev.paidStatuses.filter(s => !(s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId)) };
+      return { ...prev, paidStatuses: [...prev.paidStatuses, { entityName: op, entityType: 'operator', periodId: activePeriodId }] };
+    });
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white font-outfit">Dashboard Personnel</h1>
-          <div className="flex flex-wrap items-center gap-4 mt-2">
-             <div className="flex items-center gap-2">
-                <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Период:</span>
-                <select 
-                  className="bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-1.5 text-indigo-400 font-bold outline-none cursor-pointer hover:bg-slate-800 transition-colors shadow-lg"
-                  value={state.selectedPeriodId}
-                  onChange={(e) => updateState(prev => ({ ...prev, selectedPeriodId: e.target.value }))}
-                >
-                  {state.accountingPeriods.slice().reverse().map(p => (
-                    <option key={p.id} value={p.id} className="bg-slate-950">{p.label} {p.status === 'closed' ? '🔒' : ''}</option>
-                  ))}
-                </select>
-             </div>
-
+          <h1 className="text-3xl font-bold text-white font-outfit">Main Dashboard</h1>
+          <div className="flex items-center gap-4 mt-2">
+             <select className="bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-1.5 text-indigo-400 font-bold outline-none cursor-pointer" value={state.selectedPeriodId} onChange={(e) => updateState(prev => ({ ...prev, selectedPeriodId: e.target.value }))}>
+                {state.accountingPeriods.slice().reverse().map(p => <option key={p.id} value={p.id}>{p.label} {p.status === 'closed' ? '🔒' : ''}</option>)}
+             </select>
              {activePeriod?.status === 'open' && (
-                <button 
-                  onClick={handleCloseMonth}
-                  className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-indigo-600/20 active:scale-95 border border-indigo-500/30"
-                >
-                  <ICONS.Lock size={14} />
-                  Закрыть месяц
+                <button onClick={handleCloseMonth} className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95">
+                  <ICONS.Lock size={14} /> Закрыть месяц
                 </button>
              )}
           </div>
         </div>
       </header>
 
-      {/* Верхние карточки статистики */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Кастомная карточка Total Brutto */}
-        <div className="glass-card p-6 rounded-3xl flex flex-col justify-center gap-2 border-indigo-500/20 transition-transform hover:scale-[1.02] bg-indigo-500/5 shadow-xl shadow-indigo-500/5">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-indigo-500/10 text-indigo-400 shadow-inner">
-              <ICONS.Income size={24}/>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-0.5">Total Brutto</p>
-              <p className="text-2xl font-black text-white font-outfit leading-none">
-                ${stats.totalGross.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-              </p>
-            </div>
-          </div>
-          {stats.manualGross > 0 && (
-            <div className="mt-1 px-3 py-1.5 bg-slate-950/50 rounded-xl border border-slate-800">
-               <p className="text-[9px] text-slate-500 font-bold flex justify-between">
-                 <span>Platform:</span>
-                 <span className="text-white">${stats.platformGross.toLocaleString()}</span>
-               </p>
-               <p className="text-[9px] text-emerald-500/80 font-bold flex justify-between">
-                 <span>Balance+:</span>
-                 <span className="text-emerald-400 font-black">+${stats.manualGross.toLocaleString()}</span>
-               </p>
-            </div>
-          )}
+        <div className="glass-card p-6 rounded-3xl bg-indigo-500/5 border-indigo-500/20">
+          <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1">Total Gross</p>
+          <p className="text-2xl font-black text-white font-outfit leading-none">${stats.totalGross.toLocaleString()}</p>
+          {stats.manualGross > 0 && <p className="text-[9px] text-emerald-400 font-bold mt-2">Incl. ${stats.manualGross.toLocaleString()} extra</p>}
         </div>
-
-        <StatCard title="Staff Net" value={`$${stats.net.toLocaleString()}`} color="emerald" icon={<ICONS.Salary size={20}/>} />
-        
-        {/* Карточки админов */}
+        <StatCard title="Staff Total Net" value={`$${stats.net.toLocaleString()}`} color="emerald" icon={<ICONS.Salary size={20}/>} />
         {stats.adminDetails.map((ad, idx) => (
-          <div key={ad.name} className={`glass-card p-6 rounded-3xl flex items-center gap-4 border-slate-800 transition-transform hover:scale-[1.02] ${idx === 0 ? 'bg-violet-500/5' : 'bg-purple-500/5'}`}>
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${idx === 0 ? 'bg-violet-500/10 text-violet-400' : 'bg-purple-500/10 text-purple-400'} shadow-inner`}>
-              <ICONS.Owner size={20}/>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-0.5">{ad.name}</p>
-              <div className="flex items-baseline gap-2">
-                <p className="text-xl font-black text-white font-outfit leading-none">${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                <span className="text-[9px] text-slate-500 font-bold">({ad.rate}%)</span>
-              </div>
+          <div key={ad.name} className={`glass-card p-6 rounded-3xl bg-slate-900/40 border-slate-800`}>
+            <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1">{ad.name}</p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-xl font-black text-white font-outfit leading-none">${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+              <span className="text-[9px] text-slate-500">({ad.rate}%)</span>
             </div>
           </div>
         ))}
-
-        <div className="hidden lg:block">
-           <StatCard title="PP & CR Net" value={`$${(stats.pp.net + stats.cr.net).toLocaleString()}`} color="sky" icon={<ICONS.Bonus size={20}/>} />
-        </div>
+        <StatCard title="PP & CR Net" value={`$${(stats.pp.net + stats.cr.net).toLocaleString()}`} color="sky" icon={<ICONS.Bonus size={20}/>} />
       </div>
 
-      <div className="glass-card rounded-[2.5rem] overflow-hidden shadow-2xl border-indigo-500/10">
-        <div className="p-8 border-b border-slate-800 bg-slate-900/40">
-          <h2 className="text-xl font-bold font-outfit">Ведомость Операторов</h2>
+      <div className="glass-card rounded-[2.5rem] overflow-hidden shadow-2xl border-slate-800/50">
+        <div className="p-8 border-b border-slate-800 bg-slate-900/40 flex justify-between items-center">
+          <h2 className="text-xl font-bold font-outfit">Ведомость персонала</h2>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Performance Index</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead>
-              <tr className="bg-slate-900/50 text-slate-500 uppercase text-[10px] font-black tracking-[0.15em]">
-                <th className="px-8 py-6 border-b border-slate-800">Оператор</th>
-                <th className="px-4 py-6 text-center border-b border-slate-800 bg-blue-500/5">OF (Brutto / Staff Net)</th>
-                <th className="px-4 py-6 text-center border-b border-slate-800 bg-sky-500/5">PP (Brutto / Staff Net)</th>
-                <th className="px-4 py-6 text-center border-b border-slate-800 bg-emerald-500/5">CR (Brutto / Staff Net)</th>
-                <th className="px-4 py-6 text-center border-b border-slate-800">Выплачено</th>
-                <th className="px-4 py-6 text-center border-b border-slate-800">Остаток</th>
-                <th className="px-8 py-6 text-right border-b border-slate-800">Статус</th>
+              <tr className="bg-slate-900/50 text-slate-500 uppercase text-[10px] font-black tracking-widest border-b border-slate-800">
+                <th className="px-8 py-6">Оператор</th>
+                <th className="px-4 py-6 text-center">Прогресс (Gross)</th>
+                <th className="px-4 py-6 text-center">OF Staff Net</th>
+                <th className="px-4 py-6 text-center">PP Staff Net</th>
+                <th className="px-4 py-6 text-center">CR Staff Net</th>
+                <th className="px-4 py-6 text-center">Остаток</th>
+                <th className="px-8 py-6 text-right">Статус</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
               {operatorRows.map(row => (
                 <tr key={row.op} className="hover:bg-indigo-500/5 transition-all">
                   <td className="px-8 py-5">
-                    <div className="font-bold text-white text-base cursor-pointer hover:text-indigo-400 transition-colors" onClick={() => navigate('/reports', { state: { operator: row.op } })}>{row.op}</div>
+                    <div className="font-bold text-white text-base cursor-pointer" onClick={() => navigate('/reports', { state: { operator: row.op } })}>{row.op}</div>
                   </td>
-                  <td className="px-4 py-5 text-center bg-blue-500/5">
-                    <div className="text-blue-400 font-mono font-bold">${row.ofG.toFixed(0)}</div>
-                    <div className="text-[9px] text-blue-500/60 font-black uppercase">Net: ${row.ofN.toFixed(1)}</div>
-                  </td>
-                  <td className="px-4 py-5 text-center bg-sky-500/5">
-                    <div className="text-sky-400 font-mono font-bold">${row.ppG.toFixed(0)}</div>
-                    <div className="text-[9px] text-sky-500/60 font-black uppercase">Net: ${row.ppN.toFixed(1)}</div>
-                  </td>
-                  <td className="px-4 py-5 text-center bg-emerald-500/5">
-                    <div className="text-emerald-400 font-mono font-bold">${row.crG.toFixed(0)}</div>
-                    <div className="text-[9px] text-emerald-500/60 font-black uppercase">Net: ${row.crN.toFixed(1)}</div>
+                  <td className="px-4 py-5 w-48">
+                    <div className="flex flex-col gap-1.5">
+                       <div className="flex justify-between text-[9px] font-black text-slate-500">
+                          <span>${row.totalGross.toFixed(0)}</span>
+                       </div>
+                       <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.5)] transition-all duration-1000" style={{ width: `${row.percentOfMax}%` }}></div>
+                       </div>
+                    </div>
                   </td>
                   <td className="px-4 py-5 text-center">
-                    <span className="font-mono text-rose-500/80 font-bold">-${row.paid.toFixed(1)}</span>
+                    <div className="text-blue-400 font-mono font-bold">${row.ofN.toFixed(1)}</div>
+                  </td>
+                  <td className="px-4 py-5 text-center">
+                    <div className="text-sky-400 font-mono font-bold">${row.ppN.toFixed(1)}</div>
+                  </td>
+                  <td className="px-4 py-5 text-center">
+                    <div className="text-emerald-400 font-mono font-bold">${row.crN.toFixed(1)}</div>
                   </td>
                   <td className="px-4 py-5 text-center">
                     <div className={`text-base font-black font-mono ${row.remainder >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      ${row.remainder.toFixed(2)}
+                      ${row.remainder.toFixed(1)}
                     </div>
                   </td>
                   <td className="px-8 py-5 text-right">
-                    <button 
-                      onClick={() => toggleOperatorPaid(row.op)}
-                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${row.isPaid ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}
-                    >
+                    <button onClick={() => toggleOperatorPaid(row.op)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${row.isPaid ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500'}`}>
                       {row.isPaid ? 'Выплачено' : 'Ожидает'}
                     </button>
                   </td>
@@ -302,8 +213,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   );
 };
 
-const StatCard: React.FC<{ title: string; value: string; icon: any; color: string; subtitle?: string }> = ({ title, value, icon, color, subtitle }) => (
-  <div className={`glass-card p-6 rounded-3xl flex flex-col justify-center gap-2 border-slate-800 transition-transform hover:scale-[1.02] bg-${color}-500/5`}>
+const StatCard: React.FC<{ title: string; value: string; icon: any; color: string }> = ({ title, value, icon, color }) => (
+  <div className={`glass-card p-6 rounded-3xl flex flex-col justify-center gap-2 border-slate-800 bg-${color}-500/5`}>
     <div className="flex items-center gap-4">
       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center bg-${color}-500/10 text-${color}-400 shadow-inner`}>{icon}</div>
       <div>
@@ -311,7 +222,6 @@ const StatCard: React.FC<{ title: string; value: string; icon: any; color: strin
         <p className="text-2xl font-black text-white font-outfit leading-none">{value}</p>
       </div>
     </div>
-    {subtitle && <p className="text-[9px] text-slate-500 font-bold italic ml-1">{subtitle}</p>}
   </div>
 );
 

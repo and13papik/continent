@@ -1,7 +1,6 @@
+import { AppState, AccountingPeriod, Admin } from './types';
 
-import { AppState, AccountingPeriod, Admin, IncomeRecord, OperationRecord } from './types';
-
-const STORAGE_KEY = 'continental_dashboard_v2';
+const STORAGE_KEY = 'continental_dashboard_v3';
 
 const defaultOperators = ['Op1', 'Op2', 'Op3', 'Op4', 'Op5', 'Op6', 'Op7', 'Op8', 'Op9', 'Op10'];
 const defaultModels = ['Succuba', 'Mermaid', 'Mommy', 'Fitness Stacy', 'Nola Lust', 'Caitlyn', 'Anastasiia Heat', 'Sophia Reilly'];
@@ -66,97 +65,57 @@ export function saveLocal(state: AppState) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function generateDetailedReport(state: AppState) {
-  const activePeriodId = state.selectedPeriodId;
-  const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
-  if (!activePeriod) return null;
-
-  const incomes = state.incomeData.filter(r => r.periodId === activePeriodId);
-  const ops = state.operationsData.filter(o => o.operator && o.periodId === activePeriodId);
-
-  const operatorReports = state.operators.map(op => {
-    const opIncomes = incomes.filter(r => r.operator === op);
-    const opOps = ops.filter(o => o.operator === op);
-
-    const stats = {
-      grossTotal: opIncomes.reduce((s, r) => s + r.total, 0),
-      ofGross: opIncomes.reduce((s, r) => s + r.onlyFans, 0),
-      ofNet: opIncomes.reduce((s, r) => s + r.nettoOF, 0),
-      ppGross: opIncomes.reduce((s, r) => s + r.paypal, 0),
-      ppNet: opIncomes.reduce((s, r) => s + r.nettoPP, 0),
-      crGross: opIncomes.reduce((s, r) => s + r.crypto, 0),
-      crNet: opIncomes.reduce((s, r) => s + r.nettoCrypto, 0),
-      paid: opOps.filter(o => ['advance', 'salary_payment'].includes(o.type)).reduce((s, o) => s + o.amount, 0),
-      penalties: opOps.filter(o => o.type === 'penalty').reduce((s, o) => s + o.amount, 0),
-      bonuses: opOps.filter(o => o.type === 'bonus').reduce((s, o) => s + o.amount, 0),
-    };
-
-    const netTotal = stats.ofNet + stats.ppNet + stats.crNet;
-    const remainder = netTotal + stats.bonuses - (stats.paid + stats.penalties);
-
-    const dailyGrid: Record<number, number> = {};
-    for (let day = 1; day <= 31; day++) {
-      const dayNet = opIncomes
-        .filter(r => new Date(r.date).getDate() === day)
-        .reduce((s, r) => s + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
-      dailyGrid[day] = Number(dayNet.toFixed(2));
-    }
-
-    return {
-      operator: op,
-      stats: { ...stats, netTotal: Number(netTotal.toFixed(2)), remainder: Number(remainder.toFixed(2)) },
-      daily: dailyGrid
-    };
-  });
-
-  return {
-    monthLabel: activePeriod.label,
-    data: operatorReports
-  };
-}
-
-export async function syncToCloud(state: AppState, action: string = 'sync_full_state'): Promise<boolean> {
-  if (!state.syncUrl) return false;
+export async function syncToCloud(state: AppState): Promise<boolean> {
+  if (!state.syncUrl || !state.syncKey) return false;
   
-  const payload = {
-    timestamp: new Date().toISOString(),
-    action: action,
-    full_backup: { ...state },
-    operator_report: generateDetailedReport(state)
-  };
+  const baseUrl = state.syncUrl.trim().replace(/\/$/, "");
+  const url = `${baseUrl}/rest/v1/app_storage?id=eq.main`;
 
   try {
-    // Используем POST для отправки и бэкапа и отчета
-    await fetch(state.syncUrl, {
-      method: 'POST',
-      mode: 'no-cors', 
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(payload)
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: { 
+        'Content-Type': 'application/json',
+        'apikey': state.syncKey.trim(),
+        'Authorization': `Bearer ${state.syncKey.trim()}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ 
+        state: state, 
+        updated_at: new Date().toISOString() 
+      })
     });
 
-    // Если есть вторая база
-    if (state.dbUrl) {
-       await fetch(state.dbUrl, {
-         method: 'POST',
-         mode: 'no-cors',
-         body: JSON.stringify({ backup: payload.full_backup })
-       }).catch(() => {});
-    }
-    
-    return true;
+    return response.ok;
   } catch (e) {
-    console.error("Sync error", e);
+    console.error("Cloud Sync Error:", e);
     return false;
   }
 }
 
-export async function fetchFromCloud(url: string): Promise<AppState | null> {
+export async function fetchFromCloud(url: string, key?: string): Promise<AppState | null> {
+  if (!url || !key) return null;
+  
+  const baseUrl = url.trim().replace(/\/$/, "");
+  const fetchUrl = `${baseUrl}/rest/v1/app_storage?id=eq.main&select=state`;
+
   try {
-    const response = await fetch(`${url}?t=${Date.now()}`);
+    const response = await fetch(fetchUrl, {
+      headers: { 
+        'apikey': key.trim(),
+        'Authorization': `Bearer ${key.trim()}`
+      }
+    });
+    
     if (!response.ok) return null;
+    
     const data = await response.json();
-    return data.full_backup || data;
+    if (Array.isArray(data) && data.length > 0) {
+      return data[0].state || null;
+    }
+    return null;
   } catch (e) {
+    console.error("Cloud Fetch Error:", e);
     return null;
   }
 }
