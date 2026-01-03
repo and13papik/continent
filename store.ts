@@ -66,7 +66,7 @@ export function saveLocal(state: AppState) {
 }
 
 export async function syncToCloud(state: AppState): Promise<boolean> {
-  if (!state.syncUrl || !state.syncKey) return false;
+  if (!state.syncUrl || !state.syncKey || !state.syncUrl.startsWith('http')) return false;
   
   const baseUrl = state.syncUrl.trim().replace(/\/$/, "");
   const url = `${baseUrl}/rest/v1/app_storage?id=eq.main`;
@@ -94,7 +94,7 @@ export async function syncToCloud(state: AppState): Promise<boolean> {
 }
 
 export async function fetchFromCloud(url: string, key?: string): Promise<AppState | null> {
-  if (!url || !key) return null;
+  if (!url || !key || !url.startsWith('http')) return null;
   
   const baseUrl = url.trim().replace(/\/$/, "");
   const fetchUrl = `${baseUrl}/rest/v1/app_storage?id=eq.main&select=state`;
