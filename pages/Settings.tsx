@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AppState } from '../types';
 import { ICONS } from '../constants';
-import { fetchFromCloud } from '../store';
+import { fetchFromCloud, testDatabaseConnection } from '../store';
 
 interface SettingsProps {
   state: AppState;
@@ -19,6 +19,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
   const [syncUrlInput, setSyncUrlInput] = useState(state.syncUrl || '');
   const [syncKeyInput, setSyncKeyInput] = useState(state.syncKey || '');
   const [isManualSyncing, setIsManualSyncing] = useState(false);
+  const [dbTestResult, setDbTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const exportData = () => {
     const dataStr = JSON.stringify(state, null, 2);
@@ -46,6 +47,12 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     reader.readAsText(file);
   };
 
+  const handleTestConnection = async () => {
+    setDbTestResult(null);
+    const result = await testDatabaseConnection(syncUrlInput, syncKeyInput);
+    setDbTestResult(result);
+  };
+
   const forcePull = async () => {
      if (!syncUrlInput || !syncKeyInput) return alert('Заполните настройки');
      setIsManualSyncing(true);
@@ -53,17 +60,17 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
      if (remote) {
         updateState(() => remote);
         alert('Успешно загружено!');
+     } else {
+        alert('В облаке пока нет сохраненных данных или ошибка доступа.');
      }
      setIsManualSyncing(false);
   };
 
-  // --- ЛОГИКА ПЕРЕИМЕНОВАНИЯ ОПЕРАТОРА ---
   const saveRenameOperator = () => {
     if (!editOp || !editOp.current.trim() || editOp.old === editOp.current) {
       setEditOp(null);
       return;
     }
-
     updateState(prev => ({
       ...prev,
       operators: prev.operators.map(o => o === editOp.old ? editOp.current : o),
@@ -73,13 +80,11 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     setEditOp(null);
   };
 
-  // --- ЛОГИКА ПЕРЕИМЕНОВАНИЯ МОДЕЛИ ---
   const saveRenameModel = () => {
     if (!editModel || !editModel.current.trim() || editModel.old === editModel.current) {
       setEditModel(null);
       return;
     }
-
     updateState(prev => ({
       ...prev,
       models: prev.models.map(m => m === editModel.old ? editModel.current : m),
@@ -97,32 +102,63 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
           <p className="text-slate-400">Конфигурация системы и облака</p>
         </div>
         <div className="flex gap-2">
-          <label className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer">
+          <label className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all">
             Импорт
             <input type="file" className="hidden" accept=".json" onChange={importData} />
           </label>
-          <button onClick={exportData} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-bold">Экспорт</button>
+          <button onClick={exportData} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all">Экспорт</button>
         </div>
       </header>
 
       {/* Cloud Sync */}
-      <div className="glass-card p-8 rounded-[32px] border-indigo-500/20 shadow-2xl">
-        <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-          <ICONS.Dashboard size={20} className="text-indigo-400" /> Supabase Синхронизация
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase">Supabase URL</label>
-            <input className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none" value={syncUrlInput} onChange={e => setSyncUrlInput(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase">Anon Key</label>
-            <input type="password" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none" value={syncKeyInput} onChange={e => setSyncKeyInput(e.target.value)} />
+      <div className="glass-card p-8 rounded-[32px] border-indigo-500/20 shadow-2xl relative overflow-hidden">
+        <div className="flex items-center justify-between mb-6">
+           <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <ICONS.Dashboard size={20} className="text-indigo-400" /> Supabase Синхронизация
+          </h2>
+          <div className="px-3 py-1 bg-slate-900 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-500 border border-slate-800">
+             Centralized Storage
           </div>
         </div>
-        <div className="flex gap-3">
-          <button onClick={() => updateState(p => ({ ...p, syncUrl: syncUrlInput, syncKey: syncKeyInput }))} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-sm">Сохранить настройки</button>
-          <button onClick={forcePull} disabled={isManualSyncing} className="bg-slate-800 text-white px-6 py-3 rounded-xl font-bold text-sm">Загрузить из облака</button>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Supabase URL</label>
+            <input className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3.5 text-sm text-white outline-none focus:border-indigo-500 transition-all" value={syncUrlInput} onChange={e => setSyncUrlInput(e.target.value)} placeholder="https://xxxx.supabase.co" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Anon Key (API Key)</label>
+            <input type="password" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3.5 text-sm text-white outline-none focus:border-indigo-500 transition-all" value={syncKeyInput} onChange={e => setSyncKeyInput(e.target.value)} placeholder="eyJhb..." />
+          </div>
+        </div>
+
+        {dbTestResult && (
+          <div className={`mb-6 p-4 rounded-2xl border flex items-center gap-3 animate-in slide-in-from-left-2 ${dbTestResult.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'}`}>
+            {dbTestResult.success ? <ICONS.Lock size={18} /> : <ICONS.Penalty size={18} />}
+            <span className="text-sm font-bold">{dbTestResult.message}</span>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-3">
+          <button 
+            onClick={() => updateState(p => ({ ...p, syncUrl: syncUrlInput, syncKey: syncKeyInput }))} 
+            className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3.5 rounded-2xl font-bold text-sm shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+          >
+            Применить и Сохранить
+          </button>
+          <button 
+            onClick={handleTestConnection} 
+            className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-95"
+          >
+            Проверить базу
+          </button>
+          <button 
+            onClick={forcePull} 
+            disabled={isManualSyncing} 
+            className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50"
+          >
+            {isManualSyncing ? 'Загрузка...' : 'Загрузить из облака'}
+          </button>
         </div>
       </div>
 

@@ -69,18 +69,20 @@ export async function syncToCloud(state: AppState): Promise<boolean> {
   if (!state.syncUrl || !state.syncKey || !state.syncUrl.startsWith('http')) return false;
   
   const baseUrl = state.syncUrl.trim().replace(/\/$/, "");
-  const url = `${baseUrl}/rest/v1/app_storage?id=eq.main`;
+  const url = `${baseUrl}/rest/v1/app_storage`;
 
   try {
+    // Используем POST с заголовком resolution=merge-duplicates для Upsert (создать или обновить)
     const response = await fetch(url, {
-      method: 'PATCH',
+      method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
         'apikey': state.syncKey.trim(),
         'Authorization': `Bearer ${state.syncKey.trim()}`,
-        'Prefer': 'return=minimal'
+        'Prefer': 'resolution=merge-duplicates' 
       },
       body: JSON.stringify({ 
+        id: 'main',
         state: state, 
         updated_at: new Date().toISOString() 
       })
@@ -90,6 +92,26 @@ export async function syncToCloud(state: AppState): Promise<boolean> {
   } catch (e) {
     console.error("Cloud Sync Error:", e);
     return false;
+  }
+}
+
+export async function testDatabaseConnection(url: string, key: string): Promise<{ success: boolean; message: string }> {
+  if (!url || !key) return { success: false, message: "URL или Ключ не введены" };
+  const baseUrl = url.trim().replace(/\/$/, "");
+  
+  try {
+    // 1. Проверяем наличие таблицы
+    const checkTable = await fetch(`${baseUrl}/rest/v1/app_storage?select=id&limit=1`, {
+      headers: { 'apikey': key.trim(), 'Authorization': `Bearer ${key.trim()}` }
+    });
+
+    if (checkTable.status === 404) return { success: false, message: "Таблица 'app_storage' не найдена в Supabase. Проверьте SQL запрос." };
+    if (checkTable.status === 401 || checkTable.status === 403) return { success: false, message: "Ошибка авторизации. Проверьте Anon Key." };
+    if (!checkTable.ok) return { success: false, message: `Ошибка API: ${checkTable.statusText}` };
+
+    return { success: true, message: "Соединение установлено! Таблица доступна." };
+  } catch (e) {
+    return { success: false, message: "Не удалось достучаться до сервера. Проверьте URL." };
   }
 }
 

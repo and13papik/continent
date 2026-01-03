@@ -71,12 +71,10 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       const adjPlus = ops.filter(o => o.type === 'bonus').reduce((sum, o) => sum + o.amount, 0);
       const adjMinus = ops.filter(o => ['penalty', 'refund', 'advance', 'salary_payment', 'internship'].includes(o.type)).reduce((sum, o) => sum + o.amount, 0);
 
-      const paid = ops.filter(o => ['advance', 'salary_payment'].includes(o.type)).reduce((sum, o) => sum + o.amount, 0);
       const remainder = totalNet + adjPlus - adjMinus;
-
       const isPaid = state.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
 
-      return { op, totalGross, ofG, ofN, ppG, ppN, crG, crN, paid, remainder, isPaid };
+      return { op, totalGross, ofG, ofN, ppG, ppN, crG, crN, remainder, isPaid };
     });
 
     const maxGross = Math.max(...raw.map(r => r.totalGross), 1);
@@ -163,7 +161,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
                 <th className="px-4 py-6 text-center">OF (G / N)</th>
                 <th className="px-4 py-6 text-center">PP (G / N)</th>
                 <th className="px-4 py-6 text-center">CR (G / N)</th>
-                <th className="px-4 py-6 text-center">Остаток</th>
+                <th className="px-4 py-6 text-center">Остаток (Net)</th>
                 <th className="px-8 py-6 text-right">Статус</th>
               </tr>
             </thead>
@@ -207,7 +205,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
                     </div>
                   </td>
                   <td className="px-8 py-5 text-right">
-                    <button onClick={() => toggleOperatorPaid(row.op)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${row.isPaid ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500'}`}>
+                    <button onClick={() => toggleOperatorPaid(row.op)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${row.isPaid ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}>
                       {row.isPaid ? 'Выплачено' : 'Ожидает'}
                     </button>
                   </td>

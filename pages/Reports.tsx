@@ -64,15 +64,13 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
       refund: ops.filter(o => o.type === 'refund').reduce((s,o) => s + o.amount, 0),
     };
 
-    // Internship теперь в группе вычитаний (deductions)
     const deductions = adjustmentGroups.advance + adjustmentGroups.salary + adjustmentGroups.penalty + adjustmentGroups.refund + adjustmentGroups.internship;
     const additions = adjustmentGroups.bonus;
     const finalBalance = totalNetto + additions - deductions;
 
-    // Список анкет
     const activeModels = Array.from(new Set(incomes.map(i => i.model)));
 
-    // Статистика по дням (Daily Mix)
+    // Daily History
     const dailyData: Record<string, { 
       gross: number, net: number, models: Set<string>, 
       ofG: number, ofN: number, ppG: number, ppN: number, crG: number, crN: number,
@@ -192,56 +190,30 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
         <div className="space-y-6">
           {/* Main Financial Overview */}
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <InfoBox title="Total Brutto" value={report.totalBrutto} color="slate" />
-            <InfoBox title="Total Staff Net" value={report.totalNetto} color="emerald" />
-            <InfoBox title="Остаток к выплате" value={report.finalBalance} color="indigo" highlighted />
-            <div className="glass-card p-6 rounded-3xl border-slate-800 flex flex-col justify-center">
-               <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2">Анкеты</p>
-               <div className="flex flex-wrap gap-1.5">
-                  {report.activeModels.map(m => <span key={m} className="bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-lg text-[10px] font-bold border border-indigo-500/10">{m}</span>)}
-               </div>
-            </div>
-          </section>
-
-          {/* Platform Detailed Summary */}
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <InfoBox title="Общий Брутто" value={report.totalBrutto} color="slate" />
+            <InfoBox title="Общий Нетто" value={report.totalNetto} color="emerald" highlighted />
+            
             <div className="glass-card p-6 rounded-3xl border-blue-500/20 bg-blue-500/5">
-               <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest mb-3">OnlyFans Summary</p>
-               <div className="flex justify-between items-end">
-                  <div>
-                    <p className="text-[9px] text-slate-500 uppercase font-bold">Gross</p>
-                    <p className="text-lg font-bold text-white font-mono">${report.platformStats.of.gross.toLocaleString()}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[9px] text-blue-400 uppercase font-bold">Net</p>
-                    <p className="text-xl font-black text-blue-400 font-mono">${report.platformStats.of.net.toLocaleString()}</p>
-                  </div>
+               <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest mb-1">OnlyFans (B/H)</p>
+               <div className="flex flex-col">
+                  <span className="text-xs text-slate-500 font-mono">${report.platformStats.of.gross.toFixed(1)}</span>
+                  <span className="text-lg font-black text-white font-mono">${report.platformStats.of.net.toFixed(1)}</span>
                </div>
             </div>
+
             <div className="glass-card p-6 rounded-3xl border-sky-500/20 bg-sky-500/5">
-               <p className="text-[10px] font-black uppercase text-sky-500 tracking-widest mb-3">PayPal Summary</p>
-               <div className="flex justify-between items-end">
-                  <div>
-                    <p className="text-[9px] text-slate-500 uppercase font-bold">Gross</p>
-                    <p className="text-lg font-bold text-white font-mono">${report.platformStats.pp.gross.toLocaleString()}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[9px] text-sky-400 uppercase font-bold">Net</p>
-                    <p className="text-xl font-black text-sky-400 font-mono">${report.platformStats.pp.net.toLocaleString()}</p>
-                  </div>
+               <p className="text-[10px] font-black uppercase text-sky-500 tracking-widest mb-1">PayPal (B/H)</p>
+               <div className="flex flex-col">
+                  <span className="text-xs text-slate-500 font-mono">${report.platformStats.pp.gross.toFixed(1)}</span>
+                  <span className="text-lg font-black text-white font-mono">${report.platformStats.pp.net.toFixed(1)}</span>
                </div>
             </div>
+
             <div className="glass-card p-6 rounded-3xl border-emerald-500/20 bg-emerald-500/5">
-               <p className="text-[10px] font-black uppercase text-emerald-500 tracking-widest mb-3">Crypto Summary</p>
-               <div className="flex justify-between items-end">
-                  <div>
-                    <p className="text-[9px] text-slate-500 uppercase font-bold">Gross</p>
-                    <p className="text-lg font-bold text-white font-mono">${report.platformStats.cr.gross.toLocaleString()}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[9px] text-emerald-400 uppercase font-bold">Net</p>
-                    <p className="text-xl font-black text-emerald-400 font-mono">${report.platformStats.cr.net.toLocaleString()}</p>
-                  </div>
+               <p className="text-[10px] font-black uppercase text-emerald-500 tracking-widest mb-1">Crypto (B/H)</p>
+               <div className="flex flex-col">
+                  <span className="text-xs text-slate-500 font-mono">${report.platformStats.cr.gross.toFixed(1)}</span>
+                  <span className="text-lg font-black text-white font-mono">${report.platformStats.cr.net.toFixed(1)}</span>
                </div>
             </div>
           </section>
@@ -249,7 +221,12 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
           <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
              <div className="lg:col-span-2 space-y-6">
                 <div className="glass-card rounded-[2.5rem] overflow-hidden shadow-xl border-slate-800">
-                   <div className="p-8 border-b border-slate-800 bg-slate-900/40 font-bold font-outfit text-xl">Статистика по дням (Merged)</div>
+                   <div className="p-8 border-b border-slate-800 bg-slate-900/40 flex justify-between items-center">
+                      <h2 className="font-bold font-outfit text-xl text-white">Статистика по дням</h2>
+                      <div className="flex gap-2">
+                        {report.activeModels.map(m => <span key={m} className="bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded text-[10px] font-bold border border-indigo-500/10">{m}</span>)}
+                      </div>
+                   </div>
                    <div className="overflow-x-auto">
                       <table className="w-full text-left text-sm">
                          <thead>
@@ -265,9 +242,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                                <tr key={d.date} className="hover:bg-indigo-500/5 transition-colors">
                                   <td className="px-8 py-5">
                                      <div className="font-mono text-slate-400 text-xs mb-1">{d.date}</div>
-                                     <div className="flex gap-1 flex-wrap">
-                                        {d.models.map(m => <span key={m} className="text-[8px] text-slate-600 uppercase font-black border border-slate-800 px-1 rounded">{m}</span>)}
-                                     </div>
                                   </td>
                                   <td className="px-6 py-5">
                                      <div className="flex justify-center gap-3">
@@ -287,33 +261,37 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
              </div>
 
              <div className="space-y-6">
-                <div className="glass-card p-8 rounded-[2.5rem] border-indigo-500/20 shadow-2xl space-y-5">
-                   <h3 className="text-xl font-bold font-outfit text-white">Корректировки</h3>
-                   <div className="space-y-4">
-                      <AdjItem label="Аванс" val={report.adjustmentGroups.advance} type="minus" />
-                      <AdjItem label="Выплата ЗП" val={report.adjustmentGroups.salary} type="minus" />
-                      <AdjItem label="Штраф" val={report.adjustmentGroups.penalty} type="minus" />
-                      <AdjItem label="Возврат" val={report.adjustmentGroups.refund} type="minus" />
-                      <AdjItem label="Бонус" val={report.adjustmentGroups.bonus} type="plus" />
-                      <AdjItem label="Стажировка" val={report.adjustmentGroups.internship} type="minus" />
+                <div className="glass-card p-8 rounded-[2.5rem] border-indigo-500/20 bg-indigo-500/5 shadow-2xl space-y-6">
+                   <div className="flex justify-between items-center">
+                      <h3 className="text-xl font-bold font-outfit text-white">Финальный итог</h3>
+                      <ICONS.Salary className="text-indigo-400" size={20} />
                    </div>
-                </div>
-
-                <div className="glass-card p-8 rounded-[2.5rem] border-slate-800 shadow-xl space-y-4">
-                   <h3 className="text-xl font-bold font-outfit text-white">Чистые по типам</h3>
-                   <PlatStat label="OnlyFans Net" val={report.platformStats.of.net} color="blue" />
-                   <PlatStat label="PayPal Net" val={report.platformStats.pp.net} color="sky" />
-                   <PlatStat label="Crypto Net" val={report.platformStats.cr.net} color="emerald" />
+                   <div className="space-y-4">
+                      <div className="flex justify-between border-b border-slate-800/50 pb-2">
+                        <span className="text-slate-500 font-bold text-[10px] uppercase">Общий Нетто (Staff)</span>
+                        <span className="font-mono font-bold text-white text-base">${report.totalNetto.toFixed(1)}</span>
+                      </div>
+                      <AdjItem label="Авансы/ЗП" val={report.adjustmentGroups.advance + report.adjustmentGroups.salary} type="minus" />
+                      <AdjItem label="Штрафы/Возвраты" val={report.adjustmentGroups.penalty + report.adjustmentGroups.refund} type="minus" />
+                      <AdjItem label="Бонусы" val={report.adjustmentGroups.bonus} type="plus" />
+                      <AdjItem label="Стажировочные" val={report.adjustmentGroups.internship} type="minus" />
+                      <div className="pt-4 border-t border-indigo-500/20">
+                         <div className="flex justify-between items-center">
+                            <span className="text-indigo-400 font-black text-[12px] uppercase tracking-widest">К выплате на руки</span>
+                            <span className="text-2xl font-black font-mono text-indigo-400">${report.finalBalance.toFixed(1)}</span>
+                         </div>
+                      </div>
+                   </div>
                 </div>
              </div>
           </section>
 
           <section className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-2xl">
              <div className="p-8 border-b border-slate-800 bg-slate-900/40 font-bold font-outfit text-lg flex justify-between items-center">
-                <span>Полная история операций (Редактирование)</span>
+                <span>Полная история операций</span>
                 <span className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Audited Trails</span>
              </div>
-             <div className="overflow-x-auto">
+             <div className="overflow-x-auto max-h-[500px]">
                 <table className="w-full text-left text-sm whitespace-nowrap">
                    <thead>
                       <tr className="bg-slate-900/50 text-slate-500 font-bold text-[10px] uppercase tracking-[0.2em] border-b border-slate-800">
@@ -404,7 +382,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
 const InfoBox = ({ title, value, color, highlighted }: any) => (
   <div className={`glass-card p-6 rounded-3xl border ${highlighted ? 'border-indigo-500/40 bg-indigo-500/10 shadow-2xl' : 'border-slate-800'}`}>
     <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">{title}</p>
-    <p className={`text-2xl font-black font-outfit ${highlighted ? 'text-white' : `text-${color}-400`}`}>${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+    <p className={`text-2xl font-black font-outfit ${highlighted ? 'text-white' : `text-${color}-400`}`}>${value.toLocaleString(undefined, { minimumFractionDigits: 1 })}</p>
   </div>
 );
 
@@ -425,16 +403,6 @@ const AdjItem = ({ label, val, type }: any) => (
      <span className={`font-mono font-bold text-base ${type === 'plus' ? 'text-emerald-400' : 'text-rose-400'}`}>{type === 'plus' ? '+' : '-'}${val.toFixed(1)}</span>
   </div>
 );
-
-const PlatStat = ({ label, val, color }: any) => {
-  const cMap: any = { blue: 'text-blue-400', sky: 'text-sky-400', emerald: 'text-emerald-400' };
-  return (
-    <div className="flex items-center justify-between">
-       <span className="text-slate-500 font-bold text-[10px] uppercase tracking-widest">{label}</span>
-       <span className={`font-mono font-black text-lg ${cMap[color]}`}>${val.toFixed(2)}</span>
-    </div>
-  );
-};
 
 const RateField = ({ label, val, onChange, color }: any) => {
   const colorMap: any = { blue: 'focus:ring-blue-500 text-blue-400', sky: 'focus:ring-sky-500 text-sky-400', emerald: 'focus:ring-emerald-500 text-emerald-400', indigo: 'focus:ring-indigo-500 text-indigo-400', amber: 'focus:ring-amber-500 text-amber-500' };
