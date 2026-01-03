@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { AppState, Admin } from '../types';
 import { ICONS } from '../constants';
@@ -145,7 +144,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
           </div>
           <div>
             <h2 className="text-2xl font-bold font-outfit text-white">Supabase Cloud Sync</h2>
-            <p className="text-sm text-slate-400">Введите данные из раздела Project Settings -> API</p>
+            <p className="text-sm text-slate-400">Введите данные из раздела Project Settings &rarr; API</p>
           </div>
         </div>
         
