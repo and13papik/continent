@@ -20,34 +20,41 @@ const App: React.FC = () => {
   // Флаг инициализации облака. Пока он false, мы не отправляем данные в облако, чтобы не стереть их пустым состоянием.
   const [isCloudReady, setIsCloudReady] = useState(false);
 
-  // Load from cloud on mount
+  // 1. Загрузка из облака при первом старте
   useEffect(() => {
-    if (state.syncUrl && state.syncKey) {
-      setCloudStatus('loading');
-      fetchFromCloud(state.syncUrl, state.syncKey).then(remoteData => {
-        if (remoteData && remoteData.accountingPeriods) {
-          setState(prev => ({ 
-            ...remoteData, 
-            syncUrl: prev.syncUrl, 
-            syncKey: prev.syncKey 
-          }));
-          setCloudStatus('success');
-          setLastSyncTime(new Date().toLocaleTimeString());
-        } else {
-          setCloudStatus('idle');
+    const initCloud = async () => {
+      if (state.syncUrl && state.syncKey) {
+        setCloudStatus('loading');
+        try {
+          const remoteData = await fetchFromCloud(state.syncUrl, state.syncKey);
+          if (remoteData && remoteData.accountingPeriods) {
+            setState(prev => ({ 
+              ...remoteData, 
+              syncUrl: prev.syncUrl, 
+              syncKey: prev.syncKey 
+            }));
+            setCloudStatus('success');
+            setLastSyncTime(new Date().toLocaleTimeString());
+          } else {
+            setCloudStatus('idle');
+          }
+        } catch (e) {
+          setCloudStatus('error');
+        } finally {
+          setIsCloudReady(true);
         }
+      } else {
         setIsCloudReady(true);
-      });
-    } else {
-      setIsCloudReady(true);
-    }
+      }
+    };
+    initCloud();
   }, []);
 
-  // Sync to local and cloud on changes
+  // 2. Сохранение локально и в облако при изменениях
   useEffect(() => {
     saveLocal(state);
     
-    // Синхронизируем ТОЛЬКО если облако проверено и готовы к работе
+    // Синхронизируем ТОЛЬКО если облако проверено и мы не в процессе синхронизации
     if (state.syncUrl && state.syncKey && isCloudReady && !isSyncing) {
       const timer = setTimeout(async () => {
         setIsSyncing(true);
@@ -60,7 +67,7 @@ const App: React.FC = () => {
           setCloudStatus('error');
         }
         setIsSyncing(false);
-      }, 3000); // Чуть увеличим задержку для безопасности
+      }, 3000); 
       return () => clearTimeout(timer);
     }
   }, [state, isCloudReady]);
