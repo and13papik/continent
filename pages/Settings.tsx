@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { AppState, Admin } from '../types';
+import { AppState } from '../types';
 import { ICONS } from '../constants';
-import { fetchFromCloud, syncToCloud, saveLocal } from '../store';
+import { fetchFromCloud } from '../store';
 
 interface SettingsProps {
   state: AppState;
@@ -13,6 +13,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
   const [editingOp, setEditingOp] = useState<{ oldName: string; newName: string } | null>(null);
   const [newModel, setNewModel] = useState('');
   const [editingModel, setEditingModel] = useState<{ oldName: string; newName: string } | null>(null);
+  
   const [syncUrlInput, setSyncUrlInput] = useState(state.syncUrl || '');
   const [syncKeyInput, setSyncKeyInput] = useState(state.syncKey || '');
   const [isManualSyncing, setIsManualSyncing] = useState(false);
@@ -62,11 +63,12 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
      setIsManualSyncing(false);
   };
 
-  const saveUrls = () => {
+  const saveSyncSettings = () => {
     updateState(prev => ({ ...prev, syncUrl: syncUrlInput, syncKey: syncKeyInput }));
-    alert('Настройки сохранены. Приложение начнет синхронизацию.');
+    alert('Настройки сохранены. Приложение начнет автоматическую синхронизацию.');
   };
 
+  // Operators
   const addOperator = () => {
     if (!newOp || state.operators.includes(newOp)) return;
     updateState(prev => ({ ...prev, operators: [...prev.operators, newOp] }));
@@ -85,11 +87,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     setEditingOp(null);
   };
 
-  const removeOperator = (name: string) => {
-    if (!confirm(`Удалить оператора "${name}"?`)) return;
-    updateState(prev => ({ ...prev, operators: prev.operators.filter(o => o !== name) }));
-  };
-
+  // Models
   const addModel = () => {
     if (!newModel || state.models.includes(newModel)) return;
     updateState(prev => ({ ...prev, models: [...prev.models, newModel] }));
@@ -107,17 +105,20 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     setEditingModel(null);
   };
 
-  const removeModel = (name: string) => {
-    if (!confirm(`Удалить анкету "${name}"?`)) return;
-    updateState(prev => ({ ...prev, models: prev.models.filter(m => m !== name) }));
+  // Admins management
+  const updateAdminRate = (id: string, rate: number) => {
+    updateState(prev => ({
+      ...prev,
+      admins: prev.admins.map(a => a.id === id ? { ...a, rate } : a)
+    }));
   };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <header className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold font-outfit text-white">Управление данными</h1>
-          <p className="text-slate-400">Конфигурация Supabase Cloud и локальных бэкапов</p>
+          <h1 className="text-3xl font-bold font-outfit text-white">Настройки</h1>
+          <p className="text-slate-400">Конфигурация системы и облачная синхронизация</p>
         </div>
         <div className="flex gap-3">
           <label className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-2 transition-all">
@@ -130,6 +131,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
         </div>
       </header>
 
+      {/* Cloud Sync Section */}
       <div className="glass-card p-8 rounded-[40px] border-indigo-500/20 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 p-8">
            <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${state.syncUrl ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'}`}>
@@ -160,7 +162,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
         </div>
 
         <div className="flex gap-4">
-            <button onClick={saveUrls} className="bg-indigo-600 hover:bg-indigo-500 text-white px-10 py-4 rounded-2xl font-bold text-sm transition-all shadow-xl shadow-indigo-600/20 active:scale-95">Сохранить и Синхронизировать</button>
+            <button onClick={saveSyncSettings} className="bg-indigo-600 hover:bg-indigo-500 text-white px-10 py-4 rounded-2xl font-bold text-sm transition-all shadow-xl shadow-indigo-600/20 active:scale-95">Сохранить и Синхронизировать</button>
             <button onClick={forcePull} disabled={isManualSyncing} className="bg-slate-800 hover:bg-slate-700 text-white px-10 py-4 rounded-2xl font-bold text-sm transition-all flex items-center gap-2">
                 {isManualSyncing ? 'Загрузка...' : 'Загрузить из облака (Pull)'}
                 <ICONS.RotateCcw size={16} className={isManualSyncing ? 'animate-spin' : ''} />
@@ -168,7 +170,32 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
         </div>
       </div>
 
+      {/* Admins Config Section */}
+      <div className="glass-card p-8 rounded-[32px] border-slate-800 shadow-xl space-y-6">
+          <h2 className="text-xl font-bold font-outfit text-white flex items-center gap-3">
+             <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400"><ICONS.Salary size={20} /></div>
+             Комиссии Администраторов
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {state.admins.map(admin => (
+              <div key={admin.id} className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800">
+                <p className="text-[10px] font-black text-slate-500 uppercase mb-2">{admin.name}</p>
+                <div className="flex items-center gap-3">
+                   <input 
+                      type="number" 
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-indigo-400 font-bold"
+                      value={admin.rate}
+                      onChange={(e) => updateAdminRate(admin.id, parseFloat(e.target.value) || 0)}
+                   />
+                   <span className="text-slate-500 font-bold">%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Staff Management */}
           <div className="glass-card p-8 rounded-[32px] border-slate-800 shadow-xl space-y-6">
             <h2 className="text-xl font-bold font-outfit text-white flex items-center gap-3">
                <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400"><ICONS.Reports size={20} /></div>
@@ -176,11 +203,11 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
             </h2>
             <div className="flex gap-2">
               <input value={newOp} onChange={e => setNewOp(e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none" placeholder="Имя нового оператора..."/>
-              <button onClick={addOperator} className="bg-sky-600 hover:bg-sky-500 text-white px-5 rounded-xl transition-all shadow-lg active:scale-90"><ICONS.Plus size={20}/></button>
+              <button onClick={addOperator} className="bg-sky-600 hover:bg-sky-500 text-white px-5 rounded-xl transition-all shadow-lg"><ICONS.Plus size={20}/></button>
             </div>
-            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
               {state.operators.map(o => (
-                <div key={o} className="bg-slate-900/50 border border-slate-800 p-4 rounded-2xl flex items-center justify-between group">
+                <div key={o} className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl flex items-center justify-between group">
                   {editingOp?.oldName === o ? (
                     <div className="flex-1 flex gap-2">
                       <input className="flex-1 bg-slate-800 border border-sky-500 rounded-lg px-3 py-1 text-sm text-white" value={editingOp.newName} onChange={e => setEditingOp({...editingOp, newName: e.target.value})} />
@@ -191,7 +218,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
                       <span className="text-slate-200 font-bold">{o}</span>
                       <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => setEditingOp({ oldName: o, newName: o })} className="text-slate-500 hover:text-sky-400"><ICONS.Edit size={16}/></button>
-                        <button onClick={() => removeOperator(o)} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={16}/></button>
+                        <button onClick={() => updateState(p => ({...p, operators: p.operators.filter(x => x !== o)}))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={16}/></button>
                       </div>
                     </>
                   )}
@@ -200,6 +227,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
             </div>
           </div>
 
+          {/* Models Management */}
           <div className="glass-card p-8 rounded-[32px] border-slate-800 shadow-xl space-y-6">
             <h2 className="text-xl font-bold font-outfit text-white flex items-center gap-3">
                <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400"><ICONS.Models size={20} /></div>
@@ -207,11 +235,11 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
             </h2>
             <div className="flex gap-2">
                <input value={newModel} onChange={e => setNewModel(e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none" placeholder="Название анкеты..."/>
-               <button onClick={addModel} className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 rounded-xl shadow-lg active:scale-90 transition-all"><ICONS.Plus size={20}/></button>
+               <button onClick={addModel} className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 rounded-xl shadow-lg"><ICONS.Plus size={20}/></button>
             </div>
-            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
                {state.models.map(m => (
-                 <div key={m} className="bg-slate-900/50 border border-slate-800 p-4 rounded-2xl flex items-center justify-between group">
+                 <div key={m} className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl flex items-center justify-between group">
                    {editingModel?.oldName === m ? (
                      <div className="flex-1 flex gap-2">
                        <input className="flex-1 bg-slate-800 border border-indigo-500 rounded-lg px-3 py-1 text-sm text-white" value={editingModel.newName} onChange={e => setEditingModel({...editingModel, newName: e.target.value})} />
@@ -222,7 +250,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
                        <span className="text-slate-200 font-bold">{m}</span>
                        <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
                          <button onClick={() => setEditingModel({ oldName: m, newName: m })} className="text-slate-500 hover:text-indigo-400"><ICONS.Edit size={16}/></button>
-                         <button onClick={() => removeModel(m)} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={16}/></button>
+                         <button onClick={() => updateState(p => ({...p, models: p.models.filter(x => x !== m)}))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={16}/></button>
                        </div>
                      </>
                    )}
