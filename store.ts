@@ -66,13 +66,13 @@ export function saveLocal(state: AppState) {
 }
 
 export async function syncToCloud(state: AppState): Promise<boolean> {
-  if (!state.syncUrl || !state.syncKey || !state.syncUrl.startsWith('http')) return false;
+  if (!state.syncUrl || !state.syncKey) return false;
   
   const baseUrl = state.syncUrl.trim().replace(/\/$/, "");
+  if (!baseUrl.startsWith('http')) return false;
   const url = `${baseUrl}/rest/v1/app_storage`;
 
   try {
-    // Используем POST с заголовком resolution=merge-duplicates для Upsert (создать или обновить)
     const response = await fetch(url, {
       method: 'POST',
       headers: { 
@@ -100,25 +100,25 @@ export async function testDatabaseConnection(url: string, key: string): Promise<
   const baseUrl = url.trim().replace(/\/$/, "");
   
   try {
-    // 1. Проверяем наличие таблицы
     const checkTable = await fetch(`${baseUrl}/rest/v1/app_storage?select=id&limit=1`, {
       headers: { 'apikey': key.trim(), 'Authorization': `Bearer ${key.trim()}` }
     });
 
-    if (checkTable.status === 404) return { success: false, message: "Таблица 'app_storage' не найдена в Supabase. Проверьте SQL запрос." };
-    if (checkTable.status === 401 || checkTable.status === 403) return { success: false, message: "Ошибка авторизации. Проверьте Anon Key." };
-    if (!checkTable.ok) return { success: false, message: `Ошибка API: ${checkTable.statusText}` };
+    if (checkTable.status === 404) return { success: false, message: "Таблица 'app_storage' не найдена." };
+    if (checkTable.status === 401 || checkTable.status === 403) return { success: false, message: "Ошибка ключа (API Key)." };
+    if (!checkTable.ok) return { success: false, message: `Ошибка API: ${checkTable.status}` };
 
-    return { success: true, message: "Соединение установлено! Таблица доступна." };
+    return { success: true, message: "Соединение установлено!" };
   } catch (e) {
-    return { success: false, message: "Не удалось достучаться до сервера. Проверьте URL." };
+    return { success: false, message: "Сервер недоступен. Проверьте URL." };
   }
 }
 
 export async function fetchFromCloud(url: string, key?: string): Promise<AppState | null> {
-  if (!url || !key || !url.startsWith('http')) return null;
+  if (!url || !key) return null;
   
   const baseUrl = url.trim().replace(/\/$/, "");
+  if (!baseUrl.startsWith('http')) return null;
   const fetchUrl = `${baseUrl}/rest/v1/app_storage?id=eq.main&select=state`;
 
   try {

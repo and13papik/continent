@@ -12,7 +12,6 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
   const [newOp, setNewOp] = useState('');
   const [newModel, setNewModel] = useState('');
   
-  // Состояние для редактирования
   const [editOp, setEditOp] = useState<{ old: string; current: string } | null>(null);
   const [editModel, setEditModel] = useState<{ old: string; current: string } | null>(null);
 
@@ -53,15 +52,31 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     setDbTestResult(result);
   };
 
+  const handleApplySettings = () => {
+    updateState(p => ({ ...p, syncUrl: syncUrlInput, syncKey: syncKeyInput }));
+    alert('Настройки сохранены локально. Теперь нажмите "Загрузить из облака", чтобы подтянуть данные.');
+  };
+
   const forcePull = async () => {
-     if (!syncUrlInput || !syncKeyInput) return alert('Заполните настройки');
+     if (!syncUrlInput || !syncKeyInput) return alert('Сначала введите URL и Ключ');
+     
      setIsManualSyncing(true);
+     setDbTestResult({ success: true, message: "Запрос данных..." });
+     
      const remote = await fetchFromCloud(syncUrlInput, syncKeyInput);
-     if (remote) {
-        updateState(() => remote);
-        alert('Успешно загружено!');
+     
+     if (remote && remote.accountingPeriods) {
+        // Важно: при загрузке мы сохраняем введенные настройки синхронизации
+        updateState(() => ({
+          ...remote,
+          syncUrl: syncUrlInput,
+          syncKey: syncKeyInput
+        }));
+        setDbTestResult({ success: true, message: "Данные успешно получены из Supabase!" });
+        alert('Успех! База данных восстановлена.');
      } else {
-        alert('В облаке пока нет сохраненных данных или ошибка доступа.');
+        setDbTestResult({ success: false, message: "В облаке пусто или неверный URL/Ключ." });
+        alert('Не удалось найти данные. Убедитесь, что на старом домене была нажата кнопка "Применить и Сохранить" и статус был "Синхронизировано".');
      }
      setIsManualSyncing(false);
   };
@@ -114,20 +129,20 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
       <div className="glass-card p-8 rounded-[32px] border-indigo-500/20 shadow-2xl relative overflow-hidden">
         <div className="flex items-center justify-between mb-6">
            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <ICONS.Dashboard size={20} className="text-indigo-400" /> Supabase Синхронизация
+            <ICONS.Dashboard size={20} className="text-indigo-400" /> Подключение к Supabase
           </h2>
           <div className="px-3 py-1 bg-slate-900 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-500 border border-slate-800">
-             Centralized Storage
+             Cloud Storage
           </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Supabase URL</label>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Supabase Project URL</label>
             <input className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3.5 text-sm text-white outline-none focus:border-indigo-500 transition-all" value={syncUrlInput} onChange={e => setSyncUrlInput(e.target.value)} placeholder="https://xxxx.supabase.co" />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Anon Key (API Key)</label>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Anon Key / API Key</label>
             <input type="password" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3.5 text-sm text-white outline-none focus:border-indigo-500 transition-all" value={syncKeyInput} onChange={e => setSyncKeyInput(e.target.value)} placeholder="eyJhb..." />
           </div>
         </div>
@@ -141,25 +156,29 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
 
         <div className="flex flex-wrap gap-3">
           <button 
-            onClick={() => updateState(p => ({ ...p, syncUrl: syncUrlInput, syncKey: syncKeyInput }))} 
+            onClick={handleApplySettings} 
             className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3.5 rounded-2xl font-bold text-sm shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
           >
-            Применить и Сохранить
+            1. Применить настройки
+          </button>
+          <button 
+            onClick={forcePull} 
+            disabled={isManualSyncing} 
+            className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3.5 rounded-2xl font-bold text-sm shadow-lg shadow-emerald-600/20 transition-all active:scale-95 disabled:opacity-50"
+          >
+            {isManualSyncing ? 'Загрузка...' : '2. Загрузить из облака'}
           </button>
           <button 
             onClick={handleTestConnection} 
             className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-95"
           >
-            Проверить базу
-          </button>
-          <button 
-            onClick={forcePull} 
-            disabled={isManualSyncing} 
-            className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50"
-          >
-            {isManualSyncing ? 'Загрузка...' : 'Загрузить из облака'}
+            Проверить связь
           </button>
         </div>
+        
+        <p className="text-[10px] text-slate-500 mt-6 italic">
+          Важно: На новом домене сначала нажмите "Применить", а затем СРАЗУ "Загрузить из облака". Это предотвратит перезапись базы пустыми данными.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

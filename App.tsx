@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { ICONS } from './constants';
@@ -17,6 +16,9 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [cloudStatus, setCloudStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  
+  // Флаг инициализации облака. Пока он false, мы не отправляем данные в облако, чтобы не стереть их пустым состоянием.
+  const [isCloudReady, setIsCloudReady] = useState(false);
 
   // Load from cloud on mount
   useEffect(() => {
@@ -24,7 +26,6 @@ const App: React.FC = () => {
       setCloudStatus('loading');
       fetchFromCloud(state.syncUrl, state.syncKey).then(remoteData => {
         if (remoteData && remoteData.accountingPeriods) {
-          // Preserve current sync settings but update the rest of the state
           setState(prev => ({ 
             ...remoteData, 
             syncUrl: prev.syncUrl, 
@@ -33,9 +34,12 @@ const App: React.FC = () => {
           setCloudStatus('success');
           setLastSyncTime(new Date().toLocaleTimeString());
         } else {
-          setCloudStatus('error');
+          setCloudStatus('idle');
         }
+        setIsCloudReady(true);
       });
+    } else {
+      setIsCloudReady(true);
     }
   }, []);
 
@@ -43,7 +47,8 @@ const App: React.FC = () => {
   useEffect(() => {
     saveLocal(state);
     
-    if (state.syncUrl && state.syncKey && !isSyncing) {
+    // Синхронизируем ТОЛЬКО если облако проверено и готовы к работе
+    if (state.syncUrl && state.syncKey && isCloudReady && !isSyncing) {
       const timer = setTimeout(async () => {
         setIsSyncing(true);
         setCloudStatus('loading');
@@ -55,10 +60,10 @@ const App: React.FC = () => {
           setCloudStatus('error');
         }
         setIsSyncing(false);
-      }, 2000); // debounce sync to save battery/bandwidth
+      }, 3000); // Чуть увеличим задержку для безопасности
       return () => clearTimeout(timer);
     }
-  }, [state]);
+  }, [state, isCloudReady]);
 
   const activePeriod = useMemo(() => {
     return state.accountingPeriods.find(p => p.id === state.selectedPeriodId);
@@ -77,7 +82,7 @@ const App: React.FC = () => {
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
               <span className="text-white font-outfit text-xl font-bold">C</span>
             </div>
-            <span className="font-outfit text-xl font-bold tracking-tight text-white leading-none">Continental<br/><span className="text-xs text-indigo-400 font-normal text-[10px]">Cloud Sync Active</span></span>
+            <span className="font-outfit text-xl font-bold tracking-tight text-white leading-none">Continental<br/><span className="text-xs text-indigo-400 font-normal text-[10px]">Cloud Vault</span></span>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -91,15 +96,14 @@ const App: React.FC = () => {
           </div>
 
           <div className="mt-auto pt-6 border-t border-slate-800 space-y-4">
-            {/* Cloud Sync Status Indicator */}
             <div className="p-3 bg-slate-900/40 rounded-2xl border border-slate-800/50">
               <div className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-2 flex items-center justify-between">
-                Cloud Sync Status
+                Cloud Sync
                 <div className={`w-2 h-2 rounded-full shadow-sm ${cloudStatus === 'success' ? 'bg-emerald-500 shadow-emerald-500/20' : cloudStatus === 'loading' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500 shadow-rose-500/20'}`}></div>
               </div>
               <div className="flex items-center gap-2">
                  {cloudStatus === 'loading' ? (
-                   <div className="animate-spin text-indigo-400"><ICONS.Plus size={12} /></div>
+                   <div className="animate-spin text-indigo-400"><ICONS.RotateCcw size={12} /></div>
                  ) : cloudStatus === 'success' ? (
                    <div className="text-emerald-500"><ICONS.Lock size={12} /></div>
                  ) : (
@@ -107,9 +111,9 @@ const App: React.FC = () => {
                  )}
                  <div className="flex flex-col">
                     <span className="text-[11px] font-bold text-slate-300">
-                      {state.syncUrl ? (cloudStatus === 'loading' ? 'Сохранение...' : 'Синхронизировано') : 'Локальный режим'}
+                      {!state.syncUrl ? 'Локальный режим' : cloudStatus === 'loading' ? 'Синхронизация...' : 'Облако активно'}
                     </span>
-                    {lastSyncTime && <span className="text-[9px] text-slate-500">Обновлено: {lastSyncTime}</span>}
+                    {lastSyncTime && <span className="text-[9px] text-slate-500">{lastSyncTime}</span>}
                  </div>
               </div>
             </div>
