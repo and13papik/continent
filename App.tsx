@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { ICONS } from './constants';
 import { createInitialState, saveLocal, syncToCloud, fetchFromCloud } from './store';
@@ -14,20 +15,19 @@ import Settings from './pages/Settings';
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>(createInitialState());
   const [isSyncing, setIsSyncing] = useState(false);
-  const [cloudStatus, setCloudStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [cloudStatus, setCloudStatus] = useState<'idle' | 'loading' | 'success' | 'error' | 'conflict'>('idle');
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
-  
-  // Флаг инициализации облака. Пока он false, мы не отправляем данные в облако, чтобы не стереть их пустым состоянием.
   const [isCloudReady, setIsCloudReady] = useState(false);
 
-  // 1. Загрузка из облака при первом старте
+  // 1. Первоначальная загрузка
   useEffect(() => {
     const initCloud = async () => {
       if (state.syncUrl && state.syncKey) {
         setCloudStatus('loading');
         try {
           const remoteData = await fetchFromCloud(state.syncUrl, state.syncKey);
-          if (remoteData && remoteData.accountingPeriods) {
+          // Умное слияние: берем то, у чего версия выше ИЛИ дата новее
+          if (remoteData && (remoteData.version > state.version || remoteData.lastUpdated > state.lastUpdated)) {
             setState(prev => ({ 
               ...remoteData, 
               syncUrl: prev.syncUrl, 
@@ -50,24 +50,26 @@ const App: React.FC = () => {
     initCloud();
   }, []);
 
-  // 2. Сохранение локально и в облако при изменениях
+  // 2. Авто-синхронизация (теперь через 5 секунд после изменений)
   useEffect(() => {
     saveLocal(state);
     
-    // Синхронизируем ТОЛЬКО если облако проверено и мы не в процессе синхронизации
     if (state.syncUrl && state.syncKey && isCloudReady && !isSyncing) {
       const timer = setTimeout(async () => {
         setIsSyncing(true);
         setCloudStatus('loading');
-        const success = await syncToCloud(state);
-        if (success) {
+        const result = await syncToCloud(state);
+        
+        if (result.success) {
           setCloudStatus('success');
           setLastSyncTime(new Date().toLocaleTimeString());
+        } else if (result.conflict) {
+          setCloudStatus('conflict');
         } else {
           setCloudStatus('error');
         }
         setIsSyncing(false);
-      }, 3000); 
+      }, 5000); 
       return () => clearTimeout(timer);
     }
   }, [state, isCloudReady]);
@@ -76,9 +78,16 @@ const App: React.FC = () => {
     return state.accountingPeriods.find(p => p.id === state.selectedPeriodId);
   }, [state.accountingPeriods, state.selectedPeriodId]);
 
-  const updateState = (updater: (prev: AppState) => AppState) => {
-    setState(prev => updater(prev));
-  };
+  const updateState = useCallback((updater: (prev: AppState) => AppState) => {
+    setState(prev => {
+      const newState = updater(prev);
+      return { 
+        ...newState, 
+        lastUpdated: Date.now(),
+        version: (prev.version || 0) + 1 
+      };
+    });
+  }, []);
 
   return (
     <HashRouter>
@@ -103,22 +112,33 @@ const App: React.FC = () => {
           </div>
 
           <div className="mt-auto pt-6 border-t border-slate-800 space-y-4">
+            {cloudStatus === 'conflict' && (
+              <div className="p-3 bg-rose-500/20 border border-rose-500 rounded-xl animate-pulse">
+                <p className="text-[10px] font-black text-rose-500 uppercase mb-1 flex items-center gap-1">
+                  <ICONS.AlertTriangle size={10} /> Конфликт версий!
+                </p>
+                <p className="text-[9px] text-slate-300">В облаке есть данные новее. Зайдите в настройки и восстановите нужный снапшот.</p>
+              </div>
+            )}
+
             <div className="p-3 bg-slate-900/40 rounded-2xl border border-slate-800/50">
               <div className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-2 flex items-center justify-between">
-                Cloud Sync
-                <div className={`w-2 h-2 rounded-full shadow-sm ${cloudStatus === 'success' ? 'bg-emerald-500 shadow-emerald-500/20' : cloudStatus === 'loading' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500 shadow-rose-500/20'}`}></div>
+                Cloud Sync (v.{state.version})
+                <div className={`w-2 h-2 rounded-full shadow-sm ${cloudStatus === 'success' ? 'bg-emerald-500 shadow-emerald-500/20' : cloudStatus === 'loading' ? 'bg-amber-500 animate-pulse' : cloudStatus === 'conflict' ? 'bg-rose-500' : 'bg-slate-700'}`}></div>
               </div>
               <div className="flex items-center gap-2">
                  {cloudStatus === 'loading' ? (
                    <div className="animate-spin text-indigo-400"><ICONS.RotateCcw size={12} /></div>
                  ) : cloudStatus === 'success' ? (
                    <div className="text-emerald-500"><ICONS.Lock size={12} /></div>
-                 ) : (
+                 ) : cloudStatus === 'conflict' ? (
                    <div className="text-rose-500"><ICONS.AlertTriangle size={12} /></div>
+                 ) : (
+                   <div className="text-slate-500"><ICONS.Unlock size={12} /></div>
                  )}
                  <div className="flex flex-col">
                     <span className="text-[11px] font-bold text-slate-300">
-                      {!state.syncUrl ? 'Локальный режим' : cloudStatus === 'loading' ? 'Синхронизация...' : 'Облако активно'}
+                      {cloudStatus === 'conflict' ? 'В облаке новее!' : !state.syncUrl ? 'Локальный режим' : 'Облако активно'}
                     </span>
                     {lastSyncTime && <span className="text-[9px] text-slate-500">{lastSyncTime}</span>}
                  </div>

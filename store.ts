@@ -1,6 +1,8 @@
-import { AppState, AccountingPeriod, Admin } from './types';
+
+import { AppState, AccountingPeriod, Admin, CloudSnapshot } from './types';
 
 const STORAGE_KEY = 'continental_dashboard_v3';
+const EMERGENCY_KEY = 'continental_emergency_backup';
 
 const defaultOperators = ['Op1', 'Op2', 'Op3', 'Op4', 'Op5', 'Op6', 'Op7', 'Op8', 'Op9', 'Op10'];
 const defaultModels = ['Succuba', 'Mermaid', 'Mommy', 'Fitness Stacy', 'Nola Lust', 'Caitlyn', 'Anastasiia Heat', 'Sophia Reilly'];
@@ -16,6 +18,8 @@ export function createInitialState(): AppState {
       const parsed = JSON.parse(saved);
       return {
         ...parsed,
+        lastUpdated: parsed.lastUpdated || Date.now(),
+        version: parsed.version || 1,
         operators: parsed.operators || defaultOperators,
         models: parsed.models || defaultModels,
         admins: parsed.admins || defaultAdmins,
@@ -45,6 +49,8 @@ export function createInitialState(): AppState {
   };
 
   return {
+    lastUpdated: Date.now(),
+    version: 1,
     operators: defaultOperators,
     models: defaultModels,
     admins: defaultAdmins,
@@ -65,14 +71,39 @@ export function saveLocal(state: AppState) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-export async function syncToCloud(state: AppState): Promise<boolean> {
-  if (!state.syncUrl || !state.syncKey) return false;
+export function createEmergencyBackup(state: AppState) {
+  localStorage.setItem(EMERGENCY_KEY, JSON.stringify(state));
+}
+
+export function restoreEmergencyBackup(): AppState | null {
+  const data = localStorage.getItem(EMERGENCY_KEY);
+  return data ? JSON.parse(data) : null;
+}
+
+export async function syncToCloud(state: AppState): Promise<{ success: boolean; conflict?: boolean }> {
+  if (!state.syncUrl || !state.syncKey) return { success: false };
   
   const baseUrl = state.syncUrl.trim().replace(/\/$/, "");
-  if (!baseUrl.startsWith('http')) return false;
   const url = `${baseUrl}/rest/v1/app_storage`;
 
   try {
+    // 1. Проверка конфликта по версии и времени
+    const checkResponse = await fetch(`${url}?id=eq.main&select=state`, {
+      headers: { 'apikey': state.syncKey.trim(), 'Authorization': `Bearer ${state.syncKey.trim()}` }
+    });
+    
+    if (checkResponse.ok) {
+      const remoteData = await checkResponse.json();
+      if (remoteData.length > 0) {
+        const remoteState = remoteData[0].state as AppState;
+        // Если в облаке версия выше ИЛИ дата новее — блокируем, чтобы не затереть
+        if ((remoteState.version > state.version) || (remoteState.lastUpdated > state.lastUpdated + 10000)) {
+          return { success: false, conflict: true };
+        }
+      }
+    }
+
+    // 2. Основное сохранение (main)
     const response = await fetch(url, {
       method: 'POST',
       headers: { 
@@ -83,61 +114,75 @@ export async function syncToCloud(state: AppState): Promise<boolean> {
       },
       body: JSON.stringify({ 
         id: 'main',
+        state: { ...state, lastSyncedAt: new Date().toISOString() }, 
+        updated_at: new Date().toISOString() 
+      })
+    });
+
+    // 3. Создание СНАПШОТА (бекапа)
+    // Генерируем уникальный ID для бекапа (snapshot_дата_время)
+    const snapshotId = `snapshot_${new Date().toISOString().replace(/[:.]/g, '-')}`;
+    await fetch(url, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'apikey': state.syncKey.trim(),
+        'Authorization': `Bearer ${state.syncKey.trim()}`
+      },
+      body: JSON.stringify({ 
+        id: snapshotId,
         state: state, 
         updated_at: new Date().toISOString() 
       })
     });
 
-    return response.ok;
+    return { success: response.ok };
   } catch (e) {
     console.error("Cloud Sync Error:", e);
-    return false;
+    return { success: false };
+  }
+}
+
+export async function listCloudSnapshots(url: string, key: string): Promise<CloudSnapshot[]> {
+  const baseUrl = url.trim().replace(/\/$/, "");
+  const fetchUrl = `${baseUrl}/rest/v1/app_storage?id=like.snapshot_*&select=id,state,updated_at&order=updated_at.desc&limit=20`;
+  try {
+    const response = await fetch(fetchUrl, {
+      headers: { 'apikey': key.trim(), 'Authorization': `Bearer ${key.trim()}` }
+    });
+    return response.ok ? await response.json() : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function fetchFromCloud(url: string, key?: string): Promise<AppState | null> {
+  if (!url || !key) return null;
+  const baseUrl = url.trim().replace(/\/$/, "");
+  const fetchUrl = `${baseUrl}/rest/v1/app_storage?id=eq.main&select=state`;
+
+  try {
+    const response = await fetch(fetchUrl, {
+      headers: { 'apikey': key.trim(), 'Authorization': `Bearer ${key.trim()}` }
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return (data.length > 0) ? data[0].state : null;
+  } catch (e) {
+    return null;
   }
 }
 
 export async function testDatabaseConnection(url: string, key: string): Promise<{ success: boolean; message: string }> {
   if (!url || !key) return { success: false, message: "URL или Ключ не введены" };
   const baseUrl = url.trim().replace(/\/$/, "");
-  
   try {
     const checkTable = await fetch(`${baseUrl}/rest/v1/app_storage?select=id&limit=1`, {
       headers: { 'apikey': key.trim(), 'Authorization': `Bearer ${key.trim()}` }
     });
-
-    if (checkTable.status === 404) return { success: false, message: "Таблица 'app_storage' не найдена." };
-    if (checkTable.status === 401 || checkTable.status === 403) return { success: false, message: "Ошибка ключа (API Key)." };
-    if (!checkTable.ok) return { success: false, message: `Ошибка API: ${checkTable.status}` };
-
+    if (!checkTable.ok) return { success: false, message: "Ошибка подключения" };
     return { success: true, message: "Соединение установлено!" };
   } catch (e) {
-    return { success: false, message: "Сервер недоступен. Проверьте URL." };
-  }
-}
-
-export async function fetchFromCloud(url: string, key?: string): Promise<AppState | null> {
-  if (!url || !key) return null;
-  
-  const baseUrl = url.trim().replace(/\/$/, "");
-  if (!baseUrl.startsWith('http')) return null;
-  const fetchUrl = `${baseUrl}/rest/v1/app_storage?id=eq.main&select=state`;
-
-  try {
-    const response = await fetch(fetchUrl, {
-      headers: { 
-        'apikey': key.trim(),
-        'Authorization': `Bearer ${key.trim()}`
-      }
-    });
-    
-    if (!response.ok) return null;
-    
-    const data = await response.json();
-    if (Array.isArray(data) && data.length > 0) {
-      return data[0].state || null;
-    }
-    return null;
-  } catch (e) {
-    console.error("Cloud Fetch Error:", e);
-    return null;
+    return { success: false, message: "Сервер недоступен" };
   }
 }

@@ -93,6 +93,9 @@ export interface PaidStatus {
 }
 
 export interface AppState {
+  lastUpdated: number;
+  version: number; // Порядковый номер версии
+  deviceName?: string; // Имя устройства
   operators: string[];
   models: string[];
   admins: Admin[];
@@ -111,7 +114,13 @@ export interface AppState {
   modelBonuses: ModelBonus[];
   paidStatuses: PaidStatus[];
   syncUrl?: string;
-  syncKey?: string; // Для защиты базы данных
+  syncKey?: string;
   dbUrl?: string;
   lastSyncedAt?: string;
+}
+
+export interface CloudSnapshot {
+  id: string;
+  state: AppState;
+  updated_at: string;
 }
