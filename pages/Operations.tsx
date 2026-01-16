@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { AppState, OperationType, OperationRecord, Platform } from '../types';
+import React, { useState, useMemo } from 'react';
+import { AppState, OperationType, OperationRecord, Platform, IncomeRecord } from '../types';
 import { ICONS, OPERATION_META, PLATFORM_NAMES } from '../constants';
 
 interface OperationsProps {
@@ -65,24 +65,52 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
     }));
   };
 
-  const filteredOps = state.operationsData.filter(o => o.periodId === state.selectedPeriodId);
+  const deleteIncome = (id: string) => {
+    if (!confirm('Удалить запись о доходе?')) return;
+    updateState(prev => ({
+      ...prev,
+      incomeData: prev.incomeData.filter(i => i.id !== id)
+    }));
+  };
+
+  // ОБЪЕДИНЕННАЯ ИСТОРИЯ
+  const unifiedHistory = useMemo(() => {
+    const currentPeriodId = state.selectedPeriodId;
+    
+    // 1. Берем операции
+    const ops = state.operationsData
+      .filter(o => o.periodId === currentPeriodId)
+      .map(o => ({ ...o, entryType: 'operation' as const }));
+
+    // 2. Берем доходы
+    const incs = state.incomeData
+      .filter(i => i.periodId === currentPeriodId)
+      .map(i => ({ ...i, entryType: 'income' as const }));
+
+    // 3. Смешиваем и сортируем по дате (новые сверху)
+    return [...ops, ...incs].sort((a, b) => {
+      const dateCompare = b.date.localeCompare(a.date);
+      if (dateCompare !== 0) return dateCompare;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+  }, [state.operationsData, state.incomeData, state.selectedPeriodId]);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <header>
-        <h1 className="text-3xl font-bold text-white">Операции</h1>
-        <p className="text-slate-400">Учет выплат и штрафов с привязкой к платформе.</p>
+        <h1 className="text-3xl font-bold text-white">Операции и Активность</h1>
+        <p className="text-slate-400">Полный лог начислений, выплат и доходов за месяц.</p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="glass-card p-6 rounded-2xl space-y-6 h-fit">
+        <div className="glass-card p-6 rounded-2xl space-y-6 h-fit sticky top-8">
           <h2 className="text-lg font-bold font-outfit">Новая запись</h2>
           <div className="space-y-4">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">1. Период и Платформа</label>
               <div className="flex gap-2">
                 <select 
-                  className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-indigo-400 font-bold"
+                  className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-indigo-400 font-bold outline-none"
                   value={targetPeriodId}
                   onChange={(e) => setTargetPeriodId(e.target.value)}
                 >
@@ -91,7 +119,7 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
                   ))}
                 </select>
                 <select 
-                  className="w-28 bg-slate-900 border border-slate-700 rounded-xl px-2 py-3 text-[10px] font-bold uppercase text-slate-300"
+                  className="w-28 bg-slate-900 border border-slate-700 rounded-xl px-2 py-3 text-[10px] font-bold uppercase text-slate-300 outline-none"
                   value={platform}
                   onChange={(e) => setPlatform(e.target.value as any)}
                 >
@@ -107,12 +135,12 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">2. Тип и Оператор</label>
               <div className="grid grid-cols-2 gap-2 mb-3">
                 {['advance', 'salary_payment', 'bonus', 'penalty', 'refund', 'internship'].map(k => (
-                  <button key={k} onClick={() => setType(k as any)} className={`px-2 py-2 rounded-lg text-[9px] font-bold border uppercase tracking-tighter ${type === k ? 'bg-indigo-500/20 border-indigo-500 text-white shadow-lg shadow-indigo-500/10' : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700'}`}>
+                  <button key={k} onClick={() => setType(k as any)} className={`px-2 py-2 rounded-lg text-[9px] font-bold border uppercase tracking-tighter transition-all ${type === k ? 'bg-indigo-500/20 border-indigo-500 text-white shadow-lg shadow-indigo-500/10' : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700'}`}>
                     {(OPERATION_META[k] as any).label}
                   </button>
                 ))}
               </div>
-              <select className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white" value={operator} onChange={(e) => setOperator(e.target.value)}>
+              <select className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none" value={operator} onChange={(e) => setOperator(e.target.value)}>
                 <option value="">Выберите оператора</option>
                 {state.operators.map(op => <option key={op} value={op}>{op}</option>)}
               </select>
@@ -121,15 +149,15 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Сумма $</label>
-                <input type="number" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-mono" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                <input type="number" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-mono outline-none" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} />
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Дата факта</label>
-                <input type="date" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
+                <input type="date" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
               </div>
             </div>
 
-            <textarea className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm min-h-[80px] text-white" placeholder="Комментарий (причина)..." value={comment} onChange={(e) => setComment(e.target.value)} />
+            <textarea className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm min-h-[80px] text-white outline-none" placeholder="Комментарий (причина)..." value={comment} onChange={(e) => setComment(e.target.value)} />
 
             <button onClick={handleSubmit} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-600/20 transition-all active:scale-95">Сохранить операцию</button>
           </div>
@@ -138,48 +166,86 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
         <div className="lg:col-span-2 space-y-4">
           <div className="glass-card rounded-2xl overflow-hidden border-indigo-500/10 shadow-2xl">
             <div className="p-6 border-b border-slate-800 bg-slate-900/40 flex justify-between items-center">
-              <h2 className="text-lg font-bold">История за {state.accountingPeriods.find(p => p.id === state.selectedPeriodId)?.label}</h2>
-              <div className="flex gap-2">
-                 <span className="text-[10px] px-2 py-1 bg-indigo-500/10 text-indigo-400 rounded-lg border border-indigo-500/20 font-bold uppercase tracking-widest">Все платформы</span>
+              <h2 className="text-lg font-bold">Лента событий за {state.accountingPeriods.find(p => p.id === state.selectedPeriodId)?.label}</h2>
+              <div className="flex gap-2 text-[9px] font-black uppercase tracking-widest text-slate-500">
+                 <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Earnings</span>
+                 <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> Operations</span>
               </div>
             </div>
-            <div className="divide-y divide-slate-800 overflow-y-auto max-h-[600px]">
-              {filteredOps.length === 0 ? (
+            <div className="divide-y divide-slate-800 overflow-y-auto max-h-[800px]">
+              {unifiedHistory.length === 0 ? (
                 <div className="p-12 text-center text-slate-500 italic flex flex-col items-center gap-3">
                   <ICONS.Operations size={32} className="opacity-20" />
-                  Записей в этом периоде пока нет
+                  Активности в этом периоде пока нет
                 </div>
               ) : (
-                filteredOps.map(op => {
-                  const meta = OPERATION_META[op.type];
-                  return (
-                    <div key={op.id} className="p-4 flex items-center justify-between group hover:bg-slate-800/30 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-slate-900 border border-slate-800 ${meta.color}`}><meta.icon size={20} /></div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                             <span className="font-bold text-white text-sm">{op.operator}</span>
-                             {op.platform && <span className="text-[8px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-black border border-slate-700 uppercase tracking-tighter">{PLATFORM_NAMES[op.platform]}</span>}
-                             <span className="text-slate-500 text-[9px] font-mono">/ {op.date}</span>
+                unifiedHistory.map(item => {
+                  if (item.entryType === 'operation') {
+                    const op = item as OperationRecord;
+                    const meta = OPERATION_META[op.type];
+                    return (
+                      <div key={op.id} className="p-4 flex items-center justify-between group hover:bg-slate-800/30 transition-colors">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-slate-900 border border-slate-800 ${meta.color}`}><meta.icon size={20} /></div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                               <span className="font-bold text-white text-sm">{op.operator}</span>
+                               {op.platform && <span className="text-[8px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-black border border-slate-700 uppercase tracking-tighter">{PLATFORM_NAMES[op.platform]}</span>}
+                               <span className="text-slate-500 text-[9px] font-mono">/ {op.date}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{meta.label}</div>
+                            {op.comment && <div className="text-[11px] text-slate-500 italic mt-0.5">"{op.comment}"</div>}
                           </div>
-                          <div className="text-[11px] text-slate-500 truncate max-w-[200px]">{op.comment || meta.label}</div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className={`font-bold font-mono text-sm ${['bonus', 'internship'].includes(op.type) ? 'text-emerald-500' : 'text-rose-500'}`}>
+                             {['bonus', 'internship'].includes(op.type) ? '+' : '-'}${op.amount.toFixed(2)}
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button onClick={() => setEditingOp(op)} className="text-slate-500 hover:text-indigo-400 p-2 rounded-lg hover:bg-indigo-500/10">
+                               <ICONS.Edit size={16}/>
+                            </button>
+                            <button onClick={() => deleteOp(op.id)} className="text-slate-500 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-500/10">
+                               <ICONS.Trash size={16}/>
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className={`font-bold font-mono text-sm ${['bonus', 'internship'].includes(op.type) ? 'text-emerald-500' : 'text-rose-500'}`}>
-                           {['bonus', 'internship'].includes(op.type) ? '+' : '-'}${op.amount.toFixed(2)}
+                    );
+                  } else {
+                    const inc = item as IncomeRecord;
+                    const netto = inc.nettoOF + inc.nettoPP + inc.nettoCrypto;
+                    return (
+                      <div key={inc.id} className="p-4 flex items-center justify-between group hover:bg-emerald-500/5 transition-colors border-l-2 border-transparent hover:border-emerald-500/30">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-slate-900 border border-slate-800 text-emerald-400`}><ICONS.Income size={20} /></div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                               <span className="font-bold text-white text-sm">{inc.operator}</span>
+                               <span className="text-[8px] bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded font-black border border-emerald-500/20 uppercase tracking-tighter">Income</span>
+                               <span className="text-slate-500 text-[9px] font-mono">/ {inc.date}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-300 font-black uppercase tracking-widest mt-0.5">Анкета: {inc.model}</div>
+                            <div className="flex gap-2 mt-1">
+                               <span className="text-[9px] text-slate-500 font-mono">Gross: ${inc.total.toFixed(1)}</span>
+                               <span className="text-[9px] text-indigo-400 font-mono font-bold">Net: ${netto.toFixed(1)}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                          <button onClick={() => setEditingOp(op)} className="text-slate-500 hover:text-indigo-400 p-2 rounded-lg hover:bg-indigo-500/10">
-                             <ICONS.Edit size={16}/>
-                          </button>
-                          <button onClick={() => deleteOp(op.id)} className="text-slate-500 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-500/10">
-                             <ICONS.Trash size={16}/>
-                          </button>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                             <div className="font-bold font-mono text-sm text-emerald-500">+${netto.toFixed(2)}</div>
+                             <div className="text-[9px] text-slate-500 font-black uppercase tracking-tighter">Salary Portion</div>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button onClick={() => deleteIncome(inc.id)} className="text-slate-500 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-500/10">
+                               <ICONS.Trash size={16}/>
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
+                    );
+                  }
                 })
               )}
             </div>
