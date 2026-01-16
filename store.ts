@@ -31,7 +31,7 @@ export function createInitialState(): AppState {
         ownerAdvances: parsed.ownerAdvances || [],
         modelBonuses: parsed.modelBonuses || [],
         paidStatuses: parsed.paidStatuses || [],
-        modelRates: parsed.modelRates || { of: 25, pp: 25, cr: 25 }
+        modelRates: parsed.modelRates || { of: 25, pp: 17, cr: 25 } // Обновлено до 17
       };
     } catch (e) {
       console.error("Failed to parse storage", e);
@@ -58,7 +58,7 @@ export function createInitialState(): AppState {
     operationsData: [],
     accountingPeriods: [firstPeriod],
     selectedPeriodId: firstPeriod.id,
-    modelRates: { of: 25, pp: 25, cr: 25 },
+    modelRates: { of: 25, pp: 17, cr: 25 }, // Обновлено до 17
     ownerExpenses: [],
     ownerManualIncomes: [],
     ownerAdvances: [],
@@ -87,7 +87,6 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
   const url = `${baseUrl}/rest/v1/app_storage`;
 
   try {
-    // 1. Проверка конфликта по версии и времени
     const checkResponse = await fetch(`${url}?id=eq.main&select=state`, {
       headers: { 'apikey': state.syncKey.trim(), 'Authorization': `Bearer ${state.syncKey.trim()}` }
     });
@@ -96,14 +95,12 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
       const remoteData = await checkResponse.json();
       if (remoteData.length > 0) {
         const remoteState = remoteData[0].state as AppState;
-        // Если в облаке версия выше ИЛИ дата новее — блокируем, чтобы не затереть
         if ((remoteState.version > state.version) || (remoteState.lastUpdated > state.lastUpdated + 10000)) {
           return { success: false, conflict: true };
         }
       }
     }
 
-    // 2. Основное сохранение (main)
     const response = await fetch(url, {
       method: 'POST',
       headers: { 
@@ -119,8 +116,6 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
       })
     });
 
-    // 3. Создание СНАПШОТА (бекапа)
-    // Генерируем уникальный ID для бекапа (snapshot_дата_время)
     const snapshotId = `snapshot_${new Date().toISOString().replace(/[:.]/g, '-')}`;
     await fetch(url, {
       method: 'POST',

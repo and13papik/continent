@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppState, AccountingPeriod } from '../types';
@@ -77,8 +78,11 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       return { op, totalGross, ofG, ofN, ppG, ppN, crG, crN, remainder, isPaid };
     });
 
-    const maxGross = Math.max(...raw.map(r => r.totalGross), 1);
-    return raw.map(r => ({ ...r, percentOfMax: (r.totalGross / maxGross) * 100 }));
+    // СОРТИРОВКА: По остатку к выплате (Net) от большего к меньшему
+    const sorted = raw.sort((a, b) => b.remainder - a.remainder);
+
+    const maxGross = Math.max(...sorted.map(r => r.totalGross), 1);
+    return sorted.map(r => ({ ...r, percentOfMax: (r.totalGross / maxGross) * 100 }));
   }, [state.incomeData, state.operationsData, state.operators, activePeriodId, state.paidStatuses]);
 
   const handleCloseMonth = () => {
@@ -149,8 +153,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
 
       <div className="glass-card rounded-[2.5rem] overflow-hidden shadow-2xl border-slate-800/50">
         <div className="p-8 border-b border-slate-800 bg-slate-900/40 flex justify-between items-center">
-          <h2 className="text-xl font-bold font-outfit">Ведомость персонала</h2>
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Performance Index</span>
+          <h2 className="text-xl font-bold font-outfit">Ведомость персонала (Топ по выплатам)</h2>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Sorted by Balance</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">

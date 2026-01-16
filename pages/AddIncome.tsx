@@ -23,7 +23,8 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [modelData, setModelData] = useState<Record<string, ModelEntry>>({});
   
-  const [baselinePercents, setBaselinePercents] = useState({ of: '20', pp: '15', cr: '20' });
+  // Обновлено: PP по умолчанию 17%
+  const [baselinePercents, setBaselinePercents] = useState({ of: '20', pp: '17', cr: '20' });
 
   const activePeriod = state.accountingPeriods.find(p => p.id === state.selectedPeriodId)!;
 

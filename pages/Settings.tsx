@@ -62,6 +62,29 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     reader.readAsText(file);
   };
 
+  // ФУНКЦИЯ СБРОСА ДОХОДОВ
+  const handleWipeData = () => {
+    if (!confirm('ВНИМАНИЕ! Это удалит ВСЕ доходы, операции, авансы и бонусы за все время. Имена операторов и моделей останутся. Продолжить?')) return;
+    if (!confirm('ПОСЛЕДНЕЕ ПРЕДУПРЕЖДЕНИЕ: Все финансовые данные будут обнулены. Это необратимо.')) return;
+    
+    createEmergencyBackup(state); // Сохраняем в черный ящик перед удалением
+
+    updateState(prev => ({
+      ...prev,
+      incomeData: [],
+      operationsData: [],
+      ownerExpenses: [],
+      ownerManualIncomes: [],
+      ownerAdvances: [],
+      modelBonuses: [],
+      paidStatuses: [],
+      lastUpdated: Date.now(),
+      version: prev.version + 1
+    }));
+    
+    alert('Все финансовые данные успешно удалены. Операторы и модели сохранены.');
+  };
+
   const handleTestConnection = async () => {
     setDbTestResult(null);
     const result = await testDatabaseConnection(syncUrlInput, syncKeyInput);
@@ -78,7 +101,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
      if (!confirm('Внимание: это ЗАМЕНИТ ваши текущие данные данными из облака (main). Продолжить?')) return;
      
      setIsManualSyncing(true);
-     createEmergencyBackup(state); // Сохраняем текущее в "черный ящик" перед загрузкой
+     createEmergencyBackup(state); 
      
      const remote = await fetchFromCloud(syncUrlInput, syncKeyInput);
      if (remote && remote.accountingPeriods) {
@@ -94,7 +117,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     const dateStr = new Date(snap.updated_at).toLocaleString();
     if (!confirm(`Вы действительно хотите откатить ВСЮ систему к состоянию на ${dateStr}? Текущие данные будут стерты.`)) return;
     
-    createEmergencyBackup(state); // На всякий случай
+    createEmergencyBackup(state); 
     updateState(() => ({
       ...snap.state,
       syncUrl: state.syncUrl,
@@ -178,7 +201,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
           <div className="flex flex-col gap-3 pt-4">
             <button onClick={handleApplySettings} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-2xl font-bold text-sm shadow-lg shadow-indigo-600/20 transition-all active:scale-95">Применить</button>
             <button onClick={forcePull} disabled={isManualSyncing} className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50">Загрузить "main"</button>
-            <button onClick={handleTestConnection} className="w-full text-slate-500 hover:text-white text-xs font-bold transition-all py-2">Проверить связь</button>
+            <button onClick={handleWipeData} className="w-full bg-rose-600/20 hover:bg-rose-600/40 text-rose-500 border border-rose-500/30 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">Сбросить доходы</button>
           </div>
           
           {dbTestResult && (
