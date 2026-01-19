@@ -69,22 +69,25 @@ const App: React.FC = () => {
     return () => clearInterval(pollInterval);
   }, [state.version, state.syncUrl, state.syncKey, isCloudReady]);
 
-  // 3. Авто-синхронизация
+  // 3. Авто-синхронизация с Умным Слиянием
   useEffect(() => {
     saveLocal(state);
     
-    // Если есть конфликт версий, НЕ синхронизируем автоматически, чтобы не затереть чужое
-    if (state.syncUrl && state.syncKey && isCloudReady && !isSyncing && cloudStatus !== 'conflict') {
+    if (state.syncUrl && state.syncKey && isCloudReady && !isSyncing) {
       const timer = setTimeout(async () => {
         setIsSyncing(true);
         setCloudStatus('loading');
+        
+        // syncToCloud теперь внутри себя делает FETCH и MERGE перед POST
         const result = await syncToCloud(state);
         
         if (result.success) {
           setCloudStatus('success');
           setLastSyncTime(new Date().toLocaleTimeString());
-        } else if (result.conflict) {
-          setCloudStatus('conflict');
+          // Если в процессе слияния стейт изменился (добавились чужие расходы), обновляем его у себя локально
+          if (result.newState) {
+            setState(result.newState);
+          }
         } else {
           setCloudStatus('error');
         }
@@ -92,7 +95,7 @@ const App: React.FC = () => {
       }, 5000); 
       return () => clearTimeout(timer);
     }
-  }, [state, isCloudReady, cloudStatus]);
+  }, [state, isCloudReady]); // Убрал cloudStatus из зависимостей, чтобы не зацикливать
 
   const activePeriod = useMemo(() => {
     return state.accountingPeriods.find(p => p.id === state.selectedPeriodId);
@@ -105,7 +108,7 @@ const App: React.FC = () => {
         ...newState, 
         lastUpdated: Date.now(),
         version: (prev.version || 0) + 1,
-        remoteVersion: undefined // Сбрасываем флаг конфликта при локальном изменении (но риск остается)
+        remoteVersion: undefined 
       };
     });
   }, []);

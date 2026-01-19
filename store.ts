@@ -31,7 +31,7 @@ export function createInitialState(): AppState {
         ownerAdvances: parsed.ownerAdvances || [],
         modelBonuses: parsed.modelBonuses || [],
         paidStatuses: parsed.paidStatuses || [],
-        modelRates: parsed.modelRates || { of: 25, pp: 17, cr: 25 } // Обновлено до 17
+        modelRates: parsed.modelRates || { of: 25, pp: 17, cr: 25 }
       };
     } catch (e) {
       console.error("Failed to parse storage", e);
@@ -58,7 +58,7 @@ export function createInitialState(): AppState {
     operationsData: [],
     accountingPeriods: [firstPeriod],
     selectedPeriodId: firstPeriod.id,
-    modelRates: { of: 25, pp: 17, cr: 25 }, // Обновлено до 17
+    modelRates: { of: 25, pp: 17, cr: 25 },
     ownerExpenses: [],
     ownerManualIncomes: [],
     ownerAdvances: [],
@@ -80,58 +80,79 @@ export function restoreEmergencyBackup(): AppState | null {
   return data ? JSON.parse(data) : null;
 }
 
-export async function syncToCloud(state: AppState): Promise<{ success: boolean; conflict?: boolean }> {
+/**
+ * SMART MERGE LOGIC
+ * Сравнивает два массива объектов по ID и возвращает объединенный массив уникальных элементов.
+ */
+function mergeArraysById<T extends { id: string }>(local: T[], remote: T[]): T[] {
+  const map = new Map<string, T>();
+  // Сначала берем удаленные данные (они приоритетнее для "чужих" записей)
+  remote.forEach(item => map.set(item.id, item));
+  // Затем накладываем локальные (они обновят то, что мы редактировали сами)
+  local.forEach(item => map.set(item.id, item));
+  return Array.from(map.values());
+}
+
+export async function syncToCloud(state: AppState): Promise<{ success: boolean; newState?: AppState }> {
   if (!state.syncUrl || !state.syncKey) return { success: false };
   
   const baseUrl = state.syncUrl.trim().replace(/\/$/, "");
   const url = `${baseUrl}/rest/v1/app_storage`;
+  const headers = { 
+    'apikey': state.syncKey.trim(), 
+    'Authorization': `Bearer ${state.syncKey.trim()}`,
+    'Content-Type': 'application/json'
+  };
 
   try {
-    const checkResponse = await fetch(`${url}?id=eq.main&select=state`, {
-      headers: { 'apikey': state.syncKey.trim(), 'Authorization': `Bearer ${state.syncKey.trim()}` }
-    });
-    
+    // 1. ПОЛУЧАЕМ АКТУАЛЬНЫЕ ДАННЫЕ ИЗ ОБЛАКА ПЕРЕД СОХРАНЕНИЕМ
+    const checkResponse = await fetch(`${url}?id=eq.main&select=state`, { headers });
+    let finalState = { ...state };
+
     if (checkResponse.ok) {
-      const remoteData = await checkResponse.json();
-      if (remoteData.length > 0) {
-        const remoteState = remoteData[0].state as AppState;
-        if ((remoteState.version > state.version) || (remoteState.lastUpdated > state.lastUpdated + 10000)) {
-          return { success: false, conflict: true };
-        }
+      const cloudData = await checkResponse.json();
+      if (cloudData.length > 0) {
+        const remote: AppState = cloudData[0].state;
+        
+        // 2. ВЫПОЛНЯЕМ УМНОЕ СЛИЯНИЕ ВСЕХ МАССИВОВ
+        // Это гарантирует, что если Овнер добавил расход, а Админ - доход, оба останутся.
+        finalState.incomeData = mergeArraysById(state.incomeData, remote.incomeData);
+        finalState.operationsData = mergeArraysById(state.operationsData, remote.operationsData);
+        finalState.ownerExpenses = mergeArraysById(state.ownerExpenses, remote.ownerExpenses);
+        finalState.ownerAdvances = mergeArraysById(state.ownerAdvances, remote.ownerAdvances);
+        finalState.ownerManualIncomes = mergeArraysById(state.ownerManualIncomes || [], remote.ownerManualIncomes || []);
+        finalState.modelBonuses = mergeArraysById(state.modelBonuses || [], remote.modelBonuses || []);
+        
+        // Обновляем версию и время на основе самой свежей инфы
+        finalState.version = Math.max(state.version, remote.version) + 1;
+        finalState.lastUpdated = Date.now();
       }
     }
 
+    // 3. ОТПРАВЛЯЕМ ОБЪЕДИНЕННЫЙ РЕЗУЛЬТАТ
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'apikey': state.syncKey.trim(),
-        'Authorization': `Bearer ${state.syncKey.trim()}`,
-        'Prefer': 'resolution=merge-duplicates' 
-      },
+      headers: { ...headers, 'Prefer': 'resolution=merge-duplicates' },
       body: JSON.stringify({ 
         id: 'main',
-        state: { ...state, lastSyncedAt: new Date().toISOString() }, 
+        state: { ...finalState, lastSyncedAt: new Date().toISOString() }, 
         updated_at: new Date().toISOString() 
       })
     });
 
+    // 4. ДЕЛАЕМ СНАПШОТ (БЕКАП)
     const snapshotId = `snapshot_${new Date().toISOString().replace(/[:.]/g, '-')}`;
     await fetch(url, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'apikey': state.syncKey.trim(),
-        'Authorization': `Bearer ${state.syncKey.trim()}`
-      },
+      headers,
       body: JSON.stringify({ 
         id: snapshotId,
-        state: state, 
+        state: finalState, 
         updated_at: new Date().toISOString() 
       })
     });
 
-    return { success: response.ok };
+    return { success: response.ok, newState: finalState };
   } catch (e) {
     console.error("Cloud Sync Error:", e);
     return { success: false };
