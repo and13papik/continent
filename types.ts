@@ -94,8 +94,8 @@ export interface PaidStatus {
 
 export interface AppState {
   lastUpdated: number;
-  version: number; // Порядковый номер версии
-  deviceName?: string; // Имя устройства
+  version: number;
+  remoteVersion?: number; // Версия в облаке, если она выше текущей
   operators: string[];
   models: string[];
   admins: Admin[];

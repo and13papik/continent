@@ -26,7 +26,6 @@ const App: React.FC = () => {
         setCloudStatus('loading');
         try {
           const remoteData = await fetchFromCloud(state.syncUrl, state.syncKey);
-          // Умное слияние: берем то, у чего версия выше ИЛИ дата новее
           if (remoteData && (remoteData.version > state.version || remoteData.lastUpdated > state.lastUpdated)) {
             setState(prev => ({ 
               ...remoteData, 
@@ -50,11 +49,32 @@ const App: React.FC = () => {
     initCloud();
   }, []);
 
-  // 2. Авто-синхронизация (теперь через 5 секунд после изменений)
+  // 2. Фоновый опрос для обнаружения изменений от других пользователей (раз в 30 сек)
+  useEffect(() => {
+    if (!state.syncUrl || !state.syncKey || !isCloudReady) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const remoteData = await fetchFromCloud(state.syncUrl!, state.syncKey!);
+        if (remoteData && remoteData.version > state.version) {
+          // Если кто-то другой обновил данные, помечаем конфликт или уведомляем
+          setState(prev => ({ ...prev, remoteVersion: remoteData.version }));
+          setCloudStatus('conflict');
+        }
+      } catch (e) {
+        console.warn("Polling error", e);
+      }
+    }, 30000);
+
+    return () => clearInterval(pollInterval);
+  }, [state.version, state.syncUrl, state.syncKey, isCloudReady]);
+
+  // 3. Авто-синхронизация
   useEffect(() => {
     saveLocal(state);
     
-    if (state.syncUrl && state.syncKey && isCloudReady && !isSyncing) {
+    // Если есть конфликт версий, НЕ синхронизируем автоматически, чтобы не затереть чужое
+    if (state.syncUrl && state.syncKey && isCloudReady && !isSyncing && cloudStatus !== 'conflict') {
       const timer = setTimeout(async () => {
         setIsSyncing(true);
         setCloudStatus('loading');
@@ -72,7 +92,7 @@ const App: React.FC = () => {
       }, 5000); 
       return () => clearTimeout(timer);
     }
-  }, [state, isCloudReady]);
+  }, [state, isCloudReady, cloudStatus]);
 
   const activePeriod = useMemo(() => {
     return state.accountingPeriods.find(p => p.id === state.selectedPeriodId);
@@ -84,15 +104,26 @@ const App: React.FC = () => {
       return { 
         ...newState, 
         lastUpdated: Date.now(),
-        version: (prev.version || 0) + 1 
+        version: (prev.version || 0) + 1,
+        remoteVersion: undefined // Сбрасываем флаг конфликта при локальном изменении (но риск остается)
       };
     });
   }, []);
 
+  const forcePull = async () => {
+    if (!state.syncUrl || !state.syncKey) return;
+    setCloudStatus('loading');
+    const remoteData = await fetchFromCloud(state.syncUrl, state.syncKey);
+    if (remoteData) {
+      updateState(() => ({ ...remoteData, syncUrl: state.syncUrl, syncKey: state.syncKey }));
+      setCloudStatus('success');
+      alert('Данные обновлены до последней версии из облака.');
+    }
+  };
+
   return (
     <HashRouter>
       <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-200">
-        {/* Sidebar */}
         <nav className="w-full md:w-64 glass-card border-r border-slate-800/50 p-6 flex flex-col gap-8 sticky top-0 h-auto md:h-screen z-50">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
@@ -113,11 +144,11 @@ const App: React.FC = () => {
 
           <div className="mt-auto pt-6 border-t border-slate-800 space-y-4">
             {cloudStatus === 'conflict' && (
-              <div className="p-3 bg-rose-500/20 border border-rose-500 rounded-xl animate-pulse">
+              <div className="p-3 bg-rose-500/20 border border-rose-500 rounded-xl animate-pulse cursor-pointer" onClick={forcePull}>
                 <p className="text-[10px] font-black text-rose-500 uppercase mb-1 flex items-center gap-1">
                   <ICONS.AlertTriangle size={10} /> Конфликт версий!
                 </p>
-                <p className="text-[9px] text-slate-300">В облаке есть данные новее. Зайдите в настройки и восстановите нужный снапшот.</p>
+                <p className="text-[9px] text-slate-300">Напарник внес изменения. Нажми сюда, чтобы загрузить их.</p>
               </div>
             )}
 
@@ -144,20 +175,9 @@ const App: React.FC = () => {
                  </div>
               </div>
             </div>
-
-            <div className="px-1">
-              <div className="text-[9px] text-slate-500 uppercase font-bold tracking-wider mb-1">Активный период</div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-indigo-400">{activePeriod?.label}</span>
-                <span className={`text-[8px] px-1.5 py-0.5 rounded uppercase font-black ${activePeriod?.status === 'open' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
-                  {activePeriod?.status === 'open' ? 'Live' : 'Closed'}
-                </span>
-              </div>
-            </div>
           </div>
         </nav>
 
-        {/* Main Content */}
         <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950">
           <div className="max-w-7xl mx-auto">
             <Routes>
