@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AppState, AccountingPeriod } from '../types';
+import { AppState, AccountingPeriod, PaidStatus } from '../types';
 import { ICONS } from '../constants';
 
 interface DashboardProps {
@@ -110,7 +110,15 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     updateState(prev => {
       const exists = prev.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
       if (exists) return { ...prev, paidStatuses: prev.paidStatuses.filter(s => !(s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId)) };
-      return { ...prev, paidStatuses: [...prev.paidStatuses, { entityName: op, entityType: 'operator', periodId: activePeriodId }] };
+      
+      const newPaid: PaidStatus = {
+        id: `paid-op-${op}-${activePeriodId}`,
+        entityName: op,
+        entityType: 'operator',
+        periodId: activePeriodId,
+        updatedAt: new Date().toISOString()
+      };
+      return { ...prev, paidStatuses: [...prev.paidStatuses, newPaid] };
     });
   };
 

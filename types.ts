@@ -13,6 +13,7 @@ export interface IncomeRecord {
   id: string;
   date: string;
   createdAt: string;
+  updatedAt?: string;
   periodId: string;
   operator: string;
   model: string;
@@ -36,6 +37,7 @@ export interface OperationRecord {
   operator: string;
   date: string;
   createdAt: string;
+  updatedAt?: string;
   periodId: string;
   amount: number;
   comment: string;
@@ -57,6 +59,7 @@ export interface OwnerManualExpense {
   amount: number;
   comment: string;
   date: string;
+  updatedAt?: string;
 }
 
 export interface OwnerManualIncome {
@@ -66,6 +69,7 @@ export interface OwnerManualIncome {
   comment: string;
   date: string;
   platform: Platform | 'all';
+  updatedAt?: string;
 }
 
 export interface OwnerAdvance {
@@ -76,6 +80,7 @@ export interface OwnerAdvance {
   amount: number;
   comment: string;
   date: string;
+  updatedAt?: string;
 }
 
 export interface ModelBonus {
@@ -84,18 +89,22 @@ export interface ModelBonus {
   periodId: string;
   amount: number;
   comment: string;
+  updatedAt?: string;
 }
 
 export interface PaidStatus {
+  /** Unique ID for syncing and deduplication */
+  id: string;
   entityName: string;
   entityType: 'model' | 'operator';
   periodId: string;
+  updatedAt?: string;
 }
 
 export interface AppState {
   lastUpdated: number;
   version: number;
-  remoteVersion?: number; // Версия в облаке, если она выше текущей
+  remoteVersion?: number;
   operators: string[];
   models: string[];
   admins: Admin[];

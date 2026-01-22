@@ -49,7 +49,7 @@ const App: React.FC = () => {
     initCloud();
   }, []);
 
-  // 2. Фоновый опрос для обнаружения изменений от других пользователей (раз в 30 сек)
+  // 2. Фоновый опрос для обнаружения изменений от других пользователей
   useEffect(() => {
     if (!state.syncUrl || !state.syncKey || !isCloudReady) return;
 
@@ -57,7 +57,6 @@ const App: React.FC = () => {
       try {
         const remoteData = await fetchFromCloud(state.syncUrl!, state.syncKey!);
         if (remoteData && remoteData.version > state.version) {
-          // Если кто-то другой обновил данные, помечаем конфликт или уведомляем
           setState(prev => ({ ...prev, remoteVersion: remoteData.version }));
           setCloudStatus('conflict');
         }
@@ -69,25 +68,32 @@ const App: React.FC = () => {
     return () => clearInterval(pollInterval);
   }, [state.version, state.syncUrl, state.syncKey, isCloudReady]);
 
-  // 3. Авто-синхронизация с Умным Слиянием
+  // 3. Авто-синхронизация с защитой от перезаписи (Fix Revert Bug)
   useEffect(() => {
     saveLocal(state);
     
     if (state.syncUrl && state.syncKey && isCloudReady && !isSyncing) {
       const timer = setTimeout(async () => {
+        const versionAtStart = state.version; // Запоминаем версию в начале запроса
+        
         setIsSyncing(true);
         setCloudStatus('loading');
         
-        // syncToCloud теперь внутри себя делает FETCH и MERGE перед POST
         const result = await syncToCloud(state);
         
-        if (result.success) {
-          setCloudStatus('success');
-          setLastSyncTime(new Date().toLocaleTimeString());
-          // Если в процессе слияния стейт изменился (добавились чужие расходы), обновляем его у себя локально
-          if (result.newState) {
-            setState(result.newState);
-          }
+        if (result.success && result.newState) {
+          setState(current => {
+            // КРИТИЧЕСКИЙ ФИКС: Если пока шел запрос, пользователь сделал еще одно изменение
+            // (current.version > versionAtStart), то МЫ НЕ ОБНОВЛЯЕМ стейт старым результатом.
+            // Следующий цикл useEffect (уже запущенный новым изменением) сделает это корректно.
+            if (current.version === versionAtStart || current.version === versionAtStart + 1) {
+               setCloudStatus('success');
+               setLastSyncTime(new Date().toLocaleTimeString());
+               return result.newState;
+            }
+            console.log("Sync skipped to prevent clobbering newer local data");
+            return current;
+          });
         } else {
           setCloudStatus('error');
         }
@@ -95,11 +101,7 @@ const App: React.FC = () => {
       }, 5000); 
       return () => clearTimeout(timer);
     }
-  }, [state, isCloudReady]); // Убрал cloudStatus из зависимостей, чтобы не зацикливать
-
-  const activePeriod = useMemo(() => {
-    return state.accountingPeriods.find(p => p.id === state.selectedPeriodId);
-  }, [state.accountingPeriods, state.selectedPeriodId]);
+  }, [state.version, state.syncUrl, state.syncKey, isCloudReady]);
 
   const updateState = useCallback((updater: (prev: AppState) => AppState) => {
     setState(prev => {

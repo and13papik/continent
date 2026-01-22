@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AppState, IncomeRecord, OperationType, OperationRecord, Platform } from '../types';
@@ -113,7 +114,8 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
     const op: OperationRecord = {
       id: String(Date.now()), type: qType, operator: selectedOperator,
       amount: parseFloat(qAmount), comment: qComment, date: new Date().toISOString().split('T')[0],
-      createdAt: new Date().toISOString(), periodId: state.selectedPeriodId,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), 
+      periodId: state.selectedPeriodId,
       platform: qPlatform === 'all' ? undefined : qPlatform
     };
     updateState(prev => ({ ...prev, operationsData: [op, ...prev.operationsData] }));
@@ -124,8 +126,12 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
     if (!editingIncome) return;
     const i = editingIncome;
     const updated: IncomeRecord = {
-      ...i, total: i.onlyFans + i.paypal + i.crypto,
-      nettoOF: i.onlyFans * (i.percentOF / 100), nettoPP: i.paypal * (i.percentPP / 100), nettoCrypto: i.crypto * (i.percentCrypto / 100)
+      ...i, 
+      total: i.onlyFans + i.paypal + i.crypto,
+      nettoOF: i.onlyFans * (i.percentOF / 100), 
+      nettoPP: i.paypal * (i.percentPP / 100), 
+      nettoCrypto: i.crypto * (i.percentCrypto / 100),
+      updatedAt: new Date().toISOString()
     };
     updateState(prev => ({ ...prev, incomeData: prev.incomeData.map(x => x.id === i.id ? updated : x) }));
     setEditingIncome(null);
@@ -133,9 +139,19 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
 
   const updateOp = () => {
     if (!editingOperation) return;
-    updateState(prev => ({ ...prev, operationsData: prev.operationsData.map(x => x.id === editingOperation.id ? editingOperation : x) }));
+    const updated = { ...editingOperation, updatedAt: new Date().toISOString() };
+    updateState(prev => ({ ...prev, operationsData: prev.operationsData.map(x => x.id === editingOperation.id ? updated : x) }));
     setEditingOperation(null);
   };
+
+  const deleteRecord = (item: { type: string; id: string }) => {
+     if(!confirm('Удалить запись безвозвратно?')) return;
+     updateState(prev => ({
+       ...prev, 
+       incomeData: item.type === 'income' ? prev.incomeData.filter(x => x.id !== item.id) : prev.incomeData, 
+       operationsData: item.type === 'op' ? prev.operationsData.filter(x => x.id !== item.id) : prev.operationsData
+     }));
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-24">
@@ -188,7 +204,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
 
       {report && (
         <div className="space-y-6">
-          {/* Main Financial Overview */}
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <InfoBox title="Общий Брутто" value={report.totalBrutto} color="slate" />
             <InfoBox title="Общий Нетто" value={report.totalNetto} color="emerald" highlighted />
@@ -315,7 +330,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                                   </span>
                                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                      <button onClick={() => item.type === 'income' ? setEditingIncome(item.raw as any) : setEditingOperation(item.raw as any)} className="text-slate-500 hover:text-indigo-400 p-2 rounded-xl transition-all active:scale-90"><ICONS.Edit size={16}/></button>
-                                     <button onClick={() => { if(confirm('Удалить?')) updateState(prev => ({...prev, incomeData: item.type === 'income' ? prev.incomeData.filter(x => x.id !== item.id) : prev.incomeData, operationsData: item.type === 'op' ? prev.operationsData.filter(x => x.id !== item.id) : prev.operationsData}))}} className="text-slate-500 hover:text-rose-500 p-2 rounded-xl transition-all active:scale-90"><ICONS.Trash size={16}/></button>
+                                     <button onClick={() => deleteRecord({type: item.type, id: item.id})} className="text-slate-500 hover:text-rose-500 p-2 rounded-xl transition-all active:scale-90"><ICONS.Trash size={16}/></button>
                                   </div>
                                </div>
                             </td>

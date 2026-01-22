@@ -1,5 +1,5 @@
 
-import { AppState, AccountingPeriod, Admin, CloudSnapshot } from './types';
+import { AppState, AccountingPeriod, Admin, CloudSnapshot, PaidStatus } from './types';
 
 const STORAGE_KEY = 'continental_dashboard_v3';
 const EMERGENCY_KEY = 'continental_emergency_backup';
@@ -81,15 +81,30 @@ export function restoreEmergencyBackup(): AppState | null {
 }
 
 /**
- * SMART MERGE LOGIC
- * Сравнивает два массива объектов по ID и возвращает объединенный массив уникальных элементов.
+ * SMART MERGE LOGIC v2
+ * Сравнивает две записи. Если ID совпадают, побеждает та, у которойUpdatedAt позже.
  */
-function mergeArraysById<T extends { id: string }>(local: T[], remote: T[]): T[] {
+function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?: string }>(local: T[], remote: T[]): T[] {
   const map = new Map<string, T>();
-  // Сначала берем удаленные данные (они приоритетнее для "чужих" записей)
+  
+  // Заполняем карту удаленными данными
   remote.forEach(item => map.set(item.id, item));
-  // Затем накладываем локальные (они обновят то, что мы редактировали сами)
-  local.forEach(item => map.set(item.id, item));
+  
+  // Накладываем локальные данные с проверкой времени обновления
+  local.forEach(item => {
+    const existing = map.get(item.id);
+    if (!existing) {
+      map.set(item.id, item);
+    } else {
+      const itemTime = new Date(item.updatedAt || item.createdAt || 0).getTime();
+      const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+      
+      if (itemTime >= existingTime) {
+        map.set(item.id, item);
+      }
+    }
+  });
+  
   return Array.from(map.values());
 }
 
@@ -105,7 +120,6 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
   };
 
   try {
-    // 1. ПОЛУЧАЕМ АКТУАЛЬНЫЕ ДАННЫЕ ИЗ ОБЛАКА ПЕРЕД СОХРАНЕНИЕМ
     const checkResponse = await fetch(`${url}?id=eq.main&select=state`, { headers });
     let finalState = { ...state };
 
@@ -114,22 +128,20 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
       if (cloudData.length > 0) {
         const remote: AppState = cloudData[0].state;
         
-        // 2. ВЫПОЛНЯЕМ УМНОЕ СЛИЯНИЕ ВСЕХ МАССИВОВ
-        // Это гарантирует, что если Овнер добавил расход, а Админ - доход, оба останутся.
         finalState.incomeData = mergeArraysById(state.incomeData, remote.incomeData);
         finalState.operationsData = mergeArraysById(state.operationsData, remote.operationsData);
         finalState.ownerExpenses = mergeArraysById(state.ownerExpenses, remote.ownerExpenses);
         finalState.ownerAdvances = mergeArraysById(state.ownerAdvances, remote.ownerAdvances);
         finalState.ownerManualIncomes = mergeArraysById(state.ownerManualIncomes || [], remote.ownerManualIncomes || []);
         finalState.modelBonuses = mergeArraysById(state.modelBonuses || [], remote.modelBonuses || []);
+        // Updated to use the corrected PaidStatus type with id
+        finalState.paidStatuses = mergeArraysById<PaidStatus>(state.paidStatuses, remote.paidStatuses);
         
-        // Обновляем версию и время на основе самой свежей инфы
         finalState.version = Math.max(state.version, remote.version) + 1;
         finalState.lastUpdated = Date.now();
       }
     }
 
-    // 3. ОТПРАВЛЯЕМ ОБЪЕДИНЕННЫЙ РЕЗУЛЬТАТ
     const response = await fetch(url, {
       method: 'POST',
       headers: { ...headers, 'Prefer': 'resolution=merge-duplicates' },
@@ -140,35 +152,10 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
       })
     });
 
-    // 4. ДЕЛАЕМ СНАПШОТ (БЕКАП)
-    const snapshotId = `snapshot_${new Date().toISOString().replace(/[:.]/g, '-')}`;
-    await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ 
-        id: snapshotId,
-        state: finalState, 
-        updated_at: new Date().toISOString() 
-      })
-    });
-
     return { success: response.ok, newState: finalState };
   } catch (e) {
     console.error("Cloud Sync Error:", e);
     return { success: false };
-  }
-}
-
-export async function listCloudSnapshots(url: string, key: string): Promise<CloudSnapshot[]> {
-  const baseUrl = url.trim().replace(/\/$/, "");
-  const fetchUrl = `${baseUrl}/rest/v1/app_storage?id=like.snapshot_*&select=id,state,updated_at&order=updated_at.desc&limit=20`;
-  try {
-    const response = await fetch(fetchUrl, {
-      headers: { 'apikey': key.trim(), 'Authorization': `Bearer ${key.trim()}` }
-    });
-    return response.ok ? await response.json() : [];
-  } catch (e) {
-    return [];
   }
 }
 
@@ -186,6 +173,27 @@ export async function fetchFromCloud(url: string, key?: string): Promise<AppStat
     return (data.length > 0) ? data[0].state : null;
   } catch (e) {
     return null;
+  }
+}
+
+/**
+ * Lists snapshots from the cloud storage.
+ */
+export async function listCloudSnapshots(url: string, key?: string): Promise<CloudSnapshot[]> {
+  if (!url || !key) return [];
+  const baseUrl = url.trim().replace(/\/$/, "");
+  const fetchUrl = `${baseUrl}/rest/v1/app_storage?select=id,state,updated_at&order=updated_at.desc&limit=20`;
+
+  try {
+    const response = await fetch(fetchUrl, {
+      headers: { 'apikey': key.trim(), 'Authorization': `Bearer ${key.trim()}` }
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data;
+  } catch (e) {
+    console.error("Cloud snapshots error:", e);
+    return [];
   }
 }
 

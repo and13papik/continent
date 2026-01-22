@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState } from 'react';
-import { AppState, ModelBonus } from '../types';
+import { AppState, ModelBonus, PaidStatus } from '../types';
 import { ICONS } from '../constants';
 
 interface ModelsProps {
@@ -70,7 +70,14 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       if (exists) {
         return { ...prev, paidStatuses: prev.paidStatuses.filter(s => !(s.entityName === model && s.entityType === 'model' && s.periodId === activePeriodId)) };
       } else {
-        return { ...prev, paidStatuses: [...prev.paidStatuses, { entityName: model, entityType: 'model', periodId: activePeriodId }] };
+        const newPaid: PaidStatus = {
+          id: `paid-model-${model}-${activePeriodId}`,
+          entityName: model,
+          entityType: 'model',
+          periodId: activePeriodId,
+          updatedAt: new Date().toISOString()
+        };
+        return { ...prev, paidStatuses: [...prev.paidStatuses, newPaid] };
       }
     });
   };
