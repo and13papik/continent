@@ -31,6 +31,7 @@ export function createInitialState(): AppState {
         ownerAdvances: parsed.ownerAdvances || [],
         modelBonuses: parsed.modelBonuses || [],
         paidStatuses: parsed.paidStatuses || [],
+        deletedIds: parsed.deletedIds || [],
         modelRates: parsed.modelRates || { of: 25, pp: 17, cr: 25 }
       };
     } catch (e) {
@@ -63,7 +64,8 @@ export function createInitialState(): AppState {
     ownerManualIncomes: [],
     ownerAdvances: [],
     modelBonuses: [],
-    paidStatuses: []
+    paidStatuses: [],
+    deletedIds: []
   };
 }
 
@@ -81,17 +83,27 @@ export function restoreEmergencyBackup(): AppState | null {
 }
 
 /**
- * SMART MERGE LOGIC v2
- * Сравнивает две записи. Если ID совпадают, побеждает та, у которойUpdatedAt позже.
+ * SMART MERGE LOGIC v3
+ * Теперь учитывает список удаленных ID (deletedIds).
  */
-function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?: string }>(local: T[], remote: T[]): T[] {
+function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?: string }>(
+  local: T[], 
+  remote: T[], 
+  deletedIds: string[]
+): T[] {
   const map = new Map<string, T>();
   
-  // Заполняем карту удаленными данными
-  remote.forEach(item => map.set(item.id, item));
+  // 1. Сначала обрабатываем удаленные данные (если ID в списке удаленных - игнорируем)
+  remote.forEach(item => {
+    if (!deletedIds.includes(item.id)) {
+      map.set(item.id, item);
+    }
+  });
   
-  // Накладываем локальные данные с проверкой времени обновления
+  // 2. Накладываем локальные данные (если ID в списке удаленных - игнорируем)
   local.forEach(item => {
+    if (deletedIds.includes(item.id)) return;
+
     const existing = map.get(item.id);
     if (!existing) {
       map.set(item.id, item);
@@ -128,14 +140,18 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
       if (cloudData.length > 0) {
         const remote: AppState = cloudData[0].state;
         
-        finalState.incomeData = mergeArraysById(state.incomeData, remote.incomeData);
-        finalState.operationsData = mergeArraysById(state.operationsData, remote.operationsData);
-        finalState.ownerExpenses = mergeArraysById(state.ownerExpenses, remote.ownerExpenses);
-        finalState.ownerAdvances = mergeArraysById(state.ownerAdvances, remote.ownerAdvances);
-        finalState.ownerManualIncomes = mergeArraysById(state.ownerManualIncomes || [], remote.ownerManualIncomes || []);
-        finalState.modelBonuses = mergeArraysById(state.modelBonuses || [], remote.modelBonuses || []);
-        // Updated to use the corrected PaidStatus type with id
-        finalState.paidStatuses = mergeArraysById<PaidStatus>(state.paidStatuses, remote.paidStatuses);
+        // Сливаем списки удаленных ID (объединение уникальных)
+        const combinedDeletedIds = Array.from(new Set([...state.deletedIds, ...(remote.deletedIds || [])]));
+        finalState.deletedIds = combinedDeletedIds;
+
+        // Сливаем данные с учетом Tombstones
+        finalState.incomeData = mergeArraysById(state.incomeData, remote.incomeData, combinedDeletedIds);
+        finalState.operationsData = mergeArraysById(state.operationsData, remote.operationsData, combinedDeletedIds);
+        finalState.ownerExpenses = mergeArraysById(state.ownerExpenses, remote.ownerExpenses, combinedDeletedIds);
+        finalState.ownerAdvances = mergeArraysById(state.ownerAdvances, remote.ownerAdvances, combinedDeletedIds);
+        finalState.ownerManualIncomes = mergeArraysById(state.ownerManualIncomes || [], remote.ownerManualIncomes || [], combinedDeletedIds);
+        finalState.modelBonuses = mergeArraysById(state.modelBonuses || [], remote.modelBonuses || [], combinedDeletedIds);
+        finalState.paidStatuses = mergeArraysById(state.paidStatuses, remote.paidStatuses, combinedDeletedIds);
         
         finalState.version = Math.max(state.version, remote.version) + 1;
         finalState.lastUpdated = Date.now();
@@ -176,23 +192,16 @@ export async function fetchFromCloud(url: string, key?: string): Promise<AppStat
   }
 }
 
-/**
- * Lists snapshots from the cloud storage.
- */
 export async function listCloudSnapshots(url: string, key?: string): Promise<CloudSnapshot[]> {
   if (!url || !key) return [];
   const baseUrl = url.trim().replace(/\/$/, "");
   const fetchUrl = `${baseUrl}/rest/v1/app_storage?select=id,state,updated_at&order=updated_at.desc&limit=20`;
-
   try {
     const response = await fetch(fetchUrl, {
       headers: { 'apikey': key.trim(), 'Authorization': `Bearer ${key.trim()}` }
     });
-    if (!response.ok) return [];
-    const data = await response.json();
-    return data;
+    return response.ok ? await response.json() : [];
   } catch (e) {
-    console.error("Cloud snapshots error:", e);
     return [];
   }
 }

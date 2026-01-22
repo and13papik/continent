@@ -55,7 +55,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
     const totalBrutto = platformStats.of.gross + platformStats.pp.gross + platformStats.cr.gross;
     const totalNetto = platformStats.of.net + platformStats.pp.net + platformStats.cr.net;
 
-    // Группировка корректировок
     const adjustmentGroups = {
       advance: ops.filter(o => o.type === 'advance').reduce((s,o) => s + o.amount, 0),
       salary: ops.filter(o => o.type === 'salary_payment').reduce((s,o) => s + o.amount, 0),
@@ -71,7 +70,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
 
     const activeModels = Array.from(new Set(incomes.map(i => i.model)));
 
-    // Daily History
     const dailyData: Record<string, { 
       gross: number, net: number, models: Set<string>, 
       ofG: number, ofN: number, ppG: number, ppN: number, crG: number, crN: number,
@@ -144,10 +142,12 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
     setEditingOperation(null);
   };
 
+  // ФУНКЦИЯ УДАЛЕНИЯ С TOMBSTONES
   const deleteRecord = (item: { type: string; id: string }) => {
      if(!confirm('Удалить запись безвозвратно?')) return;
      updateState(prev => ({
        ...prev, 
+       deletedIds: [...prev.deletedIds, item.id], // Добавляем в список удаленных
        incomeData: item.type === 'income' ? prev.incomeData.filter(x => x.id !== item.id) : prev.incomeData, 
        operationsData: item.type === 'op' ? prev.operationsData.filter(x => x.id !== item.id) : prev.operationsData
      }));
@@ -161,11 +161,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
           <p className="text-slate-400">Детализация за <span className="text-indigo-400 font-bold">{activePeriod?.label}</span></p>
         </div>
         <div className="flex gap-3">
-          <select 
-            className="bg-slate-900 border border-slate-700 rounded-2xl px-6 py-3 font-bold text-white shadow-xl outline-none min-w-[280px]"
-            value={selectedOperator}
-            onChange={(e) => setSelectedOperator(e.target.value)}
-          >
+          <select className="bg-slate-900 border border-slate-700 rounded-2xl px-6 py-3 font-bold text-white shadow-xl outline-none min-w-[280px]" value={selectedOperator} onChange={(e) => setSelectedOperator(e.target.value)}>
             <option value="">Выберите сотрудника</option>
             {state.operators.map(op => <option key={op} value={op}>{op}</option>)}
           </select>
@@ -207,7 +203,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <InfoBox title="Общий Брутто" value={report.totalBrutto} color="slate" />
             <InfoBox title="Общий Нетто" value={report.totalNetto} color="emerald" highlighted />
-            
             <div className="glass-card p-6 rounded-3xl border-blue-500/20 bg-blue-500/5">
                <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest mb-1">OnlyFans (B/H)</p>
                <div className="flex flex-col">
@@ -215,7 +210,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                   <span className="text-lg font-black text-white font-mono">${report.platformStats.of.net.toFixed(1)}</span>
                </div>
             </div>
-
             <div className="glass-card p-6 rounded-3xl border-sky-500/20 bg-sky-500/5">
                <p className="text-[10px] font-black uppercase text-sky-500 tracking-widest mb-1">PayPal (B/H)</p>
                <div className="flex flex-col">
@@ -223,7 +217,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                   <span className="text-lg font-black text-white font-mono">${report.platformStats.pp.net.toFixed(1)}</span>
                </div>
             </div>
-
             <div className="glass-card p-6 rounded-3xl border-emerald-500/20 bg-emerald-500/5">
                <p className="text-[10px] font-black uppercase text-emerald-500 tracking-widest mb-1">Crypto (B/H)</p>
                <div className="flex flex-col">
@@ -343,7 +336,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
         </div>
       )}
 
-      {/* Edit Income Modal */}
       {editingIncome && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-xl animate-in fade-in duration-300">
            <div className="glass-card w-full max-w-2xl rounded-[3rem] p-12 border-indigo-500/40 shadow-2xl relative">
@@ -368,7 +360,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
         </div>
       )}
 
-      {/* Edit Operation Modal */}
       {editingOperation && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-xl animate-in fade-in duration-300">
            <div className="glass-card w-full max-w-lg rounded-[3rem] p-12 border-amber-500/40 shadow-2xl relative">
@@ -424,12 +415,7 @@ const RateField = ({ label, val, onChange, color }: any) => {
   return (
     <div className="space-y-1">
       <label className="text-[10px] text-slate-600 font-black uppercase tracking-widest ml-1">{label}</label>
-      <input 
-        type="number" 
-        className={`w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-lg font-mono outline-none transition-all ${colorMap[color] || ''}`}
-        value={val}
-        onChange={e => onChange(parseFloat(e.target.value) || 0)}
-      />
+      <input type="number" className={`w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-lg font-mono outline-none transition-all ${colorMap[color] || ''}`} value={val} onChange={e => onChange(parseFloat(e.target.value) || 0)} />
     </div>
   );
 };

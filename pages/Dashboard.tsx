@@ -111,11 +111,13 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       const exists = prev.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
       if (exists) return { ...prev, paidStatuses: prev.paidStatuses.filter(s => !(s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId)) };
       
+      // Added createdAt for sync logic and interface consistency
       const newPaid: PaidStatus = {
         id: `paid-op-${op}-${activePeriodId}`,
         entityName: op,
         entityType: 'operator',
         periodId: activePeriodId,
+        createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
       return { ...prev, paidStatuses: [...prev.paidStatuses, newPaid] };

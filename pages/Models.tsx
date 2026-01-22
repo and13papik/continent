@@ -44,12 +44,14 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
     const val = parseFloat(bonusInputs[model]) || 0;
     if (val <= 0) return;
 
+    // Added createdAt for sync logic and interface consistency
     const newBonus: ModelBonus = {
       id: String(Date.now() + Math.random()),
       model,
       periodId: activePeriodId,
       amount: val,
-      comment: 'Бонус'
+      comment: 'Бонус',
+      createdAt: new Date().toISOString()
     };
 
     updateState(prev => ({ ...prev, modelBonuses: [...(prev.modelBonuses || []), newBonus] }));
@@ -70,11 +72,13 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       if (exists) {
         return { ...prev, paidStatuses: prev.paidStatuses.filter(s => !(s.entityName === model && s.entityType === 'model' && s.periodId === activePeriodId)) };
       } else {
+        // Added createdAt for sync logic and interface consistency
         const newPaid: PaidStatus = {
           id: `paid-model-${model}-${activePeriodId}`,
           entityName: model,
           entityType: 'model',
           periodId: activePeriodId,
+          createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
         return { ...prev, paidStatuses: [...prev.paidStatuses, newPaid] };

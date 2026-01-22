@@ -17,7 +17,6 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
   const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0]);
   const [targetPeriodId, setTargetPeriodId] = useState(state.selectedPeriodId);
 
-  // Edit State
   const [editingOp, setEditingOp] = useState<OperationRecord | null>(null);
 
   const handleSubmit = () => {
@@ -52,7 +51,7 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
     if (!editingOp) return;
     updateState(prev => ({
       ...prev,
-      operationsData: prev.operationsData.map(o => o.id === editingOp.id ? editingOp : o)
+      operationsData: prev.operationsData.map(o => o.id === editingOp.id ? { ...editingOp, updatedAt: new Date().toISOString() } : o)
     }));
     setEditingOp(null);
   };
@@ -61,6 +60,7 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
     if (!confirm('Удалить операцию?')) return;
     updateState(prev => ({
       ...prev,
+      deletedIds: [...prev.deletedIds, id],
       operationsData: prev.operationsData.filter(o => o.id !== id)
     }));
   };
@@ -69,21 +69,15 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
     if (!confirm('Удалить запись о доходе?')) return;
     updateState(prev => ({
       ...prev,
+      deletedIds: [...prev.deletedIds, id],
       incomeData: prev.incomeData.filter(i => i.id !== id)
     }));
   };
 
-  // ОБЪЕДИНЕННАЯ ИСТОРИЯ
   const unifiedHistory = useMemo(() => {
     const currentPeriodId = state.selectedPeriodId;
-    
-    const ops = state.operationsData
-      .filter(o => o.periodId === currentPeriodId)
-      .map(o => ({ ...o, entryType: 'operation' as const }));
-
-    const incs = state.incomeData
-      .filter(i => i.periodId === currentPeriodId)
-      .map(i => ({ ...i, entryType: 'income' as const }));
+    const ops = state.operationsData.filter(o => o.periodId === currentPeriodId).map(o => ({ ...o, entryType: 'operation' as const }));
+    const incs = state.incomeData.filter(i => i.periodId === currentPeriodId).map(i => ({ ...i, entryType: 'income' as const }));
 
     return [...ops, ...incs].sort((a, b) => {
       const dateCompare = b.date.localeCompare(a.date);
@@ -150,7 +144,6 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
             </div>
 
             <textarea className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm min-h-[80px] text-white outline-none" placeholder="Причина/Заметка..." value={comment} onChange={(e) => setComment(e.target.value)} />
-
             <button onClick={handleSubmit} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-widest py-4 rounded-2xl shadow-xl shadow-indigo-600/20 transition-all active:scale-95">Сохранить</button>
           </div>
         </div>
@@ -248,13 +241,11 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
         </div>
       </div>
 
-      {/* Edit Modal */}
       {editingOp && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
           <div className="glass-card w-full max-w-lg rounded-[2.5rem] p-10 border-indigo-500/30 shadow-2xl relative">
             <button onClick={() => setEditingOp(null)} className="absolute top-8 right-8 text-slate-500 hover:text-white transition-all"><ICONS.Plus className="rotate-45" size={28} /></button>
             <h2 className="text-2xl font-black text-white mb-8 font-outfit uppercase tracking-tight">Редактор операции</h2>
-            
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-3">
                 {Object.entries(OPERATION_META).map(([key, meta]) => (
@@ -264,7 +255,6 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
                   </button>
                 ))}
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] text-slate-500 font-black uppercase tracking-widest ml-1">Платформа</label>
@@ -280,12 +270,10 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
                   <input type="number" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono font-bold outline-none" value={editingOp.amount} onChange={e => setEditingOp({...editingOp, amount: parseFloat(e.target.value) || 0})} />
                 </div>
               </div>
-
               <div className="space-y-1">
                 <label className="text-[10px] text-slate-500 font-black uppercase tracking-widest ml-1">Комментарий</label>
                 <input type="text" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none" value={editingOp.comment} onChange={e => setEditingOp({...editingOp, comment: e.target.value})} />
               </div>
-
               <button onClick={handleUpdate} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-indigo-600/20 transition-all mt-4 uppercase tracking-[0.2em]">Обновить данные</button>
             </div>
           </div>

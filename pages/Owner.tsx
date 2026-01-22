@@ -35,7 +35,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
   const [advanceAmount, setAdvanceAmount] = useState('');
   const [advanceComment, setAdvanceComment] = useState('');
 
-  // Editing state
   const [editingExpense, setEditingExpense] = useState<OwnerManualExpense | null>(null);
   const [editingAdvance, setEditingAdvance] = useState<OwnerAdvance | null>(null);
   const [editingIncome, setEditingIncome] = useState<OwnerManualIncome | null>(null);
@@ -57,7 +56,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     const grossPP = incomes.reduce((sum, r) => sum + r.paypal, 0);
     const grossCR = incomes.reduce((sum, r) => sum + r.crypto, 0);
 
-    // 1. Расчет ЗП операторов
     const totalStaffNetIncomes = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
     const operatorStaffAdjustments = ops.reduce((sum, o) => {
       if (o.type === 'bonus') return sum + o.amount;
@@ -66,7 +64,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     }, 0);
     const totalStaffExpense = totalStaffNetIncomes + operatorStaffAdjustments;
 
-    // 2. Расчет ЗП моделей (включая бонусы)
     const totalModelSalariesBasic = state.models.reduce((sum, model) => {
       const records = incomes.filter(r => r.model === model);
       const mOF = records.reduce((s, r) => s + r.onlyFans, 0) * (state.modelRates.of / 100);
@@ -77,16 +74,11 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     const totalModelBonuses = modelBonuses.reduce((sum, b) => sum + b.amount, 0);
     const totalModelExpense = totalModelSalariesBasic + totalModelBonuses;
 
-    // 3. Расчет ЗП админам (на основе ПОЛНОГО брутто)
     const totalAdminSalaries = state.admins.reduce((sum, admin) => {
       return sum + (grossTotal * (admin.rate / 100));
     }, 0);
 
-    // 4. Бизнес расходы
-    const bizExpenses = state.ownerExpenses
-      .filter(e => e.periodId === activePeriodId)
-      .reduce((s,e) => s + e.amount, 0);
-    
+    const bizExpenses = state.ownerExpenses.filter(e => e.periodId === activePeriodId).reduce((s,e) => s + e.amount, 0);
     const netProfitTotal = grossTotal - (totalStaffExpense + totalModelExpense + totalAdminSalaries + bizExpenses);
     const sharePerOwner = netProfitTotal / 2;
 
@@ -114,11 +106,8 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === '1233211') {
-      setIsAuthenticated(true);
-    } else {
-      alert('Неверный код доступа');
-    }
+    if (password === '1233211') setIsAuthenticated(true);
+    else alert('Неверный код доступа');
   };
 
   const addBusinessExpense = () => {
@@ -130,7 +119,9 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       platform: expensePlatform,
       amount: parseFloat(expenseAmount),
       comment: expenseComment,
-      date: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     updateState(prev => ({ ...prev, ownerExpenses: [expense, ...(prev.ownerExpenses || [])] }));
     setExpenseAmount('');
@@ -145,7 +136,9 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       platform: incomePlatform,
       amount: parseFloat(incomeAmount),
       comment: incomeComment,
-      date: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     updateState(prev => ({ ...prev, ownerManualIncomes: [income, ...(prev.ownerManualIncomes || [])] }));
     setIncomeAmount('');
@@ -154,14 +147,18 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
 
   const removeIncome = (id: string) => {
     if(!confirm('Удалить доход?')) return;
-    updateState(prev => ({ ...prev, ownerManualIncomes: (prev.ownerManualIncomes || []).filter(i => i.id !== id) }));
+    updateState(prev => ({ 
+      ...prev, 
+      deletedIds: [...prev.deletedIds, id],
+      ownerManualIncomes: (prev.ownerManualIncomes || []).filter(i => i.id !== id) 
+    }));
   };
 
   const updateIncome = () => {
     if (!editingIncome) return;
     updateState(prev => ({
       ...prev,
-      ownerManualIncomes: (prev.ownerManualIncomes || []).map(i => i.id === editingIncome.id ? editingIncome : i)
+      ownerManualIncomes: (prev.ownerManualIncomes || []).map(i => i.id === editingIncome.id ? { ...editingIncome, updatedAt: new Date().toISOString() } : i)
     }));
     setEditingIncome(null);
   };
@@ -170,14 +167,18 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     if (!editingExpense) return;
     updateState(prev => ({
       ...prev,
-      ownerExpenses: prev.ownerExpenses.map(e => e.id === editingExpense.id ? editingExpense : e)
+      ownerExpenses: prev.ownerExpenses.map(e => e.id === editingExpense.id ? { ...editingExpense, updatedAt: new Date().toISOString() } : e)
     }));
     setEditingExpense(null);
   };
 
   const removeExpense = (id: string) => {
     if(!confirm('Удалить расход?')) return;
-    updateState(prev => ({ ...prev, ownerExpenses: prev.ownerExpenses.filter(e => e.id !== id) }));
+    updateState(prev => ({ 
+      ...prev, 
+      deletedIds: [...prev.deletedIds, id],
+      ownerExpenses: prev.ownerExpenses.filter(e => e.id !== id) 
+    }));
   };
 
   const addOwnerAdvance = () => {
@@ -189,7 +190,9 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       platform: advancePlatform,
       amount: parseFloat(advanceAmount),
       comment: advanceComment,
-      date: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     updateState(prev => ({ ...prev, ownerAdvances: [advance, ...(prev.ownerAdvances || [])] }));
     setAdvanceAmount('');
@@ -200,14 +203,18 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     if (!editingAdvance) return;
     updateState(prev => ({
       ...prev,
-      ownerAdvances: (prev.ownerAdvances || []).map(a => a.id === editingAdvance.id ? editingAdvance : a)
+      ownerAdvances: (prev.ownerAdvances || []).map(a => a.id === editingAdvance.id ? { ...editingAdvance, updatedAt: new Date().toISOString() } : a)
     }));
     setEditingAdvance(null);
   };
 
   const removeAdvance = (id: string) => {
     if(!confirm('Удалить аванс?')) return;
-    updateState(prev => ({ ...prev, ownerAdvances: (prev.ownerAdvances || []).filter(a => a.id !== id) }));
+    updateState(prev => ({ 
+      ...prev, 
+      deletedIds: [...prev.deletedIds, id],
+      ownerAdvances: (prev.ownerAdvances || []).filter(a => a.id !== id) 
+    }));
   };
 
   if (!isAuthenticated) {
@@ -240,37 +247,26 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
         <button onClick={() => setIsAuthenticated(false)} className="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-slate-500 hover:text-white flex items-center gap-2 text-sm transition-all hover:border-slate-700"><ICONS.Lock size={14} /> Заблокировать</button>
       </header>
 
-      {/* Primary Metrics (Gross) */}
       <section className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Общий Брутто с детализацией (Брутто + Остаток) */}
           <div className="glass-card p-6 rounded-[2rem] border-indigo-500/40 bg-indigo-500/5 transition-transform hover:scale-[1.02]">
             <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">Общий Брутто (ЧИСТЫЕ ID)</p>
             <div className="flex items-baseline gap-2">
-              <p className="text-2xl font-black font-outfit text-white leading-tight">
-                ${stats.grossTotal.toLocaleString(undefined, { minimumFractionDigits: 1 })}
-              </p>
-              {stats.manualGross > 0 && (
-                <p className="text-[11px] font-bold text-emerald-400 font-mono">
-                  (${stats.platformGross.toLocaleString()} + {stats.manualGross.toLocaleString()})
-                </p>
-              )}
+              <p className="text-2xl font-black font-outfit text-white leading-tight">${stats.grossTotal.toLocaleString(undefined, { minimumFractionDigits: 1 })}</p>
+              {stats.manualGross > 0 && <p className="text-[11px] font-bold text-emerald-400 font-mono">(${stats.platformGross.toLocaleString()} + {stats.manualGross.toLocaleString()})</p>}
             </div>
             <p className="text-[10px] opacity-40 mt-1 font-bold uppercase tracking-tighter">Все платформы + Остатки</p>
           </div>
-
           <BalanceCard title="OnlyFans Brutto" value={stats.grossOF} sub="Gross OF" color="blue" />
           <BalanceCard title="PayPal Brutto" value={stats.grossPP} sub="Gross PP" color="sky" />
           <BalanceCard title="Crypto Brutto" value={stats.grossCR} sub="Gross CR" color="emerald" />
         </div>
       </section>
 
-      {/* Admin Rates Management */}
       <section className="glass-card p-8 rounded-[2.5rem] border-indigo-500/20 shadow-xl space-y-6">
         <div className="flex items-center justify-between">
            <h2 className="text-2xl font-bold font-outfit text-white flex items-center gap-3">
-              <ICONS.Settings className="text-indigo-400" />
-              Комиссии Администраторов
+              <ICONS.Settings className="text-indigo-400" /> Комиссии Администраторов
            </h2>
            <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">Direct Config</span>
         </div>
@@ -280,12 +276,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">{admin.name}</p>
               <div className="flex items-center gap-4">
                 <div className="relative flex-1">
-                  <input 
-                    type="number" 
-                    className="w-full bg-slate-950 border border-slate-700 rounded-2xl px-4 py-3 text-indigo-400 font-bold outline-none focus:ring-2 focus:ring-indigo-500"
-                    value={admin.rate}
-                    onChange={(e) => updateAdminRate(admin.id, parseFloat(e.target.value) || 0)}
-                  />
+                  <input type="number" className="w-full bg-slate-950 border border-slate-700 rounded-2xl px-4 py-3 text-indigo-400 font-bold outline-none focus:ring-2 focus:ring-indigo-500" value={admin.rate} onChange={(e) => updateAdminRate(admin.id, parseFloat(e.target.value) || 0)} />
                   <span className="absolute right-4 top-3.5 text-slate-500 font-bold">%</span>
                 </div>
                 <div className="text-right">
@@ -298,7 +289,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
         </div>
       </section>
 
-      {/* Expense Breakdown */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="glass-card p-5 rounded-3xl border border-slate-800/50">
           <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">ЗП Операторов</p>
@@ -322,19 +312,15 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
         </div>
       </section>
 
-      {/* Share Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <OwnerShareCard name="Андрей" totalShare={stats.andrey.totalShare} advances={stats.andrey.advances} final={stats.andrey.final} color="amber" />
         <OwnerShareCard name="Антон" totalShare={stats.anton.totalShare} advances={stats.anton.advances} final={stats.anton.final} color="indigo" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Добавить ДОХОД (Переходящий остаток) */}
           <div className="glass-card p-8 rounded-[3rem] border-emerald-500/20 shadow-2xl space-y-8">
             <h2 className="text-2xl font-bold font-outfit text-white flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shadow-inner">
-                 <ICONS.Income size={24} />
-              </div>
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shadow-inner"><ICONS.Income size={24} /></div>
               Добавить ДОХОД
             </h2>
             <div className="space-y-6">
@@ -355,18 +341,13 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                 </div>
               </div>
               <input type="text" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Напр. 'Остаток с прошлого месяца'..." value={incomeComment} onChange={e => setIncomeComment(e.target.value)} />
-              <button onClick={addExtraIncome} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-5 rounded-2xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2">
-                Внести доход в новый месяц
-              </button>
+              <button onClick={addExtraIncome} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-5 rounded-2xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2">Внести доход в новый месяц</button>
             </div>
           </div>
 
-          {/* Add Expense */}
           <div className="glass-card p-8 rounded-[3rem] border-rose-500/20 shadow-2xl space-y-8">
              <h2 className="text-2xl font-bold font-outfit text-white flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-500 shadow-inner">
-                   <ICONS.Penalty size={24} />
-                </div>
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-500 shadow-inner"><ICONS.Penalty size={24} /></div>
                 Бизнес расходы
              </h2>
              <div className="space-y-6">
@@ -387,12 +368,9 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
              </div>
           </div>
 
-          {/* Add Advance */}
           <div className="glass-card p-8 rounded-[3rem] border-amber-500/20 shadow-2xl space-y-8">
             <h2 className="text-2xl font-bold font-outfit text-white flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500 shadow-inner">
-                 <ICONS.Salary size={24} />
-              </div>
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500 shadow-inner"><ICONS.Salary size={24} /></div>
               Взять аванс
             </h2>
             <div className="space-y-6">
@@ -414,9 +392,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
           </div>
       </div>
 
-      {/* History Tables */}
       <div className="space-y-8">
-         {/* Manual Incomes Breakdown */}
          <div className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-xl">
             <div className="p-8 border-b border-slate-800 bg-slate-900/40 font-bold font-outfit text-lg text-emerald-400">Внесенные Доходы (Остатки)</div>
             <div className="overflow-x-auto">
@@ -453,7 +429,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
             </div>
          </div>
 
-         {/* Model Bonuses Breakdown */}
          <div className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-xl">
             <div className="p-8 border-b border-slate-800 bg-slate-900/40 font-bold font-outfit text-lg text-amber-400">Бонусы Моделей (Расходы)</div>
             <div className="overflow-x-auto">
@@ -482,7 +457,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
             </div>
          </div>
 
-         {/* Advances History */}
          <div className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-xl">
             <div className="p-8 border-b border-slate-800 bg-slate-900/40 font-bold font-outfit text-lg text-indigo-400">История Авансов Владельцев</div>
             <div className="overflow-x-auto">
@@ -517,7 +491,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
             </div>
          </div>
 
-         {/* Business Expenses History */}
          <div className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-xl">
             <div className="p-8 border-b border-slate-800 bg-slate-900/40 font-bold font-outfit text-lg text-rose-400">История Расходов</div>
             <div className="overflow-x-auto">
@@ -553,7 +526,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
          </div>
       </div>
 
-      {/* Modals for editing */}
       {editingIncome && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
            <div className="glass-card w-full max-w-lg rounded-[2.5rem] p-10 border-emerald-500/40 shadow-2xl relative">
@@ -568,7 +540,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
         </div>
       )}
 
-      {/* Edit Advance Modal */}
       {editingAdvance && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
            <div className="glass-card w-full max-w-lg rounded-[2.5rem] p-10 border-indigo-500/40 shadow-2xl relative">
@@ -589,7 +560,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
         </div>
       )}
 
-      {/* Edit Expense Modal */}
       {editingExpense && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
            <div className="glass-card w-full max-w-lg rounded-[2.5rem] p-10 border-amber-500/40 shadow-2xl relative">

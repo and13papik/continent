@@ -59,6 +59,7 @@ export interface OwnerManualExpense {
   amount: number;
   comment: string;
   date: string;
+  createdAt: string;
   updatedAt?: string;
 }
 
@@ -69,6 +70,7 @@ export interface OwnerManualIncome {
   comment: string;
   date: string;
   platform: Platform | 'all';
+  createdAt: string;
   updatedAt?: string;
 }
 
@@ -80,6 +82,7 @@ export interface OwnerAdvance {
   amount: number;
   comment: string;
   date: string;
+  createdAt: string;
   updatedAt?: string;
 }
 
@@ -89,15 +92,16 @@ export interface ModelBonus {
   periodId: string;
   amount: number;
   comment: string;
+  createdAt: string;
   updatedAt?: string;
 }
 
 export interface PaidStatus {
-  /** Unique ID for syncing and deduplication */
   id: string;
   entityName: string;
   entityType: 'model' | 'operator';
   periodId: string;
+  createdAt: string;
   updatedAt?: string;
 }
 
@@ -122,6 +126,7 @@ export interface AppState {
   ownerAdvances: OwnerAdvance[];
   modelBonuses: ModelBonus[];
   paidStatuses: PaidStatus[];
+  deletedIds: string[]; // Метки удаления (Tombstones)
   syncUrl?: string;
   syncKey?: string;
   dbUrl?: string;
