@@ -44,7 +44,6 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
     const val = parseFloat(bonusInputs[model]) || 0;
     if (val <= 0) return;
 
-    // Added createdAt for sync logic and interface consistency
     const newBonus: ModelBonus = {
       id: String(Date.now() + Math.random()),
       model,
@@ -62,17 +61,21 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
     if (!confirm('Удалить этот бонус?')) return;
     updateState(prev => ({
       ...prev,
-      modelBonuses: prev.modelBonuses.filter(b => b.id !== bonusId)
+      deletedIds: [...prev.deletedIds, bonusId],
+      modelBonuses: (prev.modelBonuses || []).filter(b => b.id !== bonusId)
     }));
   };
 
   const toggleModelPaid = (model: string) => {
     updateState(prev => {
-      const exists = prev.paidStatuses.some(s => s.entityName === model && s.entityType === 'model' && s.periodId === activePeriodId);
-      if (exists) {
-        return { ...prev, paidStatuses: prev.paidStatuses.filter(s => !(s.entityName === model && s.entityType === 'model' && s.periodId === activePeriodId)) };
+      const existing = prev.paidStatuses.find(s => s.entityName === model && s.entityType === 'model' && s.periodId === activePeriodId);
+      if (existing) {
+        return { 
+          ...prev, 
+          deletedIds: [...prev.deletedIds, existing.id],
+          paidStatuses: prev.paidStatuses.filter(s => s.id !== existing.id) 
+        };
       } else {
-        // Added createdAt for sync logic and interface consistency
         const newPaid: PaidStatus = {
           id: `paid-model-${model}-${activePeriodId}`,
           entityName: model,

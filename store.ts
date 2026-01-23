@@ -1,5 +1,5 @@
 
-import { AppState, AccountingPeriod, Admin, CloudSnapshot, PaidStatus } from './types';
+import { AppState, AccountingPeriod, Admin, CloudSnapshot } from './types';
 
 const STORAGE_KEY = 'continental_dashboard_v3';
 const EMERGENCY_KEY = 'continental_emergency_backup';
@@ -18,21 +18,14 @@ export function createInitialState(): AppState {
       const parsed = JSON.parse(saved);
       return {
         ...parsed,
-        lastUpdated: parsed.lastUpdated || Date.now(),
-        version: parsed.version || 1,
-        operators: parsed.operators || defaultOperators,
-        models: parsed.models || defaultModels,
-        admins: parsed.admins || defaultAdmins,
+        deletedIds: parsed.deletedIds || [],
         incomeData: parsed.incomeData || [],
         operationsData: parsed.operationsData || [],
-        accountingPeriods: parsed.accountingPeriods || [],
         ownerExpenses: parsed.ownerExpenses || [],
         ownerManualIncomes: parsed.ownerManualIncomes || [],
         ownerAdvances: parsed.ownerAdvances || [],
         modelBonuses: parsed.modelBonuses || [],
-        paidStatuses: parsed.paidStatuses || [],
-        deletedIds: parsed.deletedIds || [],
-        modelRates: parsed.modelRates || { of: 25, pp: 17, cr: 25 }
+        paidStatuses: parsed.paidStatuses || []
       };
     } catch (e) {
       console.error("Failed to parse storage", e);
@@ -83,8 +76,7 @@ export function restoreEmergencyBackup(): AppState | null {
 }
 
 /**
- * SMART MERGE LOGIC v3
- * Теперь учитывает список удаленных ID (deletedIds).
+ * Исправленная логика слияния с защитой от воскрешения записей
  */
 function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?: string }>(
   local: T[], 
@@ -92,27 +84,31 @@ function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?:
   deletedIds: string[]
 ): T[] {
   const map = new Map<string, T>();
+  const deletedSet = new Set(deletedIds.map(id => String(id)));
   
-  // 1. Сначала обрабатываем удаленные данные (если ID в списке удаленных - игнорируем)
+  // 1. Сначала берем удаленные данные из облака, которых нет в нашем списке удаления
   remote.forEach(item => {
-    if (!deletedIds.includes(item.id)) {
-      map.set(item.id, item);
+    const itemId = String(item.id);
+    if (!deletedSet.has(itemId)) {
+      map.set(itemId, item);
     }
   });
   
-  // 2. Накладываем локальные данные (если ID в списке удаленных - игнорируем)
+  // 2. Накладываем локальные данные
   local.forEach(item => {
-    if (deletedIds.includes(item.id)) return;
+    const itemId = String(item.id);
+    if (deletedSet.has(itemId)) return;
 
-    const existing = map.get(item.id);
+    const existing = map.get(itemId);
     if (!existing) {
-      map.set(item.id, item);
+      map.set(itemId, item);
     } else {
       const itemTime = new Date(item.updatedAt || item.createdAt || 0).getTime();
       const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
       
+      // Локальное изменение побеждает, если оно новее или такое же (учитывая удаление в local)
       if (itemTime >= existingTime) {
-        map.set(item.id, item);
+        map.set(itemId, item);
       }
     }
   });
@@ -140,11 +136,15 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
       if (cloudData.length > 0) {
         const remote: AppState = cloudData[0].state;
         
-        // Сливаем списки удаленных ID (объединение уникальных)
-        const combinedDeletedIds = Array.from(new Set([...state.deletedIds, ...(remote.deletedIds || [])]));
+        // Объединяем списки удаленных ID (самый важный этап для фикса бага)
+        const combinedDeletedIds = Array.from(new Set([
+          ...(state.deletedIds || []).map(id => String(id)), 
+          ...(remote.deletedIds || []).map(id => String(id))
+        ]));
+        
         finalState.deletedIds = combinedDeletedIds;
 
-        // Сливаем данные с учетом Tombstones
+        // Выполняем слияние массивов
         finalState.incomeData = mergeArraysById(state.incomeData, remote.incomeData, combinedDeletedIds);
         finalState.operationsData = mergeArraysById(state.operationsData, remote.operationsData, combinedDeletedIds);
         finalState.ownerExpenses = mergeArraysById(state.ownerExpenses, remote.ownerExpenses, combinedDeletedIds);
@@ -207,7 +207,6 @@ export async function listCloudSnapshots(url: string, key?: string): Promise<Clo
 }
 
 export async function testDatabaseConnection(url: string, key: string): Promise<{ success: boolean; message: string }> {
-  if (!url || !key) return { success: false, message: "URL или Ключ не введены" };
   const baseUrl = url.trim().replace(/\/$/, "");
   try {
     const checkTable = await fetch(`${baseUrl}/rest/v1/app_storage?select=id&limit=1`, {

@@ -126,7 +126,7 @@ export interface AppState {
   ownerAdvances: OwnerAdvance[];
   modelBonuses: ModelBonus[];
   paidStatuses: PaidStatus[];
-  deletedIds: string[]; // Метки удаления (Tombstones)
+  deletedIds: string[]; 
   syncUrl?: string;
   syncKey?: string;
   dbUrl?: string;
