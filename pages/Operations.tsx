@@ -1,6 +1,5 @@
 
 import React, { useState, useMemo } from 'react';
-// Added IncomeRecord to imports from ../types
 import { AppState, OperationType, OperationRecord, Platform, IncomeRecord } from '../types';
 import { ICONS, OPERATION_META, PLATFORM_NAMES } from '../constants';
 
@@ -21,8 +20,18 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
 
   const [editingOp, setEditingOp] = useState<OperationRecord | null>(null);
   
-  // Состояние для фильтрации ленты
+  // Состояния для расширенной фильтрации ленты
   const [activeFilter, setActiveFilter] = useState<OperationType | 'all' | 'income'>('all');
+  const [filterOperator, setFilterOperator] = useState('');
+  const [filterModel, setFilterModel] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+
+  const resetFilters = () => {
+    setActiveFilter('all');
+    setFilterOperator('');
+    setFilterModel('');
+    setFilterDate('');
+  };
 
   const handleSubmit = () => {
     if (!operator || !amount || !eventDate) {
@@ -39,7 +48,7 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
       id: String(Date.now()),
       type,
       operator,
-      model: type === 'refund' ? targetModel : undefined,
+      model: (type === 'refund' || !!targetModel) ? targetModel : undefined,
       amount: parseFloat(amount),
       comment,
       date: eventDate,
@@ -93,25 +102,47 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
   const unifiedHistory = useMemo(() => {
     const currentPeriodId = state.selectedPeriodId;
     
-    // Фильтруем операции
-    const opsRaw = state.operationsData.filter(o => o.periodId === currentPeriodId);
-    const filteredOps = activeFilter === 'all' 
-      ? opsRaw 
-      : activeFilter === 'income' ? [] : opsRaw.filter(o => o.type === activeFilter);
+    // 1. Получаем все данные за период
+    let opsRaw = state.operationsData.filter(o => o.periodId === currentPeriodId);
+    let incsRaw = state.incomeData.filter(i => i.periodId === currentPeriodId);
 
-    // Фильтруем доходы
-    const incsRaw = state.incomeData.filter(i => i.periodId === currentPeriodId);
-    const filteredIncs = (activeFilter === 'all' || activeFilter === 'income') ? incsRaw : [];
+    // 2. Фильтр по типу (чипсы сверху)
+    if (activeFilter !== 'all') {
+      if (activeFilter === 'income') {
+        opsRaw = [];
+      } else {
+        opsRaw = opsRaw.filter(o => o.type === activeFilter);
+        incsRaw = [];
+      }
+    }
 
-    const ops = filteredOps.map(o => ({ ...o, entryType: 'operation' as const }));
-    const incs = filteredIncs.map(i => ({ ...i, entryType: 'income' as const }));
+    // 3. Фильтр по оператору
+    if (filterOperator) {
+      opsRaw = opsRaw.filter(o => o.operator === filterOperator);
+      incsRaw = incsRaw.filter(i => i.operator === filterOperator);
+    }
+
+    // 4. Фильтр по модели
+    if (filterModel) {
+      opsRaw = opsRaw.filter(o => o.model === filterModel);
+      incsRaw = incsRaw.filter(i => i.model === filterModel);
+    }
+
+    // 5. Фильтр по дате
+    if (filterDate) {
+      opsRaw = opsRaw.filter(o => o.date === filterDate);
+      incsRaw = incsRaw.filter(i => i.date === filterDate);
+    }
+
+    const ops = opsRaw.map(o => ({ ...o, entryType: 'operation' as const }));
+    const incs = incsRaw.map(i => ({ ...i, entryType: 'income' as const }));
 
     return [...ops, ...incs].sort((a, b) => {
       const dateCompare = b.date.localeCompare(a.date);
       if (dateCompare !== 0) return dateCompare;
       return b.createdAt.localeCompare(a.createdAt);
     });
-  }, [state.operationsData, state.incomeData, state.selectedPeriodId, activeFilter]);
+  }, [state.operationsData, state.incomeData, state.selectedPeriodId, activeFilter, filterOperator, filterModel, filterDate]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -153,15 +184,13 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
                 ))}
               </div>
               
-              {type === 'refund' && (
-                <div className="mb-3 animate-in slide-in-from-top-2">
-                  <label className="text-[10px] font-black text-amber-500 uppercase tracking-widest ml-1">Выберите модель для возврата</label>
-                  <select className="w-full bg-slate-900 border border-amber-500/30 rounded-xl px-4 py-3 text-sm text-white font-bold outline-none focus:border-amber-500" value={targetModel} onChange={(e) => setTargetModel(e.target.value)}>
-                    <option value="">Выберите модель...</option>
-                    {state.models.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-              )}
+              <div className="mb-3">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Привязка к модели {type !== 'refund' && '(опционально)'}</label>
+                <select className={`w-full bg-slate-900 border rounded-xl px-4 py-3 text-sm text-white font-bold outline-none transition-all ${type === 'refund' && !targetModel ? 'border-amber-500/50' : 'border-slate-700'}`} value={targetModel} onChange={(e) => setTargetModel(e.target.value)}>
+                  <option value="">Без модели</option>
+                  {state.models.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
 
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Оператор</label>
               <select className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-bold outline-none" value={operator} onChange={(e) => setOperator(e.target.value)}>
@@ -187,37 +216,67 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
         </div>
 
         <div className="lg:col-span-2 space-y-4">
-          {/* ФИЛЬТРЫ ЛЕНТЫ */}
-          <div className="glass-card p-4 rounded-[1.5rem] border-slate-800 shadow-lg flex flex-wrap gap-2 items-center">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2 mr-2">Фильтр:</span>
-            <FilterButton label="Все" active={activeFilter === 'all'} onClick={() => setActiveFilter('all')} color="indigo" icon={<ICONS.Transfer size={12}/>}/>
-            <FilterButton label="Доходы" active={activeFilter === 'income'} onClick={() => setActiveFilter('income')} color="emerald" icon={<ICONS.Income size={12}/>}/>
-            <div className="w-px h-6 bg-slate-800 mx-1 hidden sm:block"></div>
-            {Object.entries(OPERATION_META).map(([key, meta]) => (
-              <FilterButton 
-                key={key} 
-                label={meta.label} 
-                active={activeFilter === key} 
-                onClick={() => setActiveFilter(key as any)} 
-                color={meta.color.split('-')[1]} 
-                icon={<meta.icon size={12}/>}
-              />
-            ))}
+          {/* УЛУЧШЕННЫЕ ФИЛЬТРЫ ЛЕНТЫ */}
+          <div className="glass-card p-6 rounded-[2rem] border-slate-800 shadow-lg space-y-6">
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2 mr-2">Тип:</span>
+              <FilterButton label="Все" active={activeFilter === 'all'} onClick={() => setActiveFilter('all')} color="indigo" icon={<ICONS.Transfer size={12}/>}/>
+              <FilterButton label="Доходы" active={activeFilter === 'income'} onClick={() => setActiveFilter('income')} color="emerald" icon={<ICONS.Income size={12}/>}/>
+              <div className="w-px h-6 bg-slate-800 mx-1 hidden sm:block"></div>
+              {Object.entries(OPERATION_META).map(([key, meta]) => (
+                <FilterButton 
+                  key={key} 
+                  label={meta.label} 
+                  active={activeFilter === key} 
+                  onClick={() => setActiveFilter(key as any)} 
+                  color={meta.color.split('-')[1]} 
+                  icon={<meta.icon size={12}/>}
+                />
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-slate-800 pt-6">
+               <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Оператор</label>
+                  <select className={`w-full bg-slate-950 border rounded-xl px-3 py-2 text-xs text-white font-bold outline-none transition-all ${filterOperator ? 'border-indigo-500 shadow-lg shadow-indigo-500/10' : 'border-slate-800'}`} value={filterOperator} onChange={e => setFilterOperator(e.target.value)}>
+                     <option value="">Все сотрудники</option>
+                     {state.operators.map(op => <option key={op} value={op}>{op}</option>)}
+                  </select>
+               </div>
+               <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Модель</label>
+                  <select className={`w-full bg-slate-950 border rounded-xl px-3 py-2 text-xs text-white font-bold outline-none transition-all ${filterModel ? 'border-amber-500 shadow-lg shadow-amber-500/10' : 'border-slate-800'}`} value={filterModel} onChange={e => setFilterModel(e.target.value)}>
+                     <option value="">Все анкеты</option>
+                     {state.models.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+               </div>
+               <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">День</label>
+                  <div className="flex gap-2">
+                    <input type="date" className={`flex-1 bg-slate-950 border rounded-xl px-3 py-2 text-xs text-white outline-none transition-all ${filterDate ? 'border-sky-500 shadow-lg shadow-sky-500/10' : 'border-slate-800'}`} value={filterDate} onChange={e => setFilterDate(e.target.value)} />
+                    {(filterOperator || filterModel || filterDate || activeFilter !== 'all') && (
+                      <button onClick={resetFilters} className="bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white p-2 rounded-xl border border-rose-500/20 transition-all flex items-center justify-center shadow-lg active:scale-90">
+                        <ICONS.Trash size={14} />
+                      </button>
+                    )}
+                  </div>
+               </div>
+            </div>
           </div>
 
           <div className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-2xl">
             <div className="p-8 border-b border-slate-800 bg-slate-900/40 flex justify-between items-center">
-              <h2 className="text-xl font-bold font-outfit text-white">Лента транзакций</h2>
-              <div className="flex gap-4">
-                 <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div><span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Доход</span></div>
-                 <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]"></div><span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Коррект.</span></div>
+              <h2 className="text-xl font-bold font-outfit text-white">Результаты фильтрации</h2>
+              <div className="text-[10px] font-black uppercase text-slate-500 tracking-widest">
+                Найдено: {unifiedHistory.length}
               </div>
             </div>
             <div className="divide-y divide-slate-800 overflow-y-auto max-h-[850px] scrollbar-hide">
               {unifiedHistory.length === 0 ? (
                 <div className="p-20 text-center text-slate-500 italic flex flex-col items-center gap-4">
                   <ICONS.Operations size={48} className="opacity-10" />
-                  <p className="font-outfit font-bold text-lg">Нет записей для данного фильтра</p>
+                  <p className="font-outfit font-bold text-lg">Нет записей по вашему запросу</p>
+                  <button onClick={resetFilters} className="text-indigo-400 font-bold hover:underline text-sm uppercase tracking-widest">Сбросить фильтры</button>
                 </div>
               ) : (
                 unifiedHistory.map(item => {
@@ -237,7 +296,7 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
                             <div className="flex items-center gap-2 mt-1">
                                <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{meta.label}</span>
                                {op.model && <span className="text-[9px] text-amber-500 font-bold ml-2">({op.model})</span>}
-                               {op.comment && <span className="text-xs text-slate-500 italic"> — "{op.comment}"</span>}
+                               {op.comment && <span className="text-xs text-slate-500 italic truncate max-w-[200px]"> — "{op.comment}"</span>}
                             </div>
                           </div>
                         </div>
@@ -313,15 +372,13 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
                 ))}
               </div>
 
-              {editingOp.type === 'refund' && (
-                <div className="space-y-1">
-                  <label className="text-[10px] text-amber-500 font-black uppercase tracking-widest ml-1">Модель возврата</label>
-                  <select className="w-full bg-slate-950 border border-amber-500/30 rounded-xl px-4 py-3 text-sm text-white font-bold outline-none" value={editingOp.model || ''} onChange={e => setEditingOp({...editingOp, model: e.target.value})}>
-                    <option value="">Выберите модель...</option>
-                    {state.models.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-              )}
+              <div className="space-y-1">
+                <label className="text-[10px] text-amber-500 font-black uppercase tracking-widest ml-1">Модель</label>
+                <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-bold outline-none" value={editingOp.model || ''} onChange={e => setEditingOp({...editingOp, model: e.target.value})}>
+                  <option value="">Без модели</option>
+                  {state.models.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
