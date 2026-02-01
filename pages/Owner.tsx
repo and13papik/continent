@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { AppState, OwnerManualExpense, OwnerManualIncome, OwnerAdvance, Platform } from '../types';
-import { ICONS } from '../constants';
+import { ICONS, PLATFORM_NAMES } from '../constants';
 
 interface OwnerProps {
   state: AppState;
@@ -80,7 +80,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       return acc;
     }, { accrued: 0, advances: 0 });
 
-    const totalModelExpense = modelSummary.accrued; // Начисления - это расход владельца
+    const totalModelExpense = modelSummary.accrued;
     const modelRemainder = modelSummary.accrued - modelSummary.advances;
 
     // ЗП админов
@@ -97,6 +97,10 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     const advancesAndreyTotal = (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId && a.ownerName === 'Andrey').reduce((s, a) => s + a.amount, 0);
     const advancesAntonTotal = (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId && a.ownerName === 'Anton').reduce((s, a) => s + a.amount, 0);
 
+    const currentExpenses = state.ownerExpenses.filter(e => e.periodId === activePeriodId);
+    const currentManualIncomes = (state.ownerManualIncomes || []).filter(i => i.periodId === activePeriodId);
+    const currentOwnerAdvances = (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId);
+
     return { 
       grossTotal, rawPlatformGross, manualGross, totalRefundAmount,
       netProfitTotal, sharePerOwner,
@@ -104,6 +108,9 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       modelSummary, modelRemainder,
       andrey: { totalShare: sharePerOwner, advances: advancesAndreyTotal, final: sharePerOwner - advancesAndreyTotal },
       anton: { totalShare: sharePerOwner, advances: advancesAntonTotal, final: sharePerOwner - advancesAntonTotal },
+      currentExpenses,
+      currentManualIncomes,
+      currentOwnerAdvances
     };
   }, [state, activePeriodId]);
 
@@ -138,6 +145,15 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     setExpenseComment('');
   };
 
+  const removeExpense = (id: string) => {
+    if (!confirm('Удалить расход?')) return;
+    updateState(prev => ({ 
+      ...prev, 
+      deletedIds: [...prev.deletedIds, id],
+      ownerExpenses: prev.ownerExpenses.filter(e => e.id !== id) 
+    }));
+  };
+
   const addExtraIncome = () => {
     if (!incomeAmount || parseFloat(incomeAmount) <= 0) return;
     const income: OwnerManualIncome = {
@@ -153,6 +169,15 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     updateState(prev => ({ ...prev, ownerManualIncomes: [income, ...(prev.ownerManualIncomes || [])] }));
     setIncomeAmount('');
     setIncomeComment('');
+  };
+
+  const removeIncome = (id: string) => {
+    if (!confirm('Удалить доход?')) return;
+    updateState(prev => ({ 
+      ...prev, 
+      deletedIds: [...prev.deletedIds, id],
+      ownerManualIncomes: (prev.ownerManualIncomes || []).filter(i => i.id !== id) 
+    }));
   };
 
   const addOwnerAdvance = () => {
@@ -171,6 +196,15 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     updateState(prev => ({ ...prev, ownerAdvances: [advance, ...(prev.ownerAdvances || [])] }));
     setAdvanceAmount('');
     setAdvanceComment('');
+  };
+
+  const removeAdvance = (id: string) => {
+    if (!confirm('Удалить аванс?')) return;
+    updateState(prev => ({ 
+      ...prev, 
+      deletedIds: [...prev.deletedIds, id],
+      ownerAdvances: (prev.ownerAdvances || []).filter(a => a.id !== id) 
+    }));
   };
 
   if (!isAuthenticated) {
@@ -283,7 +317,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="glass-card p-8 rounded-[3rem] border-emerald-500/20 shadow-2xl space-y-8">
+          <div className="glass-card p-8 rounded-[3rem] border-emerald-500/20 shadow-2xl space-y-8 flex flex-col">
             <h2 className="text-2xl font-bold font-outfit text-white flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shadow-inner"><ICONS.Income size={24} /></div>
               Добавить доход
@@ -299,9 +333,22 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
               <input type="text" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Заметка..." value={incomeComment} onChange={e => setIncomeComment(e.target.value)} />
               <button onClick={addExtraIncome} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-5 rounded-2xl shadow-xl transition-all">Сохранить</button>
             </div>
+            
+            <div className="mt-8 space-y-3 max-h-[300px] overflow-y-auto pr-2">
+               <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-800 pb-2">История доходов</h3>
+               {stats.currentManualIncomes.length === 0 ? <p className="text-xs text-slate-600 italic py-4">Нет записей</p> : stats.currentManualIncomes.map(item => (
+                  <div key={item.id} className="p-3 bg-slate-950/40 rounded-xl border border-slate-800 flex justify-between items-center group">
+                     <div>
+                        <p className="text-xs font-bold text-white">${item.amount.toLocaleString()}</p>
+                        <p className="text-[9px] text-slate-500">{item.comment || 'Без описания'}</p>
+                     </div>
+                     <button onClick={() => removeIncome(item.id)} className="opacity-0 group-hover:opacity-100 text-rose-500 p-2 hover:bg-rose-500/10 rounded-lg transition-all"><ICONS.Trash size={14}/></button>
+                  </div>
+               ))}
+            </div>
           </div>
 
-          <div className="glass-card p-8 rounded-[3rem] border-rose-500/20 shadow-2xl space-y-8">
+          <div className="glass-card p-8 rounded-[3rem] border-rose-500/20 shadow-2xl space-y-8 flex flex-col">
              <h2 className="text-2xl font-bold font-outfit text-white flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-500 shadow-inner"><ICONS.Penalty size={24} /></div>
                 Расходы
@@ -314,9 +361,22 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                 <input type="text" className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Заметка..." value={expenseComment} onChange={e => setExpenseComment(e.target.value)} />
                 <button onClick={addBusinessExpense} className="w-full bg-rose-600 hover:bg-rose-500 text-white font-black py-5 rounded-2xl shadow-xl">Сохранить</button>
              </div>
+
+             <div className="mt-8 space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-800 pb-2">История расходов</h3>
+                {stats.currentExpenses.length === 0 ? <p className="text-xs text-slate-600 italic py-4">Нет записей</p> : stats.currentExpenses.map(item => (
+                   <div key={item.id} className="p-3 bg-slate-950/40 rounded-xl border border-slate-800 flex justify-between items-center group">
+                      <div>
+                         <p className="text-xs font-bold text-white">${item.amount.toLocaleString()} <span className="text-[9px] text-slate-500 uppercase ml-1">({CATEGORIES[item.category]?.label})</span></p>
+                         <p className="text-[9px] text-slate-500">{item.comment || 'Без описания'}</p>
+                      </div>
+                      <button onClick={() => removeExpense(item.id)} className="opacity-0 group-hover:opacity-100 text-rose-500 p-2 hover:bg-rose-500/10 rounded-lg transition-all"><ICONS.Trash size={14}/></button>
+                   </div>
+                ))}
+             </div>
           </div>
 
-          <div className="glass-card p-8 rounded-[3rem] border-amber-500/20 shadow-2xl space-y-8">
+          <div className="glass-card p-8 rounded-[3rem] border-amber-500/20 shadow-2xl space-y-8 flex flex-col">
             <h2 className="text-2xl font-bold font-outfit text-white flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500 shadow-inner"><ICONS.Salary size={24} /></div>
               Аванс Owner
@@ -329,6 +389,19 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
               <input type="number" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white font-mono outline-none" placeholder="Сумма $" value={advanceAmount} onChange={e => setAdvanceAmount(e.target.value)} />
               <input type="text" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Заметка..." value={advanceComment} onChange={e => setAdvanceComment(e.target.value)} />
               <button onClick={addOwnerAdvance} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-5 rounded-2xl shadow-xl active:scale-95">Выдать аванс</button>
+            </div>
+
+            <div className="mt-8 space-y-3 max-h-[300px] overflow-y-auto pr-2">
+               <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-800 pb-2">История авансов</h3>
+               {stats.currentOwnerAdvances.length === 0 ? <p className="text-xs text-slate-600 italic py-4">Нет записей</p> : stats.currentOwnerAdvances.map(item => (
+                  <div key={item.id} className="p-3 bg-slate-950/40 rounded-xl border border-slate-800 flex justify-between items-center group">
+                     <div>
+                        <p className="text-xs font-bold text-white">${item.amount.toLocaleString()} <span className={`text-[9px] uppercase ml-1 ${item.ownerName === 'Andrey' ? 'text-amber-500' : 'text-indigo-400'}`}>{item.ownerName}</span></p>
+                        <p className="text-[9px] text-slate-500">{item.comment || 'Без описания'}</p>
+                     </div>
+                     <button onClick={() => removeAdvance(item.id)} className="opacity-0 group-hover:opacity-100 text-rose-500 p-2 hover:bg-rose-500/10 rounded-lg transition-all"><ICONS.Trash size={14}/></button>
+                  </div>
+               ))}
             </div>
           </div>
       </div>
