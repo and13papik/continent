@@ -9,12 +9,12 @@ interface OwnerProps {
 }
 
 const CATEGORIES = {
-  traffic: { label: 'Трафик', icon: ICONS.ChevronRight, color: 'text-amber-400' },
-  infra: { label: 'Инфраструктура', icon: ICONS.Settings, color: 'text-sky-400' },
-  items: { label: 'Покупки (белье/игрушки)', icon: ICONS.Gift, color: 'text-rose-400' },
-  commission: { label: 'Комиссия', icon: ICONS.Income, color: 'text-indigo-400' },
-  bonus: { label: 'Бонусы', icon: ICONS.Bonus, color: 'text-emerald-400' },
-  other: { label: 'Прочее', icon: ICONS.Reports, color: 'text-slate-400' }
+  traffic: { label: 'Трафик', icon: ICONS.ChevronRight, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+  infra: { label: 'Инфраструктура', icon: ICONS.Settings, color: 'text-sky-400', bg: 'bg-sky-500/10', border: 'border-sky-500/20' },
+  items: { label: 'Покупки (белье/игрушки)', icon: ICONS.Gift, color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
+  commission: { label: 'Комиссия', icon: ICONS.Income, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
+  bonus: { label: 'Бонусы', icon: ICONS.Bonus, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+  other: { label: 'Прочее', icon: ICONS.Reports, color: 'text-slate-400', bg: 'bg-slate-500/10', border: 'border-slate-500/20' }
 };
 
 const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
@@ -446,7 +446,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                 <input type="text" className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Заметка..." value={expenseComment} onChange={e => setExpenseComment(e.target.value)} />
                 <button onClick={addBusinessExpense} className="w-full bg-rose-600 hover:bg-rose-500 text-white font-black py-4 rounded-2xl shadow-xl">Сохранить</button>
              </div>
-             <HistoryList items={stats.currentExpenses} onRemove={id => updateState(p => ({...p, ownerExpenses: p.ownerExpenses.filter(e => e.id !== id)}))} title="История расходов" />
+             <HistoryList items={stats.currentExpenses} onRemove={id => updateState(p => ({...p, ownerExpenses: p.ownerExpenses.filter(e => e.id !== id)}))} title="История расходов" isExpenses />
           </div>
 
           <div className="glass-card p-8 rounded-[3rem] border-amber-500/20 shadow-2xl flex flex-col">
@@ -486,18 +486,62 @@ const PayrollStatCard = ({ title, accrued, paid, color }: any) => (
    </div>
 );
 
-const HistoryList = ({ items, onRemove, title, isOwner }: any) => (
-   <div className="mt-8 space-y-3 max-h-[300px] overflow-y-auto pr-2">
-      <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-800 pb-2">{title}</h3>
-      {items.length === 0 ? <p className="text-xs text-slate-700 italic py-4">Нет записей</p> : items.map((item: any) => (
-         <div key={item.id} className="p-3 bg-slate-950/40 rounded-xl border border-slate-800 flex justify-between items-center group">
-            <div>
-               <p className="text-xs font-bold text-white">${item.amount.toLocaleString()} {isOwner && <span className={`text-[9px] uppercase ml-1 ${item.ownerName === 'Andrey' ? 'text-amber-500' : 'text-indigo-400'}`}>{item.ownerName}</span>}</p>
-               <p className="text-[9px] text-slate-500 truncate max-w-[150px]">{item.comment || '—'}</p>
+const HistoryList = ({ items, onRemove, title, isOwner, isExpenses }: any) => (
+   <div className="mt-8 space-y-4 max-h-[400px] overflow-y-auto pr-2 scrollbar-hide">
+      <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-800 pb-3 flex justify-between">
+         {title}
+         <span className="text-[8px] opacity-40">Total entries: {items.length}</span>
+      </h3>
+      {items.length === 0 ? <p className="text-xs text-slate-700 italic py-6 text-center">История пуста</p> : items.map((item: any) => {
+         const cat = isExpenses ? (CATEGORIES[item.category as keyof typeof CATEGORIES] || CATEGORIES.other) : null;
+         
+         return (
+            <div key={item.id} className="group relative bg-slate-900/40 hover:bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden transition-all duration-300 hover:border-slate-700 hover:shadow-xl hover:shadow-black/20">
+               {isExpenses && <div className={`absolute left-0 top-0 bottom-0 w-1 ${cat?.color.replace('text-', 'bg-')}`}></div>}
+               <div className="p-4 flex items-center gap-4">
+                  {isExpenses ? (
+                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${cat?.bg} ${cat?.color} border ${cat?.border} shrink-0 shadow-inner`}>
+                        <cat.icon size={18} />
+                     </div>
+                  ) : (
+                     <div className="w-10 h-10 rounded-xl bg-emerald-500/5 flex items-center justify-center text-emerald-500 border border-emerald-500/10 shrink-0">
+                        {isOwner ? <ICONS.Owner size={18} /> : <ICONS.Income size={18} />}
+                     </div>
+                  )}
+
+                  <div className="flex-1 min-w-0">
+                     <div className="flex justify-between items-start">
+                        <p className="text-xs font-black text-white uppercase tracking-tight truncate">
+                           {isExpenses ? cat?.label : (isOwner ? item.ownerName : 'Income')}
+                        </p>
+                        <p className={`text-sm font-black font-mono ${isExpenses ? 'text-rose-400' : 'text-emerald-400'}`}>
+                           {isExpenses ? '-' : '+'}${item.amount.toLocaleString()}
+                        </p>
+                     </div>
+                     <div className="flex justify-between items-center mt-0.5">
+                        <p className="text-[10px] text-slate-500 italic truncate pr-4">{item.comment || '—'}</p>
+                        <p className="text-[8px] font-bold text-slate-600 font-mono shrink-0 uppercase tracking-tighter">{item.date}</p>
+                     </div>
+                  </div>
+
+                  <button 
+                    onClick={() => onRemove(item.id)} 
+                    className="opacity-0 group-hover:opacity-100 p-2 hover:bg-rose-500/20 text-slate-600 hover:text-rose-500 rounded-lg transition-all absolute -right-2 top-1/2 -translate-y-1/2 group-hover:right-2"
+                  >
+                    <ICONS.Trash size={14}/>
+                  </button>
+               </div>
+               
+               {item.platform && item.platform !== 'all' && (
+                  <div className="px-4 pb-2 -mt-1 flex justify-end">
+                     <span className="text-[7px] font-black uppercase tracking-widest text-slate-700 border border-slate-800 px-1.5 rounded-sm">
+                        {item.platform}
+                     </span>
+                  </div>
+               )}
             </div>
-            <button onClick={() => onRemove(item.id)} className="opacity-0 group-hover:opacity-100 text-rose-500 p-1.5 hover:bg-rose-500/10 rounded-lg transition-all"><ICONS.Trash size={14}/></button>
-         </div>
-      ))}
+         );
+      })}
    </div>
 );
 
