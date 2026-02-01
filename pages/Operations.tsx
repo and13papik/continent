@@ -20,6 +20,9 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
   const [targetPeriodId, setTargetPeriodId] = useState(state.selectedPeriodId);
 
   const [editingOp, setEditingOp] = useState<OperationRecord | null>(null);
+  
+  // Состояние для фильтрации ленты
+  const [activeFilter, setActiveFilter] = useState<OperationType | 'all' | 'income'>('all');
 
   const handleSubmit = () => {
     if (!operator || !amount || !eventDate) {
@@ -89,15 +92,26 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
 
   const unifiedHistory = useMemo(() => {
     const currentPeriodId = state.selectedPeriodId;
-    const ops = state.operationsData.filter(o => o.periodId === currentPeriodId).map(o => ({ ...o, entryType: 'operation' as const }));
-    const incs = state.incomeData.filter(i => i.periodId === currentPeriodId).map(i => ({ ...i, entryType: 'income' as const }));
+    
+    // Фильтруем операции
+    const opsRaw = state.operationsData.filter(o => o.periodId === currentPeriodId);
+    const filteredOps = activeFilter === 'all' 
+      ? opsRaw 
+      : activeFilter === 'income' ? [] : opsRaw.filter(o => o.type === activeFilter);
+
+    // Фильтруем доходы
+    const incsRaw = state.incomeData.filter(i => i.periodId === currentPeriodId);
+    const filteredIncs = (activeFilter === 'all' || activeFilter === 'income') ? incsRaw : [];
+
+    const ops = filteredOps.map(o => ({ ...o, entryType: 'operation' as const }));
+    const incs = filteredIncs.map(i => ({ ...i, entryType: 'income' as const }));
 
     return [...ops, ...incs].sort((a, b) => {
       const dateCompare = b.date.localeCompare(a.date);
       if (dateCompare !== 0) return dateCompare;
       return b.createdAt.localeCompare(a.createdAt);
     });
-  }, [state.operationsData, state.incomeData, state.selectedPeriodId]);
+  }, [state.operationsData, state.incomeData, state.selectedPeriodId, activeFilter]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -173,6 +187,24 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
         </div>
 
         <div className="lg:col-span-2 space-y-4">
+          {/* ФИЛЬТРЫ ЛЕНТЫ */}
+          <div className="glass-card p-4 rounded-[1.5rem] border-slate-800 shadow-lg flex flex-wrap gap-2 items-center">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2 mr-2">Фильтр:</span>
+            <FilterButton label="Все" active={activeFilter === 'all'} onClick={() => setActiveFilter('all')} color="indigo" icon={<ICONS.Transfer size={12}/>}/>
+            <FilterButton label="Доходы" active={activeFilter === 'income'} onClick={() => setActiveFilter('income')} color="emerald" icon={<ICONS.Income size={12}/>}/>
+            <div className="w-px h-6 bg-slate-800 mx-1 hidden sm:block"></div>
+            {Object.entries(OPERATION_META).map(([key, meta]) => (
+              <FilterButton 
+                key={key} 
+                label={meta.label} 
+                active={activeFilter === key} 
+                onClick={() => setActiveFilter(key as any)} 
+                color={meta.color.split('-')[1]} 
+                icon={<meta.icon size={12}/>}
+              />
+            ))}
+          </div>
+
           <div className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-2xl">
             <div className="p-8 border-b border-slate-800 bg-slate-900/40 flex justify-between items-center">
               <h2 className="text-xl font-bold font-outfit text-white">Лента транзакций</h2>
@@ -185,7 +217,7 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
               {unifiedHistory.length === 0 ? (
                 <div className="p-20 text-center text-slate-500 italic flex flex-col items-center gap-4">
                   <ICONS.Operations size={48} className="opacity-10" />
-                  <p className="font-outfit font-bold text-lg">История пуста</p>
+                  <p className="font-outfit font-bold text-lg">Нет записей для данного фильтра</p>
                 </div>
               ) : (
                 unifiedHistory.map(item => {
@@ -318,5 +350,27 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
     </div>
   );
 };
+
+interface FilterButtonProps {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  color: string;
+  icon: React.ReactNode;
+}
+
+const FilterButton: React.FC<FilterButtonProps> = ({ label, active, onClick, color, icon }) => (
+  <button 
+    onClick={onClick}
+    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all border ${
+      active 
+        ? `bg-${color}-500/20 border-${color}-500 text-white shadow-lg shadow-${color}-500/10` 
+        : 'bg-slate-900/50 border-slate-800 text-slate-500 hover:border-slate-700'
+    }`}
+  >
+    <span className={active ? `text-${color}-400` : ''}>{icon}</span>
+    {label}
+  </button>
+);
 
 export default Operations;
