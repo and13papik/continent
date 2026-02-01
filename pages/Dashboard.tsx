@@ -17,6 +17,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   const stats = useMemo(() => {
     const periodIncomes = state.incomeData.filter(r => r.periodId === activePeriodId);
     const manualIncomes = (state.ownerManualIncomes || []).filter(i => i.periodId === activePeriodId);
+    const periodOps = state.operationsData.filter(o => o.periodId === activePeriodId);
     
     const platformGross = periodIncomes.reduce((s, r) => s + r.total, 0);
     const manualGross = manualIncomes.reduce((s, i) => s + i.amount, 0);
@@ -26,15 +27,20 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       totalGross,
       platformGross,
       manualGross,
-      net: 0, 
+      netEarned: 0, // Чистая ЗП операторов (база)
+      bonuses: 0,
+      penalties: 0,
+      paidOut: 0, // Получено (авансы + выплаты ЗП)
+      remainder: 0, // Остаток к получению
       adminDetails: [] as { name: string, amount: number, rate: number }[],
       of: { gross: 0, net: 0 }, 
       pp: { gross: 0, net: 0 }, 
       cr: { gross: 0, net: 0 } 
     };
 
+    // Расчет доходов по платформам и базовой чистой ЗП
     periodIncomes.forEach(r => {
-      totals.net += (r.nettoOF + r.nettoPP + r.nettoCrypto);
+      totals.netEarned += (r.nettoOF + r.nettoPP + r.nettoCrypto);
       totals.of.gross += r.onlyFans;
       totals.of.net += r.nettoOF;
       totals.pp.gross += r.paypal;
@@ -42,6 +48,20 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       totals.cr.gross += r.crypto;
       totals.cr.net += r.nettoCrypto;
     });
+
+    // Расчет корректировок (бонусы, штрафы, выплаты)
+    periodOps.forEach(op => {
+      if (op.type === 'bonus') {
+        totals.bonuses += op.amount;
+      } else if (op.type === 'penalty' || op.type === 'refund' || op.type === 'internship') {
+        totals.penalties += op.amount;
+      } else if (op.type === 'advance' || op.type === 'salary_payment') {
+        totals.paidOut += op.amount;
+      }
+    });
+
+    // Остаток = (Чистая ЗП + Бонусы) - (Штрафы/Удержания + Выплачено)
+    totals.remainder = (totals.netEarned + totals.bonuses) - (totals.penalties + totals.paidOut);
 
     state.admins.forEach(admin => {
       totals.adminDetails.push({ 
@@ -52,7 +72,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     });
 
     return totals;
-  }, [state.incomeData, state.ownerManualIncomes, state.admins, activePeriodId]);
+  }, [state.incomeData, state.ownerManualIncomes, state.operationsData, state.admins, activePeriodId]);
 
   const operatorRows = useMemo(() => {
     const raw = state.operators.map(op => {
@@ -139,53 +159,69 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         </div>
       </header>
 
-      <div className="space-y-6">
-        {/* ПЕРВАЯ КОЛОНКА / ПОЛЕ: Основные показатели */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">
-          <div className="glass-card p-5 xl:p-6 rounded-3xl bg-indigo-500/5 border-indigo-500/20 transition-transform hover:scale-[1.02] flex flex-col justify-center min-w-0">
-            <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1 truncate">Общий Тотал</p>
-            <p className="text-xl xl:text-2xl font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
-              ${stats.totalGross.toLocaleString()}
-            </p>
-            {stats.manualGross > 0 && <p className="text-[9px] text-emerald-400 font-bold mt-2 truncate">Incl. ${stats.manualGross.toLocaleString()} extra</p>}
+      <div className="space-y-8">
+        {/* БЛОК 1: ОСНОВНЫЕ ПОКАЗАТЕЛИ ОПЕРАТОРОВ (6 карточек) */}
+        <div>
+          <h2 className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-500 mb-4 ml-1">Операционная деятельность</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4">
+            <div className="glass-card p-5 xl:p-6 rounded-3xl bg-indigo-500/5 border-indigo-500/20 transition-transform hover:scale-[1.02] flex flex-col justify-center min-w-0">
+              <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1 truncate">ОБЩИЙ ТОТАЛ (грязными)</p>
+              <p className="text-xl xl:text-2xl font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
+                ${stats.totalGross.toLocaleString()}
+              </p>
+              {stats.manualGross > 0 && <p className="text-[9px] text-emerald-400 font-bold mt-2 truncate">Incl. ${stats.manualGross.toLocaleString()} extra</p>}
+            </div>
+
+            <StatCard title="ОБЩАЯ ЗП ОПЕРАТОРОВ (ЧИСТЫМИ)" value={`$${stats.netEarned.toLocaleString()}`} color="emerald" icon={<ICONS.Salary size={20}/>} />
+            <StatCard title="ШТРАФОВ" value={`$${stats.penalties.toLocaleString()}`} color="rose" icon={<ICONS.Penalty size={20}/>} />
+            <StatCard title="БОНУСОВ" value={`$${stats.bonuses.toLocaleString()}`} color="emerald" icon={<ICONS.Bonus size={20}/>} />
+            <StatCard title="ПОЛУЧЕНО" value={`$${stats.paidOut.toLocaleString()}`} color="sky" icon={<ICONS.Transfer size={20}/>} />
+            <StatCard title="ОСТАТОК К ПОЛУЧЕНИЮ" value={`$${stats.remainder.toLocaleString()}`} color="indigo" icon={<ICONS.BadgeDollarSign size={20}/>} highlighted />
           </div>
-
-          <StatCard title="ЗП Персонала (Net)" value={`$${stats.net.toLocaleString()}`} color="emerald" icon={<ICONS.Salary size={20}/>} />
-
-          <StatCard 
-            title="PayPal" 
-            value={`$${stats.pp.gross.toLocaleString()}`} 
-            subValue={`$${stats.pp.net.toLocaleString()}`}
-            subLabel="N"
-            color="sky" 
-            icon={<ICONS.Transfer size={20}/>} 
-          />
-          
-          <StatCard 
-            title="Crypto" 
-            value={`$${stats.cr.gross.toLocaleString()}`} 
-            subValue={`$${stats.cr.net.toLocaleString()}`}
-            subLabel="N"
-            color="emerald" 
-            icon={<ICONS.Income size={20}/>} 
-          />
         </div>
 
-        {/* ВТОРАЯ КОЛОНКА / ПОЛЕ: Админы */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">
-          {stats.adminDetails.map((ad) => (
-            <div key={ad.name} className="glass-card p-5 xl:p-6 rounded-3xl bg-slate-900/40 border-slate-800 transition-transform hover:scale-[1.02] flex flex-col justify-center min-w-0">
-              <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1 truncate">{ad.name}</p>
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <p className="text-xl xl:text-2xl font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
-                  ${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                </p>
-                <span className="text-[9px] text-slate-500 font-bold">({ad.rate}%)</span>
-              </div>
-            </div>
-          ))}
-          {/* Пустые ячейки для выравнивания сетки 4х */}
-          <div className="hidden 2xl:block col-span-2"></div>
+        {/* БЛОК 2: ПЛАТФОРМЫ И АДМИНЫ */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+           {/* Платформы */}
+           <div className="space-y-4">
+             <h2 className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Платформы</h2>
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <StatCard 
+                  title="PayPal" 
+                  value={`$${stats.pp.gross.toLocaleString()}`} 
+                  subValue={`$${stats.pp.net.toLocaleString()}`}
+                  subLabel="N"
+                  color="sky" 
+                  icon={<ICONS.Transfer size={20}/>} 
+                />
+                <StatCard 
+                  title="Crypto" 
+                  value={`$${stats.cr.gross.toLocaleString()}`} 
+                  subValue={`$${stats.cr.net.toLocaleString()}`}
+                  subLabel="N"
+                  color="emerald" 
+                  icon={<ICONS.Income size={20}/>} 
+                />
+             </div>
+           </div>
+
+           {/* Админы */}
+           <div className="space-y-4">
+             <h2 className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Администраторы</h2>
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+               {stats.adminDetails.map((ad) => (
+                  <div key={ad.name} className="glass-card p-5 xl:p-6 rounded-3xl bg-slate-900/40 border-slate-800 transition-transform hover:scale-[1.02] flex flex-col justify-center min-w-0">
+                    <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1 truncate">{ad.name}</p>
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <p className="text-xl xl:text-2xl font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
+                        ${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </p>
+                      <span className="text-[9px] text-slate-500 font-bold">({ad.rate}%)</span>
+                    </div>
+                  </div>
+                ))}
+             </div>
+           </div>
         </div>
       </div>
 
@@ -268,8 +304,9 @@ const StatCard: React.FC<{
   color: string; 
   subValue?: string;
   subLabel?: string;
-}> = ({ title, value, icon, color, subValue, subLabel = 'N' }) => (
-  <div className={`glass-card p-5 xl:p-6 rounded-3xl flex flex-col justify-center border-slate-800 bg-${color}-500/5 transition-transform hover:scale-[1.02] min-w-0`}>
+  highlighted?: boolean;
+}> = ({ title, value, icon, color, subValue, subLabel = 'N', highlighted }) => (
+  <div className={`glass-card p-5 xl:p-6 rounded-3xl flex flex-col justify-center transition-transform hover:scale-[1.02] min-w-0 ${highlighted ? `border-${color}-500/40 bg-${color}-500/10 shadow-xl shadow-${color}-500/5` : 'border-slate-800'}`}>
     <div className="flex items-center gap-3 xl:gap-4 overflow-visible">
       <div className={`w-10 h-10 xl:w-12 xl:h-12 rounded-2xl flex items-center justify-center bg-${color}-500/10 text-${color}-400 shadow-inner shrink-0`}>{icon}</div>
       <div className="min-w-0 flex-1 overflow-visible">
