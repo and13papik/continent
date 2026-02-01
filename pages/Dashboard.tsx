@@ -139,46 +139,56 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         </div>
       </header>
 
-      {/* Grid с 6 колонками на больших экранах */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <div className="glass-card p-6 rounded-3xl bg-indigo-500/5 border-indigo-500/20 transition-transform hover:scale-[1.02]">
-          <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1">Total Gross</p>
-          <p className="text-2xl font-black text-white font-outfit leading-none">${stats.totalGross.toLocaleString()}</p>
-          {stats.manualGross > 0 && <p className="text-[9px] text-emerald-400 font-bold mt-2">Incl. ${stats.manualGross.toLocaleString()} extra</p>}
+      <div className="space-y-6">
+        {/* ПЕРВАЯ КОЛОНКА / ПОЛЕ: Основные показатели */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">
+          <div className="glass-card p-5 xl:p-6 rounded-3xl bg-indigo-500/5 border-indigo-500/20 transition-transform hover:scale-[1.02] flex flex-col justify-center min-w-0">
+            <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1 truncate">Общий Тотал</p>
+            <p className="text-xl xl:text-2xl font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
+              ${stats.totalGross.toLocaleString()}
+            </p>
+            {stats.manualGross > 0 && <p className="text-[9px] text-emerald-400 font-bold mt-2 truncate">Incl. ${stats.manualGross.toLocaleString()} extra</p>}
+          </div>
+
+          <StatCard title="ЗП Персонала (Net)" value={`$${stats.net.toLocaleString()}`} color="emerald" icon={<ICONS.Salary size={20}/>} />
+
+          <StatCard 
+            title="PayPal" 
+            value={`$${stats.pp.net.toLocaleString()}`} 
+            brutto={`$${stats.pp.gross.toLocaleString()}`}
+            color="sky" 
+            icon={<ICONS.Transfer size={20}/>} 
+          />
+          
+          <StatCard 
+            title="Crypto" 
+            value={`$${stats.cr.net.toLocaleString()}`} 
+            brutto={`$${stats.cr.gross.toLocaleString()}`}
+            color="emerald" 
+            icon={<ICONS.Income size={20}/>} 
+          />
         </div>
 
-        <StatCard title="Staff Total Net" value={`$${stats.net.toLocaleString()}`} color="emerald" icon={<ICONS.Salary size={20}/>} />
-
-        {stats.adminDetails.map((ad, idx) => (
-          <div key={ad.name} className={`glass-card p-6 rounded-3xl bg-slate-900/40 border-slate-800 transition-transform hover:scale-[1.02]`}>
-            <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1">{ad.name}</p>
-            <div className="flex items-baseline gap-2">
-              <p className="text-xl font-black text-white font-outfit leading-none">${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-              <span className="text-[9px] text-slate-500">({ad.rate}%)</span>
+        {/* ВТОРАЯ КОЛОНКА / ПОЛЕ: Админы */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">
+          {stats.adminDetails.map((ad) => (
+            <div key={ad.name} className="glass-card p-5 xl:p-6 rounded-3xl bg-slate-900/40 border-slate-800 transition-transform hover:scale-[1.02] flex flex-col justify-center min-w-0">
+              <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1 truncate">{ad.name}</p>
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <p className="text-xl xl:text-2xl font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
+                  ${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </p>
+                <span className="text-[9px] text-slate-500 font-bold">({ad.rate}%)</span>
+              </div>
             </div>
-          </div>
-        ))}
-
-        {/* Разделение PP и CR */}
-        <StatCard 
-          title="PayPal" 
-          value={`$${stats.pp.net.toLocaleString()}`} 
-          brutto={`$${stats.pp.gross.toLocaleString()}`}
-          color="sky" 
-          icon={<ICONS.Transfer size={20}/>} 
-        />
-        
-        <StatCard 
-          title="Crypto" 
-          value={`$${stats.cr.net.toLocaleString()}`} 
-          brutto={`$${stats.cr.gross.toLocaleString()}`}
-          color="emerald" 
-          icon={<ICONS.Income size={20}/>} 
-        />
+          ))}
+          {/* Пустые ячейки для выравнивания сетки 4х */}
+          <div className="hidden 2xl:block col-span-2"></div>
+        </div>
       </div>
 
       <div className="glass-card rounded-[2.5rem] overflow-hidden shadow-2xl border-slate-800/50">
-        <div className="p-8 border-b border-slate-800 bg-slate-900/40 flex justify-between items-center">
+        <div className="p-8 border-b border-slate-800 bg-slate-900/40 flex flex-col md:flex-row justify-between items-center gap-4">
           <h2 className="text-xl font-bold font-outfit">Ведомость персонала (Топ по выплатам)</h2>
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Sorted by Balance</span>
         </div>
@@ -249,7 +259,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   );
 };
 
-// Расширенный StatCard с поддержкой Brutto
 const StatCard: React.FC<{ 
   title: string; 
   value: string; 
@@ -257,14 +266,16 @@ const StatCard: React.FC<{
   color: string; 
   brutto?: string 
 }> = ({ title, value, icon, color, brutto }) => (
-  <div className={`glass-card p-6 rounded-3xl flex flex-col justify-center gap-2 border-slate-800 bg-${color}-500/5 transition-transform hover:scale-[1.02]`}>
-    <div className="flex items-center gap-4">
-      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center bg-${color}-500/10 text-${color}-400 shadow-inner shrink-0`}>{icon}</div>
-      <div className="min-w-0 overflow-hidden">
+  <div className={`glass-card p-5 xl:p-6 rounded-3xl flex flex-col justify-center border-slate-800 bg-${color}-500/5 transition-transform hover:scale-[1.02] min-w-0`}>
+    <div className="flex items-center gap-3 xl:gap-4 overflow-visible">
+      <div className={`w-10 h-10 xl:w-12 xl:h-12 rounded-2xl flex items-center justify-center bg-${color}-500/10 text-${color}-400 shadow-inner shrink-0`}>{icon}</div>
+      <div className="min-w-0 flex-1 overflow-visible">
         <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-0.5 truncate">{title}</p>
-        <p className="text-xl xl:text-2xl font-black text-white font-outfit leading-none truncate">{value}</p>
+        <p className="text-xl xl:text-2xl font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
+          {value}
+        </p>
         {brutto && (
-          <p className={`text-[9px] font-bold mt-1.5 text-${color}-400/80 font-mono`}>
+          <p className={`text-[9px] font-bold mt-1.5 text-${color}-400/80 font-mono whitespace-nowrap`}>
             G: {brutto}
           </p>
         )}
