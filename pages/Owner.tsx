@@ -50,13 +50,16 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
 
     const grossTotal = (rawPlatformGross + manualGross) - totalRefundAmount;
 
-    // ЗП Операторов
+    // ЗП Операторов (только Staff корректировки - где НЕТ поля model)
     const rawStaffNet = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
     const avgOpRate = rawPlatformGross > 0 ? rawStaffNet / rawPlatformGross : 0.20;
     
     const totalStaffExpense = (rawStaffNet - (totalRefundAmount * avgOpRate)) + ops.reduce((sum, o) => {
-      if (o.type === 'bonus') return sum + o.amount;
-      if (['penalty', 'internship'].includes(o.type)) return sum - o.amount;
+      // КРИТИЧЕСКИЙ ФИКС: Сюда НЕ должны попадать авансы и бонусы моделей
+      if (!o.model) {
+        if (o.type === 'bonus') return sum + o.amount;
+        if (['penalty', 'internship'].includes(o.type)) return sum - o.amount;
+      }
       return sum;
     }, 0);
 
@@ -73,6 +76,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       
       const mAvgRate = records.length > 0 ? (mOF + mPP + mCR) / records.reduce((s,r) => s+r.total, 1) : 0.25;
       
+      // Начислено = (Процент с платформ + Бонусы) - Доля с возвратов
       const accrued = (mOF + mPP + mCR + mBonuses) - (mRefunds * mAvgRate);
       
       acc.accrued += accrued;
@@ -80,17 +84,16 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       return acc;
     }, { accrued: 0, advances: 0 });
 
-    const totalModelExpense = modelSummary.accrued;
+    const totalModelExpense = modelSummary.accrued; // Все начисления моделей - расход владельца
     const modelRemainder = modelSummary.accrued - modelSummary.advances;
 
-    // ЗП админов
     const totalAdminSalaries = state.admins.reduce((sum, admin) => {
       return sum + (grossTotal * (admin.rate / 100));
     }, 0);
 
     const bizExpenses = state.ownerExpenses.filter(e => e.periodId === activePeriodId).reduce((s,e) => s + e.amount, 0);
     
-    // Чистая прибыль
+    // Чистая прибыль = Gross - Все начисленные ЗП и расходы (авансы не уменьшают прибыль повторно)
     const netProfitTotal = grossTotal - (totalStaffExpense + totalModelExpense + totalAdminSalaries + bizExpenses);
     const sharePerOwner = netProfitTotal / 2;
 

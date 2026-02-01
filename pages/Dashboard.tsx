@@ -23,10 +23,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     const rawManualGross = manualIncomes.reduce((s, i) => s + i.amount, 0);
     const totalRefunds = periodOps.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
     
-    // Грязный тотал всей системы за вычетом всех возвратов
     const totalGross = (rawPlatformGross + rawManualGross) - totalRefunds;
     
-    // Расчет средней ставки операторов для корректного вычета из Net
     const totalRawNet = periodIncomes.reduce((s, r) => s + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
     const avgOpRate = rawPlatformGross > 0 ? totalRawNet / rawPlatformGross : 0.20;
 
@@ -34,7 +32,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       totalGross,
       platformGross: rawPlatformGross,
       manualGross: rawManualGross,
-      netEarned: totalRawNet - (totalRefunds * avgOpRate), // ЗП уменьшается на долю оператора от возврата
+      netEarned: totalRawNet - (totalRefunds * avgOpRate),
       bonuses: 0,
       penalties: 0,
       refunds: totalRefunds,
@@ -57,15 +55,18 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     });
 
     periodOps.forEach(op => {
-      if (op.type === 'bonus') {
-        totals.bonuses += op.amount;
-      } else if (op.type === 'penalty' || op.type === 'internship') {
-        totals.penalties += op.amount;
-      } else if (op.type === 'advance') {
-        totals.advances += op.amount;
-        totals.paidOut += op.amount;
-      } else if (op.type === 'salary_payment') {
-        totals.paidOut += op.amount;
+      // КРИТИЧЕСКИЙ ФИКС: Учитываем только операции БЕЗ привязки к модели (т.е. для персонала)
+      if (!op.model) {
+        if (op.type === 'bonus') {
+          totals.bonuses += op.amount;
+        } else if (op.type === 'penalty' || op.type === 'internship') {
+          totals.penalties += op.amount;
+        } else if (op.type === 'advance') {
+          totals.advances += op.amount;
+          totals.paidOut += op.amount;
+        } else if (op.type === 'salary_payment') {
+          totals.paidOut += op.amount;
+        }
       }
     });
 
@@ -85,12 +86,15 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   const operatorRows = useMemo(() => {
     const raw = state.operators.map(op => {
       const incomes = state.incomeData.filter(r => r.operator === op && r.periodId === activePeriodId);
-      const ops = state.operationsData.filter(o => o.operator === op && o.periodId === activePeriodId);
+      const ops = state.operationsData.filter(o => o.operator === op && o.periodId === activePeriodId && !o.model);
       
       const rawG = incomes.reduce((sum, r) => sum + r.total, 0);
       const rawN = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
       
-      const opRefunds = ops.filter(o => o.type === 'refund').reduce((sum, o) => sum + o.amount, 0);
+      // Возвраты всегда привязаны к модели, поэтому берем их из общего массива, фильтруя по оператору
+      const allPeriodRefunds = state.operationsData.filter(o => o.type === 'refund' && o.operator === op && o.periodId === activePeriodId);
+      const opRefunds = allPeriodRefunds.reduce((sum, o) => sum + o.amount, 0);
+      
       const avgRate = rawG > 0 ? rawN / rawG : 0.20;
       
       const totalGross = rawG - opRefunds;
@@ -194,7 +198,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
             <StatCard title="ШТРАФОВ" value={`$${stats.penalties.toLocaleString()}`} color="rose" icon={<ICONS.Penalty size={16}/>} />
             <StatCard title="БОНУСОВ" value={`$${stats.bonuses.toLocaleString()}`} color="emerald" icon={<ICONS.Bonus size={16}/>} />
             <StatCard title="ВОЗВРАТОВ" value={`$${stats.refunds.toLocaleString()}`} color="blue" icon={<ICONS.RotateCcw size={16}/>} />
-            <StatCard title="АВАНСОВ" value={`$${stats.advances.toLocaleString()}`} color="amber" icon={<ICONS.CircleDollarSign size={16}/>} />
+            <StatCard title="АВАНСОВ (Staff)" value={`$${stats.advances.toLocaleString()}`} color="amber" icon={<ICONS.CircleDollarSign size={16}/>} />
           </div>
         </div>
 
