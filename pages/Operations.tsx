@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
+// Added IncomeRecord to imports from ../types
 import { AppState, OperationType, OperationRecord, Platform, IncomeRecord } from '../types';
 import { ICONS, OPERATION_META, PLATFORM_NAMES } from '../constants';
 
@@ -11,6 +12,7 @@ interface OperationsProps {
 const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
   const [type, setType] = useState<OperationType>('advance');
   const [operator, setOperator] = useState('');
+  const [targetModel, setTargetModel] = useState('');
   const [amount, setAmount] = useState('');
   const [comment, setComment] = useState('');
   const [platform, setPlatform] = useState<Platform | 'all'>('all');
@@ -24,11 +26,17 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
       alert('Заполните обязательные поля');
       return;
     }
+    
+    if (type === 'refund' && !targetModel) {
+      alert('Для возврата необходимо выбрать модель');
+      return;
+    }
 
     const newOp: OperationRecord = {
       id: String(Date.now()),
       type,
       operator,
+      model: type === 'refund' ? targetModel : undefined,
       amount: parseFloat(amount),
       comment,
       date: eventDate,
@@ -44,11 +52,16 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
 
     setAmount('');
     setComment('');
+    setTargetModel('');
     alert('Операция успешно добавлена');
   };
 
   const handleUpdate = () => {
     if (!editingOp) return;
+    if (editingOp.type === 'refund' && !editingOp.model) {
+      alert('Выберите модель для возврата');
+      return;
+    }
     updateState(prev => ({
       ...prev,
       operationsData: prev.operationsData.map(o => o.id === editingOp.id ? { ...editingOp, updatedAt: new Date().toISOString() } : o)
@@ -125,6 +138,17 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
                   </button>
                 ))}
               </div>
+              
+              {type === 'refund' && (
+                <div className="mb-3 animate-in slide-in-from-top-2">
+                  <label className="text-[10px] font-black text-amber-500 uppercase tracking-widest ml-1">Выберите модель для возврата</label>
+                  <select className="w-full bg-slate-900 border border-amber-500/30 rounded-xl px-4 py-3 text-sm text-white font-bold outline-none focus:border-amber-500" value={targetModel} onChange={(e) => setTargetModel(e.target.value)}>
+                    <option value="">Выберите модель...</option>
+                    {state.models.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+              )}
+
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Оператор</label>
               <select className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-bold outline-none" value={operator} onChange={(e) => setOperator(e.target.value)}>
                 <option value="">Выберите...</option>
@@ -180,6 +204,7 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
                             </div>
                             <div className="flex items-center gap-2 mt-1">
                                <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{meta.label}</span>
+                               {op.model && <span className="text-[9px] text-amber-500 font-bold ml-2">({op.model})</span>}
                                {op.comment && <span className="text-xs text-slate-500 italic"> — "{op.comment}"</span>}
                             </div>
                           </div>
@@ -255,6 +280,17 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
                   </button>
                 ))}
               </div>
+
+              {editingOp.type === 'refund' && (
+                <div className="space-y-1">
+                  <label className="text-[10px] text-amber-500 font-black uppercase tracking-widest ml-1">Модель возврата</label>
+                  <select className="w-full bg-slate-950 border border-amber-500/30 rounded-xl px-4 py-3 text-sm text-white font-bold outline-none" value={editingOp.model || ''} onChange={e => setEditingOp({...editingOp, model: e.target.value})}>
+                    <option value="">Выберите модель...</option>
+                    {state.models.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] text-slate-500 font-black uppercase tracking-widest ml-1">Платформа</label>

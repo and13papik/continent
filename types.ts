@@ -35,6 +35,7 @@ export interface OperationRecord {
   id: string;
   type: OperationType;
   operator: string;
+  model?: string; // Привязка к модели (обязательно для возвратов)
   date: string;
   createdAt: string;
   updatedAt?: string;

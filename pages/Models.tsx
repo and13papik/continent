@@ -18,6 +18,10 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       const records = state.incomeData.filter(r => r.model === model && r.periodId === activePeriodId);
       const bonuses = (state.modelBonuses || []).filter(b => b.model === model && b.periodId === activePeriodId);
       
+      // Возвраты по конкретной модели
+      const refunds = state.operationsData.filter(o => o.type === 'refund' && o.model === model && o.periodId === activePeriodId);
+      const totalRefunds = refunds.reduce((sum, o) => sum + o.amount, 0);
+
       const grossOF = records.reduce((sum, r) => sum + r.onlyFans, 0);
       const grossPP = records.reduce((sum, r) => sum + r.paypal, 0);
       const grossCR = records.reduce((sum, r) => sum + r.crypto, 0);
@@ -28,17 +32,19 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       const earnCR = grossCR * (state.modelRates.cr / 100);
       const bonusTotal = bonuses.reduce((sum, b) => sum + b.amount, 0);
       
-      const totalEarn = earnOF + earnPP + earnCR + bonusTotal;
+      // Итоговая выплата модели: (Доход % + Бонусы) - Возвраты
+      const totalEarn = (earnOF + earnPP + earnCR + bonusTotal) - totalRefunds;
       const isPaid = state.paidStatuses.some(s => s.entityName === model && s.entityType === 'model' && s.periodId === activePeriodId);
 
       return {
         model,
         grossOF, grossPP, grossCR, totalGross,
         earnOF, earnPP, earnCR, bonusTotal,
+        totalRefunds,
         totalEarn, isPaid, bonuses
       };
     }).sort((a, b) => b.totalGross - a.totalGross);
-  }, [state.incomeData, state.models, activePeriodId, state.modelRates, state.modelBonuses, state.paidStatuses]);
+  }, [state.incomeData, state.models, activePeriodId, state.modelRates, state.modelBonuses, state.paidStatuses, state.operationsData]);
 
   const addBonus = (model: string) => {
     const val = parseFloat(bonusInputs[model]) || 0;
@@ -147,6 +153,10 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
                  <p className="text-xl font-black text-white font-mono">${modelStats.reduce((s,m) => s + m.totalGross, 0).toLocaleString()}</p>
               </div>
               <div className="text-center">
+                 <p className="text-[10px] text-rose-500 font-black uppercase mb-1">Всего возвратов</p>
+                 <p className="text-xl font-black text-rose-400 font-mono">-${modelStats.reduce((s,m) => s + m.totalRefunds, 0).toLocaleString()}</p>
+              </div>
+              <div className="text-center">
                  <p className="text-[10px] text-indigo-500 font-black uppercase mb-1">Итого к выплате</p>
                  <p className="text-xl font-black text-indigo-400 font-mono">${modelStats.reduce((s,m) => s + m.totalEarn, 0).toLocaleString()}</p>
               </div>
@@ -158,7 +168,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
               <tr className="bg-slate-900/50 text-slate-500 font-bold text-[10px] uppercase tracking-widest border-b border-slate-800">
                 <th className="px-8 py-6">Анкета</th>
                 <th className="px-6 py-6 text-center">Платформы (Gross)</th>
-                <th className="px-6 py-6 text-center">Бонус</th>
+                <th className="px-6 py-6 text-center">Корректировки (Бонус/Возврат)</th>
                 <th className="px-6 py-6 text-right">Сумма к выплате</th>
                 <th className="px-8 py-6 text-right">Статус</th>
               </tr>
@@ -178,12 +188,19 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
                   </td>
                   <td className="px-6 py-5 text-center">
                     <div className="flex flex-col items-center gap-2">
-                       {m.bonuses.map(b => (
-                         <div key={b.id} className="flex items-center gap-1 bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded text-[10px] font-black border border-amber-500/20">
-                            +${b.amount}
-                            <button onClick={() => removeBonus(b.id)} className="hover:text-rose-500 ml-1"><ICONS.Trash size={10}/></button>
-                         </div>
-                       ))}
+                       <div className="flex flex-wrap justify-center gap-1">
+                          {m.bonuses.map(b => (
+                            <div key={b.id} className="flex items-center gap-1 bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded text-[9px] font-black border border-emerald-500/20">
+                               +{b.amount}
+                               <button onClick={() => removeBonus(b.id)} className="hover:text-rose-500 ml-1"><ICONS.Trash size={10}/></button>
+                            </div>
+                          ))}
+                          {m.totalRefunds > 0 && (
+                            <div className="flex items-center gap-1 bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded text-[9px] font-black border border-rose-500/20">
+                               -{m.totalRefunds.toFixed(1)}
+                            </div>
+                          )}
+                       </div>
                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <input 
                             type="number" 
@@ -197,7 +214,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
                     </div>
                   </td>
                   <td className="px-6 py-5 text-right">
-                    <div className="font-black text-indigo-400 font-mono text-xl group-hover:scale-105 transition-transform origin-right">
+                    <div className={`font-black font-mono text-xl group-hover:scale-105 transition-transform origin-right ${m.totalEarn >= 0 ? 'text-indigo-400' : 'text-rose-400'}`}>
                       ${m.totalEarn.toFixed(2)}
                     </div>
                   </td>

@@ -68,10 +68,12 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     // Формула: (ЗП Net + Бонусы) - (Штрафы + Возвраты + Выплачено/Авансы)
     totals.remainder = (totals.netEarned + totals.bonuses) - (totals.penalties + totals.refunds + totals.paidOut);
 
+    // Админы получают процент от (Чистого Тотала - Возвраты)
+    const adminBase = totalGross - totals.refunds;
     state.admins.forEach(admin => {
       totals.adminDetails.push({ 
         name: admin.name, 
-        amount: totalGross * (admin.rate / 100),
+        amount: adminBase * (admin.rate / 100),
         rate: admin.rate
       });
     });
