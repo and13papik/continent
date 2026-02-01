@@ -23,19 +23,18 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     const rawManualGross = manualIncomes.reduce((s, i) => s + i.amount, 0);
     const totalRefunds = periodOps.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
     
-    // Gross = (Платформы + Ручные) - Возвраты
+    // Грязный тотал всей системы за вычетом всех возвратов
     const totalGross = (rawPlatformGross + rawManualGross) - totalRefunds;
     
-    // Средний процент комиссии операторов для расчета вычета из Net
-    const avgOpRate = rawPlatformGross > 0 
-      ? periodIncomes.reduce((s, r) => s + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0) / rawPlatformGross 
-      : 0.20;
+    // Расчет средней ставки операторов для корректного вычета из Net
+    const totalRawNet = periodIncomes.reduce((s, r) => s + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
+    const avgOpRate = rawPlatformGross > 0 ? totalRawNet / rawPlatformGross : 0.20;
 
     const totals = { 
       totalGross,
       platformGross: rawPlatformGross,
       manualGross: rawManualGross,
-      netEarned: 0, 
+      netEarned: totalRawNet - (totalRefunds * avgOpRate), // ЗП уменьшается на долю оператора от возврата
       bonuses: 0,
       penalties: 0,
       refunds: totalRefunds,
@@ -49,7 +48,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     };
 
     periodIncomes.forEach(r => {
-      totals.netEarned += (r.nettoOF + r.nettoPP + r.nettoCrypto);
       totals.of.gross += r.onlyFans;
       totals.of.net += r.nettoOF;
       totals.pp.gross += r.paypal;
@@ -57,9 +55,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       totals.cr.gross += r.crypto;
       totals.cr.net += r.nettoCrypto;
     });
-
-    // Уменьшаем NetEarned на сумму комиссии, которая была в возвратах
-    totals.netEarned -= (totalRefunds * avgOpRate);
 
     periodOps.forEach(op => {
       if (op.type === 'bonus') {
@@ -74,10 +69,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       }
     });
 
-    // Формула: Чистая ЗП (уже очищена от возвратов) + Бонусы - Штрафы - Выплаты
     totals.remainder = (totals.netEarned + totals.bonuses) - (totals.penalties + totals.paidOut);
 
-    // Доли админов от очищенного Gross
     state.admins.forEach(admin => {
       totals.adminDetails.push({ 
         name: admin.name, 
@@ -94,34 +87,34 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       const incomes = state.incomeData.filter(r => r.operator === op && r.periodId === activePeriodId);
       const ops = state.operationsData.filter(o => o.operator === op && o.periodId === activePeriodId);
       
-      const ofG = incomes.reduce((sum, r) => sum + r.onlyFans, 0);
-      const ofN = incomes.reduce((sum, r) => sum + r.nettoOF, 0);
-      const ppG = incomes.reduce((sum, r) => sum + r.paypal, 0);
-      const ppN = incomes.reduce((sum, r) => sum + r.nettoPP, 0);
-      const crG = incomes.reduce((sum, r) => sum + r.crypto, 0);
-      const crN = incomes.reduce((sum, r) => sum + r.nettoCrypto, 0);
+      const rawG = incomes.reduce((sum, r) => sum + r.total, 0);
+      const rawN = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
       
-      const opRefunds = ops.filter(o => o.type === 'refund');
-      const totalRefundAmount = opRefunds.reduce((sum, o) => sum + o.amount, 0);
+      const opRefunds = ops.filter(o => o.type === 'refund').reduce((sum, o) => sum + o.amount, 0);
+      const avgRate = rawG > 0 ? rawN / rawG : 0.20;
       
-      const rawGross = ofG + ppG + crG;
-      const rawNet = ofN + ppN + crN;
-      
-      // Расчет потерянной комиссии оператора из-за возвратов
-      const avgRate = rawGross > 0 ? rawNet / rawGross : 0.20;
-      const lostCommission = totalRefundAmount * avgRate;
-
-      const totalGross = rawGross - totalRefundAmount;
-      const totalNet = rawNet - lostCommission;
+      const totalGross = rawG - opRefunds;
+      const totalNet = rawN - (opRefunds * avgRate);
       
       const adjPlus = ops.filter(o => o.type === 'bonus').reduce((sum, o) => sum + o.amount, 0);
-      // Исключаем refund из прямых вычетов, так как он уже вычтен через Gross -> Net
       const adjMinus = ops.filter(o => ['penalty', 'advance', 'salary_payment', 'internship'].includes(o.type)).reduce((sum, o) => sum + o.amount, 0);
 
       const remainder = totalNet + adjPlus - adjMinus;
       const isPaid = state.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
 
-      return { op, totalGross, ofG, ofN, ppG, ppN, crG, crN, remainder, isPaid };
+      return { 
+        op, 
+        totalGross, 
+        refunds: opRefunds, 
+        remainder, 
+        isPaid,
+        ofG: incomes.reduce((sum, r) => sum + r.onlyFans, 0),
+        ofN: incomes.reduce((sum, r) => sum + r.nettoOF, 0),
+        ppG: incomes.reduce((sum, r) => sum + r.paypal, 0),
+        ppN: incomes.reduce((sum, r) => sum + r.nettoPP, 0),
+        crG: incomes.reduce((sum, r) => sum + r.crypto, 0),
+        crN: incomes.reduce((sum, r) => sum + r.nettoCrypto, 0)
+      };
     });
 
     const sorted = raw.sort((a, b) => b.remainder - a.remainder);
@@ -185,34 +178,16 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         </div>
       </header>
 
-      {/* ГЛАВНАЯ СЕТКА: 4 КОЛОНКИ */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        
-        {/* КОЛОНКА 1: ДОХОДЫ (Gross теперь чистый от возвратов) */}
         <div className="space-y-4">
           <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Доходы и Платформы</h2>
           <div className="flex flex-col gap-3">
             <StatCard title="ОБЩИЙ ТОТАЛ (Грязными)" value={`$${stats.totalGross.toLocaleString()}`} color="indigo" icon={<ICONS.Dashboard size={16}/>} />
-            <StatCard 
-              title="PAYPAL" 
-              value={`$${stats.pp.gross.toLocaleString()}`} 
-              subValue={`$${stats.pp.net.toLocaleString()}`}
-              subLabel="Net"
-              color="sky" 
-              icon={<ICONS.Transfer size={16}/>} 
-            />
-            <StatCard 
-              title="CRYPTO" 
-              value={`$${stats.cr.gross.toLocaleString()}`} 
-              subValue={`$${stats.cr.net.toLocaleString()}`}
-              subLabel="Net"
-              color="emerald" 
-              icon={<ICONS.Income size={16}/>} 
-            />
+            <StatCard title="PAYPAL" value={`$${stats.pp.gross.toLocaleString()}`} subValue={`$${stats.pp.net.toLocaleString()}`} subLabel="Net" color="sky" icon={<ICONS.Transfer size={16}/>} />
+            <StatCard title="CRYPTO" value={`$${stats.cr.gross.toLocaleString()}`} subValue={`$${stats.cr.net.toLocaleString()}`} subLabel="Net" color="emerald" icon={<ICONS.Income size={16}/>} />
           </div>
         </div>
 
-        {/* КОЛОНКА 2: КОРРЕКТИРОВКИ */}
         <div className="space-y-4">
           <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Корректировки</h2>
           <div className="flex flex-col gap-3">
@@ -223,7 +198,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
           </div>
         </div>
 
-        {/* КОЛОНКА 3: ВЫПЛАТЫ */}
         <div className="space-y-4">
           <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Операционная ЗП</h2>
           <div className="flex flex-col gap-3">
@@ -233,7 +207,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
           </div>
         </div>
 
-        {/* КОЛОНКА 4: АДМИНИСТРАТОРЫ */}
         <div className="space-y-4">
           <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Администраторы</h2>
           <div className="flex flex-col gap-3">
@@ -251,21 +224,19 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
             <div className="flex-1"></div>
           </div>
         </div>
-
       </div>
 
-      {/* ТАБЛИЦА ПЕРСОНАЛА */}
       <div className="glass-card rounded-[2rem] overflow-hidden shadow-2xl border-slate-800/50">
         <div className="p-6 border-b border-slate-800 bg-slate-900/40 flex flex-col md:flex-row justify-between items-center gap-4">
           <h2 className="text-lg font-bold font-outfit">Ведомость персонала</h2>
-          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">SORTED BY BALANCE</span>
+          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">REFUNDS ALREADY DEDUCTED FROM GROSS</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead>
               <tr className="bg-slate-900/50 text-slate-500 uppercase text-[9px] font-black tracking-widest border-b border-slate-800">
                 <th className="px-6 py-4">Оператор</th>
-                <th className="px-4 py-4 text-center">Общий Gross</th>
+                <th className="px-4 py-4 text-center">Clean Gross</th>
                 <th className="px-4 py-4 text-center">OF (G/N)</th>
                 <th className="px-4 py-4 text-center">PP (G/N)</th>
                 <th className="px-4 py-4 text-center">CR (G/N)</th>
@@ -279,10 +250,11 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
                   <td className="px-6 py-4">
                     <div className="font-bold text-white text-sm cursor-pointer" onClick={() => navigate('/reports', { state: { operator: row.op } })}>{row.op}</div>
                   </td>
-                  <td className="px-4 py-4 w-40">
+                  <td className="px-4 py-4 w-44">
                     <div className="flex flex-col gap-1">
-                       <div className="flex justify-between text-[8px] font-black text-slate-500">
-                          <span>${row.totalGross.toFixed(0)}</span>
+                       <div className="flex justify-between items-center text-[8px] font-black text-slate-500">
+                          <span className="text-white">${row.totalGross.toFixed(0)}</span>
+                          {row.refunds > 0 && <span className="text-rose-500">Ref: -${row.refunds.toFixed(0)}</span>}
                        </div>
                        <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
                           <div className="h-full bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.5)] transition-all duration-1000" style={{ width: `${row.percentOfMax}%` }}></div>
