@@ -154,16 +154,18 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
 
           <StatCard 
             title="PayPal" 
-            value={`$${stats.pp.net.toLocaleString()}`} 
-            brutto={`$${stats.pp.gross.toLocaleString()}`}
+            value={`$${stats.pp.gross.toLocaleString()}`} 
+            subValue={`$${stats.pp.net.toLocaleString()}`}
+            subLabel="N"
             color="sky" 
             icon={<ICONS.Transfer size={20}/>} 
           />
           
           <StatCard 
             title="Crypto" 
-            value={`$${stats.cr.net.toLocaleString()}`} 
-            brutto={`$${stats.cr.gross.toLocaleString()}`}
+            value={`$${stats.cr.gross.toLocaleString()}`} 
+            subValue={`$${stats.cr.net.toLocaleString()}`}
+            subLabel="N"
             color="emerald" 
             icon={<ICONS.Income size={20}/>} 
           />
@@ -264,8 +266,9 @@ const StatCard: React.FC<{
   value: string; 
   icon: any; 
   color: string; 
-  brutto?: string 
-}> = ({ title, value, icon, color, brutto }) => (
+  subValue?: string;
+  subLabel?: string;
+}> = ({ title, value, icon, color, subValue, subLabel = 'N' }) => (
   <div className={`glass-card p-5 xl:p-6 rounded-3xl flex flex-col justify-center border-slate-800 bg-${color}-500/5 transition-transform hover:scale-[1.02] min-w-0`}>
     <div className="flex items-center gap-3 xl:gap-4 overflow-visible">
       <div className={`w-10 h-10 xl:w-12 xl:h-12 rounded-2xl flex items-center justify-center bg-${color}-500/10 text-${color}-400 shadow-inner shrink-0`}>{icon}</div>
@@ -274,9 +277,9 @@ const StatCard: React.FC<{
         <p className="text-xl xl:text-2xl font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
           {value}
         </p>
-        {brutto && (
+        {subValue && (
           <p className={`text-[9px] font-bold mt-1.5 text-${color}-400/80 font-mono whitespace-nowrap`}>
-            G: {brutto}
+            {subLabel}: {subValue}
           </p>
         )}
       </div>
