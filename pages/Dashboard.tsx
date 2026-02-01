@@ -27,18 +27,18 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       totalGross,
       platformGross,
       manualGross,
-      netEarned: 0, // Чистая ЗП операторов (база)
+      netEarned: 0, 
       bonuses: 0,
       penalties: 0,
-      paidOut: 0, // Получено (авансы + выплаты ЗП)
-      remainder: 0, // Остаток к получению
+      advances: 0, 
+      paidOut: 0,  
+      remainder: 0, 
       adminDetails: [] as { name: string, amount: number, rate: number }[],
       of: { gross: 0, net: 0 }, 
       pp: { gross: 0, net: 0 }, 
       cr: { gross: 0, net: 0 } 
     };
 
-    // Расчет доходов по платформам и базовой чистой ЗП
     periodIncomes.forEach(r => {
       totals.netEarned += (r.nettoOF + r.nettoPP + r.nettoCrypto);
       totals.of.gross += r.onlyFans;
@@ -49,18 +49,20 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       totals.cr.net += r.nettoCrypto;
     });
 
-    // Расчет корректировок (бонусы, штрафы, выплаты)
     periodOps.forEach(op => {
       if (op.type === 'bonus') {
         totals.bonuses += op.amount;
       } else if (op.type === 'penalty' || op.type === 'refund' || op.type === 'internship') {
         totals.penalties += op.amount;
-      } else if (op.type === 'advance' || op.type === 'salary_payment') {
+      } else if (op.type === 'advance') {
+        totals.advances += op.amount;
+        totals.paidOut += op.amount;
+      } else if (op.type === 'salary_payment') {
         totals.paidOut += op.amount;
       }
     });
 
-    // Остаток = (Чистая ЗП + Бонусы) - (Штрафы/Удержания + Выплачено)
+    // Формула: (База + Бонусы) - (Штрафы + Выплачено/Авансы)
     totals.remainder = (totals.netEarned + totals.bonuses) - (totals.penalties + totals.paidOut);
 
     state.admins.forEach(admin => {
@@ -142,57 +144,51 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white font-outfit">Main Dashboard</h1>
-          <div className="flex items-center gap-4 mt-2">
-             <select className="bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-1.5 text-indigo-400 font-bold outline-none cursor-pointer" value={state.selectedPeriodId} onChange={(e) => updateState(prev => ({ ...prev, selectedPeriodId: e.target.value }))}>
+          <h1 className="text-2xl font-bold text-white font-outfit">Main Dashboard</h1>
+          <div className="flex items-center gap-4 mt-1">
+             <select className="bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-1.5 text-indigo-400 font-bold outline-none cursor-pointer text-sm" value={state.selectedPeriodId} onChange={(e) => updateState(prev => ({ ...prev, selectedPeriodId: e.target.value }))}>
                 {state.accountingPeriods.slice().reverse().map(p => <option key={p.id} value={p.id}>{p.label} {p.status === 'closed' ? '🔒' : ''}</option>)}
              </select>
              {activePeriod?.status === 'open' && (
-                <button onClick={handleCloseMonth} className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95">
-                  <ICONS.Lock size={14} /> Закрыть месяц
+                <button onClick={handleCloseMonth} className="flex items-center gap-2 px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95">
+                  <ICONS.Lock size={12} /> Закрыть месяц
                 </button>
              )}
           </div>
         </div>
       </header>
 
-      <div className="space-y-8">
-        {/* БЛОК 1: ОСНОВНЫЕ ПОКАЗАТЕЛИ ОПЕРАТОРОВ (6 карточек) */}
+      <div className="space-y-6">
+        {/* БЛОК 1: ОСНОВНЫЕ ПОКАЗАТЕЛИ ОПЕРАТОРОВ (7 карточек в ряд) */}
         <div>
-          <h2 className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-500 mb-4 ml-1">Операционная деятельность</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4">
-            <div className="glass-card p-5 xl:p-6 rounded-3xl bg-indigo-500/5 border-indigo-500/20 transition-transform hover:scale-[1.02] flex flex-col justify-center min-w-0">
-              <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1 truncate">ОБЩИЙ ТОТАЛ (грязными)</p>
-              <p className="text-xl xl:text-2xl font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
-                ${stats.totalGross.toLocaleString()}
-              </p>
-              {stats.manualGross > 0 && <p className="text-[9px] text-emerald-400 font-bold mt-2 truncate">Incl. ${stats.manualGross.toLocaleString()} extra</p>}
-            </div>
-
-            <StatCard title="ОБЩАЯ ЗП ОПЕРАТОРОВ (ЧИСТЫМИ)" value={`$${stats.netEarned.toLocaleString()}`} color="emerald" icon={<ICONS.Salary size={20}/>} />
-            <StatCard title="ШТРАФОВ" value={`$${stats.penalties.toLocaleString()}`} color="rose" icon={<ICONS.Penalty size={20}/>} />
-            <StatCard title="БОНУСОВ" value={`$${stats.bonuses.toLocaleString()}`} color="emerald" icon={<ICONS.Bonus size={20}/>} />
-            <StatCard title="ПОЛУЧЕНО" value={`$${stats.paidOut.toLocaleString()}`} color="sky" icon={<ICONS.Transfer size={20}/>} />
-            <StatCard title="ОСТАТОК К ПОЛУЧЕНИЮ" value={`$${stats.remainder.toLocaleString()}`} color="indigo" icon={<ICONS.BadgeDollarSign size={20}/>} highlighted />
+          <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 mb-3 ml-1">Операционная деятельность</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7 gap-3">
+            <StatCard title="ОБЩИЙ ТОТАЛ (грязными)" value={`$${stats.totalGross.toLocaleString()}`} color="indigo" icon={<ICONS.Dashboard size={16}/>} />
+            <StatCard title="ОБЩАЯ ЗП (ЧИСТЫМИ)" value={`$${stats.netEarned.toLocaleString()}`} color="emerald" icon={<ICONS.Salary size={16}/>} />
+            <StatCard title="ШТРАФОВ" value={`$${stats.penalties.toLocaleString()}`} color="rose" icon={<ICONS.Penalty size={16}/>} />
+            <StatCard title="БОНУСОВ" value={`$${stats.bonuses.toLocaleString()}`} color="emerald" icon={<ICONS.Bonus size={16}/>} />
+            <StatCard title="АВАНСОВ" value={`$${stats.advances.toLocaleString()}`} color="amber" icon={<ICONS.CircleDollarSign size={16}/>} />
+            <StatCard title="ПОЛУЧЕНО" value={`$${stats.paidOut.toLocaleString()}`} color="sky" icon={<ICONS.Transfer size={16}/>} />
+            <StatCard title="ОСТАТОК К ПОЛУЧЕНИЮ" value={`$${stats.remainder.toLocaleString()}`} color="indigo" icon={<ICONS.BadgeDollarSign size={16}/>} highlighted />
           </div>
         </div>
 
         {/* БЛОК 2: ПЛАТФОРМЫ И АДМИНЫ */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
            {/* Платформы */}
-           <div className="space-y-4">
-             <h2 className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Платформы</h2>
-             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+           <div className="space-y-3">
+             <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Платформы</h2>
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <StatCard 
                   title="PayPal" 
                   value={`$${stats.pp.gross.toLocaleString()}`} 
                   subValue={`$${stats.pp.net.toLocaleString()}`}
                   subLabel="N"
                   color="sky" 
-                  icon={<ICONS.Transfer size={20}/>} 
+                  icon={<ICONS.Transfer size={16}/>} 
                 />
                 <StatCard 
                   title="Crypto" 
@@ -200,23 +196,23 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
                   subValue={`$${stats.cr.net.toLocaleString()}`}
                   subLabel="N"
                   color="emerald" 
-                  icon={<ICONS.Income size={20}/>} 
+                  icon={<ICONS.Income size={16}/>} 
                 />
              </div>
            </div>
 
            {/* Админы */}
-           <div className="space-y-4">
-             <h2 className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Администраторы</h2>
-             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+           <div className="space-y-3">
+             <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Администраторы</h2>
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                {stats.adminDetails.map((ad) => (
-                  <div key={ad.name} className="glass-card p-5 xl:p-6 rounded-3xl bg-slate-900/40 border-slate-800 transition-transform hover:scale-[1.02] flex flex-col justify-center min-w-0">
-                    <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1 truncate">{ad.name}</p>
+                  <div key={ad.name} className="glass-card p-4 rounded-2xl bg-slate-900/40 border-slate-800 transition-transform hover:scale-[1.02] flex flex-col justify-center min-w-0">
+                    <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-1 truncate">{ad.name}</p>
                     <div className="flex items-baseline gap-2 flex-wrap">
-                      <p className="text-xl xl:text-2xl font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
+                      <p className="text-lg xl:text-xl font-black text-white font-outfit leading-tight whitespace-nowrap">
                         ${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </p>
-                      <span className="text-[9px] text-slate-500 font-bold">({ad.rate}%)</span>
+                      <span className="text-[8px] text-slate-500 font-bold">({ad.rate}%)</span>
                     </div>
                   </div>
                 ))}
@@ -225,65 +221,65 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         </div>
       </div>
 
-      <div className="glass-card rounded-[2.5rem] overflow-hidden shadow-2xl border-slate-800/50">
-        <div className="p-8 border-b border-slate-800 bg-slate-900/40 flex flex-col md:flex-row justify-between items-center gap-4">
-          <h2 className="text-xl font-bold font-outfit">Ведомость персонала (Топ по выплатам)</h2>
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Sorted by Balance</span>
+      <div className="glass-card rounded-[2rem] overflow-hidden shadow-2xl border-slate-800/50">
+        <div className="p-6 border-b border-slate-800 bg-slate-900/40 flex flex-col md:flex-row justify-between items-center gap-4">
+          <h2 className="text-lg font-bold font-outfit">Ведомость персонала</h2>
+          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Sorted by Balance</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead>
-              <tr className="bg-slate-900/50 text-slate-500 uppercase text-[10px] font-black tracking-widest border-b border-slate-800">
-                <th className="px-8 py-6">Оператор</th>
-                <th className="px-4 py-6 text-center">Общий Gross</th>
-                <th className="px-4 py-6 text-center">OF (G / N)</th>
-                <th className="px-4 py-6 text-center">PP (G / N)</th>
-                <th className="px-4 py-6 text-center">CR (G / N)</th>
-                <th className="px-4 py-6 text-center">Остаток (Net)</th>
-                <th className="px-8 py-6 text-right">Статус</th>
+              <tr className="bg-slate-900/50 text-slate-500 uppercase text-[9px] font-black tracking-widest border-b border-slate-800">
+                <th className="px-6 py-4">Оператор</th>
+                <th className="px-4 py-4 text-center">Общий Gross</th>
+                <th className="px-4 py-4 text-center">OF (G/N)</th>
+                <th className="px-4 py-4 text-center">PP (G/N)</th>
+                <th className="px-4 py-4 text-center">CR (G/N)</th>
+                <th className="px-4 py-4 text-center">Остаток (Net)</th>
+                <th className="px-6 py-4 text-right">Статус</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
               {operatorRows.map(row => (
                 <tr key={row.op} className="hover:bg-indigo-500/5 transition-all">
-                  <td className="px-8 py-5">
-                    <div className="font-bold text-white text-base cursor-pointer" onClick={() => navigate('/reports', { state: { operator: row.op } })}>{row.op}</div>
+                  <td className="px-6 py-4">
+                    <div className="font-bold text-white text-sm cursor-pointer" onClick={() => navigate('/reports', { state: { operator: row.op } })}>{row.op}</div>
                   </td>
-                  <td className="px-4 py-5 w-48">
-                    <div className="flex flex-col gap-1.5">
-                       <div className="flex justify-between text-[9px] font-black text-slate-500">
+                  <td className="px-4 py-4 w-40">
+                    <div className="flex flex-col gap-1">
+                       <div className="flex justify-between text-[8px] font-black text-slate-500">
                           <span>${row.totalGross.toFixed(0)}</span>
                        </div>
-                       <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                       <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
                           <div className="h-full bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.5)] transition-all duration-1000" style={{ width: `${row.percentOfMax}%` }}></div>
                        </div>
                     </div>
                   </td>
-                  <td className="px-4 py-5 text-center">
+                  <td className="px-4 py-4 text-center">
                     <div className="flex flex-col">
-                      <span className="text-[10px] text-slate-500 font-mono">${row.ofG.toFixed(0)}</span>
-                      <span className="text-blue-400 font-mono font-bold">${row.ofN.toFixed(1)}</span>
+                      <span className="text-[9px] text-slate-500 font-mono">${row.ofG.toFixed(0)}</span>
+                      <span className="text-blue-400 font-mono font-bold text-xs">${row.ofN.toFixed(1)}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-5 text-center">
+                  <td className="px-4 py-4 text-center">
                     <div className="flex flex-col">
-                      <span className="text-[10px] text-slate-500 font-mono">${row.ppG.toFixed(0)}</span>
-                      <span className="text-sky-400 font-mono font-bold">${row.ppN.toFixed(1)}</span>
+                      <span className="text-[9px] text-slate-500 font-mono">${row.ppG.toFixed(0)}</span>
+                      <span className="text-sky-400 font-mono font-bold text-xs">${row.ppN.toFixed(1)}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-5 text-center">
+                  <td className="px-4 py-4 text-center">
                     <div className="flex flex-col">
-                      <span className="text-[10px] text-slate-500 font-mono">${row.crG.toFixed(0)}</span>
-                      <span className="text-emerald-400 font-mono font-bold">${row.crN.toFixed(1)}</span>
+                      <span className="text-[9px] text-slate-500 font-mono">${row.crG.toFixed(0)}</span>
+                      <span className="text-emerald-400 font-mono font-bold text-xs">${row.crN.toFixed(1)}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-5 text-center">
-                    <div className={`text-base font-black font-mono ${row.remainder >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  <td className="px-4 py-4 text-center">
+                    <div className={`text-sm font-black font-mono ${row.remainder >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                       ${row.remainder.toFixed(1)}
                     </div>
                   </td>
-                  <td className="px-8 py-5 text-right">
-                    <button onClick={() => toggleOperatorPaid(row.op)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${row.isPaid ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}>
+                  <td className="px-6 py-4 text-right">
+                    <button onClick={() => toggleOperatorPaid(row.op)} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${row.isPaid ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}>
                       {row.isPaid ? 'Выплачено' : 'Ожидает'}
                     </button>
                   </td>
@@ -306,16 +302,16 @@ const StatCard: React.FC<{
   subLabel?: string;
   highlighted?: boolean;
 }> = ({ title, value, icon, color, subValue, subLabel = 'N', highlighted }) => (
-  <div className={`glass-card p-5 xl:p-6 rounded-3xl flex flex-col justify-center transition-transform hover:scale-[1.02] min-w-0 ${highlighted ? `border-${color}-500/40 bg-${color}-500/10 shadow-xl shadow-${color}-500/5` : 'border-slate-800'}`}>
-    <div className="flex items-center gap-3 xl:gap-4 overflow-visible">
-      <div className={`w-10 h-10 xl:w-12 xl:h-12 rounded-2xl flex items-center justify-center bg-${color}-500/10 text-${color}-400 shadow-inner shrink-0`}>{icon}</div>
+  <div className={`glass-card p-4 rounded-2xl flex flex-col justify-center transition-transform hover:scale-[1.02] min-w-0 ${highlighted ? `border-${color}-500/40 bg-${color}-500/10 shadow-xl shadow-${color}-500/5` : 'border-slate-800'}`}>
+    <div className="flex items-center gap-3 overflow-visible">
+      <div className={`w-8 h-8 rounded-xl flex items-center justify-center bg-${color}-500/10 text-${color}-400 shadow-inner shrink-0`}>{icon}</div>
       <div className="min-w-0 flex-1 overflow-visible">
-        <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-0.5 truncate">{title}</p>
-        <p className="text-xl xl:text-2xl font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
+        <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-0.5 truncate">{title}</p>
+        <p className="text-lg xl:text-xl font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
           {value}
         </p>
         {subValue && (
-          <p className={`text-[9px] font-bold mt-1.5 text-${color}-400/80 font-mono whitespace-nowrap`}>
+          <p className={`text-[8px] font-bold mt-1 text-${color}-400/80 font-mono whitespace-nowrap`}>
             {subLabel}: {subValue}
           </p>
         )}

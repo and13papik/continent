@@ -1,3 +1,4 @@
+
 import { 
   LayoutDashboard, 
   CircleDollarSign, 
@@ -44,9 +45,10 @@ export const ICONS: Record<string, any> = {
   Bonus: Gift,
   Gift: Gift,
   Refund: RotateCcw,
-  RotateCcw: RotateCcw, // Прямой ключ для использования в статус-баре
+  RotateCcw: RotateCcw,
   Salary: BadgeDollarSign,
   BadgeDollarSign: BadgeDollarSign,
+  CircleDollarSign: CircleDollarSign,
   Internship: GraduationCap
 };
 
