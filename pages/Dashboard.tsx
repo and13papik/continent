@@ -78,9 +78,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       return { op, totalGross, ofG, ofN, ppG, ppN, crG, crN, remainder, isPaid };
     });
 
-    // СОРТИРОВКА: По остатку к выплате (Net) от большего к меньшему
     const sorted = raw.sort((a, b) => b.remainder - a.remainder);
-
     const maxGross = Math.max(...sorted.map(r => r.totalGross), 1);
     return sorted.map(r => ({ ...r, percentOfMax: (r.totalGross / maxGross) * 100 }));
   }, [state.incomeData, state.operationsData, state.operators, activePeriodId, state.paidStatuses]);
@@ -111,7 +109,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       const exists = prev.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
       if (exists) return { ...prev, paidStatuses: prev.paidStatuses.filter(s => !(s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId)) };
       
-      // Added createdAt for sync logic and interface consistency
       const newPaid: PaidStatus = {
         id: `paid-op-${op}-${activePeriodId}`,
         entityName: op,
@@ -142,15 +139,18 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="glass-card p-6 rounded-3xl bg-indigo-500/5 border-indigo-500/20">
+      {/* Grid с 6 колонками на больших экранах */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="glass-card p-6 rounded-3xl bg-indigo-500/5 border-indigo-500/20 transition-transform hover:scale-[1.02]">
           <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1">Total Gross</p>
           <p className="text-2xl font-black text-white font-outfit leading-none">${stats.totalGross.toLocaleString()}</p>
           {stats.manualGross > 0 && <p className="text-[9px] text-emerald-400 font-bold mt-2">Incl. ${stats.manualGross.toLocaleString()} extra</p>}
         </div>
+
         <StatCard title="Staff Total Net" value={`$${stats.net.toLocaleString()}`} color="emerald" icon={<ICONS.Salary size={20}/>} />
+
         {stats.adminDetails.map((ad, idx) => (
-          <div key={ad.name} className={`glass-card p-6 rounded-3xl bg-slate-900/40 border-slate-800`}>
+          <div key={ad.name} className={`glass-card p-6 rounded-3xl bg-slate-900/40 border-slate-800 transition-transform hover:scale-[1.02]`}>
             <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1">{ad.name}</p>
             <div className="flex items-baseline gap-2">
               <p className="text-xl font-black text-white font-outfit leading-none">${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
@@ -158,7 +158,23 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
             </div>
           </div>
         ))}
-        <StatCard title="PP & CR Net" value={`$${(stats.pp.net + stats.cr.net).toLocaleString()}`} color="sky" icon={<ICONS.Bonus size={20}/>} />
+
+        {/* Разделение PP и CR */}
+        <StatCard 
+          title="PayPal" 
+          value={`$${stats.pp.net.toLocaleString()}`} 
+          brutto={`$${stats.pp.gross.toLocaleString()}`}
+          color="sky" 
+          icon={<ICONS.Transfer size={20}/>} 
+        />
+        
+        <StatCard 
+          title="Crypto" 
+          value={`$${stats.cr.net.toLocaleString()}`} 
+          brutto={`$${stats.cr.gross.toLocaleString()}`}
+          color="emerald" 
+          icon={<ICONS.Income size={20}/>} 
+        />
       </div>
 
       <div className="glass-card rounded-[2.5rem] overflow-hidden shadow-2xl border-slate-800/50">
@@ -233,13 +249,25 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   );
 };
 
-const StatCard: React.FC<{ title: string; value: string; icon: any; color: string }> = ({ title, value, icon, color }) => (
-  <div className={`glass-card p-6 rounded-3xl flex flex-col justify-center gap-2 border-slate-800 bg-${color}-500/5`}>
+// Расширенный StatCard с поддержкой Brutto
+const StatCard: React.FC<{ 
+  title: string; 
+  value: string; 
+  icon: any; 
+  color: string; 
+  brutto?: string 
+}> = ({ title, value, icon, color, brutto }) => (
+  <div className={`glass-card p-6 rounded-3xl flex flex-col justify-center gap-2 border-slate-800 bg-${color}-500/5 transition-transform hover:scale-[1.02]`}>
     <div className="flex items-center gap-4">
-      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center bg-${color}-500/10 text-${color}-400 shadow-inner`}>{icon}</div>
-      <div>
-        <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-0.5">{title}</p>
-        <p className="text-2xl font-black text-white font-outfit leading-none">{value}</p>
+      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center bg-${color}-500/10 text-${color}-400 shadow-inner shrink-0`}>{icon}</div>
+      <div className="min-w-0 overflow-hidden">
+        <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-0.5 truncate">{title}</p>
+        <p className="text-xl xl:text-2xl font-black text-white font-outfit leading-none truncate">{value}</p>
+        {brutto && (
+          <p className={`text-[9px] font-bold mt-1.5 text-${color}-400/80 font-mono`}>
+            G: {brutto}
+          </p>
+        )}
       </div>
     </div>
   </div>
