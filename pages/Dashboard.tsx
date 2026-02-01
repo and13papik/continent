@@ -30,6 +30,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       netEarned: 0, 
       bonuses: 0,
       penalties: 0,
+      refunds: 0,
       advances: 0, 
       paidOut: 0,  
       remainder: 0, 
@@ -52,8 +53,10 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     periodOps.forEach(op => {
       if (op.type === 'bonus') {
         totals.bonuses += op.amount;
-      } else if (op.type === 'penalty' || op.type === 'refund' || op.type === 'internship') {
+      } else if (op.type === 'penalty' || op.type === 'internship') {
         totals.penalties += op.amount;
+      } else if (op.type === 'refund') {
+        totals.refunds += op.amount;
       } else if (op.type === 'advance') {
         totals.advances += op.amount;
         totals.paidOut += op.amount;
@@ -62,8 +65,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       }
     });
 
-    // Формула: (База + Бонусы) - (Штрафы + Выплачено/Авансы)
-    totals.remainder = (totals.netEarned + totals.bonuses) - (totals.penalties + totals.paidOut);
+    // Формула: (ЗП Net + Бонусы) - (Штрафы + Возвраты + Выплачено/Авансы)
+    totals.remainder = (totals.netEarned + totals.bonuses) - (totals.penalties + totals.refunds + totals.paidOut);
 
     state.admins.forEach(admin => {
       totals.adminDetails.push({ 
@@ -144,7 +147,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white font-outfit">Main Dashboard</h1>
@@ -161,70 +164,81 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         </div>
       </header>
 
-      <div className="space-y-6">
-        {/* БЛОК 1: ОСНОВНЫЕ ПОКАЗАТЕЛИ ОПЕРАТОРОВ (7 карточек в ряд) */}
-        <div>
-          <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 mb-3 ml-1">Операционная деятельность</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7 gap-3">
-            <StatCard title="ОБЩИЙ ТОТАЛ (грязными)" value={`$${stats.totalGross.toLocaleString()}`} color="indigo" icon={<ICONS.Dashboard size={16}/>} />
-            <StatCard title="ОБЩАЯ ЗП (ЧИСТЫМИ)" value={`$${stats.netEarned.toLocaleString()}`} color="emerald" icon={<ICONS.Salary size={16}/>} />
+      {/* ГЛАВНАЯ СЕТКА: 4 КОЛОНКИ */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        
+        {/* КОЛОНКА 1: ДОХОДЫ */}
+        <div className="space-y-4">
+          <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Доходы и Платформы</h2>
+          <div className="flex flex-col gap-3">
+            <StatCard title="ОБЩИЙ ТОТАЛ (Грязными)" value={`$${stats.totalGross.toLocaleString()}`} color="indigo" icon={<ICONS.Dashboard size={16}/>} />
+            <StatCard 
+              title="PAYPAL" 
+              value={`$${stats.pp.gross.toLocaleString()}`} 
+              subValue={`$${stats.pp.net.toLocaleString()}`}
+              subLabel="Net"
+              color="sky" 
+              icon={<ICONS.Transfer size={16}/>} 
+            />
+            <StatCard 
+              title="CRYPTO" 
+              value={`$${stats.cr.gross.toLocaleString()}`} 
+              subValue={`$${stats.cr.net.toLocaleString()}`}
+              subLabel="Net"
+              color="emerald" 
+              icon={<ICONS.Income size={16}/>} 
+            />
+          </div>
+        </div>
+
+        {/* КОЛОНКА 2: КОРРЕКТИРОВКИ */}
+        <div className="space-y-4">
+          <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Корректировки</h2>
+          <div className="flex flex-col gap-3">
             <StatCard title="ШТРАФОВ" value={`$${stats.penalties.toLocaleString()}`} color="rose" icon={<ICONS.Penalty size={16}/>} />
             <StatCard title="БОНУСОВ" value={`$${stats.bonuses.toLocaleString()}`} color="emerald" icon={<ICONS.Bonus size={16}/>} />
+            <StatCard title="ВОЗВРАТОВ" value={`$${stats.refunds.toLocaleString()}`} color="blue" icon={<ICONS.RotateCcw size={16}/>} />
             <StatCard title="АВАНСОВ" value={`$${stats.advances.toLocaleString()}`} color="amber" icon={<ICONS.CircleDollarSign size={16}/>} />
+          </div>
+        </div>
+
+        {/* КОЛОНКА 3: ВЫПЛАТЫ */}
+        <div className="space-y-4">
+          <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Операционная ЗП</h2>
+          <div className="flex flex-col gap-3">
+            <StatCard title="ОБЩАЯ ЗП ОПЕРАТОРОВ" value={`$${stats.netEarned.toLocaleString()}`} color="emerald" icon={<ICONS.Salary size={16}/>} />
             <StatCard title="ПОЛУЧЕНО" value={`$${stats.paidOut.toLocaleString()}`} color="sky" icon={<ICONS.Transfer size={16}/>} />
             <StatCard title="ОСТАТОК К ПОЛУЧЕНИЮ" value={`$${stats.remainder.toLocaleString()}`} color="indigo" icon={<ICONS.BadgeDollarSign size={16}/>} highlighted />
           </div>
         </div>
 
-        {/* БЛОК 2: ПЛАТФОРМЫ И АДМИНЫ */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-           {/* Платформы */}
-           <div className="space-y-3">
-             <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Платформы</h2>
-             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <StatCard 
-                  title="PayPal" 
-                  value={`$${stats.pp.gross.toLocaleString()}`} 
-                  subValue={`$${stats.pp.net.toLocaleString()}`}
-                  subLabel="N"
-                  color="sky" 
-                  icon={<ICONS.Transfer size={16}/>} 
-                />
-                <StatCard 
-                  title="Crypto" 
-                  value={`$${stats.cr.gross.toLocaleString()}`} 
-                  subValue={`$${stats.cr.net.toLocaleString()}`}
-                  subLabel="N"
-                  color="emerald" 
-                  icon={<ICONS.Income size={16}/>} 
-                />
-             </div>
-           </div>
-
-           {/* Админы */}
-           <div className="space-y-3">
-             <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Администраторы</h2>
-             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-               {stats.adminDetails.map((ad) => (
-                  <div key={ad.name} className="glass-card p-4 rounded-2xl bg-slate-900/40 border-slate-800 transition-transform hover:scale-[1.02] flex flex-col justify-center min-w-0">
-                    <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-1 truncate">{ad.name}</p>
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <p className="text-lg xl:text-xl font-black text-white font-outfit leading-tight whitespace-nowrap">
-                        ${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                      </p>
-                      <span className="text-[8px] text-slate-500 font-bold">({ad.rate}%)</span>
-                    </div>
-                  </div>
-                ))}
-             </div>
-           </div>
+        {/* КОЛОНКА 4: АДМИНИСТРАТОРЫ */}
+        <div className="space-y-4">
+          <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Администраторы</h2>
+          <div className="flex flex-col gap-3">
+            {stats.adminDetails.map((ad) => (
+              <div key={ad.name} className="glass-card p-4 rounded-2xl bg-slate-900/40 border-slate-800 transition-transform hover:scale-[1.02] flex flex-col justify-center min-w-0">
+                <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-1 truncate">{ad.name}</p>
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <p className="text-lg font-black text-white font-outfit leading-tight">
+                    ${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </p>
+                  <span className="text-[8px] text-slate-500 font-bold">({ad.rate}%)</span>
+                </div>
+              </div>
+            ))}
+            {/* Пустая карточка для выравнивания высоты колонок если нужно */}
+            <div className="flex-1"></div>
+          </div>
         </div>
+
       </div>
 
+      {/* ТАБЛИЦА ПЕРСОНАЛА */}
       <div className="glass-card rounded-[2rem] overflow-hidden shadow-2xl border-slate-800/50">
         <div className="p-6 border-b border-slate-800 bg-slate-900/40 flex flex-col md:flex-row justify-between items-center gap-4">
           <h2 className="text-lg font-bold font-outfit">Ведомость персонала</h2>
-          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Sorted by Balance</span>
+          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">SORTED BY BALANCE</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
@@ -307,7 +321,7 @@ const StatCard: React.FC<{
       <div className={`w-8 h-8 rounded-xl flex items-center justify-center bg-${color}-500/10 text-${color}-400 shadow-inner shrink-0`}>{icon}</div>
       <div className="min-w-0 flex-1 overflow-visible">
         <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-0.5 truncate">{title}</p>
-        <p className="text-lg xl:text-xl font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
+        <p className="text-lg font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
           {value}
         </p>
         {subValue && (
