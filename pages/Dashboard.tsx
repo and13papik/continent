@@ -19,18 +19,21 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     const manualIncomes = (state.ownerManualIncomes || []).filter(i => i.periodId === activePeriodId);
     const periodOps = state.operationsData.filter(o => o.periodId === activePeriodId);
     
-    const platformGross = periodIncomes.reduce((s, r) => s + r.total, 0);
-    const manualGross = manualIncomes.reduce((s, i) => s + i.amount, 0);
-    const totalGross = platformGross + manualGross;
+    const rawPlatformGross = periodIncomes.reduce((s, r) => s + r.total, 0);
+    const rawManualGross = manualIncomes.reduce((s, i) => s + i.amount, 0);
+    const totalRefunds = periodOps.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
+    
+    // ГЛАВНОЕ ИЗМЕНЕНИЕ: Gross = (Платформы + Ручные) - Возвраты
+    const totalGross = (rawPlatformGross + rawManualGross) - totalRefunds;
     
     const totals = { 
       totalGross,
-      platformGross,
-      manualGross,
+      platformGross: rawPlatformGross,
+      manualGross: rawManualGross,
       netEarned: 0, 
       bonuses: 0,
       penalties: 0,
-      refunds: 0,
+      refunds: totalRefunds,
       advances: 0, 
       paidOut: 0,  
       remainder: 0, 
@@ -55,8 +58,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         totals.bonuses += op.amount;
       } else if (op.type === 'penalty' || op.type === 'internship') {
         totals.penalties += op.amount;
-      } else if (op.type === 'refund') {
-        totals.refunds += op.amount;
       } else if (op.type === 'advance') {
         totals.advances += op.amount;
         totals.paidOut += op.amount;
@@ -65,15 +66,14 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       }
     });
 
-    // Формула: (ЗП Net + Бонусы) - (Штрафы + Возвраты + Выплачено/Авансы)
+    // Остаток для операторов (Возвраты уже вычли из Gross, но оператор также теряет свою долю)
     totals.remainder = (totals.netEarned + totals.bonuses) - (totals.penalties + totals.refunds + totals.paidOut);
 
-    // Админы получают процент от (Чистого Тотала - Возвраты)
-    const adminBase = totalGross - totals.refunds;
+    // Доли админов теперь считаются от очищенного Gross
     state.admins.forEach(admin => {
       totals.adminDetails.push({ 
         name: admin.name, 
-        amount: adminBase * (admin.rate / 100),
+        amount: totalGross * (admin.rate / 100),
         rate: admin.rate
       });
     });
@@ -93,8 +93,10 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       const crG = incomes.reduce((sum, r) => sum + r.crypto, 0);
       const crN = incomes.reduce((sum, r) => sum + r.nettoCrypto, 0);
       
+      const modelRefunds = ops.filter(o => o.type === 'refund').reduce((sum, o) => sum + o.amount, 0);
+      
       const totalNet = ofN + ppN + crN;
-      const totalGross = ofG + ppG + crG;
+      const totalGross = (ofG + ppG + crG) - modelRefunds; // Gross оператора также очищен
       
       const adjPlus = ops.filter(o => o.type === 'bonus').reduce((sum, o) => sum + o.amount, 0);
       const adjMinus = ops.filter(o => ['penalty', 'refund', 'advance', 'salary_payment', 'internship'].includes(o.type)).reduce((sum, o) => sum + o.amount, 0);
@@ -169,7 +171,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       {/* ГЛАВНАЯ СЕТКА: 4 КОЛОНКИ */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         
-        {/* КОЛОНКА 1: ДОХОДЫ */}
+        {/* КОЛОНКА 1: ДОХОДЫ (Gross теперь чистый от возвратов) */}
         <div className="space-y-4">
           <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Доходы и Платформы</h2>
           <div className="flex flex-col gap-3">
@@ -229,7 +231,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
                 </div>
               </div>
             ))}
-            {/* Пустая карточка для выравнивания высоты колонок если нужно */}
             <div className="flex-1"></div>
           </div>
         </div>

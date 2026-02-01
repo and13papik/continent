@@ -48,9 +48,12 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     const ops = state.operationsData.filter(o => o.periodId === activePeriodId);
     const modelBonuses = (state.modelBonuses || []).filter(b => b.periodId === activePeriodId);
     
-    const platformGross = incomes.reduce((sum, r) => sum + r.total, 0);
+    const rawPlatformGross = incomes.reduce((sum, r) => sum + r.total, 0);
     const manualGross = manualIncomes.reduce((sum, i) => sum + i.amount, 0);
-    const grossTotal = platformGross + manualGross;
+    const totalRefunds = ops.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
+
+    // Очищенный Gross (Грязными - Возвраты)
+    const grossTotal = (rawPlatformGross + manualGross) - totalRefunds;
 
     const grossOF = incomes.reduce((sum, r) => sum + r.onlyFans, 0);
     const grossPP = incomes.reduce((sum, r) => sum + r.paypal, 0);
@@ -86,7 +89,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     const advancesAntonTotal = (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId && a.ownerName === 'Anton').reduce((s, a) => s + a.amount, 0);
 
     return { 
-      grossTotal, platformGross, manualGross,
+      grossTotal, platformGross: rawPlatformGross, manualGross,
       grossOF, grossPP, grossCR,
       netProfitTotal, sharePerOwner,
       totalStaffExpense, totalModelExpense, totalModelBonuses, totalAdminSalaries, bizExpenses,
@@ -250,16 +253,16 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       <section className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="glass-card p-6 rounded-[2rem] border-indigo-500/40 bg-indigo-500/5 transition-transform hover:scale-[1.02]">
-            <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">Общий Брутто (ЧИСТЫЕ ID)</p>
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">Gross Total (Clean)</p>
             <div className="flex items-baseline gap-2">
               <p className="text-2xl font-black font-outfit text-white leading-tight">${stats.grossTotal.toLocaleString(undefined, { minimumFractionDigits: 1 })}</p>
-              {stats.manualGross > 0 && <p className="text-[11px] font-bold text-emerald-400 font-mono">(${stats.platformGross.toLocaleString()} + {stats.manualGross.toLocaleString()})</p>}
+              {stats.manualGross > 0 && <p className="text-[11px] font-bold text-emerald-400 font-mono">(${stats.grossTotal.toLocaleString()})</p>}
             </div>
-            <p className="text-[10px] opacity-40 mt-1 font-bold uppercase tracking-tighter">Все платформы + Остатки</p>
+            <p className="text-[10px] opacity-40 mt-1 font-bold uppercase tracking-tighter">Gross - Refunds</p>
           </div>
-          <BalanceCard title="OnlyFans Brutto" value={stats.grossOF} sub="Gross OF" color="blue" />
-          <BalanceCard title="PayPal Brutto" value={stats.grossPP} sub="Gross PP" color="sky" />
-          <BalanceCard title="Crypto Brutto" value={stats.grossCR} sub="Gross CR" color="emerald" />
+          <BalanceCard title="OF Brutto (Raw)" value={stats.grossOF} sub="Gross OF" color="blue" />
+          <BalanceCard title="PP Brutto (Raw)" value={stats.grossPP} sub="Gross PP" color="sky" />
+          <BalanceCard title="CR Brutto (Raw)" value={stats.grossCR} sub="Gross CR" color="emerald" />
         </div>
       </section>
 
@@ -268,7 +271,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
            <h2 className="text-2xl font-bold font-outfit text-white flex items-center gap-3">
               <ICONS.Settings className="text-indigo-400" /> Комиссии Администраторов
            </h2>
-           <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">Direct Config</span>
+           <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">Calculated from Clean Gross</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {state.admins.map(admin => (
@@ -391,193 +394,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
             </div>
           </div>
       </div>
-
-      <div className="space-y-8">
-         <div className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-xl">
-            <div className="p-8 border-b border-slate-800 bg-slate-900/40 font-bold font-outfit text-lg text-emerald-400">Внесенные Доходы (Остатки)</div>
-            <div className="overflow-x-auto">
-               <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead>
-                    <tr className="bg-slate-950/50 text-[10px] uppercase font-black text-slate-600 tracking-widest">
-                       <th className="px-8 py-4">Описание</th>
-                       <th className="px-6 py-4">Счет</th>
-                       <th className="px-6 py-4">Дата</th>
-                       <th className="px-8 py-4 text-right">Действия / Сумма</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                     {stats.manualIncomesList.length === 0 ? (
-                        <tr><td colSpan={4} className="px-8 py-10 text-center text-slate-600 italic">Нет внесенных доходов</td></tr>
-                     ) : (
-                        stats.manualIncomesList.map(i => (
-                           <tr key={i.id} className="hover:bg-slate-900/40 group transition-colors">
-                              <td className="px-8 py-5 text-white font-bold">{i.comment || 'Остаток'}</td>
-                              <td className="px-6 py-5 text-slate-400 uppercase text-[10px] font-black">{i.platform === 'all' ? 'Общий' : i.platform}</td>
-                              <td className="px-6 py-5 text-slate-500 font-mono text-xs">{i.date}</td>
-                              <td className="px-8 py-5 text-right flex items-center justify-end gap-4">
-                                 <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
-                                    <button onClick={() => setEditingIncome(i)} className="p-1.5 hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-400 rounded-lg transition-all"><ICONS.Edit size={14}/></button>
-                                    <button onClick={() => removeIncome(i.id)} className="p-1.5 hover:bg-rose-500/10 text-slate-500 hover:text-rose-500 rounded-lg transition-all"><ICONS.Trash size={14}/></button>
-                                 </div>
-                                 <span className="font-mono font-bold text-emerald-400 text-base">+${i.amount.toFixed(2)}</span>
-                              </td>
-                           </tr>
-                        ))
-                     )}
-                  </tbody>
-               </table>
-            </div>
-         </div>
-
-         <div className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-xl">
-            <div className="p-8 border-b border-slate-800 bg-slate-900/40 font-bold font-outfit text-lg text-amber-400">Бонусы Моделей (Расходы)</div>
-            <div className="overflow-x-auto">
-               <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead>
-                    <tr className="bg-slate-950/50 text-[10px] uppercase font-black text-slate-600 tracking-widest">
-                       <th className="px-8 py-4">Анкета</th>
-                       <th className="px-6 py-4">Описание</th>
-                       <th className="px-8 py-4 text-right">Сумма</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                     {stats.modelBonusesList.length === 0 ? (
-                        <tr><td colSpan={3} className="px-8 py-10 text-center text-slate-600 italic">Нет бонусов</td></tr>
-                     ) : (
-                        stats.modelBonusesList.map(b => (
-                           <tr key={b.id} className="hover:bg-slate-900/40 transition-colors">
-                              <td className="px-8 py-5 text-white font-bold">{b.model}</td>
-                              <td className="px-6 py-5 text-slate-400">{b.comment}</td>
-                              <td className="px-8 py-5 text-right font-mono font-bold text-amber-500">${b.amount.toFixed(2)}</td>
-                           </tr>
-                        ))
-                     )}
-                  </tbody>
-               </table>
-            </div>
-         </div>
-
-         <div className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-xl">
-            <div className="p-8 border-b border-slate-800 bg-slate-900/40 font-bold font-outfit text-lg text-indigo-400">История Авансов Владельцев</div>
-            <div className="overflow-x-auto">
-               <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead>
-                    <tr className="bg-slate-950/50 text-[10px] uppercase font-black text-slate-600 tracking-widest">
-                       <th className="px-8 py-4">Владелец</th>
-                       <th className="px-6 py-4">Платформа</th>
-                       <th className="px-6 py-4">Дата</th>
-                       <th className="px-6 py-4">Описание</th>
-                       <th className="px-8 py-4 text-right">Действия / Сумма</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                     {(state.ownerAdvances || []).filter(a => a.periodId === activePeriodId).map(a => (
-                        <tr key={a.id} className="hover:bg-slate-900/40 group transition-colors">
-                           <td className="px-8 py-5 font-bold text-white">{a.ownerName}</td>
-                           <td className="px-6 py-5 text-slate-400 uppercase text-[10px] font-black tracking-widest">{PLATFORM_NAMES[a.platform]}</td>
-                           <td className="px-6 py-5 text-slate-500 font-mono text-xs">{a.date}</td>
-                           <td className="px-6 py-5 text-slate-300 italic">"{a.comment || '—'}"</td>
-                           <td className="px-8 py-5 text-right flex items-center justify-end gap-4">
-                              <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
-                                 <button onClick={() => setEditingAdvance(a)} className="p-1.5 hover:bg-indigo-500/10 text-slate-500 hover:text-indigo-400 rounded-lg transition-all"><ICONS.Edit size={14}/></button>
-                                 <button onClick={() => removeAdvance(a.id)} className="p-1.5 hover:bg-rose-500/10 text-slate-500 hover:text-rose-500 rounded-lg transition-all"><ICONS.Trash size={14}/></button>
-                              </div>
-                              <span className="font-mono font-bold text-rose-500 text-base">-${a.amount.toFixed(2)}</span>
-                           </td>
-                        </tr>
-                     ))}
-                  </tbody>
-               </table>
-            </div>
-         </div>
-
-         <div className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-xl">
-            <div className="p-8 border-b border-slate-800 bg-slate-900/40 font-bold font-outfit text-lg text-rose-400">История Расходов</div>
-            <div className="overflow-x-auto">
-               <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead>
-                    <tr className="bg-slate-950/50 text-[10px] uppercase font-black text-slate-600 tracking-widest">
-                       <th className="px-8 py-4">Категория</th>
-                       <th className="px-6 py-4">Платформа</th>
-                       <th className="px-6 py-4">Дата</th>
-                       <th className="px-6 py-4">Заметка</th>
-                       <th className="px-8 py-4 text-right">Действия / Сумма</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                     {state.ownerExpenses.filter(e => e.periodId === activePeriodId).map(e => (
-                        <tr key={e.id} className="hover:bg-slate-900/40 group transition-colors">
-                           <td className="px-8 py-5 text-white font-bold">{CATEGORIES[e.category]?.label || e.category}</td>
-                           <td className="px-6 py-5 text-slate-400 text-[10px] font-black uppercase tracking-widest">{e.platform === 'all' ? 'Общий' : PLATFORM_NAMES[e.platform]}</td>
-                           <td className="px-6 py-5 text-slate-500 font-mono text-xs">{e.date}</td>
-                           <td className="px-6 py-5 text-slate-300 italic">"{e.comment || '—'}"</td>
-                           <td className="px-8 py-5 text-right flex items-center justify-end gap-4">
-                              <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
-                                 <button onClick={() => setEditingExpense(e)} className="p-1.5 hover:bg-indigo-500/10 text-slate-500 hover:text-indigo-400 rounded-lg transition-all"><ICONS.Edit size={14}/></button>
-                                 <button onClick={() => removeExpense(e.id)} className="p-1.5 hover:bg-rose-500/10 text-slate-500 hover:text-rose-500 rounded-lg transition-all"><ICONS.Trash size={14}/></button>
-                              </div>
-                              <span className="font-mono font-bold text-rose-500 text-base">-${e.amount.toFixed(2)}</span>
-                           </td>
-                        </tr>
-                     ))}
-                  </tbody>
-               </table>
-            </div>
-         </div>
-      </div>
-
-      {editingIncome && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
-           <div className="glass-card w-full max-w-lg rounded-[2.5rem] p-10 border-emerald-500/40 shadow-2xl relative">
-              <button onClick={() => setEditingIncome(null)} className="absolute top-8 right-8 text-slate-500 hover:text-white"><ICONS.Plus className="rotate-45" size={24} /></button>
-              <h2 className="text-2xl font-bold text-white mb-6">Редактировать внесенный доход</h2>
-              <div className="space-y-4">
-                 <input type="number" className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white font-mono" value={editingIncome.amount} onChange={e => setEditingIncome({...editingIncome, amount: parseFloat(e.target.value) || 0})} />
-                 <input type="text" className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white" value={editingIncome.comment} onChange={e => setEditingIncome({...editingIncome, comment: e.target.value})} />
-                 <button onClick={updateIncome} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl mt-4 transition-all">Сохранить</button>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {editingAdvance && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
-           <div className="glass-card w-full max-w-lg rounded-[2.5rem] p-10 border-indigo-500/40 shadow-2xl relative">
-              <button onClick={() => setEditingAdvance(null)} className="absolute top-8 right-8 text-slate-500 hover:text-white"><ICONS.Plus className="rotate-45" size={24} /></button>
-              <h2 className="text-2xl font-bold text-white mb-6">Редактировать аванс</h2>
-              <div className="space-y-4">
-                 <div className="grid grid-cols-2 gap-4">
-                    <select className="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white" value={editingAdvance.ownerName} onChange={e => setEditingAdvance({...editingAdvance, ownerName: e.target.value as any})}>
-                       <option value="Andrey">Андрей</option>
-                       <option value="Anton">Антон</option>
-                    </select>
-                    <input type="number" className="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white font-mono" value={editingAdvance.amount} onChange={e => setEditingAdvance({...editingAdvance, amount: parseFloat(e.target.value) || 0})} />
-                 </div>
-                 <input type="text" className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white" value={editingAdvance.comment} onChange={e => setEditingAdvance({...editingAdvance, comment: e.target.value})} />
-                 <button onClick={updateAdvance} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl mt-4 transition-all">Сохранить</button>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {editingExpense && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
-           <div className="glass-card w-full max-w-lg rounded-[2.5rem] p-10 border-amber-500/40 shadow-2xl relative">
-              <button onClick={() => setEditingExpense(null)} className="absolute top-8 right-8 text-slate-500 hover:text-white"><ICONS.Plus className="rotate-45" size={24} /></button>
-              <h2 className="text-2xl font-bold text-white mb-6">Редактировать расход</h2>
-              <div className="space-y-4">
-                 <div className="grid grid-cols-2 gap-4">
-                    <select className="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white" value={editingExpense.category} onChange={e => setEditingExpense({...editingExpense, category: e.target.value as any})}>
-                       {Object.entries(CATEGORIES).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
-                    </select>
-                    <input type="number" className="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white font-mono" value={editingExpense.amount} onChange={e => setEditingExpense({...editingExpense, amount: parseFloat(e.target.value) || 0})} />
-                 </div>
-                 <input type="text" className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white" value={editingExpense.comment} onChange={e => setEditingExpense({...editingExpense, comment: e.target.value})} />
-                 <button onClick={updateExpense} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-4 rounded-xl mt-4 transition-all">Сохранить изменения</button>
-              </div>
-           </div>
-        </div>
-      )}
     </div>
   );
 };

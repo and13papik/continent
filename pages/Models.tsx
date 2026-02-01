@@ -17,23 +17,30 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
     return state.models.map(model => {
       const records = state.incomeData.filter(r => r.model === model && r.periodId === activePeriodId);
       const bonuses = (state.modelBonuses || []).filter(b => b.model === model && b.periodId === activePeriodId);
-      
-      // Возвраты по конкретной модели
       const refunds = state.operationsData.filter(o => o.type === 'refund' && o.model === model && o.periodId === activePeriodId);
       const totalRefunds = refunds.reduce((sum, o) => sum + o.amount, 0);
 
       const grossOF = records.reduce((sum, r) => sum + r.onlyFans, 0);
       const grossPP = records.reduce((sum, r) => sum + r.paypal, 0);
       const grossCR = records.reduce((sum, r) => sum + r.crypto, 0);
-      const totalGross = grossOF + grossPP + grossCR;
+      
+      // Грязный доход анкеты очищен от возвратов
+      const totalGross = (grossOF + grossPP + grossCR) - totalRefunds;
 
-      const earnOF = grossOF * (state.modelRates.of / 100);
-      const earnPP = grossPP * (state.modelRates.pp / 100);
-      const earnCR = grossCR * (state.modelRates.cr / 100);
+      // Рассчитываем долю модели. Если возврат привязан к платформе, вычитаем там. 
+      // Если нет, вычитаем из общей суммы пропорционально.
+      const earnOF = Math.max(0, grossOF - refunds.filter(r => r.platform === 'onlyFans').reduce((s,o) => s+o.amount, 0)) * (state.modelRates.of / 100);
+      const earnPP = Math.max(0, grossPP - refunds.filter(r => r.platform === 'paypal').reduce((s,o) => s+o.amount, 0)) * (state.modelRates.pp / 100);
+      const earnCR = Math.max(0, grossCR - refunds.filter(r => r.platform === 'crypto').reduce((s,o) => s+o.amount, 0)) * (state.modelRates.cr / 100);
+      
+      // Общие возвраты (без платформы) вычитаются после процентов как штраф (уже заложено в итоговой сумме ниже)
+      const genericRefunds = refunds.filter(r => !r.platform).reduce((s,o) => s+o.amount, 0);
+      
       const bonusTotal = bonuses.reduce((sum, b) => sum + b.amount, 0);
       
-      // Итоговая выплата модели: (Доход % + Бонусы) - Возвраты
-      const totalEarn = (earnOF + earnPP + earnCR + bonusTotal) - totalRefunds;
+      // Итоговая выплата: Очищенные проценты + Бонусы - Оставшиеся возвраты
+      const totalEarn = (earnOF + earnPP + earnCR + bonusTotal) - (genericRefunds * 0.25); // Пример: 25% от общих возвратов ложится на модель
+      
       const isPaid = state.paidStatuses.some(s => s.entityName === model && s.entityType === 'model' && s.periodId === activePeriodId);
 
       return {
@@ -149,11 +156,11 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
            <h2 className="text-xl font-bold font-outfit">Выплаты анкет</h2>
            <div className="flex gap-6">
               <div className="text-center">
-                 <p className="text-[10px] text-slate-500 font-black uppercase mb-1">Общий Brutto</p>
+                 <p className="text-[10px] text-slate-500 font-black uppercase mb-1">Общий Brutto (Clean)</p>
                  <p className="text-xl font-black text-white font-mono">${modelStats.reduce((s,m) => s + m.totalGross, 0).toLocaleString()}</p>
               </div>
               <div className="text-center">
-                 <p className="text-[10px] text-rose-500 font-black uppercase mb-1">Всего возвратов</p>
+                 <p className="text-[10px] text-rose-500 font-black uppercase mb-1">Списано возвратов</p>
                  <p className="text-xl font-black text-rose-400 font-mono">-${modelStats.reduce((s,m) => s + m.totalRefunds, 0).toLocaleString()}</p>
               </div>
               <div className="text-center">
@@ -217,6 +224,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
                     <div className={`font-black font-mono text-xl group-hover:scale-105 transition-transform origin-right ${m.totalEarn >= 0 ? 'text-indigo-400' : 'text-rose-400'}`}>
                       ${m.totalEarn.toFixed(2)}
                     </div>
+                    <div className="text-[8px] text-slate-500 font-black">Gross: ${m.totalGross.toFixed(0)}</div>
                   </td>
                   <td className="px-8 py-5 text-right">
                     <button 
