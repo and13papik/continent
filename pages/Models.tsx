@@ -24,22 +24,23 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       const grossPP = records.reduce((sum, r) => sum + r.paypal, 0);
       const grossCR = records.reduce((sum, r) => sum + r.crypto, 0);
       
+      const totalGrossRaw = grossOF + grossPP + grossCR;
       // Грязный доход анкеты очищен от возвратов
-      const totalGross = (grossOF + grossPP + grossCR) - totalRefunds;
+      const totalGross = totalGrossRaw - totalRefunds;
 
-      // Рассчитываем долю модели. Если возврат привязан к платформе, вычитаем там. 
-      // Если нет, вычитаем из общей суммы пропорционально.
+      // Рассчитываем долю модели от очищенного Gross
       const earnOF = Math.max(0, grossOF - refunds.filter(r => r.platform === 'onlyFans').reduce((s,o) => s+o.amount, 0)) * (state.modelRates.of / 100);
       const earnPP = Math.max(0, grossPP - refunds.filter(r => r.platform === 'paypal').reduce((s,o) => s+o.amount, 0)) * (state.modelRates.pp / 100);
       const earnCR = Math.max(0, grossCR - refunds.filter(r => r.platform === 'crypto').reduce((s,o) => s+o.amount, 0)) * (state.modelRates.cr / 100);
       
-      // Общие возвраты (без платформы) вычитаются после процентов как штраф (уже заложено в итоговой сумме ниже)
+      // Общие возвраты без платформы уменьшают доход модели на средний процент
       const genericRefunds = refunds.filter(r => !r.platform).reduce((s,o) => s+o.amount, 0);
+      const avgModelRate = totalGrossRaw > 0 ? (earnOF + earnPP + earnCR) / totalGrossRaw : (state.modelRates.of / 100);
       
       const bonusTotal = bonuses.reduce((sum, b) => sum + b.amount, 0);
       
-      // Итоговая выплата: Очищенные проценты + Бонусы - Оставшиеся возвраты
-      const totalEarn = (earnOF + earnPP + earnCR + bonusTotal) - (genericRefunds * 0.25); // Пример: 25% от общих возвратов ложится на модель
+      // Итоговая выплата: (Очищенная комиссия + Бонусы)
+      const totalEarn = (earnOF + earnPP + earnCR + bonusTotal) - (genericRefunds * avgModelRate);
       
       const isPaid = state.paidStatuses.some(s => s.entityName === model && s.entityType === 'model' && s.periodId === activePeriodId);
 

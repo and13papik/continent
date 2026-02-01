@@ -23,9 +23,14 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     const rawManualGross = manualIncomes.reduce((s, i) => s + i.amount, 0);
     const totalRefunds = periodOps.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
     
-    // ГЛАВНОЕ ИЗМЕНЕНИЕ: Gross = (Платформы + Ручные) - Возвраты
+    // Gross = (Платформы + Ручные) - Возвраты
     const totalGross = (rawPlatformGross + rawManualGross) - totalRefunds;
     
+    // Средний процент комиссии операторов для расчета вычета из Net
+    const avgOpRate = rawPlatformGross > 0 
+      ? periodIncomes.reduce((s, r) => s + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0) / rawPlatformGross 
+      : 0.20;
+
     const totals = { 
       totalGross,
       platformGross: rawPlatformGross,
@@ -53,6 +58,9 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       totals.cr.net += r.nettoCrypto;
     });
 
+    // Уменьшаем NetEarned на сумму комиссии, которая была в возвратах
+    totals.netEarned -= (totalRefunds * avgOpRate);
+
     periodOps.forEach(op => {
       if (op.type === 'bonus') {
         totals.bonuses += op.amount;
@@ -66,10 +74,10 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       }
     });
 
-    // Остаток для операторов (Возвраты уже вычли из Gross, но оператор также теряет свою долю)
-    totals.remainder = (totals.netEarned + totals.bonuses) - (totals.penalties + totals.refunds + totals.paidOut);
+    // Формула: Чистая ЗП (уже очищена от возвратов) + Бонусы - Штрафы - Выплаты
+    totals.remainder = (totals.netEarned + totals.bonuses) - (totals.penalties + totals.paidOut);
 
-    // Доли админов теперь считаются от очищенного Gross
+    // Доли админов от очищенного Gross
     state.admins.forEach(admin => {
       totals.adminDetails.push({ 
         name: admin.name, 
@@ -93,13 +101,22 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       const crG = incomes.reduce((sum, r) => sum + r.crypto, 0);
       const crN = incomes.reduce((sum, r) => sum + r.nettoCrypto, 0);
       
-      const modelRefunds = ops.filter(o => o.type === 'refund').reduce((sum, o) => sum + o.amount, 0);
+      const opRefunds = ops.filter(o => o.type === 'refund');
+      const totalRefundAmount = opRefunds.reduce((sum, o) => sum + o.amount, 0);
       
-      const totalNet = ofN + ppN + crN;
-      const totalGross = (ofG + ppG + crG) - modelRefunds; // Gross оператора также очищен
+      const rawGross = ofG + ppG + crG;
+      const rawNet = ofN + ppN + crN;
+      
+      // Расчет потерянной комиссии оператора из-за возвратов
+      const avgRate = rawGross > 0 ? rawNet / rawGross : 0.20;
+      const lostCommission = totalRefundAmount * avgRate;
+
+      const totalGross = rawGross - totalRefundAmount;
+      const totalNet = rawNet - lostCommission;
       
       const adjPlus = ops.filter(o => o.type === 'bonus').reduce((sum, o) => sum + o.amount, 0);
-      const adjMinus = ops.filter(o => ['penalty', 'refund', 'advance', 'salary_payment', 'internship'].includes(o.type)).reduce((sum, o) => sum + o.amount, 0);
+      // Исключаем refund из прямых вычетов, так как он уже вычтен через Gross -> Net
+      const adjMinus = ops.filter(o => ['penalty', 'advance', 'salary_payment', 'internship'].includes(o.type)).reduce((sum, o) => sum + o.amount, 0);
 
       const remainder = totalNet + adjPlus - adjMinus;
       const isPaid = state.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);

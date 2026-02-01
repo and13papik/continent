@@ -52,8 +52,17 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
       platformStats.cr.net += r.nettoCrypto;
     });
 
-    const totalBrutto = platformStats.of.gross + platformStats.pp.gross + platformStats.cr.gross;
-    const totalNetto = platformStats.of.net + platformStats.pp.net + platformStats.cr.net;
+    const rawBrutto = platformStats.of.gross + platformStats.pp.gross + platformStats.cr.gross;
+    const rawNetto = platformStats.of.net + platformStats.pp.net + platformStats.cr.net;
+    
+    // Считаем возвраты
+    const totalRefundAmount = ops.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
+    const avgRate = rawBrutto > 0 ? rawNetto / rawBrutto : 0.20;
+    const lostCommission = totalRefundAmount * avgRate;
+
+    // Очищенные показатели
+    const totalBrutto = rawBrutto - totalRefundAmount;
+    const totalNetto = rawNetto - lostCommission;
 
     const adjustmentGroups = {
       advance: ops.filter(o => o.type === 'advance').reduce((s,o) => s + o.amount, 0),
@@ -61,10 +70,11 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
       bonus: ops.filter(o => o.type === 'bonus').reduce((s,o) => s + o.amount, 0),
       internship: ops.filter(o => o.type === 'internship').reduce((s,o) => s + o.amount, 0),
       penalty: ops.filter(o => o.type === 'penalty').reduce((s,o) => s + o.amount, 0),
-      refund: ops.filter(o => o.type === 'refund').reduce((s,o) => s + o.amount, 0),
+      refund: totalRefundAmount,
     };
 
-    const deductions = adjustmentGroups.advance + adjustmentGroups.salary + adjustmentGroups.penalty + adjustmentGroups.refund + adjustmentGroups.internship;
+    // Refund не вычитается flat суммой, так как он уже уменьшил totalNetto
+    const deductions = adjustmentGroups.advance + adjustmentGroups.salary + adjustmentGroups.penalty + adjustmentGroups.internship;
     const additions = adjustmentGroups.bonus;
     const finalBalance = totalNetto + additions - deductions;
 
@@ -142,12 +152,11 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
     setEditingOperation(null);
   };
 
-  // ФУНКЦИЯ УДАЛЕНИЯ С TOMBSTONES
   const deleteRecord = (item: { type: string; id: string }) => {
      if(!confirm('Удалить запись безвозвратно?')) return;
      updateState(prev => ({
        ...prev, 
-       deletedIds: [...prev.deletedIds, item.id], // Добавляем в список удаленных
+       deletedIds: [...prev.deletedIds, item.id],
        incomeData: item.type === 'income' ? prev.incomeData.filter(x => x.id !== item.id) : prev.incomeData, 
        operationsData: item.type === 'op' ? prev.operationsData.filter(x => x.id !== item.id) : prev.operationsData
      }));
@@ -201,8 +210,8 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
       {report && (
         <div className="space-y-6">
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <InfoBox title="Общий Брутто" value={report.totalBrutto} color="slate" />
-            <InfoBox title="Общий Нетто" value={report.totalNetto} color="emerald" highlighted />
+            <InfoBox title="Общий Брутто (Clean)" value={report.totalBrutto} color="slate" />
+            <InfoBox title="Общий Нетто (Staff)" value={report.totalNetto} color="emerald" highlighted />
             <div className="glass-card p-6 rounded-3xl border-blue-500/20 bg-blue-500/5">
                <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest mb-1">OnlyFans (B/H)</p>
                <div className="flex flex-col">
@@ -276,13 +285,16 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                    </div>
                    <div className="space-y-4">
                       <div className="flex justify-between border-b border-slate-800/50 pb-2">
-                        <span className="text-slate-500 font-bold text-[10px] uppercase">Общий Нетто (Staff)</span>
+                        <span className="text-slate-500 font-bold text-[10px] uppercase">Чистая ЗП (Staff Net)</span>
                         <span className="font-mono font-bold text-white text-base">${report.totalNetto.toFixed(1)}</span>
                       </div>
-                      <AdjItem label="Авансы/ЗП" val={report.adjustmentGroups.advance + report.adjustmentGroups.salary} type="minus" />
-                      <AdjItem label="Штрафы/Возвраты" val={report.adjustmentGroups.penalty + report.adjustmentGroups.refund} type="minus" />
+                      <AdjItem label="Авансы/Выплаты" val={report.adjustmentGroups.advance + report.adjustmentGroups.salary} type="minus" />
+                      <AdjItem label="Штрафы" val={report.adjustmentGroups.penalty} type="minus" />
                       <AdjItem label="Бонусы" val={report.adjustmentGroups.bonus} type="plus" />
                       <AdjItem label="Стажировочные" val={report.adjustmentGroups.internship} type="minus" />
+                      <div className="pt-2">
+                         <p className="text-[9px] text-slate-500 font-bold italic">*Возвраты (${report.adjustmentGroups.refund.toFixed(0)}) учтены в Net</p>
+                      </div>
                       <div className="pt-4 border-t border-indigo-500/20">
                          <div className="flex justify-between items-center">
                             <span className="text-indigo-400 font-black text-[12px] uppercase tracking-widest">К выплате на руки</span>
