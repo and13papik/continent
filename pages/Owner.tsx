@@ -129,19 +129,19 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     if (val <= 0) return;
 
     const newOp: OperationRecord = {
-      id: String(Date.now() + Math.random()),
+      id: `admin-pay-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       type: 'salary_payment',
       operator: adminName,
       amount: val,
       comment: 'Выплата админу',
       date: new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       periodId: activePeriodId
     };
 
     updateState(prev => ({ ...prev, operationsData: [newOp, ...prev.operationsData] }));
     setAdminPaidInputs(prev => ({ ...prev, [adminName]: '' }));
-    alert(`Выплата для ${adminName} сохранена`);
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -151,13 +151,14 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
   };
 
   const addBusinessExpense = () => {
-    if (!expenseAmount || parseFloat(expenseAmount) <= 0) return;
+    const amt = parseFloat(expenseAmount);
+    if (isNaN(amt) || amt <= 0) return;
     const expense: OwnerManualExpense = {
-      id: String(Date.now() + Math.random()),
+      id: `exp-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       periodId: activePeriodId,
       category: expenseCategory,
       platform: expensePlatform,
-      amount: parseFloat(expenseAmount),
+      amount: amt,
       comment: expenseComment,
       date: new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString(),
@@ -169,12 +170,13 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
   };
 
   const addExtraIncome = () => {
-    if (!incomeAmount || parseFloat(incomeAmount) <= 0) return;
+    const amt = parseFloat(incomeAmount);
+    if (isNaN(amt) || amt <= 0) return;
     const income: OwnerManualIncome = {
-      id: String(Date.now() + Math.random()),
+      id: `own-inc-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       periodId: activePeriodId,
       platform: incomePlatform,
-      amount: parseFloat(incomeAmount),
+      amount: amt,
       comment: incomeComment,
       date: new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString(),
@@ -186,13 +188,14 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
   };
 
   const addOwnerAdvance = () => {
-    if (!advanceAmount || parseFloat(advanceAmount) <= 0) return;
+    const amt = parseFloat(advanceAmount);
+    if (isNaN(amt) || amt <= 0) return;
     const advance: OwnerAdvance = {
-      id: String(Date.now() + Math.random()),
+      id: `own-adv-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       periodId: activePeriodId,
       ownerName: advanceOwner,
       platform: 'crypto',
-      amount: parseFloat(advanceAmount),
+      amount: amt,
       comment: advanceComment,
       date: new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString(),
@@ -324,88 +327,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
          </div>
       </section>
 
-      {/* ВЕДОМОСТЬ МОДЕЛЕЙ (КРАТКО) */}
-      <section className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-xl">
-         <div className="p-6 bg-slate-900/40 border-b border-slate-800 flex justify-between items-center">
-            <h3 className="text-xl font-bold font-outfit text-white">Ведомость Моделей</h3>
-            <button onClick={() => window.location.hash = '#/models'} className="text-[10px] font-black text-indigo-400 hover:text-white uppercase underline">Подробно в Models</button>
-         </div>
-         <div className="overflow-x-auto max-h-[300px]">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-               <tbody className="divide-y divide-slate-800">
-                  {state.models.map(m => {
-                     const incomes = state.incomeData.filter(r => r.model === m && r.periodId === activePeriodId);
-                     const ops = state.operationsData.filter(o => o.model === m && o.periodId === activePeriodId);
-                     const mBonuses = (state.modelBonuses || []).filter(b => b.model === m && b.periodId === activePeriodId).reduce((s, b) => s + b.amount, 0);
-                     
-                     const mOF = incomes.reduce((s, r) => s + r.onlyFans, 0) * (state.modelRates.of / 100);
-                     const mPP = incomes.reduce((s, r) => s + r.paypal, 0) * (state.modelRates.pp / 100);
-                     const mCR = incomes.reduce((s, r) => s + r.crypto, 0) * (state.modelRates.cr / 100);
-                     const mRefunds = ops.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
-                     const mAvgRate = incomes.length > 0 ? (mOF+mPP+mCR) / incomes.reduce((s,r) => s+r.total, 1) : 0.25;
-                     
-                     const accrued = (mOF + mPP + mCR + mBonuses) - (mRefunds * mAvgRate);
-                     const paid = ops.filter(o => ['advance', 'salary_payment'].includes(o.type)).reduce((s, o) => s + o.amount, 0);
-
-                     return (
-                        <tr key={m} className="hover:bg-emerald-500/5 transition-colors">
-                           <td className="px-8 py-3 font-bold text-white w-1/3">{m}</td>
-                           <td className="px-6 py-3 text-center text-slate-500 text-xs uppercase tracking-tighter">Начислено: <span className="text-white font-mono font-bold">${accrued.toFixed(1)}</span></td>
-                           <td className="px-6 py-3 text-center text-slate-500 text-xs uppercase tracking-tighter">Выплачено: <span className="text-emerald-400 font-mono font-bold">${paid.toFixed(1)}</span></td>
-                           <td className="px-8 py-3 text-right">
-                              <span className={`text-sm font-black font-mono ${accrued-paid > 0 ? 'text-indigo-400' : 'text-slate-600'}`}>${(accrued - paid).toFixed(1)}</span>
-                           </td>
-                        </tr>
-                     );
-                  })}
-               </tbody>
-            </table>
-         </div>
-      </section>
-
-      {/* ВЕДОМОСТЬ ОПЕРАТОРОВ (КРАТКО) */}
-      <section className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-xl">
-         <div className="p-6 bg-slate-900/40 border-b border-slate-800 flex justify-between items-center">
-            <h3 className="text-xl font-bold font-outfit text-white">Ведомость Операторов</h3>
-            <button onClick={() => window.location.hash = '#/'} className="text-[10px] font-black text-sky-400 hover:text-white uppercase underline">Подробно в Dashboard</button>
-         </div>
-         <div className="overflow-x-auto max-h-[300px]">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-               <tbody className="divide-y divide-slate-800">
-                  {state.operators.map(op => {
-                     const incomes = state.incomeData.filter(r => r.operator === op && r.periodId === activePeriodId);
-                     const ops = state.operationsData.filter(o => o.operator === op && o.periodId === activePeriodId && !o.model && !state.admins.some(a => a.name === o.operator));
-                     
-                     const rawNet = incomes.reduce((s, r) => s + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
-                     const rawGross = incomes.reduce((s, r) => s + r.total, 0);
-                     const avgRate = rawGross > 0 ? rawNet / rawGross : 0.20;
-                     const mRefunds = state.operationsData.filter(o => o.operator === op && o.type === 'refund' && o.periodId === activePeriodId).reduce((s,o) => s + o.amount, 0);
-                     
-                     const adjustments = ops.reduce((s, o) => {
-                        if (o.type === 'bonus') return s + o.amount;
-                        if (['penalty', 'internship'].includes(o.type)) return s - o.amount;
-                        return s;
-                     }, 0);
-
-                     const accrued = (rawNet - (mRefunds * avgRate)) + adjustments;
-                     const paid = ops.filter(o => ['advance', 'salary_payment'].includes(o.type)).reduce((s, o) => s + o.amount, 0);
-
-                     return (
-                        <tr key={op} className="hover:bg-sky-500/5 transition-colors">
-                           <td className="px-8 py-3 font-bold text-white w-1/3">{op}</td>
-                           <td className="px-6 py-3 text-center text-slate-500 text-xs uppercase tracking-tighter">Начислено: <span className="text-white font-mono font-bold">${accrued.toFixed(1)}</span></td>
-                           <td className="px-6 py-3 text-center text-slate-500 text-xs uppercase tracking-tighter">Выплачено: <span className="text-emerald-400 font-mono font-bold">${paid.toFixed(1)}</span></td>
-                           <td className="px-8 py-3 text-right">
-                              <span className={`text-sm font-black font-mono ${accrued-paid > 0 ? 'text-indigo-400' : 'text-slate-600'}`}>${(accrued - paid).toFixed(1)}</span>
-                           </td>
-                        </tr>
-                     );
-                  })}
-               </tbody>
-            </table>
-         </div>
-      </section>
-
       {/* ВЛАДЕЛЬЦЫ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <OwnerShareCard name="Андрей" totalShare={stats.sharePerOwner} advances={stats.andrey.advances} color="amber" />
@@ -430,7 +351,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
               <input type="text" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Заметка..." value={incomeComment} onChange={e => setIncomeComment(e.target.value)} />
               <button onClick={addExtraIncome} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl shadow-xl">Сохранить</button>
             </div>
-            <HistoryList items={stats.currentManualIncomes} onRemove={id => updateState(p => ({...p, ownerManualIncomes: p.ownerManualIncomes?.filter(i => i.id !== id)}))} title="История доходов" />
+            <HistoryList items={stats.currentManualIncomes} onRemove={id => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerManualIncomes: p.ownerManualIncomes?.filter(i => i.id !== id)}))} title="История доходов" />
           </div>
 
           <div className="glass-card p-8 rounded-[3rem] border-rose-500/20 shadow-2xl flex flex-col">
@@ -446,7 +367,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                 <input type="text" className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Заметка..." value={expenseComment} onChange={e => setExpenseComment(e.target.value)} />
                 <button onClick={addBusinessExpense} className="w-full bg-rose-600 hover:bg-rose-500 text-white font-black py-4 rounded-2xl shadow-xl">Сохранить</button>
              </div>
-             <HistoryList items={stats.currentExpenses} onRemove={id => updateState(p => ({...p, ownerExpenses: p.ownerExpenses.filter(e => e.id !== id)}))} title="История расходов" isExpenses />
+             <HistoryList items={stats.currentExpenses} onRemove={id => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerExpenses: p.ownerExpenses.filter(e => e.id !== id)}))} title="История расходов" isExpenses />
           </div>
 
           <div className="glass-card p-8 rounded-[3rem] border-amber-500/20 shadow-2xl flex flex-col">
@@ -463,7 +384,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
               <input type="text" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Заметка..." value={advanceComment} onChange={e => setAdvanceComment(e.target.value)} />
               <button onClick={addOwnerAdvance} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-4 rounded-2xl shadow-xl">Выдать</button>
             </div>
-            <HistoryList items={stats.currentOwnerAdvances} onRemove={id => updateState(p => ({...p, ownerAdvances: p.ownerAdvances.filter(a => a.id !== id)}))} title="История авансов" isOwner />
+            <HistoryList items={stats.currentOwnerAdvances} onRemove={id => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerAdvances: p.ownerAdvances.filter(a => a.id !== id)}))} title="История авансов" isOwner />
           </div>
       </div>
     </div>
@@ -525,7 +446,7 @@ const HistoryList = ({ items, onRemove, title, isOwner, isExpenses }: any) => (
                   </div>
 
                   <button 
-                    onClick={() => onRemove(item.id)} 
+                    onClick={() => { if(confirm('Удалить запись?')) onRemove(item.id); }} 
                     className="opacity-0 group-hover:opacity-100 p-2 hover:bg-rose-500/20 text-slate-600 hover:text-rose-500 rounded-lg transition-all absolute -right-2 top-1/2 -translate-y-1/2 group-hover:right-2"
                   >
                     <ICONS.Trash size={14}/>

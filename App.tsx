@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { ICONS } from './constants';
 import { createInitialState, saveLocal, syncToCloud, fetchFromCloud } from './store';
@@ -68,7 +68,7 @@ const App: React.FC = () => {
     return () => clearInterval(pollInterval);
   }, [state.version, state.syncUrl, state.syncKey, isCloudReady]);
 
-  // 3. Авто-синхронизация с защитой от перезаписи (Fix Revert Bug)
+  // 3. Авто-синхронизация с защитой от перезаписи
   useEffect(() => {
     saveLocal(state);
     
@@ -83,15 +83,15 @@ const App: React.FC = () => {
         
         if (result.success && result.newState) {
           setState(current => {
-            // КРИТИЧЕСКИЙ ФИКС: Если пока шел запрос, пользователь сделал еще одно изменение
-            // (current.version > versionAtStart), то МЫ НЕ ОБНОВЛЯЕМ стейт старым результатом.
-            // Следующий цикл useEffect (уже запущенный новым изменением) сделает это корректно.
-            if (current.version === versionAtStart || current.version === versionAtStart + 1) {
+            // КРИТИЧЕСКИЙ ФИКС: Если версия изменилась пока шел запрос (current.version !== versionAtStart),
+            // то мы не обновляем стейт результатом синхронизации, чтобы не стереть новые локальные правки.
+            // Следующий цикл useEffect (триггернутый изменением версии) выполнит синхронизацию корректно.
+            if (current.version === versionAtStart) {
                setCloudStatus('success');
                setLastSyncTime(new Date().toLocaleTimeString());
                return result.newState;
             }
-            console.log("Sync skipped to prevent clobbering newer local data");
+            console.log("Sync result discarded: local state changed during request");
             return current;
           });
         } else {
