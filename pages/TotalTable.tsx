@@ -13,25 +13,17 @@ const SHIFTS = [
 ];
 
 const getCellStatusClasses = (balance: any, goal: number) => {
-  // Если значение не введено (undefined или null или пустая строка в стейте)
   if (balance === undefined || balance === null || balance === '') {
     return 'bg-slate-900/20 border-slate-800 text-slate-700 opacity-40';
   }
 
   const val = parseFloat(balance);
   
-  // 1 Уровень: Явный ноль (админ вписал 0)
   if (val === 0) return 'bg-rose-600 border-rose-400 text-white ring-4 ring-rose-500/50 shadow-[0_0_25px_rgba(244,63,94,0.6)] font-black animate-pulse z-10';
   
   const ratio = val / goal;
-
-  // 2 Уровень: Меньше 50%
   if (ratio < 0.5) return 'bg-orange-600/30 border-orange-500/50 text-orange-200';
-  
-  // 3 Уровень: От 50% до 100%
   if (ratio < 1) return 'bg-amber-500/20 border-amber-500/40 text-amber-200';
-  
-  // 4 Уровень: План выполнен
   return 'bg-emerald-600/50 border-emerald-400 text-emerald-100 font-black shadow-[0_0_15px_rgba(16,185,129,0.3)]';
 };
 
@@ -125,22 +117,45 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     setIsSending(shiftKey);
 
     try {
-      // 1. Создаем скриншот с учетом ширины таблицы
       if (!tableRef.current) throw new Error("Table ref is missing");
       
+      // Находим саму таблицу внутри обертки
+      const scrollableTable = tableRef.current.querySelector('.overflow-x-auto');
+      const tableElement = tableRef.current.querySelector('table');
+
       const canvas = await (window as any).html2canvas(tableRef.current, {
         backgroundColor: '#020617',
-        scale: 3,
+        scale: 2,
         logging: false,
         useCORS: true,
-        width: tableRef.current.scrollWidth,
-        windowWidth: tableRef.current.scrollWidth
+        // Важнейшая часть: клонируем DOM и подправляем стили для скриншота
+        onclone: (clonedDoc: Document) => {
+          const clonedContainer = clonedDoc.querySelector('.glass-card') as HTMLElement;
+          const clonedScrollable = clonedDoc.querySelector('.overflow-x-auto') as HTMLElement;
+          const clonedTable = clonedDoc.querySelector('table') as HTMLElement;
+
+          if (clonedContainer && clonedScrollable && clonedTable) {
+            // Убираем ограничения прокрутки и ставим ширину по контенту
+            clonedScrollable.style.overflow = 'visible';
+            clonedScrollable.style.width = 'auto';
+            clonedContainer.style.width = `${clonedTable.offsetWidth}px`;
+            clonedContainer.style.maxWidth = 'none';
+          }
+          
+          // Синхронизируем значения инпутов, так как html2canvas их не всегда видит
+          const inputs = clonedDoc.querySelectorAll('input');
+          const originalInputs = document.querySelectorAll('input');
+          inputs.forEach((input, i) => {
+            if (originalInputs[i]) {
+              (input as HTMLInputElement).value = (originalInputs[i] as HTMLInputElement).value;
+            }
+          });
+        }
       });
       
       const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
       if (!blob) throw new Error('Не удалось создать изображение таблицы');
 
-      // 2. Формируем текст отчета
       let message = `📊 *ОТЧЕТ: ${shiftInfo.label.toUpperCase()} ${shiftInfo.icon}*\n`;
       message += `📅 Дата: ${new Date().toLocaleDateString('ru-RU')}\n\n`;
 
@@ -166,7 +181,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       message += `\n📈 *ИТОГО ЗА ${shiftInfo.label.toUpperCase()} СМЕНУ*: ${totalShiftBal}$ / ${totalShiftGoal}$`;
       message += `\n\n🏆 *ОБЩИЙ ТОТАЛ*: ${totalOverallBal}$ / ${totalOverallPlan}$ (${totalOverallPlan > 0 ? Math.round(totalOverallBal/totalOverallPlan*100) : 0}%)`;
 
-      // 3. Отправляем в TG
       const formData = new FormData();
       formData.append('chat_id', chatId);
       formData.append('photo', blob, 'report.png');
