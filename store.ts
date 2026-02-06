@@ -1,5 +1,5 @@
 
-import { AppState, AccountingPeriod, Admin, CloudSnapshot } from './types';
+import { AppState, AccountingPeriod, Admin, CloudSnapshot, DailyTotalEntry } from './types';
 
 const STORAGE_KEY = 'continental_dashboard_v3';
 const EMERGENCY_KEY = 'continental_emergency_backup';
@@ -80,7 +80,7 @@ export function restoreEmergencyBackup(): AppState | null {
 }
 
 /**
- * Исправленная логика слияния с защитой от воскрешения записей
+ * Слияние массивов объектов по ID с учетом меток времени и списка удаленных
  */
 function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?: string }>(
   local: T[], 
@@ -90,7 +90,7 @@ function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?:
   const map = new Map<string, T>();
   const deletedSet = new Set(deletedIds.map(id => String(id)));
   
-  // 1. Сначала берем удаленные данные из облака, которых нет в нашем списке удаления
+  // 1. Берем данные из облака
   remote.forEach(item => {
     const itemId = String(item.id);
     if (!deletedSet.has(itemId)) {
@@ -98,7 +98,7 @@ function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?:
     }
   });
   
-  // 2. Накладываем локальные данные
+  // 2. Накладываем локальные данные (побеждают при конфликте, если не удалены)
   local.forEach(item => {
     const itemId = String(item.id);
     if (deletedSet.has(itemId)) return;
@@ -110,7 +110,7 @@ function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?:
       const itemTime = new Date(item.updatedAt || item.createdAt || 0).getTime();
       const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
       
-      // Локальное изменение побеждает, если оно новее или такое же (учитывая удаление в local)
+      // Локальная версия выигрывает, если она новее или равна удаленной
       if (itemTime >= existingTime) {
         map.set(itemId, item);
       }
@@ -140,7 +140,6 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
       if (cloudData.length > 0) {
         const remote: AppState = cloudData[0].state;
         
-        // Объединяем списки удаленных ID (самый важный этап для фикса бага)
         const combinedDeletedIds = Array.from(new Set([
           ...(state.deletedIds || []).map(id => String(id)), 
           ...(remote.deletedIds || []).map(id => String(id))
@@ -148,7 +147,7 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         
         finalState.deletedIds = combinedDeletedIds;
 
-        // Выполняем слияние массивов
+        // Умное слияние всех финансовых данных
         finalState.incomeData = mergeArraysById(state.incomeData, remote.incomeData, combinedDeletedIds);
         finalState.operationsData = mergeArraysById(state.operationsData, remote.operationsData, combinedDeletedIds);
         finalState.ownerExpenses = mergeArraysById(state.ownerExpenses, remote.ownerExpenses, combinedDeletedIds);
@@ -158,9 +157,14 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         finalState.paidStatuses = mergeArraysById(state.paidStatuses, remote.paidStatuses, combinedDeletedIds);
         finalState.ownerTasks = mergeArraysById(state.ownerTasks || [], remote.ownerTasks || [], combinedDeletedIds);
         
-        // Слияние TotalTable не делаем по ID, так как это обычно одна рабочая область, просто берем более новую версию
-        if (remote.totalTableEntries && (!state.totalTableEntries || remote.lastUpdated > state.lastUpdated)) {
-            finalState.totalTableEntries = remote.totalTableEntries;
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Слияние Total Table по ID записей, а не целиком по таймстампу
+        // Это предотвращает затирание локальных правок баланса при синхронизации
+        if (state.totalTableEntries || remote.totalTableEntries) {
+            finalState.totalTableEntries = mergeArraysById(
+              state.totalTableEntries || [], 
+              remote.totalTableEntries || [], 
+              combinedDeletedIds
+            );
         }
 
         finalState.version = Math.max(state.version, remote.version) + 1;

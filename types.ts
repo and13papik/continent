@@ -1,4 +1,5 @@
 
+
 export type Platform = 'onlyFans' | 'paypal' | 'crypto';
 
 export interface AccountingPeriod {
@@ -158,6 +159,9 @@ export interface DailyTotalEntry {
   morning: ShiftData;
   day: ShiftData;
   evening: ShiftData;
+  // Fix: Add updatedAt and createdAt for TypeScript compliance and cloud sync
+  updatedAt?: string;
+  createdAt?: string;
 }
 
 export interface AppState {

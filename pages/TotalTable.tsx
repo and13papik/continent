@@ -31,11 +31,13 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   const tableRef = useRef<HTMLDivElement>(null);
   const [isSending, setIsSending] = useState<string | null>(null);
 
+  // Инициализация таблицы при первом запуске или изменении списка моделей
   useEffect(() => {
     if (!state.totalTableEntries || state.totalTableEntries.length === 0) {
-      const initialEntries = state.models.map(m => ({
-        id: `entry-${m}-${Date.now()}`,
+      const initialEntries = state.models.map((m, idx) => ({
+        id: `entry-${m.replace(/\s+/g, '-').toLowerCase()}-${idx}`,
         modelName: m,
+        updatedAt: new Date().toISOString(),
         night: { balance: undefined as any, goal: 60 },
         morning: { balance: undefined as any, goal: 60 },
         day: { balance: undefined as any, goal: 60 },
@@ -43,7 +45,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       }));
       updateState(prev => ({ ...prev, totalTableEntries: initialEntries }));
     }
-  }, [state.models, state.totalTableEntries]);
+  }, [state.models]);
 
   const entries = state.totalTableEntries || [];
 
@@ -52,7 +54,11 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     updateState(prev => ({
       ...prev,
       totalTableEntries: (prev.totalTableEntries || []).map(e => 
-        e.id === entryId ? { ...e, [shift]: { ...(e[shift] as ShiftData), [field]: val } } : e
+        e.id === entryId ? { 
+          ...e, 
+          [shift]: { ...(e[shift] as ShiftData), [field]: val },
+          updatedAt: new Date().toISOString() // Обновляем метку времени строки для корректного слияния в облаке
+        } : e
       )
     }));
   };
@@ -61,7 +67,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     updateState(prev => ({
       ...prev,
       totalTableEntries: (prev.totalTableEntries || []).map(e => 
-        e.id === entryId ? { ...e, modelName: newName } : e
+        e.id === entryId ? { ...e, modelName: newName, updatedAt: new Date().toISOString() } : e
       )
     }));
   };
@@ -80,6 +86,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     const newEntry: DailyTotalEntry = {
       id: `entry-custom-${Date.now()}`,
       modelName: name,
+      updatedAt: new Date().toISOString(),
       night: { balance: undefined as any, goal: 60 },
       morning: { balance: undefined as any, goal: 60 },
       day: { balance: undefined as any, goal: 60 },
@@ -93,10 +100,12 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
   const handleReset = () => {
     if (!confirm('Очистить все текущие балансы? Цели останутся прежними.')) return;
+    const now = new Date().toISOString();
     updateState(prev => ({
       ...prev,
       totalTableEntries: (prev.totalTableEntries || []).map(e => ({
         ...e,
+        updatedAt: now,
         night: { ...e.night, balance: undefined as any },
         morning: { ...e.morning, balance: undefined as any },
         day: { ...e.day, balance: undefined as any },
@@ -163,13 +172,11 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
             clonedScrollable.style.width = 'auto';
             clonedScrollable.style.height = 'auto';
             
-            // Устанавливаем ширину контейнера равную ширине таблицы за вычетом скрытых колонок
             clonedContainer.style.width = 'fit-content';
             clonedContainer.style.maxWidth = 'none';
             clonedContainer.style.height = 'auto';
             clonedContainer.style.overflow = 'visible';
             
-            // Исправляем проблему обрезания шрифтов: меняем input на статичный текст в клоне
             const inputs = clonedDoc.querySelectorAll('input');
             inputs.forEach((input) => {
               const val = (input as HTMLInputElement).value || (input as HTMLInputElement).placeholder || '';
@@ -178,7 +185,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
               span.style.display = 'block';
               span.style.width = '100%';
               span.style.textAlign = 'center';
-              span.style.lineHeight = '1.2'; // Уменьшаем межстрочный интервал для предотвращения срезания
+              span.style.lineHeight = '1.2';
               span.style.fontSize = window.getComputedStyle(input).fontSize;
               span.style.fontWeight = window.getComputedStyle(input).fontWeight;
               span.style.color = window.getComputedStyle(input).color;
@@ -217,7 +224,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
       message += `\n📈 *ИТОГО ЗА ${shiftInfo.label.toUpperCase()} СМЕНУ*: ${totalShiftBal}$ / ${totalShiftGoal}$`;
 
-      // ЕСЛИ ЭТО ВЕЧЕРНИЙ ОТЧЕТ — ДОБАВЛЯЕМ ПОЛНУЮ СТАТИСТИКУ ЗА СУТКИ
       if (shiftKey === 'evening') {
         message += `\n\n━━━━━━━━━━━━━━━\n`;
         message += `🏆 *ИТОГИ ДНЯ (FULL DAY)*\n\n`;
@@ -240,7 +246,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         message += `\n🏁 *ИТОГ ДНЯ*: ${totals.overallBalance}$ / ${totals.overallPlan}$ (${percent}%)\n`;
         message += percent >= 100 ? `🔥 *ПЛАН ВЫПОЛНЕН!*` : `❌ *ПЛАН НЕ ВЫПОЛНЕН*`;
       } else {
-        // Для обычных смен просто пишем общий тотал
         message += `\n\n🏆 *ОБЩИЙ ТОТАЛ*: ${totals.overallBalance}$ / ${totals.overallPlan}$ (${totals.overallPlan > 0 ? Math.round(totals.overallBalance/totals.overallPlan*100) : 0}%)`;
       }
 
