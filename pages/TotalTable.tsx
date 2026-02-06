@@ -119,41 +119,58 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     try {
       if (!tableRef.current) throw new Error("Table ref is missing");
       
-      // Находим саму таблицу внутри обертки
-      const scrollableTable = tableRef.current.querySelector('.overflow-x-auto');
-      const tableElement = tableRef.current.querySelector('table');
-
       const canvas = await (window as any).html2canvas(tableRef.current, {
         backgroundColor: '#020617',
-        scale: 2,
+        scale: 3, // Высокое разрешение
         logging: false,
         useCORS: true,
-        // Важнейшая часть: клонируем DOM и подправляем стили для скриншота
+        allowTaint: true,
+        scrollX: 0,
+        scrollY: 0,
         onclone: (clonedDoc: Document) => {
           const clonedContainer = clonedDoc.querySelector('.glass-card') as HTMLElement;
           const clonedScrollable = clonedDoc.querySelector('.overflow-x-auto') as HTMLElement;
           const clonedTable = clonedDoc.querySelector('table') as HTMLElement;
 
           if (clonedContainer && clonedScrollable && clonedTable) {
-            // Убираем ограничения прокрутки и ставим ширину по контенту
+            // 1. Убираем все ограничения по переполнению
+            clonedDoc.body.style.overflow = 'visible';
             clonedScrollable.style.overflow = 'visible';
             clonedScrollable.style.width = 'auto';
-            clonedContainer.style.width = `${clonedTable.offsetWidth}px`;
+            clonedScrollable.style.height = 'auto';
+            
+            // 2. Устанавливаем ширину контейнера равную физической ширине таблицы
+            const fullWidth = clonedTable.offsetWidth;
+            clonedContainer.style.width = `${fullWidth}px`;
             clonedContainer.style.maxWidth = 'none';
+            clonedContainer.style.height = 'auto';
+            clonedContainer.style.overflow = 'visible';
+            
+            // 3. Исправляем проблему с "обрезанными" инпутами:
+            // Заменяем инпуты на статический текст, чтобы html2canvas не путал высоту строки
+            const inputs = clonedDoc.querySelectorAll('input');
+            inputs.forEach((input) => {
+              const val = (input as HTMLInputElement).value || (input as HTMLInputElement).placeholder || '';
+              const span = clonedDoc.createElement('span');
+              span.textContent = val;
+              span.style.display = 'block';
+              span.style.width = '100%';
+              span.style.textAlign = 'center';
+              span.style.lineHeight = '1.5';
+              span.style.fontSize = window.getComputedStyle(input).fontSize;
+              span.style.fontWeight = window.getComputedStyle(input).fontWeight;
+              span.style.color = window.getComputedStyle(input).color;
+              span.style.fontFamily = window.getComputedStyle(input).fontFamily;
+              
+              if (input.parentElement) {
+                input.parentElement.replaceChild(span, input);
+              }
+            });
           }
-          
-          // Синхронизируем значения инпутов, так как html2canvas их не всегда видит
-          const inputs = clonedDoc.querySelectorAll('input');
-          const originalInputs = document.querySelectorAll('input');
-          inputs.forEach((input, i) => {
-            if (originalInputs[i]) {
-              (input as HTMLInputElement).value = (originalInputs[i] as HTMLInputElement).value;
-            }
-          });
         }
       });
       
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
       if (!blob) throw new Error('Не удалось создать изображение таблицы');
 
       let message = `📊 *ОТЧЕТ: ${shiftInfo.label.toUpperCase()} ${shiftInfo.icon}*\n`;
