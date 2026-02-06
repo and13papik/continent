@@ -12,6 +12,7 @@ import Models from './pages/Models';
 import Owner from './pages/Owner';
 import OwnerTable from './pages/OwnerTable';
 import AdminTable from './pages/AdminTable';
+import TotalTable from './pages/TotalTable';
 import Settings from './pages/Settings';
 
 const App: React.FC = () => {
@@ -142,6 +143,7 @@ const App: React.FC = () => {
             <NavLink to="/operations" icon={<ICONS.Operations size={18} />} label="Операции" />
             <NavLink to="/reports" icon={<ICONS.Reports size={18} />} label="Отчеты" />
             <NavLink to="/models" icon={<ICONS.Models size={18} />} label="Модели" />
+            <NavLink to="/total-table" icon={<ICONS.Transfer size={18} />} label="Total Table" admin />
             <NavLink to="/admin-table" icon={<ICONS.Internship size={18} />} label="Admin Table" admin />
             <NavLink to="/owner-table" icon={<ICONS.Calendar size={18} />} label="Owner Table" premium />
             <NavLink to="/owner" icon={<ICONS.Owner size={18} />} label="Owner Finance" premium />
@@ -195,6 +197,7 @@ const App: React.FC = () => {
               <Route path="/owner" element={<Owner state={state} updateState={updateState} />} />
               <Route path="/owner-table" element={<OwnerTable state={state} updateState={updateState} />} />
               <Route path="/admin-table" element={<AdminTable state={state} updateState={updateState} />} />
+              <Route path="/total-table" element={<TotalTable state={state} updateState={updateState} />} />
               <Route path="/settings" element={<Settings state={state} updateState={updateState} />} />
             </Routes>
           </div>

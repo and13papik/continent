@@ -145,6 +145,21 @@ export interface OwnerTask {
   periodId: string;
 }
 
+// Новые типы для ежедневной таблицы
+export interface ShiftData {
+  balance: number;
+  goal: number;
+}
+
+export interface DailyTotalEntry {
+  id: string;
+  modelName: string;
+  night: ShiftData;
+  morning: ShiftData;
+  day: ShiftData;
+  evening: ShiftData;
+}
+
 export interface AppState {
   lastUpdated: number;
   version: number;
@@ -167,6 +182,7 @@ export interface AppState {
   modelBonuses: ModelBonus[];
   paidStatuses: PaidStatus[];
   ownerTasks?: OwnerTask[];
+  totalTableEntries?: DailyTotalEntry[]; // Записи ежедневной таблицы
   deletedIds: string[]; 
   syncUrl?: string;
   syncKey?: string;

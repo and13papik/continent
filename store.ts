@@ -26,7 +26,8 @@ export function createInitialState(): AppState {
         ownerAdvances: parsed.ownerAdvances || [],
         modelBonuses: parsed.modelBonuses || [],
         paidStatuses: parsed.paidStatuses || [],
-        ownerTasks: parsed.ownerTasks || []
+        ownerTasks: parsed.ownerTasks || [],
+        totalTableEntries: parsed.totalTableEntries || []
       };
     } catch (e) {
       console.error("Failed to parse storage", e);
@@ -60,6 +61,7 @@ export function createInitialState(): AppState {
     modelBonuses: [],
     paidStatuses: [],
     ownerTasks: [],
+    totalTableEntries: [],
     deletedIds: []
   };
 }
@@ -156,6 +158,11 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         finalState.paidStatuses = mergeArraysById(state.paidStatuses, remote.paidStatuses, combinedDeletedIds);
         finalState.ownerTasks = mergeArraysById(state.ownerTasks || [], remote.ownerTasks || [], combinedDeletedIds);
         
+        // Слияние TotalTable не делаем по ID, так как это обычно одна рабочая область, просто берем более новую версию
+        if (remote.totalTableEntries && (!state.totalTableEntries || remote.lastUpdated > state.lastUpdated)) {
+            finalState.totalTableEntries = remote.totalTableEntries;
+        }
+
         finalState.version = Math.max(state.version, remote.version) + 1;
         finalState.lastUpdated = Date.now();
       }
