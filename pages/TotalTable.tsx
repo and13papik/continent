@@ -21,7 +21,7 @@ const getCellStatusClasses = (balance: any, goal: number) => {
   const val = parseFloat(balance);
   
   // 1 Уровень: Явный ноль (админ вписал 0)
-  if (val === 0) return 'bg-rose-600/40 border-rose-500 text-rose-100 ring-2 ring-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.3)] font-black animate-pulse';
+  if (val === 0) return 'bg-rose-600 border-rose-400 text-white ring-4 ring-rose-500/50 shadow-[0_0_25px_rgba(244,63,94,0.6)] font-black animate-pulse z-10';
   
   const ratio = val / goal;
 
@@ -56,7 +56,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   const entries = state.totalTableEntries || [];
 
   const handleUpdate = (entryId: string, shift: keyof DailyTotalEntry, field: keyof ShiftData, value: string) => {
-    // Позволяем вводить пустую строку для сброса или 0
     const val = value === '' ? undefined : parseFloat(value);
     updateState(prev => ({
       ...prev,
@@ -126,12 +125,16 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     setIsSending(shiftKey);
 
     try {
-      // 1. Создаем скриншот
+      // 1. Создаем скриншот с учетом ширины таблицы
+      if (!tableRef.current) throw new Error("Table ref is missing");
+      
       const canvas = await (window as any).html2canvas(tableRef.current, {
         backgroundColor: '#020617',
-        scale: 2,
+        scale: 3,
         logging: false,
-        useCORS: true
+        useCORS: true,
+        width: tableRef.current.scrollWidth,
+        windowWidth: tableRef.current.scrollWidth
       });
       
       const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
@@ -151,17 +154,17 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         totalShiftGoal += s.goal;
         
         const status = s.balance === undefined ? '⚪️ НЕ ЗАПОЛНЕНО' : 
-                       bal >= s.goal ? '✅ ПЛАН' : 
-                       bal === 0 ? '🔴 КРИТИЧЕСКИ (0$)' : '⏳ В ПРОЦЕССЕ';
+                       bal === 0 ? '🔴 КРИТИЧЕСКАЯ СРАКА (0$)' :
+                       bal >= s.goal ? '✅ ПЛАН' : '❌НЕ ВЫПОЛНЕН';
         
-        message += `• *${e.modelName}*: ${bal}$ / ${s.goal}$ — _${status}_\n`;
+        message += `• *${e.modelName}*: ${bal}$ / ${s.goal}$ — ${status}\n`;
       });
 
       const totalOverallPlan = entries.reduce((acc, e) => acc + (e.night.goal || 0) + (e.morning.goal || 0) + (e.day.goal || 0) + (e.evening.goal || 0), 0);
       const totalOverallBal = entries.reduce((acc, e) => acc + (e.night.balance || 0) + (e.morning.balance || 0) + (e.day.balance || 0) + (e.evening.balance || 0), 0);
 
-      message += `\n📈 *ИТОГО ЗА СМЕНУ*: ${totalShiftBal}$ / ${totalShiftGoal}$`;
-      message += `\n🏆 *ОБЩИЙ ПРОГРЕСС*: ${totalOverallBal}$ / ${totalOverallPlan}$ (${totalOverallPlan > 0 ? Math.round(totalOverallBal/totalOverallPlan*100) : 0}%)`;
+      message += `\n📈 *ИТОГО ЗА ${shiftInfo.label.toUpperCase()} СМЕНУ*: ${totalShiftBal}$ / ${totalShiftGoal}$`;
+      message += `\n\n🏆 *ОБЩИЙ ТОТАЛ*: ${totalOverallBal}$ / ${totalOverallPlan}$ (${totalOverallPlan > 0 ? Math.round(totalOverallBal/totalOverallPlan*100) : 0}%)`;
 
       // 3. Отправляем в TG
       const formData = new FormData();
@@ -170,23 +173,19 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       formData.append('caption', message);
       formData.append('parse_mode', 'Markdown');
 
-      console.log('Отправка отчета в Telegram...');
       const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
         method: 'POST',
         body: formData
       });
 
-      const resultData = await res.json();
       if (res.ok) {
         alert('Отчет успешно доставлен в Telegram!');
       } else {
-        console.error('Ошибка Telegram API:', resultData);
-        alert(`Ошибка Telegram: ${resultData.description || 'Неизвестная ошибка'}. Проверьте Chat ID.`);
+        const resultData = await res.json();
+        alert(`Ошибка Telegram: ${resultData.description || 'Неизвестная ошибка'}`);
       }
-
     } catch (e: any) {
-      console.error('Ошибка генерации отчета:', e);
-      alert(`Сбой при отправке: ${e.message || 'Проверьте соединение'}`);
+      alert(`Сбой при отправке: ${e.message}`);
     } finally {
       setIsSending(null);
     }
@@ -217,7 +216,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     return res;
   }, [entries]);
 
-  // Смена считается заполненной, если у всех анкет баланс НЕ undefined
   const isShiftComplete = (shiftKey: 'night' | 'morning' | 'day' | 'evening') => {
     return entries.length > 0 && entries.every(e => e[shiftKey].balance !== undefined);
   };
@@ -267,6 +265,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                              </div>
                              {isShiftComplete(s.key) && (
                                <button 
+                                 data-html2canvas-ignore
                                  onClick={(e) => { e.stopPropagation(); sendTelegramReport(s.key); }}
                                  disabled={isSending === s.key}
                                  className="mt-1 bg-white hover:bg-indigo-400 text-slate-950 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 shadow-lg"
@@ -278,7 +277,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                        </th>
                     ))}
                     <th colSpan={3} className="bg-indigo-900/50 p-3 text-center text-[10px] font-black text-white uppercase tracking-[0.2em]">Итого</th>
-                    <th className="bg-slate-950 p-4 w-12"></th>
+                    <th data-html2canvas-ignore className="bg-slate-950 p-4 w-12"></th>
                  </tr>
                  {/* SUB HEADERS */}
                  <tr className="bg-slate-900/80 text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800">
@@ -293,7 +292,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                     <th className="p-2 border-r border-slate-800/30 text-indigo-400">План</th>
                     <th className="p-2 border-r border-slate-800/30 text-rose-400">Осталось</th>
                     <th className="p-2 border-r border-slate-800 text-emerald-400">Итого</th>
-                    <th className="p-2">Удалить</th>
+                    <th data-html2canvas-ignore className="p-2">Удалить</th>
                  </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
@@ -319,7 +318,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                                 <td className={`p-1 border-r border-slate-800/30 transition-all ${getCellStatusClasses(entry[s.key].balance, entry[s.key].goal)}`}>
                                    <input 
                                       type="number" 
-                                      className="w-full bg-transparent text-center text-sm font-mono outline-none focus:bg-white/5 transition-all py-2 placeholder:text-slate-700 placeholder:opacity-50"
+                                      className="w-full bg-transparent text-center text-sm font-black outline-none transition-all py-2 placeholder:text-slate-700/50"
                                       value={entry[s.key].balance ?? ''} 
                                       onChange={e => handleUpdate(entry.id, s.key, 'balance', e.target.value)}
                                       placeholder="0"
@@ -340,7 +339,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                           <td className="p-3 text-center border-r border-slate-800/30 font-bold font-mono text-indigo-400 bg-indigo-500/5">{rowPlan}</td>
                           <td className={`p-3 text-center border-r border-slate-800/30 font-bold font-mono ${rowRemaining > 0 ? 'text-rose-400' : 'text-emerald-400'} bg-slate-950/30`}>{rowRemaining}</td>
                           <td className="p-3 text-center font-black font-mono text-emerald-400 bg-emerald-500/5 border-r border-slate-800">{rowBalance}</td>
-                          <td className="p-3 text-center">
+                          <td data-html2canvas-ignore className="p-3 text-center">
                              <button onClick={() => handleRemoveModel(entry.id)} className="text-slate-600 hover:text-rose-500 transition-colors">
                                 <ICONS.Trash size={16} />
                              </button>
@@ -360,7 +359,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                     <td className="p-4 text-center border-r border-slate-800/30 text-indigo-400 font-mono">{totals.overallPlan}</td>
                     <td className="p-4 text-center border-r border-slate-800/30 text-rose-400 font-mono">{totals.overallRemaining}</td>
                     <td className="p-4 text-center text-emerald-400 font-mono border-r border-slate-800">{totals.overallBalance}</td>
-                    <td className="p-4"></td>
+                    <td data-html2canvas-ignore className="p-4"></td>
                  </tr>
               </tbody>
            </table>
