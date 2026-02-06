@@ -105,123 +105,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     }));
   };
 
-  const sendTelegramReport = async (shiftKey: 'night' | 'morning' | 'day' | 'evening') => {
-    let chatId = state.tgChatId;
-    if (!chatId) {
-      chatId = prompt('Введите ID чата (например, 12345678 или -100...):') || undefined;
-      if (!chatId) return;
-      updateState(prev => ({ ...prev, tgChatId: chatId }));
-    }
-
-    const shiftInfo = SHIFTS.find(s => s.key === shiftKey)!;
-    setIsSending(shiftKey);
-
-    try {
-      if (!tableRef.current) throw new Error("Table ref is missing");
-      
-      const canvas = await (window as any).html2canvas(tableRef.current, {
-        backgroundColor: '#020617',
-        scale: 3, // Высокое разрешение
-        logging: false,
-        useCORS: true,
-        allowTaint: true,
-        scrollX: 0,
-        scrollY: 0,
-        onclone: (clonedDoc: Document) => {
-          const clonedContainer = clonedDoc.querySelector('.glass-card') as HTMLElement;
-          const clonedScrollable = clonedDoc.querySelector('.overflow-x-auto') as HTMLElement;
-          const clonedTable = clonedDoc.querySelector('table') as HTMLElement;
-
-          if (clonedContainer && clonedScrollable && clonedTable) {
-            // 1. Убираем все ограничения по переполнению
-            clonedDoc.body.style.overflow = 'visible';
-            clonedScrollable.style.overflow = 'visible';
-            clonedScrollable.style.width = 'auto';
-            clonedScrollable.style.height = 'auto';
-            
-            // 2. Устанавливаем ширину контейнера равную физической ширине таблицы
-            const fullWidth = clonedTable.offsetWidth;
-            clonedContainer.style.width = `${fullWidth}px`;
-            clonedContainer.style.maxWidth = 'none';
-            clonedContainer.style.height = 'auto';
-            clonedContainer.style.overflow = 'visible';
-            
-            // 3. Исправляем проблему с "обрезанными" инпутами:
-            // Заменяем инпуты на статический текст, чтобы html2canvas не путал высоту строки
-            const inputs = clonedDoc.querySelectorAll('input');
-            inputs.forEach((input) => {
-              const val = (input as HTMLInputElement).value || (input as HTMLInputElement).placeholder || '';
-              const span = clonedDoc.createElement('span');
-              span.textContent = val;
-              span.style.display = 'block';
-              span.style.width = '100%';
-              span.style.textAlign = 'center';
-              span.style.lineHeight = '1.5';
-              span.style.fontSize = window.getComputedStyle(input).fontSize;
-              span.style.fontWeight = window.getComputedStyle(input).fontWeight;
-              span.style.color = window.getComputedStyle(input).color;
-              span.style.fontFamily = window.getComputedStyle(input).fontFamily;
-              
-              if (input.parentElement) {
-                input.parentElement.replaceChild(span, input);
-              }
-            });
-          }
-        }
-      });
-      
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
-      if (!blob) throw new Error('Не удалось создать изображение таблицы');
-
-      let message = `📊 *ОТЧЕТ: ${shiftInfo.label.toUpperCase()} ${shiftInfo.icon}*\n`;
-      message += `📅 Дата: ${new Date().toLocaleDateString('ru-RU')}\n\n`;
-
-      let totalShiftBal = 0;
-      let totalShiftGoal = 0;
-
-      entries.forEach(e => {
-        const s = e[shiftKey] as ShiftData;
-        const bal = s.balance === undefined ? 0 : s.balance;
-        totalShiftBal += bal;
-        totalShiftGoal += s.goal;
-        
-        const status = s.balance === undefined ? '⚪️ НЕ ЗАПОЛНЕНО' : 
-                       bal === 0 ? '🔴 КРИТИЧЕСКАЯ СРАКА (0$)' :
-                       bal >= s.goal ? '✅ ПЛАН' : '❌НЕ ВЫПОЛНЕН';
-        
-        message += `• *${e.modelName}*: ${bal}$ / ${s.goal}$ — ${status}\n`;
-      });
-
-      const totalOverallPlan = entries.reduce((acc, e) => acc + (e.night.goal || 0) + (e.morning.goal || 0) + (e.day.goal || 0) + (e.evening.goal || 0), 0);
-      const totalOverallBal = entries.reduce((acc, e) => acc + (e.night.balance || 0) + (e.morning.balance || 0) + (e.day.balance || 0) + (e.evening.balance || 0), 0);
-
-      message += `\n📈 *ИТОГО ЗА ${shiftInfo.label.toUpperCase()} СМЕНУ*: ${totalShiftBal}$ / ${totalShiftGoal}$`;
-      message += `\n\n🏆 *ОБЩИЙ ТОТАЛ*: ${totalOverallBal}$ / ${totalOverallPlan}$ (${totalOverallPlan > 0 ? Math.round(totalOverallBal/totalOverallPlan*100) : 0}%)`;
-
-      const formData = new FormData();
-      formData.append('chat_id', chatId);
-      formData.append('photo', blob, 'report.png');
-      formData.append('caption', message);
-      formData.append('parse_mode', 'Markdown');
-
-      const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (res.ok) {
-        alert('Отчет успешно доставлен в Telegram!');
-      } else {
-        const resultData = await res.json();
-        alert(`Ошибка Telegram: ${resultData.description || 'Неизвестная ошибка'}`);
-      }
-    } catch (e: any) {
-      alert(`Сбой при отправке: ${e.message}`);
-    } finally {
-      setIsSending(null);
-    }
-  };
-
   const totals = useMemo(() => {
     const res = {
       night: { balance: 0, goal: 0 },
@@ -246,6 +129,143 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
     return res;
   }, [entries]);
+
+  const sendTelegramReport = async (shiftKey: 'night' | 'morning' | 'day' | 'evening') => {
+    let chatId = state.tgChatId;
+    if (!chatId) {
+      chatId = prompt('Введите ID чата (например, 12345678 или -100...):') || undefined;
+      if (!chatId) return;
+      updateState(prev => ({ ...prev, tgChatId: chatId }));
+    }
+
+    const shiftInfo = SHIFTS.find(s => s.key === shiftKey)!;
+    setIsSending(shiftKey);
+
+    try {
+      if (!tableRef.current) throw new Error("Table ref is missing");
+      
+      const canvas = await (window as any).html2canvas(tableRef.current, {
+        backgroundColor: '#020617',
+        scale: 3,
+        logging: false,
+        useCORS: true,
+        allowTaint: true,
+        scrollX: 0,
+        scrollY: 0,
+        onclone: (clonedDoc: Document) => {
+          const clonedContainer = clonedDoc.querySelector('.glass-card') as HTMLElement;
+          const clonedScrollable = clonedDoc.querySelector('.overflow-x-auto') as HTMLElement;
+          const clonedTable = clonedDoc.querySelector('table') as HTMLElement;
+
+          if (clonedContainer && clonedScrollable && clonedTable) {
+            clonedDoc.body.style.overflow = 'visible';
+            clonedScrollable.style.overflow = 'visible';
+            clonedScrollable.style.width = 'auto';
+            clonedScrollable.style.height = 'auto';
+            
+            // Определяем ширину только с учетом смен (без скрытых колонок)
+            clonedContainer.style.width = 'fit-content';
+            clonedContainer.style.maxWidth = 'none';
+            clonedContainer.style.height = 'auto';
+            clonedContainer.style.overflow = 'visible';
+            
+            const inputs = clonedDoc.querySelectorAll('input');
+            inputs.forEach((input) => {
+              const val = (input as HTMLInputElement).value || (input as HTMLInputElement).placeholder || '';
+              const span = clonedDoc.createElement('span');
+              span.textContent = val;
+              span.style.display = 'block';
+              span.style.width = '100%';
+              span.style.textAlign = 'center';
+              span.style.lineHeight = '1.2';
+              span.style.fontSize = window.getComputedStyle(input).fontSize;
+              span.style.fontWeight = window.getComputedStyle(input).fontWeight;
+              span.style.color = window.getComputedStyle(input).color;
+              span.style.fontFamily = window.getComputedStyle(input).fontFamily;
+              
+              if (input.parentElement) {
+                input.parentElement.replaceChild(span, input);
+              }
+            });
+          }
+        }
+      });
+      
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
+      if (!blob) throw new Error('Не удалось создать изображение таблицы');
+
+      // ФОРМИРОВАНИЕ ТЕКСТА
+      let message = `📊 *ОТЧЕТ: ${shiftInfo.label.toUpperCase()} ${shiftInfo.icon}*\n`;
+      message += `📅 Дата: ${new Date().toLocaleDateString('ru-RU')}\n\n`;
+
+      let totalShiftBal = 0;
+      let totalShiftGoal = 0;
+
+      entries.forEach(e => {
+        const s = e[shiftKey] as ShiftData;
+        const bal = s.balance === undefined ? 0 : s.balance;
+        totalShiftBal += bal;
+        totalShiftGoal += s.goal;
+        
+        const status = s.balance === undefined ? '⚪️ НЕ ЗАПОЛНЕНО' : 
+                       bal === 0 ? '🔴 КРИТИЧЕСКАЯ СРАКА (0$)' :
+                       bal >= s.goal ? '✅ ПЛАН' : '❌НЕ ВЫПОЛНЕН';
+        
+        message += `• *${e.modelName}*: ${bal}$ / ${s.goal}$ — ${status}\n`;
+      });
+
+      message += `\n📈 *ИТОГО ЗА ${shiftInfo.label.toUpperCase()} СМЕНУ*: ${totalShiftBal}$ / ${totalShiftGoal}$`;
+
+      // ЕСЛИ ЭТО ВЕЧЕРНИЙ ОТЧЕТ — ДОБАВЛЯЕМ ПОЛНУЮ СТАТИСТИКУ ЗА СУТКИ
+      if (shiftKey === 'evening') {
+        message += `\n\n━━━━━━━━━━━━━━━\n`;
+        message += `🏆 *ИТОГИ ДНЯ (FULL DAY)*\n\n`;
+        
+        message += `📊 *ПО СМЕНАМ:*\n`;
+        message += `🌙 Ночь: ${totals.night.balance}$ / ${totals.night.goal}$\n`;
+        message += `🌅 Утро: ${totals.morning.balance}$ / ${totals.morning.goal}$\n`;
+        message += `☀️ День: ${totals.day.balance}$ / ${totals.day.goal}$\n`;
+        message += `🌇 Вечер: ${totals.evening.balance}$ / ${totals.evening.goal}$\n\n`;
+
+        message += `👤 *ПЕРСОНАЛЬНЫЙ ИТОГ:*\n`;
+        entries.forEach(e => {
+            const modelDailyTotal = (e.night.balance || 0) + (e.morning.balance || 0) + (e.day.balance || 0) + (e.evening.balance || 0);
+            const modelDailyGoal = (e.night.goal || 0) + (e.morning.goal || 0) + (e.day.goal || 0) + (e.evening.goal || 0);
+            const status = modelDailyTotal >= modelDailyGoal ? '✅' : '❌';
+            message += `• ${e.modelName}: ${modelDailyTotal}$ / ${modelDailyGoal}$ — ${status}\n`;
+        });
+
+        const percent = totals.overallPlan > 0 ? Math.round(totals.overallBalance/totals.overallPlan*100) : 0;
+        message += `\n🏁 *ИТОГ ДНЯ*: ${totals.overallBalance}$ / ${totals.overallPlan}$ (${percent}%)\n`;
+        message += percent >= 100 ? `🔥 *ПЛАН ВЫПОЛНЕН!*` : `❌ *ПЛАН НЕ ВЫПОЛНЕН*`;
+      } else {
+        // Для обычных смен просто пишем общий тотал
+        message += `\n\n🏆 *ОБЩИЙ ТОТАЛ*: ${totals.overallBalance}$ / ${totals.overallPlan}$ (${totals.overallPlan > 0 ? Math.round(totals.overallBalance/totals.overallPlan*100) : 0}%)`;
+      }
+
+      const formData = new FormData();
+      formData.append('chat_id', chatId);
+      formData.append('photo', blob, 'report.png');
+      formData.append('caption', message);
+      formData.append('parse_mode', 'Markdown');
+
+      const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (res.ok) {
+        alert('Отчет успешно доставлен в Telegram!');
+      } else {
+        const resultData = await res.json();
+        alert(`Ошибка Telegram: ${resultData.description || 'Неизвестная ошибка'}`);
+      }
+    } catch (e: any) {
+      alert(`Сбой при отправке: ${e.message}`);
+    } finally {
+      setIsSending(null);
+    }
+  };
 
   const isShiftComplete = (shiftKey: 'night' | 'morning' | 'day' | 'evening') => {
     return entries.length > 0 && entries.every(e => e[shiftKey].balance !== undefined);
@@ -307,7 +327,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                           </div>
                        </th>
                     ))}
-                    <th colSpan={3} className="bg-indigo-900/50 p-3 text-center text-[10px] font-black text-white uppercase tracking-[0.2em]">Итого</th>
+                    <th data-html2canvas-ignore colSpan={3} className="bg-indigo-900/50 p-3 text-center text-[10px] font-black text-white uppercase tracking-[0.2em]">Итого</th>
                     <th data-html2canvas-ignore className="bg-slate-950 p-4 w-12"></th>
                  </tr>
                  {/* SUB HEADERS */}
@@ -320,9 +340,9 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                           <th className="p-2 border-r border-slate-800">Цель</th>
                        </React.Fragment>
                     ))}
-                    <th className="p-2 border-r border-slate-800/30 text-indigo-400">План</th>
-                    <th className="p-2 border-r border-slate-800/30 text-rose-400">Осталось</th>
-                    <th className="p-2 border-r border-slate-800 text-emerald-400">Итого</th>
+                    <th data-html2canvas-ignore className="p-2 border-r border-slate-800/30 text-indigo-400">План</th>
+                    <th data-html2canvas-ignore className="p-2 border-r border-slate-800/30 text-rose-400">Осталось</th>
+                    <th data-html2canvas-ignore className="p-2 border-r border-slate-800 text-emerald-400">Итого</th>
                     <th data-html2canvas-ignore className="p-2">Удалить</th>
                  </tr>
               </thead>
@@ -367,9 +387,9 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                              </React.Fragment>
                           ))}
 
-                          <td className="p-3 text-center border-r border-slate-800/30 font-bold font-mono text-indigo-400 bg-indigo-500/5">{rowPlan}</td>
-                          <td className={`p-3 text-center border-r border-slate-800/30 font-bold font-mono ${rowRemaining > 0 ? 'text-rose-400' : 'text-emerald-400'} bg-slate-950/30`}>{rowRemaining}</td>
-                          <td className="p-3 text-center font-black font-mono text-emerald-400 bg-emerald-500/5 border-r border-slate-800">{rowBalance}</td>
+                          <td data-html2canvas-ignore className="p-3 text-center border-r border-slate-800/30 font-bold font-mono text-indigo-400 bg-indigo-500/5">{rowPlan}</td>
+                          <td data-html2canvas-ignore className={`p-3 text-center border-r border-slate-800/30 font-bold font-mono ${rowRemaining > 0 ? 'text-rose-400' : 'text-emerald-400'} bg-slate-950/30`}>{rowRemaining}</td>
+                          <td data-html2canvas-ignore className="p-3 text-center font-black font-mono text-emerald-400 bg-emerald-500/5 border-r border-slate-800">{rowBalance}</td>
                           <td data-html2canvas-ignore className="p-3 text-center">
                              <button onClick={() => handleRemoveModel(entry.id)} className="text-slate-600 hover:text-rose-500 transition-colors">
                                 <ICONS.Trash size={16} />
@@ -387,9 +407,9 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                           <td className={`p-4 text-center border-r border-slate-800 text-slate-200 font-mono font-black ${s.cellColor}`}>{totals[s.key].goal.toFixed(0)}</td>
                        </React.Fragment>
                     ))}
-                    <td className="p-4 text-center border-r border-slate-800/30 text-indigo-400 font-mono">{totals.overallPlan}</td>
-                    <td className="p-4 text-center border-r border-slate-800/30 text-rose-400 font-mono">{totals.overallRemaining}</td>
-                    <td className="p-4 text-center text-emerald-400 font-mono border-r border-slate-800">{totals.overallBalance}</td>
+                    <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-800/30 text-indigo-400 font-mono">{totals.overallPlan}</td>
+                    <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-800/30 text-rose-400 font-mono">{totals.overallRemaining}</td>
+                    <td data-html2canvas-ignore className="p-4 text-center text-emerald-400 font-mono border-r border-slate-800">{totals.overallBalance}</td>
                     <td data-html2canvas-ignore className="p-4"></td>
                  </tr>
               </tbody>
