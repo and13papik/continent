@@ -183,6 +183,7 @@ export interface AppState {
   paidStatuses: PaidStatus[];
   ownerTasks?: OwnerTask[];
   totalTableEntries?: DailyTotalEntry[]; // Записи ежедневной таблицы
+  tgChatId?: string; // ID чата для отчетов
   deletedIds: string[]; 
   syncUrl?: string;
   syncKey?: string;
