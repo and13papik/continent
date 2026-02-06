@@ -148,6 +148,13 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     setNewTaskTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
   };
 
+  const toggleDelegation = (id: string) => {
+    updateState(prev => ({
+      ...prev,
+      ownerTasks: (prev.ownerTasks || []).map(t => t.id === id ? { ...t, isForAdmins: !t.isForAdmins, updatedAt: new Date().toISOString() } : t)
+    }));
+  };
+
   const saveTask = () => {
     if (!newTaskTitle.trim()) return;
 
@@ -576,6 +583,13 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
 
                           <div className="flex flex-col items-end gap-5 shrink-0">
                              <div className="flex gap-2">
+                                <button 
+                                    onClick={() => toggleDelegation(task.id)}
+                                    className={`w-10 h-10 rounded-2xl flex items-center justify-center border transition-all ${task.isForAdmins ? 'bg-sky-600 text-white border-sky-500 shadow-lg shadow-sky-600/20' : 'bg-slate-950 text-slate-700 border-slate-800 hover:text-sky-400 hover:border-sky-500/30'}`}
+                                    title={task.isForAdmins ? "Отозвать от админов" : "Делегировать админам"}
+                                >
+                                    <GraduationIcon size={16} />
+                                </button>
                                 <button 
                                     onClick={() => startEditing(task)}
                                     className="w-10 h-10 rounded-2xl flex items-center justify-center bg-slate-950 text-slate-500 border border-slate-800 hover:text-white hover:border-amber-500/50 transition-all"
