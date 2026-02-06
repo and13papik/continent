@@ -10,6 +10,8 @@ import Operations from './pages/Operations';
 import Reports from './pages/Reports';
 import Models from './pages/Models';
 import Owner from './pages/Owner';
+import OwnerTable from './pages/OwnerTable';
+import AdminTable from './pages/AdminTable';
 import Settings from './pages/Settings';
 
 const App: React.FC = () => {
@@ -74,7 +76,7 @@ const App: React.FC = () => {
     
     if (state.syncUrl && state.syncKey && isCloudReady && !isSyncing) {
       const timer = setTimeout(async () => {
-        const versionAtStart = state.version; // Запоминаем версию в начале запроса
+        const versionAtStart = state.version; 
         
         setIsSyncing(true);
         setCloudStatus('loading');
@@ -83,9 +85,6 @@ const App: React.FC = () => {
         
         if (result.success && result.newState) {
           setState(current => {
-            // КРИТИЧЕСКИЙ ФИКС: Если версия изменилась пока шел запрос (current.version !== versionAtStart),
-            // то мы не обновляем стейт результатом синхронизации, чтобы не стереть новые локальные правки.
-            // Следующий цикл useEffect (триггернутый изменением версии) выполнит синхронизацию корректно.
             if (current.version === versionAtStart) {
                setCloudStatus('success');
                setLastSyncTime(new Date().toLocaleTimeString());
@@ -143,7 +142,9 @@ const App: React.FC = () => {
             <NavLink to="/operations" icon={<ICONS.Operations size={18} />} label="Операции" />
             <NavLink to="/reports" icon={<ICONS.Reports size={18} />} label="Отчеты" />
             <NavLink to="/models" icon={<ICONS.Models size={18} />} label="Модели" />
-            <NavLink to="/owner" icon={<ICONS.Owner size={18} />} label="Owner" premium />
+            <NavLink to="/admin-table" icon={<ICONS.Internship size={18} />} label="Admin Table" admin />
+            <NavLink to="/owner-table" icon={<ICONS.Calendar size={18} />} label="Owner Table" premium />
+            <NavLink to="/owner" icon={<ICONS.Owner size={18} />} label="Owner Finance" premium />
             <NavLink to="/settings" icon={<ICONS.Settings size={18} />} label="Настройки" />
           </div>
 
@@ -192,6 +193,8 @@ const App: React.FC = () => {
               <Route path="/reports" element={<Reports state={state} updateState={updateState} />} />
               <Route path="/models" element={<Models state={state} updateState={updateState} />} />
               <Route path="/owner" element={<Owner state={state} updateState={updateState} />} />
+              <Route path="/owner-table" element={<OwnerTable state={state} updateState={updateState} />} />
+              <Route path="/admin-table" element={<AdminTable state={state} updateState={updateState} />} />
               <Route path="/settings" element={<Settings state={state} updateState={updateState} />} />
             </Routes>
           </div>
@@ -201,20 +204,34 @@ const App: React.FC = () => {
   );
 };
 
-const NavLink: React.FC<{ to: string; icon: React.ReactNode; label: string; premium?: boolean }> = ({ to, icon, label, premium }) => {
+const NavLink: React.FC<{ to: string; icon: React.ReactNode; label: string; premium?: boolean; admin?: boolean }> = ({ to, icon, label, premium, admin }) => {
   const location = useLocation();
   const isActive = location.pathname === to;
+
+  let activeClass = 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30';
+  let hoverClass = 'text-slate-500 hover:bg-slate-900 hover:text-slate-100';
+  let iconClass = 'text-slate-600 group-hover:text-indigo-400';
+
+  if (premium) {
+    activeClass = 'bg-amber-600 text-white shadow-lg shadow-amber-600/30';
+    hoverClass = 'text-amber-500/70 hover:bg-amber-500/10 hover:text-amber-400';
+    iconClass = 'text-amber-500/50';
+  }
+
+  if (admin) {
+    activeClass = 'bg-sky-600 text-white shadow-lg shadow-sky-600/30';
+    hoverClass = 'text-sky-500/70 hover:bg-sky-500/10 hover:text-sky-400';
+    iconClass = 'text-sky-500/50';
+  }
 
   return (
     <Link
       to={to}
       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${
-        isActive 
-          ? premium ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' 
-          : premium ? 'text-amber-500/70 hover:bg-amber-500/10 hover:text-amber-400' : 'text-slate-500 hover:bg-slate-900 hover:text-slate-100'
+        isActive ? activeClass : hoverClass
       }`}
     >
-      <span className={`transition-all duration-300 ${isActive ? 'text-white scale-110' : premium ? 'text-amber-500/50' : 'text-slate-600 group-hover:text-indigo-400 group-hover:scale-110'}`}>
+      <span className={`transition-all duration-300 ${isActive ? 'text-white scale-110' : iconClass + ' group-hover:scale-110'}`}>
         {icon}
       </span>
       <span className={`font-semibold text-sm tracking-tight ${isActive ? 'text-white' : ''}`}>{label}</span>

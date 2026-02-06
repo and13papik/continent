@@ -25,7 +25,8 @@ export function createInitialState(): AppState {
         ownerManualIncomes: parsed.ownerManualIncomes || [],
         ownerAdvances: parsed.ownerAdvances || [],
         modelBonuses: parsed.modelBonuses || [],
-        paidStatuses: parsed.paidStatuses || []
+        paidStatuses: parsed.paidStatuses || [],
+        ownerTasks: parsed.ownerTasks || []
       };
     } catch (e) {
       console.error("Failed to parse storage", e);
@@ -58,6 +59,7 @@ export function createInitialState(): AppState {
     ownerAdvances: [],
     modelBonuses: [],
     paidStatuses: [],
+    ownerTasks: [],
     deletedIds: []
   };
 }
@@ -152,6 +154,7 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         finalState.ownerManualIncomes = mergeArraysById(state.ownerManualIncomes || [], remote.ownerManualIncomes || [], combinedDeletedIds);
         finalState.modelBonuses = mergeArraysById(state.modelBonuses || [], remote.modelBonuses || [], combinedDeletedIds);
         finalState.paidStatuses = mergeArraysById(state.paidStatuses, remote.paidStatuses, combinedDeletedIds);
+        finalState.ownerTasks = mergeArraysById(state.ownerTasks || [], remote.ownerTasks || [], combinedDeletedIds);
         
         finalState.version = Math.max(state.version, remote.version) + 1;
         finalState.lastUpdated = Date.now();

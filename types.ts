@@ -35,7 +35,7 @@ export interface OperationRecord {
   id: string;
   type: OperationType;
   operator: string;
-  model?: string; // Привязка к модели (обязательно для возвратов)
+  model?: string;
   date: string;
   createdAt: string;
   updatedAt?: string;
@@ -106,6 +106,45 @@ export interface PaidStatus {
   updatedAt?: string;
 }
 
+export type TaskStatus = 'idea' | 'planned' | 'in_progress' | 'waiting' | 'completed';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type OwnerTag = 'CRITICAL' | 'MONEY' | 'SYSTEM' | 'CONTENT' | 'BLOCKER';
+
+export interface TaskNote {
+  id: string;
+  text: string;
+  author: 'Andrey' | 'Anton' | 'Rector' | 'Mentor';
+  createdAt: string;
+}
+
+export type TaskAssignee = 'Andrey' | 'Anton' | 'Rector' | 'Mentor' | 'Owners' | 'Admins' | 'All';
+
+export interface OwnerTask {
+  id: string;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  assignedTo: TaskAssignee;
+  isForAdmins?: boolean; // Флаг делегирования админам
+  adminReport?: {
+    text: string;
+    links: string[];
+  };
+  tags: OwnerTag[];
+  strategyData?: {
+    goal: string;
+    reason: string;
+    effect: string;
+  };
+  notes: TaskNote[];
+  modelId?: string;
+  dueDate?: string;
+  createdAt: string;
+  updatedAt: string;
+  periodId: string;
+}
+
 export interface AppState {
   lastUpdated: number;
   version: number;
@@ -127,6 +166,7 @@ export interface AppState {
   ownerAdvances: OwnerAdvance[];
   modelBonuses: ModelBonus[];
   paidStatuses: PaidStatus[];
+  ownerTasks?: OwnerTask[];
   deletedIds: string[]; 
   syncUrl?: string;
   syncKey?: string;

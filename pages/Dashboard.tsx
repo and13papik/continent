@@ -4,6 +4,61 @@ import { useNavigate } from 'react-router-dom';
 import { AppState, AccountingPeriod, PaidStatus } from '../types';
 import { ICONS } from '../constants';
 
+// --- ВСПОМОГАТЕЛЬНЫЕ КОМПОНЕНТЫ ---
+
+function StatCard({ 
+  title, 
+  value, 
+  icon, 
+  color, 
+  subValue, 
+  subLabel = 'N', 
+  highlighted 
+}: { 
+  title: string; 
+  value: string; 
+  icon: React.ReactNode; 
+  color: string; 
+  subValue?: string;
+  subLabel?: string;
+  highlighted?: boolean;
+}) {
+  // Безопасное сопоставление цветов для Tailwind JIT
+  const colorClasses: Record<string, string> = {
+    indigo: 'border-indigo-500/40 bg-indigo-500/10 text-indigo-400 shadow-indigo-500/5',
+    sky: 'border-sky-500/40 bg-sky-500/10 text-sky-400 shadow-sky-500/5',
+    emerald: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-emerald-500/5',
+    rose: 'border-rose-500/40 bg-rose-500/10 text-rose-400 shadow-rose-500/5',
+    amber: 'border-amber-500/40 bg-amber-500/10 text-amber-400 shadow-amber-500/5',
+    blue: 'border-blue-500/40 bg-blue-500/10 text-blue-400 shadow-blue-500/5'
+  };
+
+  const currentClass = colorClasses[color] || 'border-slate-800';
+
+  return (
+    <div className={`glass-card p-4 rounded-2xl flex flex-col justify-center transition-transform hover:scale-[1.02] min-w-0 ${highlighted ? currentClass : 'border-slate-800'}`}>
+      <div className="flex items-center gap-3 overflow-visible">
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shadow-inner shrink-0 ${highlighted ? '' : 'bg-slate-800 text-slate-400'}`}>
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1 overflow-visible">
+          <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-0.5 truncate">{title}</p>
+          <p className="text-lg font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
+            {value}
+          </p>
+          {subValue && (
+            <p className="text-[8px] font-bold mt-1 text-slate-500 font-mono whitespace-nowrap">
+              {subLabel}: {subValue}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- ОСНОВНОЙ КОМПОНЕНТ ---
+
 interface DashboardProps {
   state: AppState;
   updateState: (updater: (prev: AppState) => AppState) => void;
@@ -55,7 +110,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     });
 
     periodOps.forEach(op => {
-      // КРИТИЧЕСКИЙ ФИКС: Учитываем только операции БЕЗ привязки к модели (т.е. для персонала)
       if (!op.model) {
         if (op.type === 'bonus') {
           totals.bonuses += op.amount;
@@ -91,7 +145,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       const rawG = incomes.reduce((sum, r) => sum + r.total, 0);
       const rawN = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
       
-      // Возвраты всегда привязаны к модели, поэтому берем их из общего массива, фильтруя по оператору
       const allPeriodRefunds = state.operationsData.filter(o => o.type === 'refund' && o.operator === op && o.periodId === activePeriodId);
       const opRefunds = allPeriodRefunds.reduce((sum, o) => sum + o.amount, 0);
       
@@ -164,6 +217,18 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     });
   };
 
+  // Безопасное получение иконок
+  const DashboardIcon = ICONS.Dashboard || 'span';
+  const TransferIcon = ICONS.Transfer || 'span';
+  const IncomeIcon = ICONS.Income || 'span';
+  const PenaltyIcon = ICONS.Penalty || 'span';
+  const BonusIcon = ICONS.Bonus || 'span';
+  const RotateIcon = ICONS.RotateCcw || 'span';
+  const AdvanceIcon = ICONS.CircleDollarSign || 'span';
+  const SalaryIcon = ICONS.Salary || 'span';
+  const RemainderIcon = ICONS.BadgeDollarSign || 'span';
+  const LockIcon = ICONS.Lock || 'span';
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -175,7 +240,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
              </select>
              {activePeriod?.status === 'open' && (
                 <button onClick={handleCloseMonth} className="flex items-center gap-2 px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95">
-                  <ICONS.Lock size={12} /> Закрыть месяц
+                  <LockIcon size={12} /> Закрыть месяц
                 </button>
              )}
           </div>
@@ -186,28 +251,28 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         <div className="space-y-4">
           <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Доходы и Платформы</h2>
           <div className="flex flex-col gap-3">
-            <StatCard title="ОБЩИЙ ТОТАЛ (Грязными)" value={`$${stats.totalGross.toLocaleString()}`} color="indigo" icon={<ICONS.Dashboard size={16}/>} />
-            <StatCard title="PAYPAL" value={`$${stats.pp.gross.toLocaleString()}`} subValue={`$${stats.pp.net.toLocaleString()}`} subLabel="Net" color="sky" icon={<ICONS.Transfer size={16}/>} />
-            <StatCard title="CRYPTO" value={`$${stats.cr.gross.toLocaleString()}`} subValue={`$${stats.cr.net.toLocaleString()}`} subLabel="Net" color="emerald" icon={<ICONS.Income size={16}/>} />
+            <StatCard title="ОБЩИЙ ТОТАЛ (Грязными)" value={`$${stats.totalGross.toLocaleString()}`} color="indigo" icon={<DashboardIcon size={16}/>} />
+            <StatCard title="PAYPAL" value={`$${stats.pp.gross.toLocaleString()}`} subValue={`$${stats.pp.net.toLocaleString()}`} subLabel="Net" color="sky" icon={<TransferIcon size={16}/>} />
+            <StatCard title="CRYPTO" value={`$${stats.cr.gross.toLocaleString()}`} subValue={`$${stats.cr.net.toLocaleString()}`} subLabel="Net" color="emerald" icon={<IncomeIcon size={16}/>} />
           </div>
         </div>
 
         <div className="space-y-4">
           <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Корректировки</h2>
           <div className="flex flex-col gap-3">
-            <StatCard title="ШТРАФОВ" value={`$${stats.penalties.toLocaleString()}`} color="rose" icon={<ICONS.Penalty size={16}/>} />
-            <StatCard title="БОНУСОВ" value={`$${stats.bonuses.toLocaleString()}`} color="emerald" icon={<ICONS.Bonus size={16}/>} />
-            <StatCard title="ВОЗВРАТОВ" value={`$${stats.refunds.toLocaleString()}`} color="blue" icon={<ICONS.RotateCcw size={16}/>} />
-            <StatCard title="АВАНСОВ (Staff)" value={`$${stats.advances.toLocaleString()}`} color="amber" icon={<ICONS.CircleDollarSign size={16}/>} />
+            <StatCard title="ШТРАФОВ" value={`$${stats.penalties.toLocaleString()}`} color="rose" icon={<PenaltyIcon size={16}/>} />
+            <StatCard title="БОНУСОВ" value={`$${stats.bonuses.toLocaleString()}`} color="emerald" icon={<BonusIcon size={16}/>} />
+            <StatCard title="ВОЗВРАТОВ" value={`$${stats.refunds.toLocaleString()}`} color="blue" icon={<RotateIcon size={16}/>} />
+            <StatCard title="АВАНСОВ (Staff)" value={`$${stats.advances.toLocaleString()}`} color="amber" icon={<AdvanceIcon size={16}/>} />
           </div>
         </div>
 
         <div className="space-y-4">
           <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Операционная ЗП</h2>
           <div className="flex flex-col gap-3">
-            <StatCard title="ОБЩАЯ ЗП ОПЕРАТОРОВ" value={`$${stats.netEarned.toLocaleString()}`} color="emerald" icon={<ICONS.Salary size={16}/>} />
-            <StatCard title="ПОЛУЧЕНО" value={`$${stats.paidOut.toLocaleString()}`} color="sky" icon={<ICONS.Transfer size={16}/>} />
-            <StatCard title="ОСТАТОК К ПОЛУЧЕНИЮ" value={`$${stats.remainder.toLocaleString()}`} color="indigo" icon={<ICONS.BadgeDollarSign size={16}/>} highlighted />
+            <StatCard title="ОБЩАЯ ЗП ОПЕРАТОРОВ" value={`$${stats.netEarned.toLocaleString()}`} color="emerald" icon={<SalaryIcon size={16}/>} />
+            <StatCard title="ПОЛУЧЕНО" value={`$${stats.paidOut.toLocaleString()}`} color="sky" icon={<TransferIcon size={16}/>} />
+            <StatCard title="ОСТАТОК К ПОЛУЧЕНИЮ" value={`$${stats.remainder.toLocaleString()}`} color="indigo" icon={<RemainderIcon size={16}/>} highlighted />
           </div>
         </div>
 
@@ -302,32 +367,5 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     </div>
   );
 };
-
-const StatCard: React.FC<{ 
-  title: string; 
-  value: string; 
-  icon: any; 
-  color: string; 
-  subValue?: string;
-  subLabel?: string;
-  highlighted?: boolean;
-}> = ({ title, value, icon, color, subValue, subLabel = 'N', highlighted }) => (
-  <div className={`glass-card p-4 rounded-2xl flex flex-col justify-center transition-transform hover:scale-[1.02] min-w-0 ${highlighted ? `border-${color}-500/40 bg-${color}-500/10 shadow-xl shadow-${color}-500/5` : 'border-slate-800'}`}>
-    <div className="flex items-center gap-3 overflow-visible">
-      <div className={`w-8 h-8 rounded-xl flex items-center justify-center bg-${color}-500/10 text-${color}-400 shadow-inner shrink-0`}>{icon}</div>
-      <div className="min-w-0 flex-1 overflow-visible">
-        <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-0.5 truncate">{title}</p>
-        <p className="text-lg font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
-          {value}
-        </p>
-        {subValue && (
-          <p className={`text-[8px] font-bold mt-1 text-${color}-400/80 font-mono whitespace-nowrap`}>
-            {subLabel}: {subValue}
-          </p>
-        )}
-      </div>
-    </div>
-  </div>
-);
 
 export default Dashboard;
