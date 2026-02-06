@@ -43,6 +43,9 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
   const [reportText, setReportText] = useState('');
   const [reportLinks, setReportLinks] = useState('');
 
+  // Состояние редактирования
+  const [editingTask, setEditingTask] = useState<OwnerTask | null>(null);
+
   // Форма создания (внутренние задачи)
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
@@ -69,29 +72,73 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === '321123') setIsAuthenticated(true);
+    if (password === '123') setIsAuthenticated(true);
     else alert('Доступ закрыт. Только для Администраторов.');
   };
 
-  const addTask = () => {
+  const saveTask = () => {
     if (!newTaskTitle.trim()) return;
-    const task: OwnerTask = {
-      id: `admin-task-${Date.now()}`,
-      title: newTaskTitle,
-      description: newTaskDesc,
-      status: 'planned',
-      priority: newTaskPriority,
-      assignedTo: newTaskAssigned as any,
-      isForAdmins: true,
-      tags: [],
-      notes: [],
-      dueDate: newTaskDueDate || undefined,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      periodId: state.selectedPeriodId
-    };
-    updateState(prev => ({ ...prev, ownerTasks: [task, ...(prev.ownerTasks || [])] }));
+
+    if (editingTask) {
+        // Редактирование существующей задачи админа
+        updateState(prev => ({
+            ...prev,
+            ownerTasks: (prev.ownerTasks || []).map(t => t.id === editingTask.id ? {
+                ...t,
+                title: newTaskTitle,
+                description: newTaskDesc,
+                priority: newTaskPriority,
+                assignedTo: newTaskAssigned as any,
+                dueDate: newTaskDueDate || undefined,
+                updatedAt: new Date().toISOString()
+            } : t)
+        }));
+        setEditingTask(null);
+    } else {
+        // Создание новой задачи админа
+        const task: OwnerTask = {
+            id: `admin-task-${Date.now()}`,
+            title: newTaskTitle,
+            description: newTaskDesc,
+            status: 'planned',
+            priority: newTaskPriority,
+            assignedTo: newTaskAssigned as any,
+            isForAdmins: true,
+            tags: [],
+            notes: [],
+            dueDate: newTaskDueDate || undefined,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            periodId: state.selectedPeriodId
+        };
+        updateState(prev => ({ ...prev, ownerTasks: [task, ...(prev.ownerTasks || [])] }));
+    }
+
     setNewTaskTitle(''); setNewTaskDesc(''); setNewTaskDueDate('');
+  };
+
+  const startEditing = (task: OwnerTask) => {
+    setEditingTask(task);
+    setNewTaskTitle(task.title);
+    setNewTaskDesc(task.description);
+    setNewTaskPriority(task.priority);
+    setNewTaskAssigned(task.assignedTo as any);
+    setNewTaskDueDate(task.dueDate || '');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEditing = () => {
+    setEditingTask(null);
+    setNewTaskTitle(''); setNewTaskDesc(''); setNewTaskDueDate('');
+  };
+
+  const deleteTask = (id: string) => {
+    if (!confirm('Вы действительно хотите удалить свою задачу?')) return;
+    updateState(prev => ({
+      ...prev,
+      deletedIds: [...prev.deletedIds, id],
+      ownerTasks: (prev.ownerTasks || []).filter(t => t.id !== id)
+    }));
   };
 
   const submitReport = () => {
@@ -149,6 +196,8 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
   const RotateIcon = ICONS.RotateCcw || 'span';
   const PlusIcon = ICONS.Plus || 'span';
   const CheckIcon = ICONS.Salary || 'span';
+  const EditIcon = ICONS.Edit || 'span';
+  const TrashIcon = ICONS.Trash || 'span';
 
   if (!isAuthenticated) {
     return (
@@ -166,7 +215,7 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
                 className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-4 text-center text-2xl tracking-[0.5em] text-white outline-none focus:border-sky-500/50 transition-all" 
                 value={password} 
                 onChange={(e) => setPassword(e.target.value)} 
-                placeholder="••••"
+                placeholder="•••"
               />
               <button className="w-full bg-sky-600 hover:bg-sky-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-sky-600/20 uppercase tracking-[0.2em] text-xs">Авторизация</button>
             </form>
@@ -204,10 +253,10 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
         
         {/* NEW INTERNAL TASK */}
         <div className="lg:col-span-4 space-y-6">
-           <div className="glass-card p-8 rounded-[32px] border-slate-800 shadow-xl space-y-6 bg-slate-900/20">
+           <div className={`glass-card p-8 rounded-[32px] shadow-xl space-y-6 bg-slate-900/20 border transition-all ${editingTask ? 'border-sky-500/50 shadow-sky-500/10' : 'border-slate-800'}`}>
               <div className="space-y-1">
-                 <h2 className="text-xl font-black font-outfit text-white">Внутренняя Задача</h2>
-                 <p className="text-[10px] text-slate-600 uppercase font-black tracking-widest">Самоорганизация отдела</p>
+                 <h2 className="text-xl font-black font-outfit text-white">{editingTask ? 'Редактировать задачу' : 'Внутренняя Задача'}</h2>
+                 <p className="text-[10px] text-slate-600 uppercase font-black tracking-widest">{editingTask ? 'Внесение корректив' : 'Самоорганизация отдела'}</p>
               </div>
               
               <div className="space-y-5">
@@ -257,12 +306,17 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
                     </div>
                  </div>
 
-                 <button 
-                   onClick={addTask} 
-                   className="w-full bg-sky-600 text-white font-black py-4 rounded-2xl shadow-xl transition-all uppercase tracking-[0.2em] text-[10px] active:scale-95 hover:bg-sky-500"
-                 >
-                   Добавить в план
-                 </button>
+                 <div className="flex flex-col gap-3">
+                    <button 
+                        onClick={saveTask} 
+                        className={`w-full font-black py-4 rounded-2xl shadow-xl transition-all uppercase tracking-[0.2em] text-[10px] active:scale-95 ${editingTask ? 'bg-sky-600 text-white hover:bg-sky-500 shadow-sky-600/20' : 'bg-sky-600 text-white hover:bg-sky-500 shadow-sky-600/20'}`}
+                    >
+                        {editingTask ? 'Сохранить изменения' : 'Добавить в план'}
+                    </button>
+                    {editingTask && (
+                        <button onClick={cancelEditing} className="w-full text-slate-500 hover:text-white py-2 text-[10px] font-black uppercase tracking-widest">Отмена</button>
+                    )}
+                 </div>
               </div>
            </div>
         </div>
@@ -276,6 +330,9 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
               const dueDate = task.dueDate ? new Date(task.dueDate) : null;
               const isOverdue = !isCompleted && dueDate && dueDate < now;
               const assigneeLabel = ASSIGNEE_LABELS[task.assignedTo];
+
+              // Может ли админ редактировать эту запись (только свои внутренние)
+              const isOwnTask = task.id.startsWith('admin-task-');
 
               return (
                 <div key={task.id} className={`glass-card rounded-[32px] border transition-all ${isCompleted ? 'opacity-40 grayscale blur-[0.3px]' : isOverdue ? 'border-rose-500/50 bg-rose-500/5' : 'border-slate-800 hover:border-sky-500/30'}`}>
@@ -313,14 +370,25 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
                       </div>
 
                       <div className="flex flex-col items-end gap-3 shrink-0">
-                         {!isCompleted && (
-                            <button 
-                              onClick={() => setCompletingTaskId(task.id)}
-                              className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-3 rounded-2xl shadow-xl shadow-emerald-600/20 text-[10px] uppercase tracking-widest transition-all active:scale-95"
-                            >
-                               Выполнено
-                            </button>
-                         )}
+                         <div className="flex gap-2">
+                             {isOwnTask && !isCompleted && (
+                                 <button 
+                                    onClick={() => startEditing(task)}
+                                    className="w-10 h-10 rounded-2xl flex items-center justify-center bg-slate-950 text-slate-500 border border-slate-800 hover:text-white hover:border-sky-500/50 transition-all"
+                                    title="Редактировать"
+                                 >
+                                    <EditIcon size={16} />
+                                 </button>
+                             )}
+                             {!isCompleted && (
+                                <button 
+                                  onClick={() => setCompletingTaskId(task.id)}
+                                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-3 rounded-2xl shadow-xl shadow-emerald-600/20 text-[10px] uppercase tracking-widest transition-all active:scale-95"
+                                >
+                                   Выполнено
+                                </button>
+                             )}
+                         </div>
                          <div className="flex flex-col gap-2 w-full">
                             <select 
                               className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-[8px] font-black text-slate-500 outline-none uppercase tracking-widest"
@@ -332,6 +400,9 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
                               <option value="waiting">Ожидание</option>
                               <option value="completed">Готово</option>
                             </select>
+                            {isOwnTask && (
+                                <button onClick={() => deleteTask(task.id)} className="text-[8px] font-bold text-slate-700 hover:text-rose-500 uppercase tracking-widest text-right px-2">Удалить</button>
+                            )}
                          </div>
                       </div>
                    </div>
