@@ -163,12 +163,13 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
             clonedScrollable.style.width = 'auto';
             clonedScrollable.style.height = 'auto';
             
-            // Определяем ширину только с учетом смен (без скрытых колонок)
+            // Устанавливаем ширину контейнера равную ширине таблицы за вычетом скрытых колонок
             clonedContainer.style.width = 'fit-content';
             clonedContainer.style.maxWidth = 'none';
             clonedContainer.style.height = 'auto';
             clonedContainer.style.overflow = 'visible';
             
+            // Исправляем проблему обрезания шрифтов: меняем input на статичный текст в клоне
             const inputs = clonedDoc.querySelectorAll('input');
             inputs.forEach((input) => {
               const val = (input as HTMLInputElement).value || (input as HTMLInputElement).placeholder || '';
@@ -177,7 +178,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
               span.style.display = 'block';
               span.style.width = '100%';
               span.style.textAlign = 'center';
-              span.style.lineHeight = '1.2';
+              span.style.lineHeight = '1.2'; // Уменьшаем межстрочный интервал для предотвращения срезания
               span.style.fontSize = window.getComputedStyle(input).fontSize;
               span.style.fontWeight = window.getComputedStyle(input).fontWeight;
               span.style.color = window.getComputedStyle(input).color;
