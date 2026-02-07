@@ -73,6 +73,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     const periodIncomes = state.incomeData.filter(r => r.periodId === activePeriodId);
     const manualIncomes = (state.ownerManualIncomes || []).filter(i => i.periodId === activePeriodId);
     const periodOps = state.operationsData.filter(o => o.periodId === activePeriodId);
+    const adminNames = state.admins.map(a => a.name);
     
     const rawPlatformGross = periodIncomes.reduce((s, r) => s + r.total, 0);
     const rawManualGross = manualIncomes.reduce((s, i) => s + i.amount, 0);
@@ -110,15 +111,18 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     });
 
     periodOps.forEach(op => {
+      // Исключаем админов из операционной сводки
+      const isOperator = !adminNames.includes(op.operator);
+
       if (!op.model) {
-        if (op.type === 'bonus') {
+        if (op.type === 'bonus' && isOperator) {
           totals.bonuses += op.amount;
-        } else if (op.type === 'penalty' || op.type === 'internship') {
+        } else if ((op.type === 'penalty' || op.type === 'internship') && isOperator) {
           totals.penalties += op.amount;
-        } else if (op.type === 'advance') {
+        } else if (op.type === 'advance' && isOperator) {
           totals.advances += op.amount;
           totals.paidOut += op.amount;
-        } else if (op.type === 'salary_payment') {
+        } else if (op.type === 'salary_payment' && isOperator) {
           totals.paidOut += op.amount;
         }
       }
@@ -271,8 +275,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
           <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Операционная ЗП</h2>
           <div className="flex flex-col gap-3">
             <StatCard title="ОБЩАЯ ЗП ОПЕРАТОРОВ" value={`$${stats.netEarned.toLocaleString()}`} color="emerald" icon={<SalaryIcon size={16}/>} />
-            <StatCard title="ПОЛУЧЕНО" value={`$${stats.paidOut.toLocaleString()}`} color="sky" icon={<TransferIcon size={16}/>} />
-            <StatCard title="ОСТАТОК К ПОЛУЧЕНИЮ" value={`$${stats.remainder.toLocaleString()}`} color="indigo" icon={<RemainderIcon size={16}/>} highlighted />
+            <StatCard title="ВЫПЛАЧЕНО ОПЕРАТОРАМ" value={`$${stats.paidOut.toLocaleString()}`} color="sky" icon={<TransferIcon size={16}/>} />
+            <StatCard title="ОСТАТОК ОПЕРАТОРАМ" value={`$${stats.remainder.toLocaleString()}`} color="indigo" icon={<RemainderIcon size={16}/>} highlighted />
           </div>
         </div>
 
