@@ -39,11 +39,11 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   const [activeMode, setActiveMode] = useState<TaskType>('directive');
   const [secondaryFilter, setSecondaryFilter] = useState<'all' | 'critical' | 'process' | 'review'>('all');
 
-  const PRIORITY_META: Record<TaskPriority, { label: string; color: string; bg: string }> = {
-    urgent: { label: 'КРИТИЧЕСКИ', color: 'text-rose-500', bg: 'bg-rose-500/10' },
-    high: { label: 'ВЫСОКИЙ', color: 'text-amber-500', bg: 'bg-amber-500/10' },
-    medium: { label: 'СРЕДНИЙ', color: 'text-sky-500', bg: 'bg-sky-500/10' },
-    low: { label: 'НИЗКИЙ', color: 'text-slate-400', bg: 'bg-slate-500/10' }
+  const PRIORITY_META: Record<TaskPriority, { label: string; color: string; bg: string; emoji: string }> = {
+    urgent: { label: 'КРИТИЧЕСКИЙ', color: 'text-rose-500', bg: 'bg-rose-500/10', emoji: '☢️' },
+    high: { label: 'ВЫСОКИЙ', color: 'text-amber-500', bg: 'bg-amber-500/10', emoji: '🔥' },
+    medium: { label: 'СРЕДНИЙ', color: 'text-sky-500', bg: 'bg-sky-500/10', emoji: '⚡️' },
+    low: { label: 'НИЗКИЙ', color: 'text-slate-400', bg: 'bg-slate-500/10', emoji: '☕️' }
   };
 
   const STATUS_META: Record<TaskStatus, { label: string; color: string; step: number }> = {
@@ -56,9 +56,9 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   };
 
   const TYPE_META: Record<TaskType, { label: string, color: string, bg: string, icon: any }> = {
-    directive: { label: 'ДИРЕКТИВА', color: 'text-amber-500', bg: 'bg-amber-500/10', icon: ICONS.Crown },
-    regular: { label: 'ЗАДАЧА', color: 'text-sky-400', bg: 'bg-sky-400/10', icon: ICONS.Reports },
-    recurring: { label: 'РЕГЛАМЕНТ', color: 'text-indigo-400', bg: 'bg-indigo-400/10', icon: ICONS.RotateCcw }
+    directive: { label: 'Директива', color: 'text-amber-500', bg: 'bg-amber-500/10', icon: ICONS.Crown },
+    regular: { label: 'Задача', color: 'text-sky-400', bg: 'bg-sky-400/10', icon: ICONS.Reports },
+    recurring: { label: 'Регламент', color: 'text-indigo-400', bg: 'bg-indigo-400/10', icon: ICONS.RotateCcw }
   };
 
   const ASSIGNEE_LABELS: Record<TaskAssignee, string> = {
@@ -91,29 +91,27 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   const sendTaskToTelegram = async (task: OwnerTask) => {
     setIsSendingToTg(task.id);
     
-    // Определение кого тегать
+    // Определение кого тегать (HTML формат)
     let mentionTags = '';
-    if (task.assignedTo === 'Mentor') mentionTags = '[Admin Mentor](tg://user?id=7475447497)';
-    else if (task.assignedTo === 'Rector') mentionTags = '[Admin Rector](tg://user?id=6537516111)';
-    else if (task.assignedTo === 'Admins' || task.assignedTo === 'All') {
-      mentionTags = '[Admin Mentor](tg://user?id=7475447497) [Admin Rector](tg://user?id=6537516111)';
+    if (task.assignedTo === 'Mentor') {
+      mentionTags = '<a href="tg://user?id=7475447497">@adm_mentr</a>';
+    } else if (task.assignedTo === 'Rector') {
+      mentionTags = '<a href="tg://user?id=6537516111">@adm_rctr</a>';
+    } else if (task.assignedTo === 'Admins' || task.assignedTo === 'All') {
+      mentionTags = '<a href="tg://user?id=7475447497">@adm_mentr</a> <a href="tg://user?id=6537516111">@adm_rctr</a>';
     } else {
       mentionTags = '@continental_agency';
     }
 
-    const typeLabel = TYPE_META[task.taskType]?.label || 'ЗАДАЧА';
-    const prioLabel = PRIORITY_META[task.priority]?.label || 'СРЕДНИЙ';
+    const typeLabel = TYPE_META[task.taskType]?.label || 'Задача';
+    const prioLabel = PRIORITY_META[task.priority]?.label || 'Средний';
+    const prioEmoji = PRIORITY_META[task.priority]?.emoji || '⚡️';
 
-    let message = `🏛 *CONTINENTAL CORE: НОВОЕ ПОРУЧЕНИЕ*\n\n`;
-    message += `📋 *Задача:* ${task.title.toUpperCase()}\n`;
-    message += `🛡 *Тип:* ${typeLabel}\n`;
-    message += `🔥 *Приоритет:* ${prioLabel}\n\n`;
-    message += `📖 *Контекст:*\n${task.description || 'Нет описания'}\n\n`;
-    if (task.strategyData?.goal) {
-      message += `🎯 *Цель:* ${task.strategyData.goal}\n\n`;
-    }
-    message += `👤 *Исполнитель:* ${ASSIGNEE_LABELS[task.assignedTo]}\n`;
-    message += `🔔 ${mentionTags}`;
+    let message = `🚨 <b>CORE: Новая задача</b>\n\n`;
+    message += `<b>Тип:</b> ${typeLabel}\n`;
+    message += `<b>Приоритет:</b> ${prioEmoji} ${prioLabel}\n\n`;
+    message += `<b>Задача:</b> ${task.title}\n\n`;
+    message += `<b>Исполнитель:</b> ${mentionTags}`;
 
     try {
       const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
@@ -122,11 +120,19 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
         body: JSON.stringify({
           chat_id: DEFAULT_CHAT_ID,
           text: message,
-          parse_mode: 'Markdown'
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [[
+              { text: "➡️ Перейти к задаче", url: "https://continental.monster/#/admin-table" }
+            ]]
+          }
         })
       });
-      if (res.ok) alert('Уведомление отправлено в Telegram');
-      else alert('Ошибка при отправке в TG');
+      if (res.ok) alert('Уведомление отправлено');
+      else {
+        const err = await res.json();
+        alert(`Ошибка: ${err.description}`);
+      }
     } catch (e) {
       alert('Сбой сети при отправке в TG');
     } finally {

@@ -23,11 +23,11 @@ function StrategyInput({ label, value, onChange, placeholder }: { label: string;
   );
 }
 
-const PRIORITY_META: Record<TaskPriority, { label: string; color: string; bg: string }> = {
-  urgent: { label: 'КРИТИЧЕСКИ', color: 'text-rose-500', bg: 'bg-rose-500/10' },
-  high: { label: 'ВЫСОКИЙ', color: 'text-amber-500', bg: 'bg-amber-500/10' },
-  medium: { label: 'СРЕДНИЙ', color: 'text-sky-500', bg: 'bg-sky-500/10' },
-  low: { label: 'НИЗКИЙ', color: 'text-slate-400', bg: 'bg-slate-500/10' }
+const PRIORITY_META: Record<TaskPriority, { label: string; color: string; bg: string; emoji: string }> = {
+  urgent: { label: 'КРИТИЧЕСКИЙ', color: 'text-rose-500', bg: 'bg-rose-500/10', emoji: '☢️' },
+  high: { label: 'ВЫСОКИЙ', color: 'text-amber-500', bg: 'bg-amber-500/10', emoji: '🔥' },
+  medium: { label: 'СРЕДНИЙ', color: 'text-sky-500', bg: 'bg-sky-500/10', emoji: '⚡️' },
+  low: { label: 'НИЗКИЙ', color: 'text-slate-400', bg: 'bg-slate-500/10', emoji: '☕️' }
 };
 
 const STATUS_META: Record<TaskStatus, { label: string; color: string; step: number; icon: any }> = {
@@ -71,17 +71,13 @@ const TaskCard: React.FC<{
       ? '@continental_agency' 
       : 'Администрация';
 
-    const prioLabel = PRIORITY_META[task.priority]?.label || 'СРЕДНИЙ';
+    const prioLabel = PRIORITY_META[task.priority]?.label || 'Средний';
+    const prioEmoji = PRIORITY_META[task.priority]?.emoji || '⚡️';
 
-    let message = `🏛 *ADMIN UPDATE: ДЕЛЕГИРОВАНИЕ/ЗАДАЧА*\n\n`;
-    message += `📋 *Задача:* ${task.title.toUpperCase()}\n`;
-    message += `🔥 *Приоритет:* ${prioLabel}\n\n`;
-    message += `📖 *Описание:*\n${task.description || 'Нет описания'}\n\n`;
-    if (task.strategyData?.goal) {
-      message += `🎯 *Цель:* ${task.strategyData.goal}\n\n`;
-    }
-    message += `👤 *Исполнитель:* ${ASSIGNEE_LABELS[task.assignedTo]}\n`;
-    message += `🔔 ${mentionTag}`;
+    let message = `🏛 <b>ADMIN: Задача делегирована</b>\n\n`;
+    message += `<b>Приоритет:</b> ${prioEmoji} ${prioLabel}\n`;
+    message += `<b>Задача:</b> ${task.title}\n\n`;
+    message += `<b>Исполнитель:</b> ${mentionTag}`;
 
     try {
       const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
@@ -90,11 +86,19 @@ const TaskCard: React.FC<{
         body: JSON.stringify({
           chat_id: DEFAULT_CHAT_ID,
           text: message,
-          parse_mode: 'Markdown'
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [[
+              { text: "➡️ Перейти в Core", url: "https://continental.monster/#/owner-table" }
+            ]]
+          }
         })
       });
       if (res.ok) alert('Уведомление отправлено');
-      else alert('Ошибка Telegram API');
+      else {
+        const err = await res.json();
+        alert(`Ошибка: ${err.description}`);
+      }
     } catch (e) {
       alert('Сбой сети');
     } finally {
