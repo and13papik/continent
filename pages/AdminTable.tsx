@@ -39,87 +39,96 @@ const TaskCard: React.FC<{
   const isRecurring = task.taskType === 'recurring';
   const isCompleted = task.status === 'completed';
 
+  const today = new Date().toISOString().split('T')[0];
+  const isUrgentDeadline = task.dueDate && task.dueDate <= today && !isCompleted;
+
   const CrownIcon = ICONS.Crown || 'span';
   const RotateIcon = ICONS.RotateCcw || 'span';
+  const ClockIcon = ICONS.Calendar || 'span';
 
   return (
-    <div className={`glass-card rounded-[2rem] border transition-all duration-500 overflow-hidden ${isDirective ? 'border-amber-500/30 shadow-[0_0_40px_rgba(245,158,11,0.03)]' : 'border-slate-800/50'} ${isCompleted ? 'opacity-40 grayscale' : 'hover:border-slate-700 hover:shadow-2xl'}`}>
-       <div className="p-7 flex flex-col md:flex-row justify-between gap-6">
-          <div className="flex-1 space-y-4">
-             <div className="flex items-center gap-2 flex-wrap">
-                <span className={`px-2 py-0.5 rounded text-[8px] font-black tracking-widest ${prio.bg} ${prio.color}`}>{prio.label}</span>
+    <div className={`glass-card rounded-[2.5rem] border transition-all duration-500 overflow-hidden ${isDirective ? 'border-amber-500/30 shadow-[0_0_50px_rgba(245,158,11,0.04)] ring-1 ring-amber-500/5' : 'border-slate-800/40'} ${isCompleted ? 'opacity-30 grayscale' : 'hover:border-slate-700/80 hover:shadow-2xl'}`}>
+       <div className="p-8 flex flex-col md:flex-row justify-between gap-8">
+          <div className="flex-1 space-y-5">
+             <div className="flex items-center gap-3 flex-wrap">
+                <span className={`px-2 py-0.5 rounded-[4px] text-[8px] font-black tracking-widest ${prio.bg} ${prio.color}`}>{prio.label}</span>
                 {isDirective && (
-                  <span className="text-[8px] bg-amber-500 text-slate-950 px-2 py-0.5 rounded font-black uppercase flex items-center gap-1 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                  <span className="text-[8px] bg-amber-500 text-slate-950 px-2 py-0.5 rounded-[4px] font-black uppercase flex items-center gap-1 shadow-[0_0_15px_rgba(245,158,11,0.3)]">
                     <CrownIcon size={10}/> DIRECTIVE
                   </span>
                 )}
-                {isRecurring && (
-                  <span className="text-[8px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded font-black uppercase flex items-center gap-1">
-                    <RotateIcon size={10}/> {task.recurrenceCycle || 'CYCLE'}
-                  </span>
+                <span className="text-[8px] text-slate-500 border border-slate-800 px-2 py-0.5 rounded-[4px] font-black uppercase">👤 {task.assignedTo}</span>
+                
+                {task.dueDate && (
+                  <div className={`flex items-center gap-1.5 ml-auto px-2 py-0.5 rounded-lg bg-slate-900/40 ${isUrgentDeadline ? 'text-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.2)]' : 'text-slate-600'}`}>
+                    <ClockIcon size={11} className={isUrgentDeadline ? 'animate-pulse' : ''} />
+                    <span className="text-[9px] font-mono font-bold uppercase tracking-tight">{task.dueDate}</span>
+                  </div>
                 )}
-                <span className="text-[8px] text-slate-500 border border-slate-800 px-2 py-0.5 rounded font-black uppercase">👤 {task.assignedTo}</span>
-                {task.dueDate && <span className="text-[8px] text-slate-600 font-mono font-bold uppercase ml-auto">Deadline: {task.dueDate}</span>}
              </div>
 
-             <h3 className="text-lg font-bold font-outfit text-white tracking-tight leading-tight">{task.title}</h3>
+             <h3 className="text-xl font-bold font-outfit text-white tracking-tight leading-snug">{task.title}</h3>
              
-             <div className="flex items-center gap-4">
-                <div className="flex-1 h-[1px] bg-slate-900 rounded-full flex overflow-hidden">
+             <div className="flex items-center gap-4 pt-1">
+                <div className="flex-1 h-[1.5px] bg-slate-900 rounded-full flex overflow-hidden">
                    {[1,2,3,4,5].map(step => (
-                     <div key={step} className={`flex-1 transition-all duration-700 ${step <= (stat.step || 1) ? 'bg-indigo-500/60 shadow-[0_0_8px_rgba(99,102,241,0.4)]' : 'bg-transparent'}`}></div>
+                     <div key={step} className={`flex-1 transition-all duration-1000 ${step <= (stat.step || 1) ? 'bg-indigo-500 shadow-[0_0_12px_rgba(99,102,241,0.5)]' : 'bg-transparent'}`}></div>
                    ))}
                 </div>
-                <span className={`text-[9px] font-black uppercase tracking-[0.15em] ${stat.color}`}>{stat.label}</span>
+                <div className="flex items-center gap-2">
+                   <stat.icon size={10} className={stat.color} />
+                   <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${stat.color}`}>{stat.label}</span>
+                </div>
              </div>
           </div>
 
-          <div className="flex flex-col items-end justify-between gap-4 shrink-0">
-             <div className="flex gap-2">
+          <div className="flex flex-col items-end justify-between gap-6 shrink-0">
+             <div className="flex items-center gap-3">
                  {!isCompleted && !isRecurring && (
-                     <button onClick={() => onComplete(task.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-5 py-2.5 rounded-2xl text-[9px] uppercase tracking-widest shadow-lg shadow-emerald-500/10 active:scale-95 transition-all">
+                     <button onClick={() => onComplete(task.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-3 rounded-2xl text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-600/10 active:scale-95 transition-all">
                         Complete
                      </button>
                  )}
                  {isRecurring && (
-                     <button onClick={() => onComplete(task.id, true)} className="bg-indigo-600 hover:bg-indigo-500 text-white font-black px-5 py-2.5 rounded-2xl text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-600/10 active:scale-95 transition-all">
+                     <button onClick={() => onComplete(task.id, true)} className="bg-indigo-600 hover:bg-indigo-500 text-white font-black px-6 py-3 rounded-2xl text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-600/10 active:scale-95 transition-all">
                         Reset Cycle
                      </button>
                  )}
-                 <button onClick={() => onToggle(task.id)} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all border ${isEx ? 'bg-slate-800 text-white border-slate-700' : 'bg-slate-950 border-slate-900 text-slate-700 hover:text-slate-400'}`}>
-                    {isEx ? <ICONS.ChevronRight size={18} className="rotate-90"/> : <ICONS.Plus size={18} />}
+                 {/* Кнопка раскрытия: еще деликатнее, чтобы не спорить с Complete */}
+                 <button onClick={() => onToggle(task.id)} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all border opacity-20 hover:opacity-100 hover:scale-110 active:scale-90 ${isEx ? 'bg-slate-800 text-white border-slate-700' : 'bg-slate-950 border-slate-900 text-slate-500'}`}>
+                    {isEx ? <ICONS.Plus size={14} className="rotate-45" /> : <ICONS.Plus size={14} />}
                  </button>
              </div>
-             <select className="bg-slate-950/50 border border-slate-800 rounded-xl px-3 py-1.5 text-[8px] font-black text-slate-500 uppercase outline-none focus:border-indigo-500/50 transition-colors" value={task.status} onChange={(e) => onUpdateStatus(task.id, e.target.value as any)}>
+             <select className="bg-slate-950/40 border border-slate-800/80 rounded-xl px-3 py-1.5 text-[8px] font-black text-slate-500 uppercase outline-none focus:border-indigo-500/40 transition-colors cursor-pointer" value={task.status} onChange={(e) => onUpdateStatus(task.id, e.target.value as any)}>
                 {Object.entries(STATUS_META).map(([val, m]) => <option key={val} value={val}>{m.label}</option>)}
              </select>
           </div>
        </div>
 
        {isEx && (
-          <div className="bg-slate-950/40 border-t border-slate-900/50 p-8 space-y-8 animate-in slide-in-from-top-3 duration-500">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                <div className="space-y-3">
-                   <label className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em] block">Main Objective</label>
-                   <p className="text-[12px] text-slate-300 leading-relaxed font-medium bg-slate-900/30 p-5 rounded-3xl border border-slate-800/30">
-                      {task.strategyData?.goal || <span className="italic text-slate-600">Стратегическая установка не зафиксирована Владельцем</span>}
-                   </p>
+          <div className="bg-slate-950/60 border-t border-slate-900/50 p-10 space-y-10 animate-in slide-in-from-top-4 duration-500">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <div className="space-y-4">
+                   <label className="text-[10px] font-black text-slate-700 uppercase tracking-[0.3em] block">Main Objective</label>
+                   <div className="text-[13px] text-slate-300 leading-relaxed font-medium bg-slate-900/20 p-6 rounded-[2rem] border border-slate-800/30 shadow-inner">
+                      {task.strategyData?.goal || <span className="italic text-slate-700 font-bold uppercase tracking-widest text-[9px]">Стратегическая установка не зафиксирована Владельцем</span>}
+                   </div>
                 </div>
                 
                 <div className="space-y-4">
-                  <div className="flex justify-between items-end border-b border-slate-900 pb-2">
-                    <label className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">Operational Protocol</label>
-                    <button onClick={() => setShowNote(!showNote)} className="text-[9px] font-black text-sky-500 hover:text-sky-400 uppercase tracking-widest transition-colors flex items-center gap-1">
-                      <ICONS.Plus size={12} /> Add Log
+                  <div className="flex justify-between items-center border-b border-slate-900/50 pb-3">
+                    <label className="text-[10px] font-black text-slate-700 uppercase tracking-[0.3em]">Operational Protocol</label>
+                    <button onClick={() => setShowNote(!showNote)} className="text-[10px] font-black text-sky-500 hover:text-sky-400 uppercase tracking-widest transition-colors flex items-center gap-1.5">
+                      <ICONS.Plus size={14} /> Add Log
                     </button>
                   </div>
-                  <div className="space-y-2 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
+                  <div className="space-y-2.5 max-h-[180px] overflow-y-auto pr-3 custom-scrollbar">
                      {(!task.notes || task.notes.length === 0) ? (
-                        <p className="text-[10px] text-slate-700 italic py-4">Журнал операций пуст.</p>
+                        <p className="text-[11px] text-slate-800 font-bold uppercase tracking-widest py-6 text-center">Журнал операций пуст</p>
                      ) : task.notes.map(n => (
-                        <div key={n.id} className="p-3 bg-slate-900/40 rounded-2xl border border-slate-800/30 flex justify-between gap-4 group">
-                           <span className="text-[11px] text-slate-400 flex-1 leading-relaxed">{n.text}</span>
-                           <span className="text-slate-600 uppercase font-black text-[7px] self-end tracking-tighter">{n.author}</span>
+                        <div key={n.id} className="p-4 bg-slate-900/20 rounded-2xl border border-slate-800/20 flex justify-between gap-4 group">
+                           <span className="text-[12px] text-slate-400 flex-1 leading-relaxed">{n.text}</span>
+                           <span className="text-slate-700 uppercase font-black text-[8px] self-end tracking-tighter">{n.author}</span>
                         </div>
                      ))}
                   </div>
@@ -127,30 +136,34 @@ const TaskCard: React.FC<{
              </div>
 
              {showNote && (
-                <div className="bg-slate-900/60 p-6 rounded-[2rem] border border-sky-500/20 space-y-4 shadow-2xl animate-in zoom-in-95">
-                   <textarea className="w-full bg-transparent border-none outline-none text-xs text-white min-h-[60px] placeholder:text-slate-700" placeholder="Опишите текущий прогресс или возникшее препятствие..." value={noteVal} onChange={e => setNoteVal(e.target.value)} autoFocus />
-                   <div className="flex justify-end gap-3">
-                      <button onClick={() => { setNoteVal(''); setShowNote(false); }} className="text-[9px] text-slate-600 uppercase font-black tracking-widest hover:text-slate-400">Cancel</button>
-                      <button onClick={() => { addNote(task.id, noteVal); setNoteVal(''); setShowNote(false); }} className="bg-sky-600 px-6 py-2 rounded-xl text-[9px] font-black text-white uppercase tracking-widest shadow-lg shadow-sky-600/10">Submit Log</button>
+                <div className="bg-slate-900/40 p-8 rounded-[2.5rem] border border-sky-500/10 space-y-5 shadow-2xl animate-in zoom-in-95">
+                   <textarea className="w-full bg-transparent border-none outline-none text-sm text-white min-h-[80px] placeholder:text-slate-800 font-medium" placeholder="Опишите текущий прогресс..." value={noteVal} onChange={e => setNoteVal(e.target.value)} autoFocus />
+                   <div className="flex justify-end gap-4">
+                      <button onClick={() => { setNoteVal(''); setShowNote(false); }} className="text-[10px] text-slate-600 uppercase font-black tracking-[0.2em] hover:text-slate-400 transition-colors">Cancel</button>
+                      <button onClick={() => { addNote(task.id, noteVal); setNoteVal(''); setShowNote(false); }} className="bg-sky-600 hover:bg-sky-500 px-8 py-2.5 rounded-xl text-[10px] font-black text-white uppercase tracking-[0.2em] shadow-lg shadow-sky-600/10 transition-all">Submit Log</button>
                    </div>
                 </div>
              )}
 
-             <div className="pt-6 border-t border-slate-900/50">
-                <label className="text-[9px] font-black text-slate-700 uppercase tracking-[0.3em] block mb-6">Execution Timeline</label>
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
-                   {(task.auditLog || []).slice(-6).map((log, idx, arr) => {
+             <div className="pt-8 border-t border-slate-900/50">
+                <label className="text-[10px] font-black text-slate-800 uppercase tracking-[0.4em] block mb-8 text-center">System Execution Timeline</label>
+                <div className="flex items-center justify-center gap-3 overflow-x-auto no-scrollbar pb-4 px-4">
+                   {(task.auditLog || []).slice(-7).map((log, idx, arr) => {
                       const isLast = idx === arr.length - 1;
+                      const opacity = Math.max(0.15, (idx + 1) / arr.length);
                       return (
                         <React.Fragment key={log.id}>
-                          <div className={`flex flex-col items-center gap-2 shrink-0 px-4 py-3 rounded-2xl border transition-all ${isLast ? 'bg-indigo-500/10 border-indigo-500/30' : 'opacity-30 border-transparent hover:opacity-100 hover:bg-slate-900/50'}`}>
-                             <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                          <div 
+                            className={`flex flex-col items-center gap-3 shrink-0 px-5 py-4 rounded-2xl border transition-all duration-500 group ${isLast ? 'bg-indigo-500/10 border-indigo-500/40 scale-110 shadow-lg' : 'border-transparent hover:bg-slate-900/40'}`}
+                            style={{ opacity }}
+                          >
+                             <div className={`w-2.5 h-2.5 rounded-full ${isLast ? 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.8)]' : 'bg-slate-800 group-hover:bg-slate-600'}`} />
                              <div className="text-center">
-                                <p className="text-[7px] font-black text-white uppercase tracking-tighter mb-0.5">{log.action.replace('Status change to', '→')}</p>
-                                <p className="text-[6px] text-slate-500 uppercase font-bold">{new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                                <p className="text-[8px] font-black text-white uppercase tracking-tighter mb-1 leading-none">{log.action.replace('Status change to', '→').replace('Operational log added', 'LOG')}</p>
+                                <p className="text-[7px] text-slate-600 uppercase font-bold tracking-widest">{new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                              </div>
                           </div>
-                          {!isLast && <div className="h-px w-8 bg-slate-900 shrink-0" />}
+                          {!isLast && <div className="h-px w-6 bg-slate-900/50 shrink-0" />}
                         </React.Fragment>
                       );
                    })}
@@ -253,53 +266,56 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
   };
 
   return (
-    <div className="space-y-12 pb-24 max-w-7xl mx-auto animate-in fade-in duration-1000">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-slate-900 pb-10">
-        <div>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></div>
-            <span className="text-[10px] font-black text-sky-500 uppercase tracking-[0.4em]">Operations Center</span>
+    <div className="space-y-16 pb-32 max-w-7xl mx-auto animate-in fade-in duration-1000">
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-slate-900/50 pb-12">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-sky-500 shadow-[0_0_12px_rgba(14,165,233,0.6)] animate-pulse"></div>
+            <span className="text-[11px] font-black text-sky-500 uppercase tracking-[0.5em]">Operations Control Center</span>
           </div>
-          <h1 className="text-5xl font-black font-outfit text-white tracking-tighter">Execution Hub</h1>
+          <h1 className="text-6xl font-black font-outfit text-white tracking-tighter">ADMIN CENTER</h1>
         </div>
       </header>
 
-      {/* MODE SWITCHER */}
-      <div className="space-y-10">
-        <div className="flex gap-12 items-center px-4">
+      {/* MODE SWITCHER - REFINED "HEAVY" TABS */}
+      <div className="space-y-8">
+        <div className="flex gap-16 items-center px-6 border-b border-slate-900/30">
           {[
             { id: 'directive', label: 'ДИРЕКТИВЫ', color: 'amber' },
             { id: 'regular', label: 'ЗАДАЧИ', color: 'sky' },
             { id: 'recurring', label: 'РЕГЛАМЕНТ', color: 'indigo' }
-          ].map((mode) => (
-            <button
-              key={mode.id}
-              onClick={() => { setActiveMode(mode.id as TaskType); setSecondaryFilter('all'); }}
-              className={`group relative py-2 text-[11px] font-black uppercase tracking-[0.35em] transition-all duration-500 ${activeMode === mode.id ? `text-${mode.color}-400` : 'text-slate-600 hover:text-slate-400'}`}
-            >
-              <span className={activeMode === mode.id ? 'drop-shadow-[0_0_10px_rgba(var(--tw-color-' + mode.color + '-400),0.6)]' : ''}>
-                {mode.label}
-              </span>
-              {activeMode === mode.id && (
-                <div className={`absolute -bottom-[42px] left-0 right-0 h-[3px] bg-${mode.color}-500 shadow-[0_0_20px_rgba(var(--tw-color-${mode.color}-500),0.8)] rounded-full animate-in fade-in slide-in-from-bottom-2 duration-500`} />
-              )}
-            </button>
-          ))}
+          ].map((mode) => {
+            const isActive = activeMode === mode.id;
+            return (
+              <button
+                key={mode.id}
+                onClick={() => { setActiveMode(mode.id as TaskType); setSecondaryFilter('all'); }}
+                className={`group relative py-6 text-[12px] font-black uppercase tracking-[0.5em] transition-all duration-500 ${isActive ? `text-${mode.color}-400` : 'text-slate-600 hover:text-slate-400 hover:tracking-[0.55em]'}`}
+              >
+                <span className={isActive ? 'drop-shadow-[0_0_15px_rgba(var(--tw-color-' + mode.color + '-400),0.7)]' : ''}>
+                  {mode.label}
+                </span>
+                {isActive && (
+                  <div className={`absolute -bottom-0.5 left-0 right-0 h-[4px] bg-${mode.color}-500 shadow-[0_0_20px_rgba(var(--tw-color-${mode.color}-500),1)] rounded-full animate-in fade-in slide-in-from-bottom-2 duration-500`} />
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        {/* SECONDARY FILTERS - "INVISIBLE" STYLE */}
-        <div className="flex gap-8 px-6 items-center overflow-x-auto no-scrollbar">
+        {/* SECONDARY FILTERS - "CLEAN" STYLE */}
+        <div className="flex gap-10 px-8 items-center overflow-x-auto no-scrollbar">
            <button
              onClick={() => setSecondaryFilter('all')}
-             className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${secondaryFilter === 'all' ? 'text-white bg-slate-800' : 'text-slate-600 hover:text-slate-400'}`}
+             className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${secondaryFilter === 'all' ? 'text-white bg-slate-900 shadow-xl' : 'text-slate-600 hover:text-slate-400'}`}
            >
              ВСЕ
            </button>
            
            {[
-             { id: 'critical', label: 'КРИТИЧЕСКИЕ', icon: ICONS.Penalty },
-             { id: 'process', label: 'В ПРОЦЕССЕ', icon: ICONS.RotateCcw },
-             { id: 'blocked', label: 'ЗАБЛОКИРОВАНО', icon: ICONS.Lock }
+             { id: 'critical', label: 'КРИТИЧЕСКИЕ', icon: ICONS.Penalty, color: 'text-rose-500' },
+             { id: 'process', label: 'В ПРОЦЕССЕ', icon: ICONS.RotateCcw, color: 'text-sky-500' },
+             { id: 'blocked', label: 'ЗАБЛОКИРОВАНО', icon: ICONS.Lock, color: 'text-amber-500' }
            ].map(f => {
              const Icon = f.icon;
              const isActive = secondaryFilter === f.id;
@@ -307,11 +323,12 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
                <button
                  key={f.id}
                  onClick={() => setSecondaryFilter(f.id as any)}
-                 className={`group flex items-center gap-2.5 text-[9px] font-black uppercase tracking-widest transition-all ${isActive ? 'text-indigo-400' : 'text-slate-600 hover:text-slate-500'}`}
+                 className={`group flex items-center gap-3 text-[10px] font-black uppercase tracking-widest transition-all ${isActive ? f.color : 'text-slate-600 hover:text-slate-500'}`}
                >
-                 <Icon size={12} className={isActive ? 'text-indigo-400' : 'text-slate-700 group-hover:text-slate-500'} />
+                 <Icon size={14} className={isActive ? f.color : 'text-slate-800 group-hover:text-slate-600'} />
                  <span>{f.label}</span>
-                 {isActive && <div className="w-1 h-1 rounded-full bg-indigo-400 ml-1 shadow-[0_0_8px_rgba(129,140,248,0.8)]" />}
+                 {isActive && <div className={`w-1 h-1 rounded-full ${f.color.replace('text', 'bg')} ml-1 shadow-[0_0_10px_rgba(255,255,255,0.4)]`} />}
+                 {isActive && <div className={`absolute bottom-[-10px] left-0 right-0 h-[2.5px] ${f.color.replace('text', 'bg')} animate-in fade-in slide-in-from-bottom-1`} />}
                </button>
              );
            })}
@@ -319,13 +336,13 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
       </div>
 
       {/* TASKS LIST */}
-      <div className="space-y-5 px-1">
+      <div className="space-y-6 px-2 pb-24">
         {allTasks.length === 0 ? (
-          <div className="py-40 text-center flex flex-col items-center gap-6 animate-in fade-in zoom-in-95 duration-700">
-             <div className="w-20 h-20 rounded-[2.5rem] bg-slate-900/50 border border-slate-800 flex items-center justify-center text-slate-700">
-                <ICONS.Dashboard size={32} strokeWidth={1}/>
+          <div className="py-52 text-center flex flex-col items-center gap-8 animate-in fade-in zoom-in-95 duration-1000">
+             <div className="w-24 h-24 rounded-[3rem] bg-slate-900/30 border border-slate-800/50 flex items-center justify-center text-slate-800">
+                <ICONS.Dashboard size={40} strokeWidth={1} className="opacity-40" />
              </div>
-             <p className="max-w-md text-sm font-medium text-slate-500 leading-relaxed tracking-wide">
+             <p className="max-w-md text-base font-bold text-slate-600 leading-relaxed tracking-widest uppercase text-[11px]">
                {emptyMessages[activeMode]}
              </p>
           </div>
