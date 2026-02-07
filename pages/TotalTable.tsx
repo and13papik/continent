@@ -33,6 +33,9 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   const [isSending, setIsSending] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
+  // Хелпер для экранирования HTML (чтобы имена с < > & не ломали отчет)
+  const esc = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
   // Фильтруем записи только для выбранной даты
   const entriesForDate = useMemo(() => {
     return (state.totalTableEntries || []).filter(e => e.date === selectedDate);
@@ -153,9 +156,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   }, [entriesForDate]);
 
   const sendTelegramReport = async (shiftKey: 'night' | 'morning' | 'day' | 'evening') => {
-    // Принудительно используем новый ID, игнорируя старые настройки в state
     const chatId = DEFAULT_CHAT_ID;
-    
     const shiftInfo = SHIFTS.find(s => s.key === shiftKey)!;
     setIsSending(shiftKey);
 
@@ -211,8 +212,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
       if (!blob) throw new Error('Не удалось создать изображение таблицы');
 
-      // ФОРМИРОВАНИЕ ТЕКСТА
-      let message = `📊 *ОТЧЕТ: ${shiftInfo.label.toUpperCase()} ${shiftInfo.icon}*\n`;
+      // ФОРМИРОВАНИЕ ТЕКСТА (ИСПОЛЬЗУЕМ HTML ДЛЯ СТАБИЛЬНОСТИ)
+      let message = `<b>📊 ОТЧЕТ: ${shiftInfo.label.toUpperCase()} ${shiftInfo.icon}</b>\n`;
       message += `📅 Дата: ${new Date(selectedDate).toLocaleDateString('ru-RU')}\n\n`;
 
       let totalShiftBal = 0;
@@ -228,44 +229,44 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                        bal === 0 ? '🔴 КРИТИЧЕСКАЯ СРАКА (0$)' :
                        bal >= s.goal ? '✅ ПЛАН' : '❌НЕ ВЫПОЛНЕН';
         
-        message += `• *${e.modelName}*: ${bal}$ / ${s.goal}$ — ${status}\n`;
+        message += `• <b>${esc(e.modelName)}</b>: ${bal}$ / ${s.goal}$ — ${status}\n`;
       });
 
-      message += `\n📈 *ИТОГО ЗА ${shiftInfo.label.toUpperCase()} СМЕНУ*: ${totalShiftBal.toFixed(0)}$ / ${totalShiftGoal.toFixed(0)}$`;
+      message += `\n📈 <b>ИТОГО ЗА ${shiftInfo.label.toUpperCase()} СМЕНУ</b>: ${totalShiftBal.toFixed(0)}$ / ${totalShiftGoal.toFixed(0)}$`;
 
       if (shiftKey === 'evening') {
         message += `\n\n━━━━━━━━━━━━━━━\n`;
-        message += `🏆 *ИТОГИ ДНЯ (FULL DAY)*\n\n`;
+        message += `<b>🏆 ИТОГИ ДНЯ (FULL DAY)</b>\n\n`;
         
-        message += `📊 *ПО СМЕНАМ:*\n`;
+        message += `📊 <b>ПО СМЕНАМ:</b>\n`;
         message += `🌙 Ночь: ${totals.night.balance.toFixed(0)}$ / ${totals.night.goal.toFixed(0)}$\n`;
         message += `🌅 Утро: ${totals.morning.balance.toFixed(0)}$ / ${totals.morning.goal.toFixed(0)}$\n`;
         message += `☀️ День: ${totals.day.balance.toFixed(0)}$ / ${totals.day.goal.toFixed(0)}$\n`;
         message += `🌇 Вечер: ${totals.evening.balance.toFixed(0)}$ / ${totals.evening.goal.toFixed(0)}$\n\n`;
 
-        message += `👤 *ПЕРСОНАЛЬНЫЙ ИТОГ:*\n`;
+        message += `👤 <b>ПЕРСОНАЛЬНЫЙ ИТОГ:</b>\n`;
         entriesForDate.forEach(e => {
             const modelDailyTotal = (e.night.balance || 0) + (e.morning.balance || 0) + (e.day.balance || 0) + (e.evening.balance || 0);
             const modelDailyGoal = (e.night.goal || 0) + (e.morning.goal || 0) + (e.day.goal || 0) + (e.evening.goal || 0);
             const status = modelDailyTotal >= modelDailyGoal ? '✅' : '❌';
-            message += `• ${e.modelName}: ${modelDailyTotal.toFixed(0)}$ / ${modelDailyGoal.toFixed(0)}$ — ${status}\n`;
+            message += `• ${esc(e.modelName)}: ${modelDailyTotal.toFixed(0)}$ / ${modelDailyGoal.toFixed(0)}$ — ${status}\n`;
         });
 
         const percent = totals.overallPlan > 0 ? Math.round(totals.overallBalance/totals.overallPlan*100) : 0;
-        message += `\n🏁 *ИТОГ ДНЯ*: ${totals.overallBalance.toFixed(0)}$ / ${totals.overallPlan.toFixed(0)}$ (${percent}%)\n`;
-        message += percent >= 100 ? `🔥 *ПЛАН ВЫПОЛНЕН!*` : `❌ *ПЛАН НЕ ВЫПОЛНЕН*`;
+        message += `\n🏁 <b>ИТОГ ДНЯ</b>: ${totals.overallBalance.toFixed(0)}$ / ${totals.overallPlan.toFixed(0)}$ (${percent}%)\n`;
+        message += percent >= 100 ? `🔥 <b>ПЛАН ВЫПОЛНЕН!</b>` : `❌ <b>ПЛАН НЕ ВЫПОЛНЕН</b>`;
       } else {
-        message += `\n\n🏆 *ОБЩИЙ ТОТАЛ СУТОК*: ${totals.overallBalance.toFixed(0)}$ / ${totals.overallPlan.toFixed(0)}$ (${totals.overallPlan > 0 ? Math.round(totals.overallBalance/totals.overallPlan*100) : 0}%)`;
+        message += `\n\n🏆 <b>ОБЩИЙ ТОТАЛ СУТОК</b>: ${totals.overallBalance.toFixed(0)}$ / ${totals.overallPlan.toFixed(0)}$ (${totals.overallPlan > 0 ? Math.round(totals.overallBalance/totals.overallPlan*100) : 0}%)`;
       }
 
-      // Добавление отметок пользователей в конце отчета
-      message += `\n\n🔔 @continental_agency [Admin Mentor](tg://user?id=7475447497) [Admin Rector](tg://user?id=6537516111)`;
+      // Добавление отметок пользователей (HTML синтаксис)
+      message += `\n\n🔔 @continental_agency <a href="tg://user?id=7475447497">Admin Mentor</a> <a href="tg://user?id=6537516111">Admin Rector</a>`;
 
       const formData = new FormData();
       formData.append('chat_id', chatId);
       formData.append('photo', blob, 'report.png');
       formData.append('caption', message);
-      formData.append('parse_mode', 'Markdown');
+      formData.append('parse_mode', 'HTML');
 
       const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
         method: 'POST',
