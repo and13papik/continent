@@ -56,7 +56,7 @@ const TaskCard: React.FC<{
   const PlusIcon = ICONS.Plus || 'span';
 
   return (
-    <div className={`glass-card rounded-3xl border transition-all duration-300 overflow-hidden ${isDirective ? 'border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.05)] ring-1 ring-amber-500/10' : 'border-slate-800'} ${isCompleted ? 'opacity-50 grayscale' : 'hover:border-indigo-500/30'}`}>
+    <div className={`glass-card rounded-3xl border transition-all duration-300 overflow-hidden ${isDirective ? 'border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.05)] ring-1 ring-amber-500/10' : 'border-slate-800'} ${isCompleted ? 'opacity-50 grayscale' : 'hover:border-slate-700'}`}>
        <div className="p-6 flex flex-col md:flex-row justify-between gap-6">
           <div className="flex-1 space-y-3">
              <div className="flex items-center gap-2 flex-wrap">
@@ -68,7 +68,7 @@ const TaskCard: React.FC<{
                 )}
                 {isRecurring && (
                   <span className="text-[8px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 rounded font-black uppercase flex items-center gap-1">
-                    <RotateIcon size={10}/> {task.recurrenceCycle?.toUpperCase()} REGULATION
+                    <RotateIcon size={10}/> {task.recurrenceCycle?.toUpperCase()}
                   </span>
                 )}
                 <span className="text-[8px] bg-slate-900 text-sky-400 px-2 py-0.5 rounded border border-slate-800 font-black uppercase">👤 {task.assignedTo}</span>
@@ -177,6 +177,9 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [currentAdmin] = useState<'Rector' | 'Mentor'>('Rector');
 
+  const [activeMode, setActiveMode] = useState<TaskType>('regular');
+  const [secondaryFilter, setSecondaryFilter] = useState<'all' | 'critical' | 'process' | 'blocked'>('all');
+
   const logAudit = (action: string, actor: string): TaskAuditEntry => ({
     id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
     action, actor, timestamp: new Date().toISOString()
@@ -219,9 +222,9 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
     }));
   };
 
-  // NORMALIZATION FOR LEGACY TASKS
+  // NORMALIZATION & FILTERING
   const allTasks = useMemo(() => {
-    return (state.ownerTasks || []).map(t => {
+    let list = (state.ownerTasks || []).map(t => {
       let type = t.taskType;
       if (!type) {
         if (t.isRoutine) type = 'recurring';
@@ -235,13 +238,23 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
       }
       return { ...t, taskType: type, status };
     }).filter(t => t.assignedTo === 'Admins' || t.assignedTo === currentAdmin || t.assignedTo === 'All');
-  }, [state.ownerTasks, currentAdmin]);
 
-  const groups = useMemo(() => ({
-    directives: allTasks.filter(t => t.taskType === 'directive' && t.status !== 'completed'),
-    regulations: allTasks.filter(t => t.taskType === 'recurring'),
-    ops: allTasks.filter(t => t.taskType === 'regular' && t.status !== 'completed')
-  }), [allTasks]);
+    // Filter by Active Mode
+    list = list.filter(t => t.taskType === activeMode);
+
+    // Filter by Secondary
+    if (secondaryFilter === 'critical') list = list.filter(t => t.priority === 'urgent' || t.priority === 'high');
+    if (secondaryFilter === 'process') list = list.filter(t => t.status === 'in_progress');
+    if (secondaryFilter === 'blocked') list = list.filter(t => t.status === 'blocked');
+
+    return list;
+  }, [state.ownerTasks, currentAdmin, activeMode, secondaryFilter]);
+
+  const emptyMessages = {
+    directive: "Нет активных директив. Стратегический контроль стабилен.",
+    regular: "Все задачи выполнены. Команда сфокусирована.",
+    recurring: "Регламент пока не задан. Система гибкая."
+  };
 
   return (
     <div className="space-y-8 pb-20 max-w-7xl mx-auto animate-in fade-in duration-700">
@@ -252,38 +265,64 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
           </div>
           <h1 className="text-4xl font-black font-outfit text-white tracking-tight">Execution Hub</h1>
         </div>
-        <div className="flex bg-slate-900 p-1 rounded-2xl border border-slate-800">
-          <button className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all bg-sky-600 text-white shadow-lg shadow-sky-600/20`}>Execution Mode</button>
-        </div>
       </header>
 
-      <div className="space-y-12">
-         <section>
-            <SectionHeader title="Active HQ Directives" icon={<ICONS.Crown size={20}/>} color="amber" />
-            <div className="space-y-3">
-               {groups.directives.length === 0 ? <p className="text-[10px] text-slate-700 py-10 text-center italic border border-dashed border-slate-900 rounded-3xl">No high-level directives currently active.</p> : groups.directives.map(t => (
-                  <TaskCard key={t.id} task={t} isEx={expanded.has(t.id)} onToggle={id => { const n = new Set(expanded); if(n.has(id)) n.delete(id); else n.add(id); setExpanded(n); }} onComplete={completeTask} onUpdateStatus={updateStatus} addNote={addNote} />
-               ))}
-            </div>
-         </section>
+      {/* SEGMENTED MODE SWITCHER */}
+      <div className="flex flex-col gap-4 border-b border-slate-900 pb-4">
+        <div className="flex gap-8 items-center px-2">
+          {[
+            { id: 'directive', label: 'ДИРЕКТИВЫ', color: 'amber' },
+            { id: 'regular', label: 'ЗАДАЧИ', color: 'sky' },
+            { id: 'recurring', label: 'РЕГЛАМЕНТ', color: 'indigo' }
+          ].map((mode) => (
+            <button
+              key={mode.id}
+              onClick={() => { setActiveMode(mode.id as TaskType); setSecondaryFilter('all'); }}
+              className={`relative py-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${activeMode === mode.id ? `text-${mode.color}-400 drop-shadow-[0_0_8px_rgba(var(--tw-color-${mode.color}-400),0.5)]` : 'text-slate-600 hover:text-slate-400'}`}
+            >
+              {mode.label}
+              {activeMode === mode.id && (
+                <div className={`absolute -bottom-[17px] left-0 right-0 h-0.5 bg-${mode.color}-500 shadow-[0_0_10px_rgba(var(--tw-color-${mode.color}-500),0.8)] rounded-full animate-in fade-in slide-in-from-bottom-1`} />
+              )}
+            </button>
+          ))}
+        </div>
 
-         <section>
-            <SectionHeader title="Regulations & Recurring Tasks" icon={<ICONS.RotateCcw size={20}/>} color="indigo" />
-            <div className="space-y-3">
-               {groups.regulations.length === 0 ? <p className="text-[10px] text-slate-700 py-10 text-center italic border border-dashed border-slate-900 rounded-3xl">Strategic regulations not yet established.</p> : groups.regulations.map(t => (
-                  <TaskCard key={t.id} task={t} isEx={expanded.has(t.id)} onToggle={id => { const n = new Set(expanded); if(n.has(id)) n.delete(id); else n.add(id); setExpanded(n); }} onComplete={completeTask} onUpdateStatus={updateStatus} addNote={addNote} />
-               ))}
-            </div>
-         </section>
+        {/* SECONDARY FILTERS */}
+        <div className="flex gap-4 px-2 items-center overflow-x-auto no-scrollbar">
+           {[
+             { id: 'all', label: 'ВСЕ' },
+             { id: 'critical', label: 'КРИТИЧЕСКИЕ' },
+             { id: 'process', label: 'В ПРОЦЕССЕ' },
+             { id: 'blocked', label: 'ЗАБЛОКИРОВАНО' }
+           ].map(f => (
+             <button
+               key={f.id}
+               onClick={() => setSecondaryFilter(f.id as any)}
+               className={`text-[8px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${secondaryFilter === f.id ? 'text-white bg-slate-800 px-3 py-1 rounded-full' : 'text-slate-600 hover:text-slate-400'}`}
+             >
+               {f.label}
+             </button>
+           ))}
+        </div>
+      </div>
 
-         <section>
-            <SectionHeader title="Staff Tasks" icon={<ICONS.Reports size={20}/>} color="sky" />
-            <div className="space-y-3">
-               {groups.ops.length === 0 ? <p className="text-[10px] text-slate-700 py-10 text-center italic border border-dashed border-slate-900 rounded-3xl">Operational pipeline is clear.</p> : groups.ops.map(t => (
-                  <TaskCard key={t.id} task={t} isEx={expanded.has(t.id)} onToggle={id => { const n = new Set(expanded); if(n.has(id)) n.delete(id); else n.add(id); setExpanded(n); }} onComplete={completeTask} onUpdateStatus={updateStatus} addNote={addNote} />
-               ))}
-            </div>
-         </section>
+      <div className="space-y-4">
+        {allTasks.length === 0 ? (
+          <div className="p-32 text-center border-2 border-dashed border-slate-900 rounded-[40px] text-slate-600 font-bold uppercase tracking-[0.2em] text-[10px] animate-in fade-in duration-500">
+            {emptyMessages[activeMode]}
+          </div>
+        ) : allTasks.map(t => (
+          <TaskCard 
+            key={t.id} 
+            task={t} 
+            isEx={expanded.has(t.id)} 
+            onToggle={id => { const n = new Set(expanded); if(n.has(id)) n.delete(id); else n.add(id); setExpanded(n); }} 
+            onComplete={completeTask} 
+            onUpdateStatus={updateStatus} 
+            addNote={addNote} 
+          />
+        ))}
       </div>
     </div>
   );
