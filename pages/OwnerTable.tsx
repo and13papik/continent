@@ -138,10 +138,20 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
 
     list = list.filter(t => t.taskType === activeMode);
     
+    // ЛОГИКА ВИДИМОСТИ CORE TABLE:
+    // 1. Задачи, назначенные текущему владельцу (Андрей/Антон) или общему (Owners/All)
+    // 2. Задачи, назначенные админам (Rector/Mentor/Admins), если они НЕ были созданы админами для самих себя 
+    //    (т.е. Директивы и задачи от овнеров всегда видны овнерам)
+    // 3. Задачи, которые админы специально делегировали овнерам (созданы админом, но assignedTo = Owner)
     list = list.filter(t => {
       const isForMe = t.assignedTo === currentOwner || t.assignedTo === 'Owners' || t.assignedTo === 'All';
-      const isReviewForOwner = t.status === 'review';
-      return isForMe || isReviewForOwner;
+      const isDelegatedToAdmin = t.assignedTo === 'Rector' || t.assignedTo === 'Mentor' || t.assignedTo === 'Admins';
+      
+      // Показываем делегированное админам, только если это не их "личные" админские задачи (начинаются на admin-task)
+      // Либо если задача в статусе 'review' (нужно проверить результат)
+      const isVisibleDelegation = isDelegatedToAdmin && (!t.id.startsWith('admin-task') || t.status === 'review');
+      
+      return isForMe || isVisibleDelegation;
     });
 
     if (secondaryFilter === 'critical') list = list.filter(t => t.priority === 'urgent' || t.priority === 'high');
@@ -210,11 +220,11 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         <div className="lg:col-span-4 space-y-6">
-           <div className="glass-card p-8 rounded-[32px] border border-slate-800 bg-slate-900/20 space-y-6">
+           <div className="glass-card p-8 rounded-[32px] border border-slate-800 bg-slate-900/20 space-y-6 shadow-2xl">
               <h2 className="text-xl font-black font-outfit text-white">{editingTask ? 'Изменить инициативу' : 'Запустить задачу'}</h2>
               <div className="space-y-4">
-                 <input type="text" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3.5 text-white font-bold outline-none text-sm" placeholder="Заголовок..." value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} />
-                 <textarea className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-white text-xs outline-none min-h-[70px]" placeholder="Контекст..." value={newTaskDesc} onChange={e => setNewTaskDesc(e.target.value)} />
+                 <input type="text" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3.5 text-white font-bold outline-none text-sm focus:border-amber-500/50" placeholder="Заголовок..." value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} />
+                 <textarea className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-white text-xs outline-none min-h-[70px] focus:border-amber-500/50" placeholder="Контекст..." value={newTaskDesc} onChange={e => setNewTaskDesc(e.target.value)} />
                  
                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
@@ -241,7 +251,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                  </div>
 
                  <StrategyInput label="Целевой результат" value={newTaskGoal} onChange={setNewTaskGoal} placeholder="Что считаем успехом?.." />
-                 <button onClick={saveTask} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-4 rounded-2xl shadow-xl uppercase tracking-[0.2em] text-[10px] transition-all">Внедрить</button>
+                 <button onClick={saveTask} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-4 rounded-2xl shadow-xl uppercase tracking-[0.2em] text-[10px] transition-all active:scale-95">Внедрить</button>
               </div>
            </div>
         </div>

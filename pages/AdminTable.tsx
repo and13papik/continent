@@ -1,9 +1,23 @@
-
 import React, { useState, useMemo } from 'react';
 import { AppState, OwnerTask, TaskPriority, TaskStatus, TaskNote, TaskType, TaskAssignee, TaskAuditEntry } from '../types';
 import { ICONS } from '../constants';
 
 // --- ПОМОЩНИКИ ---
+
+function StrategyInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void, placeholder?: string }) {
+  return (
+    <div className="space-y-1">
+      <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">{label}</label>
+      <input 
+        type="text" 
+        className="w-full bg-slate-950 border border-slate-800/50 rounded-xl px-4 py-2.5 text-[11px] text-white outline-none focus:border-sky-500/50 transition-all placeholder:text-slate-700" 
+        placeholder={placeholder}
+        value={value} 
+        onChange={e => onChange(e.target.value)} 
+      />
+    </div>
+  );
+}
 
 const PRIORITY_META: Record<TaskPriority, { label: string; color: string; bg: string }> = {
   urgent: { label: 'КРИТИЧЕСКИ', color: 'text-rose-500', bg: 'bg-rose-500/10' },
@@ -155,6 +169,8 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   const [newTitle, setNewTitle] = useState('');
   const [newTo, setNewTo] = useState<TaskAssignee>('Mentor');
   const [newPrio, setNewPrio] = useState<TaskPriority>('medium');
+  const [newGoal, setNewGoal] = useState('');
+  const [newDesc, setNewDesc] = useState('');
 
   const logAudit = (action: string, actor: string): TaskAuditEntry => ({
     id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -189,14 +205,22 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     if (!newTitle.trim()) return;
     const task: OwnerTask = {
         id: `admin-task-${Date.now()}`,
-        title: newTitle, description: 'Инициировано из панели администратора', status: 'idea',
-        priority: newPrio, taskType: 'regular', assignedTo: newTo,
-        tags: [], notes: [], auditLog: [logAudit('Задача создана админом', currentAdminRole)],
-        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        title: newTitle, 
+        description: newDesc || 'Инициировано из панели администратора', 
+        status: 'idea',
+        priority: newPrio, 
+        taskType: 'regular', 
+        assignedTo: newTo,
+        tags: [], 
+        notes: [], 
+        strategyData: { goal: newGoal, reason: '', effect: '' },
+        auditLog: [logAudit('Задача создана админом', currentAdminRole)],
+        createdAt: new Date().toISOString(), 
+        updatedAt: new Date().toISOString(),
         periodId: state.selectedPeriodId
     };
     updateState(prev => ({ ...prev, ownerTasks: [task, ...(prev.ownerTasks || [])] }));
-    setNewTitle(''); setIsCreating(false);
+    setNewTitle(''); setNewGoal(''); setNewDesc(''); setIsCreating(false);
   };
 
   const allTasks = useMemo(() => {
@@ -205,14 +229,15 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       return t;
     });
 
-    // Логика видимости для админов
-    if (currentAdminRole === 'Mentor') {
-      list = list.filter(t => t.assignedTo === 'Mentor' || t.assignedTo === 'Admins' || t.assignedTo === 'All');
-    } else if (currentAdminRole === 'Rector') {
-      list = list.filter(t => t.assignedTo === 'Rector' || t.assignedTo === 'Admins' || t.assignedTo === 'All');
-    } else if (currentAdminRole === 'Admins') {
-      list = list.filter(t => t.assignedTo === 'Admins' || t.assignedTo === 'All');
-    }
+    // Логика видимости для админов:
+    // 1. Задачи, назначенные лично админу (Rector/Mentor) или общие админские (Admins/All)
+    // 2. Задачи, которые этот админ делегировал овнерам (созданы им, но assignedTo = Owner)
+    list = list.filter(t => {
+      const isForMe = t.assignedTo === currentAdminRole || t.assignedTo === 'Admins' || t.assignedTo === 'All';
+      const iDelegatedToOwner = t.id.startsWith('admin-task') && (t.assignedTo === 'Andrey' || t.assignedTo === 'Anton' || t.assignedTo === 'Owners');
+      
+      return isForMe || iDelegatedToOwner;
+    });
 
     list = list.filter(t => t.taskType === activeMode);
 
@@ -243,44 +268,61 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
             ))}
           </div>
           {activeMode === 'regular' && (
-            <button onClick={() => setIsCreating(!isCreating)} className="flex items-center gap-2 text-sky-500 font-black text-[10px] uppercase tracking-widest hover:text-white transition-all">
-               <ICONS.Plus size={14} className={isCreating ? 'rotate-45' : ''}/> {isCreating ? 'Закрыть форму' : 'Создать задачу / Делегировать'}
+            <button onClick={() => setIsCreating(!isCreating)} className="flex items-center gap-2 text-sky-500 font-black text-[10px] uppercase tracking-widest hover:text-white transition-all group">
+               <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isCreating ? 'bg-rose-500/20 text-rose-500 rotate-45' : 'bg-sky-500/10 text-sky-500 group-hover:bg-sky-500 group-hover:text-white'}`}>
+                  <ICONS.Plus size={14}/>
+               </div>
+               {isCreating ? 'Закрыть форму' : 'Создать задачу / Делегировать'}
             </button>
           )}
         </div>
       </header>
 
       {isCreating && activeMode === 'regular' && (
-        <div className="glass-card p-10 rounded-[3rem] border-sky-500/20 bg-sky-500/5 space-y-8 animate-in slide-in-from-top-4">
-           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              <div className="lg:col-span-2">
-                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Название задачи</label>
-                 <input className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-white font-bold outline-none focus:border-sky-500/50" placeholder="Что нужно сделать?.." value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+        <div className="glass-card p-10 rounded-[3rem] border-sky-500/20 bg-sky-500/5 space-y-8 animate-in slide-in-from-top-4 shadow-2xl">
+           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="lg:col-span-8 space-y-6">
+                 <div className="space-y-4">
+                    <div className="space-y-1">
+                       <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Название задачи</label>
+                       <input className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-white font-bold outline-none focus:border-sky-500/50" placeholder="Краткая суть..." value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                       <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Описание контекста</label>
+                       <textarea className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-white text-xs outline-none min-h-[100px] focus:border-sky-500/50" placeholder="Детали задачи..." value={newDesc} onChange={e => setNewDesc(e.target.value)} />
+                    </div>
+                 </div>
               </div>
-              <div>
-                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Кому назначить</label>
-                 <select className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-4 text-xs text-white font-bold outline-none" value={newTo} onChange={e => setNewTo(e.target.value as any)}>
-                    <optgroup label="Админы">
-                       <option value="Rector">Себе (Rector)</option>
-                       <option value="Mentor">Себе (Mentor)</option>
-                       <option value="Admins">Админы (Общие)</option>
-                    </optgroup>
-                    <optgroup label="Владельцы">
-                       <option value="Andrey">Андрею</option>
-                       <option value="Anton">Антону</option>
-                       <option value="Owners">Владельцам (Общее)</option>
-                    </optgroup>
-                    <option value="All">Весь состав</option>
-                 </select>
-              </div>
-              <div>
-                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Приоритет</label>
-                 <select className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-4 text-xs text-white font-bold outline-none" value={newPrio} onChange={e => setNewPrio(e.target.value as any)}>
-                    {Object.entries(PRIORITY_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                 </select>
+
+              <div className="lg:col-span-4 space-y-6">
+                 <div className="grid grid-cols-1 gap-4">
+                    <div>
+                       <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Исполнитель</label>
+                       <select className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-4 text-xs text-white font-bold outline-none cursor-pointer focus:border-sky-500/50" value={newTo} onChange={e => setNewTo(e.target.value as any)}>
+                          <optgroup label="Админы">
+                             <option value="Rector">Себе (Rector)</option>
+                             <option value="Mentor">Себе (Mentor)</option>
+                             <option value="Admins">Админы (Общие)</option>
+                          </optgroup>
+                          <optgroup label="Владельцы">
+                             <option value="Andrey">Андрею</option>
+                             <option value="Anton">Антону</option>
+                             <option value="Owners">Владельцам (Общее)</option>
+                          </optgroup>
+                          <option value="All">Весь состав</option>
+                       </select>
+                    </div>
+                    <div>
+                       <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Приоритет</label>
+                       <select className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-4 text-xs text-white font-bold outline-none cursor-pointer focus:border-sky-500/50" value={newPrio} onChange={e => setNewPrio(e.target.value as any)}>
+                          {Object.entries(PRIORITY_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                       </select>
+                    </div>
+                    <StrategyInput label="Целевой результат" value={newGoal} onChange={setNewGoal} placeholder="Что считаем успехом?.." />
+                 </div>
+                 <button onClick={createAdminTask} className="w-full bg-sky-600 hover:bg-sky-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-sky-600/20 transition-all uppercase tracking-widest text-xs active:scale-95">Опубликовать в системе</button>
               </div>
            </div>
-           <button onClick={createAdminTask} className="w-full bg-sky-600 hover:bg-sky-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-sky-600/20 transition-all uppercase tracking-widest text-xs">Подтвердить и опубликовать</button>
         </div>
       )}
 
