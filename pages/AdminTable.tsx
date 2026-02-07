@@ -45,15 +45,14 @@ const TaskCard: React.FC<{
   const [noteVal, setNoteVal] = useState('');
   const [showNote, setShowNote] = useState(false);
 
-  const prio = PRIORITY_META[task.priority];
-  const stat = STATUS_META[task.status];
+  const prio = PRIORITY_META[task.priority] || PRIORITY_META.medium;
+  const stat = STATUS_META[task.status] || STATUS_META.in_progress;
   const isDirective = task.taskType === 'directive';
   const isRecurring = task.taskType === 'recurring';
   const isCompleted = task.status === 'completed';
 
   const CrownIcon = ICONS.Crown || 'span';
   const RotateIcon = ICONS.RotateCcw || 'span';
-  const EditIcon = ICONS.Edit || 'span';
   const PlusIcon = ICONS.Plus || 'span';
 
   return (
@@ -87,7 +86,7 @@ const TaskCard: React.FC<{
              <div className="pt-2 flex items-center gap-3">
                 <div className="flex-1 h-[2px] bg-slate-900 rounded-full flex overflow-hidden">
                    {[1,2,3,4,5].map(step => (
-                     <div key={step} className={`flex-1 ${step <= stat.step ? 'bg-indigo-500' : 'bg-transparent'}`}></div>
+                     <div key={step} className={`flex-1 ${step <= (stat.step || 1) ? 'bg-indigo-500' : 'bg-transparent'}`}></div>
                    ))}
                 </div>
                 <span className={`text-[8px] font-black uppercase tracking-widest ${stat.color}`}>{stat.label}</span>
@@ -131,7 +130,7 @@ const TaskCard: React.FC<{
                     <button onClick={() => setShowNote(!showNote)} className="text-[8px] font-bold text-sky-400">Add Log</button>
                   </div>
                   <div className="space-y-1 max-h-[100px] overflow-y-auto pr-1">
-                     {task.notes.length === 0 ? <p className="text-[10px] text-slate-700 italic">No notes captured.</p> : task.notes.map(n => (
+                     {(!task.notes || task.notes.length === 0) ? <p className="text-[10px] text-slate-700 italic">No notes captured.</p> : task.notes.map(n => (
                         <div key={n.id} className="p-2 bg-slate-950/50 rounded-lg border border-slate-900 text-[10px] flex justify-between gap-4">
                            <span className="text-slate-300 flex-1">{n.text}</span>
                            <span className="text-slate-600 uppercase font-black text-[7px] shrink-0">{n.author}</span>
@@ -154,7 +153,7 @@ const TaskCard: React.FC<{
              <div className="pt-4 border-t border-slate-900/50">
                 <label className="text-[8px] font-black text-slate-600 uppercase tracking-widest block mb-2">Audit History</label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                   {task.auditLog.slice(-4).map(log => (
+                   {(task.auditLog || []).slice(-4).map(log => (
                       <div key={log.id} className="text-[7px] text-slate-500 uppercase tracking-tighter bg-slate-950/30 p-2 rounded-lg border border-slate-900">
                          {new Date(log.timestamp).toLocaleDateString()} • {log.action}
                       </div>
@@ -188,7 +187,7 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
       ...p,
       ownerTasks: (p.ownerTasks || []).map(t => t.id === id ? { 
         ...t, status, 
-        auditLog: [...t.auditLog, logAudit(`Status change to ${status}`, currentAdmin)], 
+        auditLog: [...(t.auditLog || []), logAudit(`Status change to ${status}`, currentAdmin)], 
         updatedAt: new Date().toISOString() 
       } : t)
     }));
@@ -199,9 +198,9 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
       ...p,
       ownerTasks: (p.ownerTasks || []).map(t => t.id === id ? { 
         ...t, 
-        status: isRecurring ? t.status : 'review', // Admins move to review, owners to completed
+        status: isRecurring ? t.status : 'review', 
         lastCompletedAt: isRecurring ? new Date().toISOString() : t.lastCompletedAt,
-        auditLog: [...t.auditLog, logAudit(isRecurring ? 'Regulation reset' : 'Submitted for review', currentAdmin)],
+        auditLog: [...(t.auditLog || []), logAudit(isRecurring ? 'Regulation reset' : 'Submitted for review', currentAdmin)],
         updatedAt: new Date().toISOString() 
       } : t)
     }));
@@ -213,15 +212,29 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
     updateState(p => ({
       ...p,
       ownerTasks: (p.ownerTasks || []).map(t => t.id === id ? { 
-        ...t, notes: [...t.notes, note], 
-        auditLog: [...t.auditLog, logAudit('Operational log added', currentAdmin)],
+        ...t, notes: [...(t.notes || []), note], 
+        auditLog: [...(t.auditLog || []), logAudit('Operational log added', currentAdmin)],
         updatedAt: new Date().toISOString() 
       } : t)
     }));
   };
 
+  // NORMALIZATION FOR LEGACY TASKS
   const allTasks = useMemo(() => {
-    return (state.ownerTasks || []).filter(t => t.assignedTo === 'Admins' || t.assignedTo === currentAdmin || t.assignedTo === 'All');
+    return (state.ownerTasks || []).map(t => {
+      let type = t.taskType;
+      if (!type) {
+        if (t.isRoutine) type = 'recurring';
+        else if (!t.id.startsWith('admin-task')) type = 'directive';
+        else type = 'regular';
+      }
+      let status = t.status;
+      if (!STATUS_META[status]) {
+        if ((status as string) === 'planned' || (status as string) === 'idea') status = 'in_progress';
+        if ((status as string) === 'waiting') status = 'waiting_external';
+      }
+      return { ...t, taskType: type, status };
+    }).filter(t => t.assignedTo === 'Admins' || t.assignedTo === currentAdmin || t.assignedTo === 'All');
   }, [state.ownerTasks, currentAdmin]);
 
   const groups = useMemo(() => ({
@@ -245,7 +258,6 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
       </header>
 
       <div className="space-y-12">
-         {/* SECTION 1: DIRECTIVES */}
          <section>
             <SectionHeader title="Active HQ Directives" icon={<ICONS.Crown size={20}/>} color="amber" />
             <div className="space-y-3">
@@ -255,7 +267,6 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
             </div>
          </section>
 
-         {/* SECTION 2: REGULATIONS */}
          <section>
             <SectionHeader title="Regulations & Recurring Tasks" icon={<ICONS.RotateCcw size={20}/>} color="indigo" />
             <div className="space-y-3">
@@ -265,7 +276,6 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
             </div>
          </section>
 
-         {/* SECTION 3: OPERATIONAL */}
          <section>
             <SectionHeader title="Staff Tasks" icon={<ICONS.Reports size={20}/>} color="sky" />
             <div className="space-y-3">

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { AppState, OwnerTask, TaskPriority, TaskStatus, OwnerTag, TaskNote, TaskAssignee, TaskType, RecurrenceCycle, TaskAuditEntry } from '../types';
 import { ICONS } from '../constants';
@@ -93,6 +94,36 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   const [filterType, setFilterType] = useState<TaskType | 'all'>('all');
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
+  // NORMALIZATION LAYER FOR LEGACY DATA
+  const normalizedTasks = useMemo(() => {
+    return (state.ownerTasks || []).map(task => {
+      // Handle legacy status
+      let status = task.status;
+      if (!STATUS_META[status]) {
+        if ((status as string) === 'planned') status = 'in_progress';
+        if ((status as string) === 'idea') status = 'in_progress';
+        if ((status as string) === 'waiting') status = 'waiting_external';
+      }
+
+      // Handle legacy taskType
+      let type = task.taskType;
+      if (!type) {
+        if (task.isRoutine) type = 'recurring';
+        else if (!task.id.startsWith('admin-task')) type = 'directive';
+        else type = 'regular';
+      }
+
+      return {
+        ...task,
+        status,
+        taskType: type,
+        auditLog: task.auditLog || [],
+        notes: task.notes || [],
+        strategyData: task.strategyData || { goal: '', reason: '', effect: '' }
+      } as OwnerTask;
+    });
+  }, [state.ownerTasks, STATUS_META]);
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (password === '1233211') { setIsAuthenticated(true); }
@@ -116,7 +147,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                 assignedTo: newTaskAssigned, taskType: newTaskType,
                 recurrenceCycle: newTaskType === 'recurring' ? newTaskCycle : undefined,
                 dueDate: newTaskDueDate || undefined,
-                strategyData: { ...t.strategyData, goal: newTaskGoal, reason: '', effect: '' },
+                strategyData: { goal: newTaskGoal, reason: '', effect: '' },
                 auditLog: [...(t.auditLog || []), logAudit('Task edited', currentOwner)],
                 updatedAt: new Date().toISOString()
             } : t)
@@ -148,7 +179,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
         if (action === 'pin') update.isPinned = !t.isPinned;
         if (action === 'priority') {
           const cycle: Record<TaskPriority, TaskPriority> = { low: 'medium', medium: 'high', high: 'urgent', urgent: 'low' };
-          update.priority = cycle[t.priority];
+          update.priority = cycle[t.priority] || 'medium';
         }
         if (action === 'extend' && t.dueDate) {
           const d = new Date(t.dueDate); d.setDate(d.getDate() + 3);
@@ -163,34 +194,32 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     setEditingTask(task);
     setNewTaskTitle(task.title); setNewTaskDesc(task.description);
     setNewTaskPriority(task.priority); setNewTaskAssigned(task.assignedTo);
-    setNewTaskType(task.taskType); setNewTaskCycle(task.recurrenceCycle || 'daily');
+    setNewTaskType(task.taskType || 'regular'); setNewTaskCycle(task.recurrenceCycle || 'daily');
     setNewTaskDueDate(task.dueDate || ''); setNewTaskGoal(task.strategyData?.goal || '');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const filteredTasks = useMemo(() => {
-    let list = [...(state.ownerTasks || [])];
+    let list = [...normalizedTasks];
     if (filterType !== 'all') list = list.filter(t => t.taskType === filterType);
     return list.sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
       const prioOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-      const pComp = prioOrder[a.priority] - prioOrder[b.priority];
+      const pComp = (prioOrder[a.priority] ?? 2) - (prioOrder[b.priority] ?? 2);
       return pComp !== 0 ? pComp : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [state.ownerTasks, filterType]);
+  }, [normalizedTasks, filterType]);
 
   const stats = useMemo(() => {
-    const all = state.ownerTasks || [];
     return {
-      directives: all.filter(t => t.taskType === 'directive' && t.status !== 'completed').length,
-      review: all.filter(t => t.status === 'review').length,
-      blocked: all.filter(t => t.status === 'blocked').length
+      directives: normalizedTasks.filter(t => t.taskType === 'directive' && t.status !== 'completed').length,
+      review: normalizedTasks.filter(t => t.status === 'review').length,
+      blocked: normalizedTasks.filter(t => t.status === 'blocked').length
     };
-  }, [state.ownerTasks]);
+  }, [normalizedTasks]);
 
   const CrownIcon = ICONS.Crown || 'span';
-  const RotateIcon = ICONS.RotateCcw || 'span';
   const PinIcon = ICONS.Lock || 'span';
   const FlagIcon = ICONS.AlertTriangle || 'span';
   const EditIcon = ICONS.Edit || 'span';
@@ -276,7 +305,6 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                     <div className="space-y-1">
                        <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Priority</label>
                        <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-[10px] text-white font-bold outline-none" value={newTaskPriority} onChange={e => setNewTaskPriority(e.target.value as any)}>
-                          {/* Fix: Explicitly cast m as any to handle potential inference issues with useMemo results in Object.entries */}
                           {Object.entries(PRIORITY_META).map(([val, m]) => <option key={val} value={val}>{(m as any).label}</option>)}
                        </select>
                     </div>
@@ -292,31 +320,31 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
 
         <div className="lg:col-span-8 space-y-4">
            {filteredTasks.length === 0 ? (
-             <div className="p-32 text-center border-2 border-dashed border-slate-900 rounded-[40px] text-slate-800 font-bold uppercase tracking-[0.4em] text-[10px]">No active command items</div>
+             <div className="p-32 text-center border-2 border-dashed border-slate-900 rounded-[40px] text-slate-800 font-bold uppercase tracking-[0.4em] text-[10px]">No items found in this category</div>
            ) : filteredTasks.map(task => {
-              const prio = PRIORITY_META[task.priority];
-              const stat = STATUS_META[task.status];
-              const type = TYPE_META[task.taskType];
+              const prio = PRIORITY_META[task.priority] || PRIORITY_META.medium;
+              const stat = STATUS_META[task.status] || STATUS_META.in_progress;
+              const typeConfig = TYPE_META[task.taskType] || TYPE_META.regular;
               const isEx = expandedTasks.has(task.id);
-              const TypeIcon = type.icon;
+              const TypeIcon = typeConfig.icon || 'span';
 
               return (
                 <div key={task.id} className={`glass-card rounded-[32px] border transition-all duration-300 overflow-hidden ${task.isPinned ? 'border-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.1)]' : 'border-slate-800'}`}>
                    <div className="p-7 flex flex-col md:flex-row justify-between gap-6">
                       <div className="flex-1 space-y-4">
                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`px-2 py-0.5 rounded text-[8px] font-black tracking-widest ${type.bg} ${type.color} flex items-center gap-1`}>
-                              <TypeIcon size={10} /> {type.label}
+                            <span className={`px-2 py-0.5 rounded text-[8px] font-black tracking-widest ${typeConfig.bg} ${typeConfig.color} flex items-center gap-1`}>
+                              <TypeIcon size={10} /> {typeConfig.label}
                             </span>
                             <span className={`px-2 py-0.5 rounded text-[8px] font-black tracking-widest ${prio.bg} ${prio.color}`}>{prio.label}</span>
-                            <span className="text-[8px] bg-slate-950 text-indigo-400 px-2 py-0.5 rounded border border-slate-800 font-black uppercase">👤 {ASSIGNEE_LABELS[task.assignedTo]}</span>
+                            <span className="text-[8px] bg-slate-950 text-indigo-400 px-2 py-0.5 rounded border border-slate-800 font-black uppercase">👤 {ASSIGNEE_LABELS[task.assignedTo] || task.assignedTo}</span>
                             {task.isPinned && <span className="text-[8px] bg-amber-500 text-slate-950 px-2 py-0.5 rounded font-black uppercase flex items-center gap-1 shadow-lg shadow-amber-500/20"><PinIcon size={10}/> PINNED</span>}
                          </div>
                          <h3 className="text-xl font-bold font-outfit text-white tracking-tight">{task.title}</h3>
                          <div className="flex items-center gap-4">
                             <div className="flex-1 h-[2px] bg-slate-950 rounded-full flex overflow-hidden">
                                {[1,2,3,4,5].map(step => (
-                                 <div key={step} className={`flex-1 transition-all ${step <= stat.step ? 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.3)]' : 'bg-transparent'}`}></div>
+                                 <div key={step} className={`flex-1 transition-all ${step <= (stat.step || 1) ? 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.3)]' : 'bg-transparent'}`}></div>
                                ))}
                             </div>
                             <span className={`text-[8px] font-black uppercase tracking-widest ${stat.color}`}>{stat.label}</span>
@@ -329,10 +357,10 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                             <button onClick={() => quickAction(task.id, 'priority')} className="w-10 h-10 rounded-2xl flex items-center justify-center bg-slate-950 border border-slate-800 text-slate-600 hover:text-sky-400"><FlagIcon size={16} /></button>
                             <button onClick={() => quickAction(task.id, 'extend')} className="w-10 h-10 rounded-2xl flex items-center justify-center bg-slate-950 border border-slate-800 text-slate-600 hover:text-emerald-400"><CalendarIcon size={16} /></button>
                             <button onClick={() => startEditing(task)} className="w-10 h-10 rounded-2xl flex items-center justify-center bg-slate-950 border border-slate-800 text-slate-600 hover:text-white"><EditIcon size={16} /></button>
-                            <button onClick={() => { const n = new Set(expandedTasks); if(n.has(task.id)) n.delete(task.id); else n.add(task.id); setExpandedTasks(n); }} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${isEx ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-600'}`}><ICONS.Plus size={18} className={isEx ? 'rotate-45' : ''}/></button>
+                            <button onClick={() => { const n = new Set(expandedTasks); if(n.has(task.id)) n.delete(task.id); else n.add(id); setExpandedTasks(n); }} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${isEx ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-600'}`}><ICONS.Plus size={18} className={isEx ? 'rotate-45' : ''}/></button>
                          </div>
-                         <select className="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-[8px] font-black text-slate-400 outline-none uppercase" value={task.status} onChange={(e) => updateState(p => ({...p, ownerTasks: (p.ownerTasks || []).map(t => t.id === task.id ? {...t, status: e.target.value as any, auditLog: [...t.auditLog, logAudit(`Status to ${e.target.value}`, currentOwner)]} : t)}))}>
-                            {/* Fix: Explicitly cast m as any to handle potential inference issues with useMemo results in Object.entries */}
+                         <select className="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-[8px] font-black text-slate-400 outline-none uppercase" value={task.status} onChange={(e) => updateState(p => ({...p, ownerTasks: (p.ownerTasks || []).map(t => t.id === task.id ? {...t, status: e.target.value as any, auditLog: [...(t.auditLog || []), logAudit(`Status to ${e.target.value}`, currentOwner)]} : t)}))}>
+                            {/* Cast m to any to fix "Property 'label' does not exist on type 'unknown'" error during Object.entries mapping */}
                             {Object.entries(STATUS_META).map(([val, m]) => <option key={val} value={val}>{(m as any).label}</option>)}
                          </select>
                       </div>
@@ -348,7 +376,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                             <div className="p-4 rounded-2xl bg-slate-900/30 border border-slate-800/50 space-y-2">
                                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">HQ Audit Log</label>
                                <div className="space-y-1 max-h-[80px] overflow-y-auto">
-                                  {task.auditLog.slice(-5).map(log => (
+                                  {(task.auditLog || []).slice(-5).map(log => (
                                     <div key={log.id} className="text-[7px] text-slate-500 uppercase tracking-tighter border-b border-slate-800 last:border-none py-1">
                                        {new Date(log.timestamp).toLocaleDateString()} • {log.actor} - {log.action}
                                     </div>
