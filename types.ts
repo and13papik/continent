@@ -108,7 +108,8 @@ export interface PaidStatus {
 }
 
 // Professional Status Set
-export type TaskStatus = 'in_progress' | 'blocked' | 'waiting_external' | 'review' | 'completed';
+// Fixed TaskStatus: added 'idea' to resolve errors in OwnerTable and AdminTable
+export type TaskStatus = 'idea' | 'in_progress' | 'blocked' | 'waiting_external' | 'review' | 'completed';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type OwnerTag = 'CRITICAL' | 'MONEY' | 'SYSTEM' | 'CONTENT' | 'BLOCKER';
 export type TaskType = 'directive' | 'regular' | 'recurring';
