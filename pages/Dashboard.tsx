@@ -1,7 +1,7 @@
-
+// Added React import to fix 'Cannot find namespace React' errors
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AppState, AccountingPeriod, PaidStatus } from '../types';
+import { AppState, AccountingPeriod, PaidStatus, OperationRecord } from '../types';
 import { ICONS } from '../constants';
 
 // --- ВСПОМОГАТЕЛЬНЫЕ КОМПОНЕНТЫ ---
@@ -142,6 +142,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   }, [state.incomeData, state.ownerManualIncomes, state.operationsData, state.admins, activePeriodId]);
 
   const operatorRows = useMemo(() => {
+    const adminNames = state.admins.map(a => a.name);
     const raw = state.operators.map(op => {
       const incomes = state.incomeData.filter(r => r.operator === op && r.periodId === activePeriodId);
       const ops = state.operationsData.filter(o => o.operator === op && o.periodId === activePeriodId && !o.model);
@@ -181,7 +182,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     const sorted = raw.sort((a, b) => b.remainder - a.remainder);
     const maxGross = Math.max(...sorted.map(r => r.totalGross), 1);
     return sorted.map(r => ({ ...r, percentOfMax: (r.totalGross / maxGross) * 100 }));
-  }, [state.incomeData, state.operationsData, state.operators, activePeriodId, state.paidStatuses]);
+  }, [state.incomeData, state.operationsData, state.operators, activePeriodId, state.paidStatuses, state.admins]);
 
   const handleCloseMonth = () => {
     if (!activePeriod || activePeriod.status === 'closed') return;
@@ -204,20 +205,55 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     });
   };
 
-  const toggleOperatorPaid = (op: string) => {
+  /**
+   * Продвинутая логика кнопки "Выплачено":
+   * Автоматически создает операцию 'salary_payment' на сумму остатка.
+   */
+  const toggleOperatorPaid = (op: string, currentRemainder: number) => {
     updateState(prev => {
       const exists = prev.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
-      if (exists) return { ...prev, paidStatuses: prev.paidStatuses.filter(s => !(s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId)) };
       
-      const newPaid: PaidStatus = {
-        id: `paid-op-${op}-${activePeriodId}`,
-        entityName: op,
-        entityType: 'operator',
-        periodId: activePeriodId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      return { ...prev, paidStatuses: [...prev.paidStatuses, newPaid] };
+      if (exists) {
+        // Если уже выплачено, просто снимаем статус (операции остаются для истории, либо их можно удалить вручную в Operations)
+        return { 
+          ...prev, 
+          paidStatuses: prev.paidStatuses.filter(s => !(s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId)) 
+        };
+      } else {
+        // Если меняем на "Выплачено":
+        let newOperations = [...prev.operationsData];
+        
+        // Если есть положительный остаток - автоматически "выплачиваем" его через транзакцию
+        if (currentRemainder > 0) {
+          const autoPayment: OperationRecord = {
+            id: `auto-sal-${op}-${Date.now()}`,
+            type: 'salary_payment',
+            operator: op,
+            amount: currentRemainder,
+            comment: 'Авто-выплата (Dashboard)',
+            date: new Date().toISOString().split('T')[0],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            periodId: activePeriodId
+          };
+          newOperations = [autoPayment, ...newOperations];
+        }
+
+        const newStatus: PaidStatus = {
+          id: `paid-op-${op}-${activePeriodId}`,
+          entityName: op,
+          entityType: 'operator',
+          periodId: activePeriodId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        return { 
+          ...prev, 
+          operationsData: newOperations,
+          paidStatuses: [...prev.paidStatuses, newStatus] 
+        };
+      }
     });
   };
 
@@ -358,7 +394,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button onClick={() => toggleOperatorPaid(row.op)} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${row.isPaid ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}>
+                    <button onClick={() => toggleOperatorPaid(row.op, row.remainder)} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${row.isPaid ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}>
                       {row.isPaid ? 'Выплачено' : 'Ожидает'}
                     </button>
                   </td>
