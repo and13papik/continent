@@ -30,24 +30,33 @@ const getCellStatusClasses = (balance: any, goal: number) => {
 const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppState) => AppState) => void }> = ({ state, updateState }) => {
   const tableRef = useRef<HTMLDivElement>(null);
   const [isSending, setIsSending] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // Инициализация таблицы при первом запуске или изменении списка моделей
+  // Фильтруем записи только для выбранной даты
+  const entriesForDate = useMemo(() => {
+    return (state.totalTableEntries || []).filter(e => e.date === selectedDate);
+  }, [state.totalTableEntries, selectedDate]);
+
+  // Инициализация таблицы для выбранной даты, если она пуста
   useEffect(() => {
-    if (!state.totalTableEntries || state.totalTableEntries.length === 0) {
+    if (entriesForDate.length === 0 && state.models.length > 0) {
       const initialEntries = state.models.map((m, idx) => ({
-        id: `entry-${m.replace(/\s+/g, '-').toLowerCase()}-${idx}`,
+        id: `entry-${selectedDate}-${m.replace(/\s+/g, '-').toLowerCase()}-${idx}`,
+        date: selectedDate,
         modelName: m,
+        createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         night: { balance: undefined as any, goal: 60 },
         morning: { balance: undefined as any, goal: 60 },
         day: { balance: undefined as any, goal: 60 },
         evening: { balance: undefined as any, goal: 60 }
       }));
-      updateState(prev => ({ ...prev, totalTableEntries: initialEntries }));
+      updateState(prev => ({ 
+        ...prev, 
+        totalTableEntries: [...(prev.totalTableEntries || []), ...initialEntries] 
+      }));
     }
-  }, [state.models]);
-
-  const entries = state.totalTableEntries || [];
+  }, [selectedDate, state.models, entriesForDate.length]);
 
   const handleUpdate = (entryId: string, shift: keyof DailyTotalEntry, field: keyof ShiftData, value: string) => {
     const val = value === '' ? undefined : parseFloat(value);
@@ -57,7 +66,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         e.id === entryId ? { 
           ...e, 
           [shift]: { ...(e[shift] as ShiftData), [field]: val },
-          updatedAt: new Date().toISOString() // Обновляем метку времени строки для корректного слияния в облаке
+          updatedAt: new Date().toISOString()
         } : e
       )
     }));
@@ -73,7 +82,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   };
 
   const handleRemoveModel = (entryId: string) => {
-    if (!confirm('Удалить эту анкету из сегодняшней таблицы?')) return;
+    if (!confirm('Удалить эту анкету из таблицы за это число?')) return;
     updateState(prev => ({
       ...prev,
       totalTableEntries: (prev.totalTableEntries || []).filter(e => e.id !== entryId)
@@ -84,7 +93,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     const name = prompt('Введите имя анкеты:');
     if (!name) return;
     const newEntry: DailyTotalEntry = {
-      id: `entry-custom-${Date.now()}`,
+      id: `entry-custom-${selectedDate}-${Date.now()}`,
+      date: selectedDate,
       modelName: name,
       updatedAt: new Date().toISOString(),
       night: { balance: undefined as any, goal: 60 },
@@ -99,18 +109,20 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   };
 
   const handleReset = () => {
-    if (!confirm('Очистить все текущие балансы? Цели останутся прежними.')) return;
+    if (!confirm('Очистить балансы за ВЫБРАННУЮ дату? Цели останутся.')) return;
     const now = new Date().toISOString();
     updateState(prev => ({
       ...prev,
-      totalTableEntries: (prev.totalTableEntries || []).map(e => ({
-        ...e,
-        updatedAt: now,
-        night: { ...e.night, balance: undefined as any },
-        morning: { ...e.morning, balance: undefined as any },
-        day: { ...e.day, balance: undefined as any },
-        evening: { ...e.evening, balance: undefined as any }
-      }))
+      totalTableEntries: (prev.totalTableEntries || []).map(e => 
+        e.date === selectedDate ? {
+          ...e,
+          updatedAt: now,
+          night: { ...e.night, balance: undefined as any },
+          morning: { ...e.morning, balance: undefined as any },
+          day: { ...e.day, balance: undefined as any },
+          evening: { ...e.evening, balance: undefined as any }
+        } : e
+      )
     }));
   };
 
@@ -125,7 +137,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       overallRemaining: 0
     };
 
-    entries.forEach(e => {
+    entriesForDate.forEach(e => {
       res.night.balance += (e.night.balance || 0); res.night.goal += (e.night.goal || 0);
       res.morning.balance += (e.morning.balance || 0); res.morning.goal += (e.morning.goal || 0);
       res.day.balance += (e.day.balance || 0); res.day.goal += (e.day.goal || 0);
@@ -137,7 +149,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     res.overallRemaining = Math.max(0, res.overallPlan - res.overallBalance);
 
     return res;
-  }, [entries]);
+  }, [entriesForDate]);
 
   const sendTelegramReport = async (shiftKey: 'night' | 'morning' | 'day' | 'evening') => {
     let chatId = state.tgChatId;
@@ -204,12 +216,12 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
       // ФОРМИРОВАНИЕ ТЕКСТА
       let message = `📊 *ОТЧЕТ: ${shiftInfo.label.toUpperCase()} ${shiftInfo.icon}*\n`;
-      message += `📅 Дата: ${new Date().toLocaleDateString('ru-RU')}\n\n`;
+      message += `📅 Дата: ${new Date(selectedDate).toLocaleDateString('ru-RU')}\n\n`;
 
       let totalShiftBal = 0;
       let totalShiftGoal = 0;
 
-      entries.forEach(e => {
+      entriesForDate.forEach(e => {
         const s = e[shiftKey] as ShiftData;
         const bal = s.balance === undefined ? 0 : s.balance;
         totalShiftBal += bal;
@@ -222,31 +234,31 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         message += `• *${e.modelName}*: ${bal}$ / ${s.goal}$ — ${status}\n`;
       });
 
-      message += `\n📈 *ИТОГО ЗА ${shiftInfo.label.toUpperCase()} СМЕНУ*: ${totalShiftBal}$ / ${totalShiftGoal}$`;
+      message += `\n📈 *ИТОГО ЗА ${shiftInfo.label.toUpperCase()} СМЕНУ*: ${totalShiftBal.toFixed(0)}$ / ${totalShiftGoal.toFixed(0)}$`;
 
       if (shiftKey === 'evening') {
         message += `\n\n━━━━━━━━━━━━━━━\n`;
         message += `🏆 *ИТОГИ ДНЯ (FULL DAY)*\n\n`;
         
         message += `📊 *ПО СМЕНАМ:*\n`;
-        message += `🌙 Ночь: ${totals.night.balance}$ / ${totals.night.goal}$\n`;
-        message += `🌅 Утро: ${totals.morning.balance}$ / ${totals.morning.goal}$\n`;
-        message += `☀️ День: ${totals.day.balance}$ / ${totals.day.goal}$\n`;
-        message += `🌇 Вечер: ${totals.evening.balance}$ / ${totals.evening.goal}$\n\n`;
+        message += `🌙 Ночь: ${totals.night.balance.toFixed(0)}$ / ${totals.night.goal.toFixed(0)}$\n`;
+        message += `🌅 Утро: ${totals.morning.balance.toFixed(0)}$ / ${totals.morning.goal.toFixed(0)}$\n`;
+        message += `☀️ День: ${totals.day.balance.toFixed(0)}$ / ${totals.day.goal.toFixed(0)}$\n`;
+        message += `🌇 Вечер: ${totals.evening.balance.toFixed(0)}$ / ${totals.evening.goal.toFixed(0)}$\n\n`;
 
         message += `👤 *ПЕРСОНАЛЬНЫЙ ИТОГ:*\n`;
-        entries.forEach(e => {
+        entriesForDate.forEach(e => {
             const modelDailyTotal = (e.night.balance || 0) + (e.morning.balance || 0) + (e.day.balance || 0) + (e.evening.balance || 0);
             const modelDailyGoal = (e.night.goal || 0) + (e.morning.goal || 0) + (e.day.goal || 0) + (e.evening.goal || 0);
             const status = modelDailyTotal >= modelDailyGoal ? '✅' : '❌';
-            message += `• ${e.modelName}: ${modelDailyTotal}$ / ${modelDailyGoal}$ — ${status}\n`;
+            message += `• ${e.modelName}: ${modelDailyTotal.toFixed(0)}$ / ${modelDailyGoal.toFixed(0)}$ — ${status}\n`;
         });
 
         const percent = totals.overallPlan > 0 ? Math.round(totals.overallBalance/totals.overallPlan*100) : 0;
-        message += `\n🏁 *ИТОГ ДНЯ*: ${totals.overallBalance}$ / ${totals.overallPlan}$ (${percent}%)\n`;
+        message += `\n🏁 *ИТОГ ДНЯ*: ${totals.overallBalance.toFixed(0)}$ / ${totals.overallPlan.toFixed(0)}$ (${percent}%)\n`;
         message += percent >= 100 ? `🔥 *ПЛАН ВЫПОЛНЕН!*` : `❌ *ПЛАН НЕ ВЫПОЛНЕН*`;
       } else {
-        message += `\n\n🏆 *ОБЩИЙ ТОТАЛ*: ${totals.overallBalance}$ / ${totals.overallPlan}$ (${totals.overallPlan > 0 ? Math.round(totals.overallBalance/totals.overallPlan*100) : 0}%)`;
+        message += `\n\n🏆 *ОБЩИЙ ТОТАЛ СУТОК*: ${totals.overallBalance.toFixed(0)}$ / ${totals.overallPlan.toFixed(0)}$ (${totals.overallPlan > 0 ? Math.round(totals.overallBalance/totals.overallPlan*100) : 0}%)`;
       }
 
       const formData = new FormData();
@@ -274,19 +286,28 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   };
 
   const isShiftComplete = (shiftKey: 'night' | 'morning' | 'day' | 'evening') => {
-    return entries.length > 0 && entries.every(e => e[shiftKey].balance !== undefined);
+    return entriesForDate.length > 0 && entriesForDate.every(e => e[shiftKey].balance !== undefined);
   };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-700 pb-20 max-w-[1400px] mx-auto">
       {/* HEADER */}
-      <header className="flex justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800 shadow-xl">
+      <header className="flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800 shadow-xl">
         <div className="flex items-center gap-4">
            <div className="bg-indigo-600 p-2 rounded-xl text-white font-bold font-outfit text-sm">Continental Core</div>
-           <div className="h-6 w-px bg-slate-800"></div>
-           <div className="text-slate-500 text-[10px] font-black uppercase tracking-widest">
-              {new Date().toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' })} • {new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+           <div className="h-6 w-px bg-slate-800 hidden md:block"></div>
+           
+           {/* ВЫБОР ДАТЫ */}
+           <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 shadow-inner group transition-all hover:border-indigo-500/30">
+              <ICONS.Calendar size={14} className="text-slate-500 group-hover:text-indigo-400" />
+              <input 
+                type="date" 
+                className="bg-transparent text-[11px] font-black text-white outline-none uppercase tracking-widest cursor-pointer" 
+                value={selectedDate} 
+                onChange={(e) => setSelectedDate(e.target.value)} 
+              />
            </div>
+
            {state.tgChatId && (
              <div className="text-[10px] text-emerald-500 font-bold uppercase tracking-tighter bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 flex items-center gap-2">
                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
@@ -294,6 +315,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
              </div>
            )}
         </div>
+        
         <div className="flex gap-3">
            <button onClick={handleAddModel} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2">
               <ICONS.Plus size={14} /> Добавить анкету
@@ -353,7 +375,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                  </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                 {entries.map((entry, idx) => {
+                 {entriesForDate.map((entry, idx) => {
                     const rowPlan = (entry.night.goal || 0) + (entry.morning.goal || 0) + (entry.day.goal || 0) + (entry.evening.goal || 0);
                     const rowBalance = (entry.night.balance || 0) + (entry.morning.balance || 0) + (entry.day.balance || 0) + (entry.evening.balance || 0);
                     const rowRemaining = Math.max(0, rowPlan - rowBalance);
@@ -393,9 +415,9 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                              </React.Fragment>
                           ))}
 
-                          <td data-html2canvas-ignore className="p-3 text-center border-r border-slate-800/30 font-bold font-mono text-indigo-400 bg-indigo-500/5">{rowPlan}</td>
-                          <td data-html2canvas-ignore className={`p-3 text-center border-r border-slate-800/30 font-bold font-mono ${rowRemaining > 0 ? 'text-rose-400' : 'text-emerald-400'} bg-slate-950/30`}>{rowRemaining}</td>
-                          <td data-html2canvas-ignore className="p-3 text-center font-black font-mono text-emerald-400 bg-emerald-500/5 border-r border-slate-800">{rowBalance}</td>
+                          <td data-html2canvas-ignore className="p-3 text-center border-r border-slate-800/30 font-bold font-mono text-indigo-400 bg-indigo-500/5">{rowPlan.toFixed(0)}</td>
+                          <td data-html2canvas-ignore className={`p-3 text-center border-r border-slate-800/30 font-bold font-mono ${rowRemaining > 0 ? 'text-rose-400' : 'text-emerald-400'} bg-slate-950/30`}>{rowRemaining.toFixed(0)}</td>
+                          <td data-html2canvas-ignore className="p-3 text-center font-black font-mono text-emerald-400 bg-emerald-500/5 border-r border-slate-800">{rowBalance.toFixed(0)}</td>
                           <td data-html2canvas-ignore className="p-3 text-center">
                              <button onClick={() => handleRemoveModel(entry.id)} className="text-slate-600 hover:text-rose-500 transition-colors">
                                 <ICONS.Trash size={16} />
@@ -413,9 +435,9 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                           <td className={`p-4 text-center border-r border-slate-800 text-slate-200 font-mono font-black ${s.cellColor}`}>{totals[s.key].goal.toFixed(0)}</td>
                        </React.Fragment>
                     ))}
-                    <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-800/30 text-indigo-400 font-mono">{totals.overallPlan}</td>
-                    <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-800/30 text-rose-400 font-mono">{totals.overallRemaining}</td>
-                    <td data-html2canvas-ignore className="p-4 text-center text-emerald-400 font-mono border-r border-slate-800">{totals.overallBalance}</td>
+                    <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-800/30 text-indigo-400 font-mono">{totals.overallPlan.toFixed(0)}</td>
+                    <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-800/30 text-rose-400 font-mono">{totals.overallRemaining.toFixed(0)}</td>
+                    <td data-html2canvas-ignore className="p-4 text-center text-emerald-400 font-mono border-r border-slate-800">{totals.overallBalance.toFixed(0)}</td>
                     <td data-html2canvas-ignore className="p-4"></td>
                  </tr>
               </tbody>
@@ -441,20 +463,20 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
          <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500/30"></div>
          <div className="flex items-center gap-4 mb-6">
             <ICONS.Income className="text-indigo-400" />
-            <h2 className="text-xl font-black font-outfit text-white uppercase tracking-widest">Итоговая Сводка</h2>
+            <h2 className="text-xl font-black font-outfit text-white uppercase tracking-widest">Итоговая Сводка за {new Date(selectedDate).toLocaleDateString('ru-RU')}</h2>
          </div>
          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="text-center space-y-1">
                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Общий План</p>
-               <p className="text-4xl font-black text-white font-outfit">{totals.overallPlan}</p>
+               <p className="text-4xl font-black text-white font-outfit">{totals.overallPlan.toFixed(0)}</p>
             </div>
             <div className="text-center space-y-1">
                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Общий Баланс</p>
-               <p className="text-4xl font-black text-indigo-400 font-outfit">{totals.overallBalance}</p>
+               <p className="text-4xl font-black text-indigo-400 font-outfit">{totals.overallBalance.toFixed(0)}</p>
             </div>
             <div className="text-center space-y-1">
                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Осталось</p>
-               <p className="text-4xl font-black text-white font-outfit">{totals.overallRemaining}</p>
+               <p className="text-4xl font-black text-white font-outfit">{totals.overallRemaining.toFixed(0)}</p>
             </div>
             <div className="text-center space-y-1">
                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Выполнено</p>

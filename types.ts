@@ -1,5 +1,4 @@
 
-
 export type Platform = 'onlyFans' | 'paypal' | 'crypto';
 
 export interface AccountingPeriod {
@@ -127,7 +126,7 @@ export interface OwnerTask {
   status: TaskStatus;
   priority: TaskPriority;
   assignedTo: TaskAssignee;
-  isForAdmins?: boolean; // Флаг делегирования админам
+  isForAdmins?: boolean; 
   adminReport?: {
     text: string;
     links: string[];
@@ -146,7 +145,6 @@ export interface OwnerTask {
   periodId: string;
 }
 
-// Новые типы для ежедневной таблицы
 export interface ShiftData {
   balance: number;
   goal: number;
@@ -154,12 +152,12 @@ export interface ShiftData {
 
 export interface DailyTotalEntry {
   id: string;
+  date: string; // Новое поле для фильтрации по дням
   modelName: string;
   night: ShiftData;
   morning: ShiftData;
   day: ShiftData;
   evening: ShiftData;
-  // Fix: Add updatedAt and createdAt for TypeScript compliance and cloud sync
   updatedAt?: string;
   createdAt?: string;
 }
@@ -186,8 +184,8 @@ export interface AppState {
   modelBonuses: ModelBonus[];
   paidStatuses: PaidStatus[];
   ownerTasks?: OwnerTask[];
-  totalTableEntries?: DailyTotalEntry[]; // Записи ежедневной таблицы
-  tgChatId?: string; // ID чата для отчетов
+  totalTableEntries?: DailyTotalEntry[]; 
+  tgChatId?: string; 
   deletedIds: string[]; 
   syncUrl?: string;
   syncKey?: string;
