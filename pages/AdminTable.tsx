@@ -169,7 +169,7 @@ interface AdminTableProps {
 
 const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [currentAdmin] = useState<'Rector' | 'Mentor'>('Rector');
+  const [currentAdminRole, setCurrentAdminRole] = useState<'Mentor' | 'Rector' | 'Admins'>('Mentor');
 
   const [activeMode, setActiveMode] = useState<TaskType>('regular');
   const [secondaryFilter, setSecondaryFilter] = useState<'all' | 'critical' | 'process' | 'blocked'>('all');
@@ -184,7 +184,7 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
       ...p,
       ownerTasks: (p.ownerTasks || []).map(t => t.id === id ? { 
         ...t, status, 
-        auditLog: [...(t.auditLog || []), logAudit(`Status change to ${status}`, currentAdmin)], 
+        auditLog: [...(t.auditLog || []), logAudit(`Status change to ${status}`, currentAdminRole)], 
         updatedAt: new Date().toISOString() 
       } : t)
     }));
@@ -197,7 +197,7 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
         ...t, 
         status: isRecurring ? t.status : 'review', 
         lastCompletedAt: isRecurring ? new Date().toISOString() : t.lastCompletedAt,
-        auditLog: [...(t.auditLog || []), logAudit(isRecurring ? 'Regulation reset' : 'Submitted for review', currentAdmin)],
+        auditLog: [...(t.auditLog || []), logAudit(isRecurring ? 'Regulation reset' : 'Submitted for review', currentAdminRole)],
         updatedAt: new Date().toISOString() 
       } : t)
     }));
@@ -205,12 +205,12 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
 
   const addNote = (id: string, text: string) => {
     if (!text.trim()) return;
-    const note: TaskNote = { id: String(Date.now()), text, author: currentAdmin, createdAt: new Date().toISOString() };
+    const note: TaskNote = { id: String(Date.now()), text, author: currentAdminRole, createdAt: new Date().toISOString() };
     updateState(p => ({
       ...p,
       ownerTasks: (p.ownerTasks || []).map(t => t.id === id ? { 
         ...t, notes: [...(t.notes || []), note], 
-        auditLog: [...(t.auditLog || []), logAudit('Operational log added', currentAdmin)],
+        auditLog: [...(t.auditLog || []), logAudit('Operational log added', currentAdminRole)],
         updatedAt: new Date().toISOString() 
       } : t)
     }));
@@ -231,7 +231,19 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
         if ((status as string) === 'waiting') status = 'waiting_external';
       }
       return { ...t, taskType: type, status };
-    }).filter(t => t.assignedTo === 'Admins' || t.assignedTo === currentAdmin || t.assignedTo === 'All');
+    });
+
+    // Фильтрация по Роли Админа
+    // Mentor видит свои + общие админские + общие для всех
+    // Rector аналогично
+    // Admins (Общие) видит только те, что на обоих админов или весь состав
+    if (currentAdminRole === 'Mentor') {
+      list = list.filter(t => t.assignedTo === 'Mentor' || t.assignedTo === 'Admins' || t.assignedTo === 'All');
+    } else if (currentAdminRole === 'Rector') {
+      list = list.filter(t => t.assignedTo === 'Rector' || t.assignedTo === 'Admins' || t.assignedTo === 'All');
+    } else if (currentAdminRole === 'Admins') {
+      list = list.filter(t => t.assignedTo === 'Admins' || t.assignedTo === 'All');
+    }
 
     // Filter by Active Mode
     list = list.filter(t => t.taskType === activeMode);
@@ -242,7 +254,7 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
     if (secondaryFilter === 'blocked') list = list.filter(t => t.status === 'blocked');
 
     return list;
-  }, [state.ownerTasks, currentAdmin, activeMode, secondaryFilter]);
+  }, [state.ownerTasks, currentAdminRole, activeMode, secondaryFilter]);
 
   const emptyMessages = {
     directive: "Активные директивы отсутствуют. Операционный контроль в норме.",
@@ -259,6 +271,23 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
             <span className="text-[12px] font-black text-sky-500 uppercase tracking-[0.6em]">Management & Protocol</span>
           </div>
           <h1 className="text-5xl font-black font-outfit text-white tracking-tighter">ADMIN CENTER</h1>
+        </div>
+        
+        {/* ROLE SWITCHER */}
+        <div className="flex gap-2">
+          {[
+            { id: 'Rector', label: 'Admin Rector' },
+            { id: 'Mentor', label: 'Admin Mentor' },
+            { id: 'Admins', label: 'Общие' }
+          ].map(role => (
+            <button 
+              key={role.id} 
+              onClick={() => setCurrentAdminRole(role.id as any)} 
+              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${currentAdminRole === role.id ? 'bg-sky-600 text-white shadow-lg shadow-sky-600/20' : 'bg-slate-900 text-slate-500'}`}
+            >
+              {role.label}
+            </button>
+          ))}
         </div>
       </header>
 
@@ -277,7 +306,7 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
                 onClick={() => { setActiveMode(mode.id as TaskType); setSecondaryFilter('all'); }}
                 className={`group relative py-7 text-[13px] font-black uppercase tracking-[0.55em] transition-all duration-500 ${isActive ? `text-${mode.color}-400` : 'text-slate-600 hover:text-slate-400 hover:tracking-[0.65em]'}`}
               >
-                <span className={isActive ? 'drop-shadow-[0_0_20px_rgba(var(--tw-color-' + mode.color + '-400),0.7)]' : ''}>
+                <span className={isActive ? 'drop-shadow-[0_0_20px_rgba(var(--tw-color-' + mode.color + '-400),0.8)]' : ''}>
                   {mode.label}
                 </span>
                 {isActive && (

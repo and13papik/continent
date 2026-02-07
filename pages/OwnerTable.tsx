@@ -51,7 +51,7 @@ interface OwnerTableProps {
 const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
-  const [currentOwner, setCurrentOwner] = useState<'Andrey' | 'Anton'>('Andrey');
+  const [currentOwner, setCurrentOwner] = useState<'Andrey' | 'Anton' | 'Owners'>('Andrey');
 
   // Modes: directive, regular, recurring
   const [activeMode, setActiveMode] = useState<TaskType>('directive');
@@ -79,8 +79,8 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   };
 
   const ASSIGNEE_LABELS: Record<TaskAssignee, string> = {
-    Andrey: 'Андрей', Anton: 'Антон', Rector: 'Rector', Mentor: 'Mentor', 
-    Owners: 'Оба владельца', Admins: 'Оба админа', All: 'Весь состав'
+    Andrey: 'Андрей', Anton: 'Антон', Rector: 'Admin Rector', Mentor: 'Admin Mentor', 
+    Owners: 'Общее (Owners)', Admins: 'Общие (Admins)', All: 'Весь состав'
   };
 
   // Forms
@@ -198,8 +198,21 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   };
 
   const filteredTasks = useMemo(() => {
+    // Базовая фильтрация по типу
     let list = normalizedTasks.filter(t => t.taskType === activeMode);
     
+    // Фильтрация по владельцу
+    // Если выбран Андрей, показываем его задачи + Общие (Owners) + Весь состав
+    // Если выбран Антон, аналогично
+    // Если выбрано Общее, показываем задачи Owners + All
+    if (currentOwner === 'Andrey') {
+      list = list.filter(t => t.assignedTo === 'Andrey' || t.assignedTo === 'Owners' || t.assignedTo === 'All');
+    } else if (currentOwner === 'Anton') {
+      list = list.filter(t => t.assignedTo === 'Anton' || t.assignedTo === 'Owners' || t.assignedTo === 'All');
+    } else if (currentOwner === 'Owners') {
+      list = list.filter(t => t.assignedTo === 'Owners' || t.assignedTo === 'All');
+    }
+
     if (secondaryFilter === 'critical') list = list.filter(t => t.priority === 'urgent' || t.priority === 'high');
     if (secondaryFilter === 'process') list = list.filter(t => t.status === 'in_progress');
     if (secondaryFilter === 'blocked') list = list.filter(t => t.status === 'blocked');
@@ -211,15 +224,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
       const pComp = (prioOrder[a.priority] ?? 2) - (prioOrder[b.priority] ?? 2);
       return pComp !== 0 ? pComp : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [normalizedTasks, activeMode, secondaryFilter]);
-
-  const stats = useMemo(() => {
-    return {
-      directives: normalizedTasks.filter(t => t.taskType === 'directive' && t.status !== 'completed').length,
-      review: normalizedTasks.filter(t => t.status === 'review').length,
-      blocked: normalizedTasks.filter(t => t.status === 'blocked').length
-    };
-  }, [normalizedTasks]);
+  }, [normalizedTasks, activeMode, secondaryFilter, currentOwner]);
 
   const emptyMessages = {
     directive: "Нет активных директив. Стратегический контроль стабилен.",
@@ -260,8 +265,18 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
           <h1 className="text-4xl font-black font-outfit text-white tracking-tight">Core Control</h1>
         </div>
         <div className="flex gap-2">
-          {['Andrey', 'Anton'].map(owner => (
-            <button key={owner} onClick={() => setCurrentOwner(owner as any)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${currentOwner === owner ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20' : 'bg-slate-900 text-slate-500'}`}>{owner}</button>
+          {[
+            { id: 'Andrey', label: 'Андрей' },
+            { id: 'Anton', label: 'Антон' },
+            { id: 'Owners', label: 'Общее' }
+          ].map(owner => (
+            <button 
+              key={owner.id} 
+              onClick={() => setCurrentOwner(owner.id as any)} 
+              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${currentOwner === owner.id ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20' : 'bg-slate-900 text-slate-500'}`}
+            >
+              {owner.label}
+            </button>
           ))}
           <button onClick={() => setIsAuthenticated(false)} className="bg-slate-900 border border-slate-800 p-2 rounded-xl text-slate-500 hover:text-white transition-all"><ICONS.Lock size={18}/></button>
         </div>
@@ -282,7 +297,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
             >
               {mode.label}
               {activeMode === mode.id && (
-                <div className={`absolute -bottom-[17px] left-0 right-0 h-0.5 bg-${mode.color}-500 shadow-[0_0_10px_rgba(var(--tw-color-${mode.color}-500),0.8)] rounded-full animate-in fade-in slide-in-from-bottom-1`} />
+                <div className={`absolute -bottom-[17px] left-0 right-0 h-0.5 bg-${mode.color}-500 shadow-[0_0_10px_rgba(var(--tw-color-${mode.color}-500),0.5)] rounded-full animate-in fade-in slide-in-from-bottom-1`} />
               )}
             </button>
           ))}
@@ -400,6 +415,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                             <button onClick={() => quickAction(task.id, 'priority')} className="w-10 h-10 rounded-2xl flex items-center justify-center bg-slate-950 border border-slate-800 text-slate-600 hover:text-sky-400"><FlagIcon size={16} /></button>
                             <button onClick={() => quickAction(task.id, 'extend')} className="w-10 h-10 rounded-2xl flex items-center justify-center bg-slate-950 border border-slate-800 text-slate-600 hover:text-emerald-400"><CalendarIcon size={16} /></button>
                             <button onClick={() => startEditing(task)} className="w-10 h-10 rounded-2xl flex items-center justify-center bg-slate-950 border border-slate-800 text-slate-600 hover:text-white"><EditIcon size={16} /></button>
+                            {/* Fixed typo: changed id to task.id */}
                             <button onClick={() => { const n = new Set(expandedTasks); if(n.has(task.id)) n.delete(task.id); else n.add(task.id); setExpandedTasks(n); }} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${isEx ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-600'}`}><ICONS.Plus size={18} className={isEx ? 'rotate-45' : ''}/></button>
                          </div>
                          <select className="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-[8px] font-black text-slate-400 outline-none uppercase" value={task.status} onChange={(e) => updateState(p => ({...p, ownerTasks: (p.ownerTasks || []).map(t => t.id === task.id ? {...t, status: e.target.value as any, auditLog: [...(t.auditLog || []), logAudit(`Status to ${e.target.value}`, currentOwner)]} : t)}))}>

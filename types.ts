@@ -1,4 +1,5 @@
 
+
 export type Platform = 'onlyFans' | 'paypal' | 'crypto';
 
 export interface AccountingPeriod {
@@ -113,10 +114,13 @@ export type OwnerTag = 'CRITICAL' | 'MONEY' | 'SYSTEM' | 'CONTENT' | 'BLOCKER';
 export type TaskType = 'directive' | 'regular' | 'recurring';
 export type RecurrenceCycle = 'daily' | 'weekly' | 'monthly';
 
+// Fixed type compatibility by moving TaskAssignee up and using it for TaskNote author
+export type TaskAssignee = 'Andrey' | 'Anton' | 'Rector' | 'Mentor' | 'Owners' | 'Admins' | 'All';
+
 export interface TaskNote {
   id: string;
   text: string;
-  author: 'Andrey' | 'Anton' | 'Rector' | 'Mentor';
+  author: TaskAssignee;
   createdAt: string;
 }
 
@@ -127,8 +131,6 @@ export interface TaskAuditEntry {
   timestamp: string;
   details?: string;
 }
-
-export type TaskAssignee = 'Andrey' | 'Anton' | 'Rector' | 'Mentor' | 'Owners' | 'Admins' | 'All';
 
 export interface OwnerTask {
   id: string;
