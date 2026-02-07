@@ -258,6 +258,9 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         message += `\n\n🏆 *ОБЩИЙ ТОТАЛ СУТОК*: ${totals.overallBalance.toFixed(0)}$ / ${totals.overallPlan.toFixed(0)}$ (${totals.overallPlan > 0 ? Math.round(totals.overallBalance/totals.overallPlan*100) : 0}%)`;
       }
 
+      // Добавление отметок пользователей в конце отчета
+      message += `\n\n🔔 @continental_agency [Admin Mentor](tg://user?id=7475447497) [Admin Rector](tg://user?id=6537516111)`;
+
       const formData = new FormData();
       formData.append('chat_id', chatId);
       formData.append('photo', blob, 'report.png');
