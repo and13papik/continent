@@ -1,3 +1,4 @@
+
 // Added React import to fix 'Cannot find namespace React' errors
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -208,16 +209,18 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   /**
    * Продвинутая логика кнопки "Выплачено":
    * Автоматически создает операцию 'salary_payment' на сумму остатка.
+   * Исправлен баг синхронизации: теперь при снятии галочки ID добавляется в deletedIds.
    */
   const toggleOperatorPaid = (op: string, currentRemainder: number) => {
     updateState(prev => {
-      const exists = prev.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
+      const existingStatus = prev.paidStatuses.find(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
       
-      if (exists) {
-        // Если уже выплачено, просто снимаем статус (операции остаются для истории, либо их можно удалить вручную в Operations)
+      if (existingStatus) {
+        // Если уже выплачено, снимаем статус И добавляем ID в deletedIds для облачной синхронизации
         return { 
           ...prev, 
-          paidStatuses: prev.paidStatuses.filter(s => !(s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId)) 
+          deletedIds: [...(prev.deletedIds || []), existingStatus.id],
+          paidStatuses: prev.paidStatuses.filter(s => s.id !== existingStatus.id) 
         };
       } else {
         // Если меняем на "Выплачено":
