@@ -3,6 +3,9 @@ import React, { useState, useMemo } from 'react';
 import { AppState, OwnerTask, TaskPriority, TaskStatus, OwnerTag, TaskNote, TaskAssignee, TaskType, RecurrenceCycle, TaskAuditEntry } from '../types';
 import { ICONS } from '../constants';
 
+const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
+const DEFAULT_CHAT_ID = '-4748511729';
+
 // --- ПОМОЩНИКИ ---
 
 function StrategyInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void, placeholder?: string }) {
@@ -31,6 +34,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [currentOwner, setCurrentOwner] = useState<'Andrey' | 'Anton' | 'Owners'>('Andrey');
+  const [isSendingToTg, setIsSendingToTg] = useState<string | null>(null);
 
   const [activeMode, setActiveMode] = useState<TaskType>('directive');
   const [secondaryFilter, setSecondaryFilter] = useState<'all' | 'critical' | 'process' | 'review'>('all');
@@ -83,6 +87,52 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
     action, actor, timestamp: new Date().toISOString()
   });
+
+  const sendTaskToTelegram = async (task: OwnerTask) => {
+    setIsSendingToTg(task.id);
+    
+    // Определение кого тегать
+    let mentionTags = '';
+    if (task.assignedTo === 'Mentor') mentionTags = '[Admin Mentor](tg://user?id=7475447497)';
+    else if (task.assignedTo === 'Rector') mentionTags = '[Admin Rector](tg://user?id=6537516111)';
+    else if (task.assignedTo === 'Admins' || task.assignedTo === 'All') {
+      mentionTags = '[Admin Mentor](tg://user?id=7475447497) [Admin Rector](tg://user?id=6537516111)';
+    } else {
+      mentionTags = '@continental_agency';
+    }
+
+    const typeLabel = TYPE_META[task.taskType]?.label || 'ЗАДАЧА';
+    const prioLabel = PRIORITY_META[task.priority]?.label || 'СРЕДНИЙ';
+
+    let message = `🏛 *CONTINENTAL CORE: НОВОЕ ПОРУЧЕНИЕ*\n\n`;
+    message += `📋 *Задача:* ${task.title.toUpperCase()}\n`;
+    message += `🛡 *Тип:* ${typeLabel}\n`;
+    message += `🔥 *Приоритет:* ${prioLabel}\n\n`;
+    message += `📖 *Контекст:*\n${task.description || 'Нет описания'}\n\n`;
+    if (task.strategyData?.goal) {
+      message += `🎯 *Цель:* ${task.strategyData.goal}\n\n`;
+    }
+    message += `👤 *Исполнитель:* ${ASSIGNEE_LABELS[task.assignedTo]}\n`;
+    message += `🔔 ${mentionTags}`;
+
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: DEFAULT_CHAT_ID,
+          text: message,
+          parse_mode: 'Markdown'
+        })
+      });
+      if (res.ok) alert('Уведомление отправлено в Telegram');
+      else alert('Ошибка при отправке в TG');
+    } catch (e) {
+      alert('Сбой сети при отправке в TG');
+    } finally {
+      setIsSendingToTg(null);
+    }
+  };
 
   const saveTask = () => {
     if (!newTaskTitle.trim()) return;
@@ -138,18 +188,10 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
 
     list = list.filter(t => t.taskType === activeMode);
     
-    // ЛОГИКА ВИДИМОСТИ CORE TABLE:
-    // 1. Задачи, назначенные текущему владельцу (Андрей/Антон) или общему (Owners/All)
-    // 2. Все задачи, делегированные админам (чтобы владельцы могли контролировать прогресс)
-    // 3. ЗА ИСКЛЮЧЕНИЕМ: личных задач админов (admin-task), если они не переданы на проверку владельцу.
     list = list.filter(t => {
       const isForMe = t.assignedTo === currentOwner || t.assignedTo === 'Owners' || t.assignedTo === 'All';
       const isDelegatedToAdmin = t.assignedTo === 'Rector' || t.assignedTo === 'Mentor' || t.assignedTo === 'Admins';
-      
-      // Показываем делегированное админам, только если это не их "личные" админские задачи (начинаются на admin-task)
-      // Либо если задача в статусе 'review' (нужно проверить результат)
       const isVisibleDelegation = isDelegatedToAdmin && (!t.id.startsWith('admin-task') || t.status === 'review');
-      
       return isForMe || isVisibleDelegation;
     });
 
@@ -287,6 +329,13 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
 
                       <div className="flex flex-col items-end gap-3 shrink-0">
                          <div className="flex gap-2">
+                            <button 
+                               onClick={() => sendTaskToTelegram(task)} 
+                               disabled={isSendingToTg === task.id}
+                               className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all flex items-center gap-2 ${isSendingToTg === task.id ? 'bg-slate-800 text-slate-500 border-slate-700' : 'bg-sky-600/10 border-sky-600/30 text-sky-400 hover:bg-sky-600 hover:text-white shadow-lg'}`}
+                            >
+                               {isSendingToTg === task.id ? 'ОТПРАВКА...' : <>🚀 В ТЕЛЕГРАМ</>}
+                            </button>
                             <button onClick={() => startEditing(task)} className="w-10 h-10 rounded-2xl flex items-center justify-center bg-slate-950 border border-slate-800 text-slate-600 hover:text-white"><ICONS.Edit size={16}/></button>
                             <button onClick={() => { const n = new Set(expandedTasks); if(n.has(task.id)) n.delete(task.id); else n.add(task.id); setExpandedTasks(n); }} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${isEx ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-600'}`}><ICONS.Plus size={18} className={isEx ? 'rotate-45' : ''}/></button>
                          </div>

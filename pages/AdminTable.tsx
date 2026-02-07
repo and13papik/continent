@@ -3,6 +3,9 @@ import React, { useState, useMemo } from 'react';
 import { AppState, OwnerTask, TaskPriority, TaskStatus, TaskNote, TaskType, TaskAssignee, TaskAuditEntry } from '../types';
 import { ICONS } from '../constants';
 
+const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
+const DEFAULT_CHAT_ID = '-4748511729';
+
 // --- ПОМОЩНИКИ ---
 
 function StrategyInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void, placeholder?: string }) {
@@ -53,11 +56,51 @@ const TaskCard: React.FC<{
 }> = ({ task, isEx, currentRole, onToggle, onUpdateStatus, addNote }) => {
   const [noteVal, setNoteVal] = useState('');
   const [showNote, setShowNote] = useState(false);
+  const [isSendingToTg, setIsSendingToTg] = useState(false);
 
   const prio = PRIORITY_META[task.priority] || PRIORITY_META.medium;
   const stat = STATUS_META[task.status] || STATUS_META.in_progress;
   const isDirective = task.taskType === 'directive';
   const isCompleted = task.status === 'completed';
+
+  const sendTaskToTelegram = async () => {
+    setIsSendingToTg(true);
+    
+    // В Admin Table при делегировании на овнеров всегда тегаем @continental_agency
+    const mentionTag = (task.assignedTo === 'Andrey' || task.assignedTo === 'Anton' || task.assignedTo === 'Owners') 
+      ? '@continental_agency' 
+      : 'Администрация';
+
+    const prioLabel = PRIORITY_META[task.priority]?.label || 'СРЕДНИЙ';
+
+    let message = `🏛 *ADMIN UPDATE: ДЕЛЕГИРОВАНИЕ/ЗАДАЧА*\n\n`;
+    message += `📋 *Задача:* ${task.title.toUpperCase()}\n`;
+    message += `🔥 *Приоритет:* ${prioLabel}\n\n`;
+    message += `📖 *Описание:*\n${task.description || 'Нет описания'}\n\n`;
+    if (task.strategyData?.goal) {
+      message += `🎯 *Цель:* ${task.strategyData.goal}\n\n`;
+    }
+    message += `👤 *Исполнитель:* ${ASSIGNEE_LABELS[task.assignedTo]}\n`;
+    message += `🔔 ${mentionTag}`;
+
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: DEFAULT_CHAT_ID,
+          text: message,
+          parse_mode: 'Markdown'
+        })
+      });
+      if (res.ok) alert('Уведомление отправлено');
+      else alert('Ошибка Telegram API');
+    } catch (e) {
+      alert('Сбой сети');
+    } finally {
+      setIsSendingToTg(false);
+    }
+  };
 
   return (
     <div className={`glass-card rounded-[2.5rem] border transition-all duration-500 overflow-hidden ${isDirective ? 'border-amber-500/30 shadow-[0_0_60px_rgba(245,158,11,0.04)]' : 'border-slate-800/40'} ${isCompleted ? 'opacity-30 grayscale' : 'hover:border-slate-700/80'}`}>
@@ -90,6 +133,13 @@ const TaskCard: React.FC<{
 
           <div className="flex flex-col items-end justify-between gap-8 shrink-0">
              <div className="flex items-center gap-3">
+                 <button 
+                    onClick={sendTaskToTelegram} 
+                    disabled={isSendingToTg}
+                    className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all flex items-center gap-2 ${isSendingToTg ? 'bg-slate-800 text-slate-500' : 'bg-sky-600/10 border-sky-600/30 text-sky-400 hover:bg-sky-600 hover:text-white'}`}
+                 >
+                    {isSendingToTg ? 'ОТПРАВКА...' : <>🚀 В ТЕЛЕГРАМ</>}
+                 </button>
                  <div className="flex gap-1.5">
                     {['idea', 'in_progress', 'review', 'completed'].map(s => (
                       <button 
@@ -230,13 +280,9 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       return t;
     });
 
-    // Логика видимости для админов:
-    // 1. Задачи, назначенные лично админу (Rector/Mentor) или общие админские (Admins/All)
-    // 2. Задачи, которые этот админ делегировал овнерам (созданы им, но assignedTo = Owner)
     list = list.filter(t => {
       const isForMe = t.assignedTo === currentAdminRole || t.assignedTo === 'Admins' || t.assignedTo === 'All';
       const iDelegatedToOwner = t.id.startsWith('admin-task') && (t.assignedTo === 'Andrey' || t.assignedTo === 'Anton' || t.assignedTo === 'Owners');
-      
       return isForMe || iDelegatedToOwner;
     });
 
