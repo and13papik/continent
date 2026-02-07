@@ -140,9 +140,8 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     
     // ЛОГИКА ВИДИМОСТИ CORE TABLE:
     // 1. Задачи, назначенные текущему владельцу (Андрей/Антон) или общему (Owners/All)
-    // 2. Задачи, назначенные админам (Rector/Mentor/Admins), если они НЕ были созданы админами для самих себя 
-    //    (т.е. Директивы и задачи от овнеров всегда видны овнерам)
-    // 3. Задачи, которые админы специально делегировали овнерам (созданы админом, но assignedTo = Owner)
+    // 2. Все задачи, делегированные админам (чтобы владельцы могли контролировать прогресс)
+    // 3. ЗА ИСКЛЮЧЕНИЕМ: личных задач админов (admin-task), если они не переданы на проверку владельцу.
     list = list.filter(t => {
       const isForMe = t.assignedTo === currentOwner || t.assignedTo === 'Owners' || t.assignedTo === 'All';
       const isDelegatedToAdmin = t.assignedTo === 'Rector' || t.assignedTo === 'Mentor' || t.assignedTo === 'Admins';
