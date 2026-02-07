@@ -154,40 +154,6 @@ const TaskCard: React.FC<{
                    </div>
                 </div>
              )}
-
-             {/* TIMELINE SECTION */}
-             <div className="pt-10 border-t border-slate-900/50">
-                <label className="text-[11px] font-black text-slate-800 uppercase tracking-[0.5em] block mb-10 text-center">System Execution History</label>
-                <div className="relative group/timeline">
-                   {/* Fade indicators */}
-                   <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-slate-950 to-transparent z-10 pointer-events-none opacity-0 group-hover/timeline:opacity-100 transition-opacity" />
-                   <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-slate-950 to-transparent z-10 pointer-events-none opacity-0 group-hover/timeline:opacity-100 transition-opacity" />
-                   
-                   <div className="flex items-center justify-center gap-4 overflow-x-auto no-scrollbar pb-6 px-8">
-                      {(task.auditLog || []).slice(-8).map((log, idx, arr) => {
-                          const isLast = idx === arr.length - 1;
-                          const progress = (idx + 1) / arr.length;
-                          const opacity = 0.1 + (progress * 0.9);
-                          
-                          return (
-                            <React.Fragment key={log.id}>
-                              <div 
-                                className={`flex flex-col items-center gap-4 shrink-0 px-6 py-5 rounded-3xl border transition-all duration-700 group/item ${isLast ? 'bg-indigo-500/10 border-indigo-500/50 scale-110 shadow-2xl' : 'border-transparent hover:bg-slate-900/40'}`}
-                                style={{ opacity: isLast ? 1 : opacity }}
-                              >
-                                 <div className={`w-3 h-3 rounded-full transition-all duration-500 ${isLast ? 'bg-indigo-500 shadow-[0_0_20px_rgba(99,102,241,1)]' : 'bg-slate-800 group-hover/item:bg-slate-600'}`} />
-                                 <div className="text-center">
-                                    <p className="text-[9px] font-black text-white uppercase tracking-tighter mb-1 leading-none">{log.action.replace('Status change to', '→').replace('Operational log added', 'REC')}</p>
-                                    <p className="text-[8px] text-slate-600 uppercase font-black tracking-[0.15em]">{new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
-                                 </div>
-                              </div>
-                              {!isLast && <div className="h-[1px] w-8 bg-slate-900/40 shrink-0" />}
-                            </React.Fragment>
-                          );
-                      })}
-                   </div>
-                </div>
-             </div>
           </div>
        )}
     </div>
@@ -311,7 +277,7 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
                 onClick={() => { setActiveMode(mode.id as TaskType); setSecondaryFilter('all'); }}
                 className={`group relative py-7 text-[13px] font-black uppercase tracking-[0.55em] transition-all duration-500 ${isActive ? `text-${mode.color}-400` : 'text-slate-600 hover:text-slate-400 hover:tracking-[0.65em]'}`}
               >
-                <span className={isActive ? 'drop-shadow-[0_0_20px_rgba(var(--tw-color-' + mode.color + '-400),0.8)]' : ''}>
+                <span className={isActive ? 'drop-shadow-[0_0_20px_rgba(var(--tw-color-' + mode.color + '-400),0.7)]' : ''}>
                   {mode.label}
                 </span>
                 {isActive && (
