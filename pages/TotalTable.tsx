@@ -3,6 +3,7 @@ import { AppState, DailyTotalEntry, ShiftData } from '../types';
 import { ICONS } from '../constants';
 
 const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
+// Установлен новый ID группы по умолчанию
 const DEFAULT_CHAT_ID = '-4748511729';
 
 const SHIFTS = [
@@ -102,7 +103,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       day: { balance: undefined as any, goal: 60 },
       evening: { balance: undefined as any, goal: 60 }
     };
-    // Fixed state update: use spread operator to correctly copy the previous state properties.
     updateState(prev => ({
       ...prev,
       totalTableEntries: [...(prev.totalTableEntries || []), newEntry]
@@ -153,8 +153,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   }, [entriesForDate]);
 
   const sendTelegramReport = async (shiftKey: 'night' | 'morning' | 'day' | 'evening') => {
-    // Используем запрошенный ID группы по умолчанию
-    const chatId = state.tgChatId || DEFAULT_CHAT_ID;
+    // Принудительно используем новый ID, игнорируя старые настройки в state
+    const chatId = DEFAULT_CHAT_ID;
     
     const shiftInfo = SHIFTS.find(s => s.key === shiftKey)!;
     setIsSending(shiftKey);
@@ -305,12 +305,10 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
               />
            </div>
 
-           {(state.tgChatId || DEFAULT_CHAT_ID) && (
-             <div className="text-[10px] text-emerald-500 font-bold uppercase tracking-tighter bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 flex items-center gap-2">
-               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-               TG: {state.tgChatId || DEFAULT_CHAT_ID}
-             </div>
-           )}
+           <div className="text-[10px] text-emerald-500 font-bold uppercase tracking-tighter bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 flex items-center gap-2">
+             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+             TG: {DEFAULT_CHAT_ID}
+           </div>
         </div>
         
         <div className="flex gap-3">
