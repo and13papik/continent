@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { AppState, OwnerTask, TaskPriority, TaskStatus, TaskNote, TaskType, TaskAssignee, TaskAuditEntry } from '../types';
 import { ICONS } from '../constants';
 
-// --- HELPERS ---
+// --- ПОМОЩНИКИ ---
 
 const PRIORITY_META: Record<TaskPriority, { label: string; color: string; bg: string }> = {
   urgent: { label: 'КРИТИЧЕСКИ', color: 'text-rose-500', bg: 'bg-rose-500/10' },
@@ -23,10 +23,10 @@ const STATUS_META: Record<TaskStatus, { label: string; color: string; step: numb
 
 const ASSIGNEE_LABELS: Record<TaskAssignee, string> = {
   Andrey: 'Андрей', Anton: 'Антон', Rector: 'Admin Rector', Mentor: 'Admin Mentor', 
-  Owners: 'Владельцы (Общее)', Admins: 'Админы (Общие)', All: 'Все'
+  Owners: 'Владельцы (Общее)', Admins: 'Админы (Общие)', All: 'Весь состав'
 };
 
-// --- TASK CARD ---
+// --- КАРТОЧКА ЗАДАЧИ ---
 
 const TaskCard: React.FC<{ 
   task: OwnerTask; 
@@ -52,7 +52,7 @@ const TaskCard: React.FC<{
                 <span className={`px-2.5 py-0.5 rounded-[4px] text-[8px] font-black tracking-[0.15em] ${prio.bg} ${prio.color}`}>{prio.label}</span>
                 {isDirective && (
                   <span className="text-[8px] bg-amber-500 text-slate-950 px-2.5 py-0.5 rounded-[4px] font-black uppercase flex items-center gap-1.5 shadow-[0_0_20px_rgba(245,158,11,0.3)]">
-                    <ICONS.Crown size={10}/> DIRECTIVE
+                    <ICONS.Crown size={10}/> ДИРЕКТИВА
                   </span>
                 )}
                 <span className="text-[8px] text-slate-500 border border-slate-800/60 px-2.5 py-0.5 rounded-[4px] font-black uppercase tracking-widest">👤 {ASSIGNEE_LABELS[task.assignedTo]}</span>
@@ -100,20 +100,20 @@ const TaskCard: React.FC<{
           <div className="bg-slate-950/60 border-t border-slate-900/50 p-12 space-y-12 animate-in slide-in-from-top-4 duration-500">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
                 <div className="space-y-5">
-                   <label className="text-[11px] font-black text-slate-700 uppercase tracking-[0.4em] block">Operational Context</label>
+                   <label className="text-[11px] font-black text-slate-700 uppercase tracking-[0.4em] block">Контекст выполнения</label>
                    <div className="text-[14px] text-slate-300 leading-relaxed font-medium bg-slate-900/20 p-8 rounded-[2.5rem] border border-slate-800/30">
                       {task.description || 'Описание отсутствует.'}
                       <div className="mt-4 pt-4 border-t border-slate-800/50">
-                         <span className="text-amber-500 text-[10px] font-bold uppercase">Main Goal: {task.strategyData?.goal || 'Не задана'}</span>
+                         <span className="text-amber-500 text-[10px] font-bold uppercase">Основная цель: {task.strategyData?.goal || 'Не задана'}</span>
                       </div>
                    </div>
                 </div>
                 
                 <div className="space-y-6">
                   <div className="flex justify-between items-center border-b border-slate-900/50 pb-4">
-                    <label className="text-[11px] font-black text-slate-700 uppercase tracking-[0.4em]">Protocol Log</label>
+                    <label className="text-[11px] font-black text-slate-700 uppercase tracking-[0.4em]">Журнал протокола</label>
                     <button onClick={() => setShowNote(!showNote)} className="text-[10px] font-black text-sky-500 hover:text-sky-400 flex items-center gap-2">
-                      <ICONS.Plus size={12} /> ADD ENTRY
+                      <ICONS.Plus size={12} /> ДОБАВИТЬ ЗАПИСЬ
                     </button>
                   </div>
                   <div className="space-y-3.5 max-h-[220px] overflow-y-auto pr-4 custom-scrollbar">
@@ -129,10 +129,10 @@ const TaskCard: React.FC<{
 
              {showNote && (
                 <div className="bg-slate-900/40 p-10 rounded-[3rem] border border-sky-500/10 space-y-6 animate-in zoom-in-95">
-                   <textarea className="w-full bg-transparent border-none outline-none text-sm text-white min-h-[100px] placeholder:text-slate-800 font-medium" placeholder="Update progress..." value={noteVal} onChange={e => setNoteVal(e.target.value)} autoFocus />
+                   <textarea className="w-full bg-transparent border-none outline-none text-sm text-white min-h-[100px] placeholder:text-slate-800 font-medium" placeholder="Обновите прогресс..." value={noteVal} onChange={e => setNoteVal(e.target.value)} autoFocus />
                    <div className="flex justify-end gap-5">
-                      <button onClick={() => { setNoteVal(''); setShowNote(false); }} className="text-[11px] text-slate-600 uppercase font-black">Cancel</button>
-                      <button onClick={() => { addNote(task.id, noteVal); setNoteVal(''); setShowNote(false); }} className="bg-sky-600 px-10 py-3 rounded-2xl text-[11px] font-black text-white uppercase tracking-widest shadow-xl">Submit Record</button>
+                      <button onClick={() => { setNoteVal(''); setShowNote(false); }} className="text-[11px] text-slate-600 uppercase font-black">Отмена</button>
+                      <button onClick={() => { addNote(task.id, noteVal); setNoteVal(''); setShowNote(false); }} className="bg-sky-600 px-10 py-3 rounded-2xl text-[11px] font-black text-white uppercase tracking-widest shadow-xl">Сохранить</button>
                    </div>
                 </div>
              )}
@@ -142,7 +142,7 @@ const TaskCard: React.FC<{
   );
 };
 
-// --- ADMIN TABLE MAIN ---
+// --- ОСНОВНОЙ ЭКРАН ADMIN TABLE ---
 
 const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppState) => AppState) => void }> = ({ state, updateState }) => {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -150,10 +150,11 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   const [activeMode, setActiveMode] = useState<TaskType>('regular');
   const [secondaryFilter, setSecondaryFilter] = useState<'all' | 'critical' | 'process' | 'review'>('all');
 
-  // Форма обратного делегирования
+  // Форма создания/делегирования
   const [isCreating, setIsCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  const [newTo, setNewTo] = useState<TaskAssignee>('Andrey');
+  const [newTo, setNewTo] = useState<TaskAssignee>('Mentor');
+  const [newPrio, setNewPrio] = useState<TaskPriority>('medium');
 
   const logAudit = (action: string, actor: string): TaskAuditEntry => ({
     id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -165,7 +166,7 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       ...p,
       ownerTasks: (p.ownerTasks || []).map(t => t.id === id ? { 
         ...t, status, 
-        auditLog: [...(t.auditLog || []), logAudit(`Admin updated status to ${status}`, currentAdminRole)], 
+        auditLog: [...(t.auditLog || []), logAudit(`Статус изменен на ${status}`, currentAdminRole)], 
         updatedAt: new Date().toISOString() 
       } : t)
     }));
@@ -178,19 +179,19 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       ...p,
       ownerTasks: (p.ownerTasks || []).map(t => t.id === id ? { 
         ...t, notes: [...(t.notes || []), note], 
-        auditLog: [...(t.auditLog || []), logAudit('Operational log added', currentAdminRole)],
+        auditLog: [...(t.auditLog || []), logAudit('Добавлена запись в протокол', currentAdminRole)],
         updatedAt: new Date().toISOString() 
       } : t)
     }));
   };
 
-  const createTaskForOwner = () => {
+  const createAdminTask = () => {
     if (!newTitle.trim()) return;
     const task: OwnerTask = {
         id: `admin-task-${Date.now()}`,
-        title: newTitle, description: 'Delegated from Admin Console', status: 'idea',
-        priority: 'medium', taskType: 'regular', assignedTo: newTo,
-        tags: [], notes: [], auditLog: [logAudit('Delegated by Admin', currentAdminRole)],
+        title: newTitle, description: 'Инициировано из панели администратора', status: 'idea',
+        priority: newPrio, taskType: 'regular', assignedTo: newTo,
+        tags: [], notes: [], auditLog: [logAudit('Задача создана админом', currentAdminRole)],
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         periodId: state.selectedPeriodId
     };
@@ -204,7 +205,7 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       return t;
     });
 
-    // Фильтр по Роли
+    // Логика видимости для админов
     if (currentAdminRole === 'Mentor') {
       list = list.filter(t => t.assignedTo === 'Mentor' || t.assignedTo === 'Admins' || t.assignedTo === 'All');
     } else if (currentAdminRole === 'Rector') {
@@ -228,52 +229,84 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         <div className="space-y-5">
           <div className="flex items-center gap-4">
             <div className="w-2.5 h-2.5 rounded-full bg-sky-500 shadow-[0_0_15px_rgba(14,165,233,0.7)] animate-pulse"></div>
-            <span className="text-[12px] font-black text-sky-500 uppercase tracking-[0.6em]">Admin Operations Hub</span>
+            <span className="text-[12px] font-black text-sky-500 uppercase tracking-[0.6em]">Узел администрирования</span>
           </div>
-          <h1 className="text-5xl font-black font-outfit text-white tracking-tighter">ADMIN CENTER</h1>
+          <h1 className="text-5xl font-black font-outfit text-white tracking-tighter">ЦЕНТР АДМИНОВ</h1>
         </div>
         
         <div className="flex flex-col items-end gap-4">
           <div className="flex gap-2">
             {['Rector', 'Mentor', 'Admins'].map(role => (
-              <button key={role} onClick={() => setCurrentAdminRole(role as any)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${currentAdminRole === role ? 'bg-sky-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>
+              <button key={role} onClick={() => { setCurrentAdminRole(role as any); setNewTo(role as any); }} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${currentAdminRole === role ? 'bg-sky-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>
                 {ASSIGNEE_LABELS[role as TaskAssignee]}
               </button>
             ))}
           </div>
-          <button onClick={() => setIsCreating(!isCreating)} className="flex items-center gap-2 text-sky-500 font-black text-[10px] uppercase tracking-widest hover:text-white transition-all">
-             <ICONS.Plus size={14} className={isCreating ? 'rotate-45' : ''}/> {isCreating ? 'Close Form' : 'Delegate to Owners'}
-          </button>
+          {activeMode === 'regular' && (
+            <button onClick={() => setIsCreating(!isCreating)} className="flex items-center gap-2 text-sky-500 font-black text-[10px] uppercase tracking-widest hover:text-white transition-all">
+               <ICONS.Plus size={14} className={isCreating ? 'rotate-45' : ''}/> {isCreating ? 'Закрыть форму' : 'Создать задачу / Делегировать'}
+            </button>
+          )}
         </div>
       </header>
 
-      {isCreating && (
-        <div className="glass-card p-10 rounded-[3rem] border-sky-500/20 bg-sky-500/5 space-y-6 animate-in slide-in-from-top-4">
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <input className="md:col-span-2 bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-white font-bold outline-none" placeholder="Task for owners..." value={newTitle} onChange={e => setNewTitle(e.target.value)} />
-              <div className="flex gap-2">
-                 <button onClick={() => setNewTo('Andrey')} className={`flex-1 rounded-xl text-[10px] font-black uppercase border transition-all ${newTo === 'Andrey' ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-500'}`}>Андрей</button>
-                 <button onClick={() => setNewTo('Anton')} className={`flex-1 rounded-xl text-[10px] font-black uppercase border transition-all ${newTo === 'Anton' ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-500'}`}>Антон</button>
-                 <button onClick={createTaskForOwner} className="bg-sky-600 text-white p-4 rounded-2xl hover:bg-sky-500 transition-all"><ICONS.Plus size={24}/></button>
+      {isCreating && activeMode === 'regular' && (
+        <div className="glass-card p-10 rounded-[3rem] border-sky-500/20 bg-sky-500/5 space-y-8 animate-in slide-in-from-top-4">
+           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              <div className="lg:col-span-2">
+                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Название задачи</label>
+                 <input className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-white font-bold outline-none focus:border-sky-500/50" placeholder="Что нужно сделать?.." value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+              </div>
+              <div>
+                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Кому назначить</label>
+                 <select className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-4 text-xs text-white font-bold outline-none" value={newTo} onChange={e => setNewTo(e.target.value as any)}>
+                    <optgroup label="Админы">
+                       <option value="Rector">Себе (Rector)</option>
+                       <option value="Mentor">Себе (Mentor)</option>
+                       <option value="Admins">Админы (Общие)</option>
+                    </optgroup>
+                    <optgroup label="Владельцы">
+                       <option value="Andrey">Андрею</option>
+                       <option value="Anton">Антону</option>
+                       <option value="Owners">Владельцам (Общее)</option>
+                    </optgroup>
+                    <option value="All">Весь состав</option>
+                 </select>
+              </div>
+              <div>
+                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Приоритет</label>
+                 <select className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-4 text-xs text-white font-bold outline-none" value={newPrio} onChange={e => setNewPrio(e.target.value as any)}>
+                    {Object.entries(PRIORITY_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                 </select>
               </div>
            </div>
+           <button onClick={createAdminTask} className="w-full bg-sky-600 hover:bg-sky-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-sky-600/20 transition-all uppercase tracking-widest text-xs">Подтвердить и опубликовать</button>
         </div>
       )}
 
       <div className="space-y-12">
         <div className="flex gap-16 items-center px-6 border-b border-slate-900/30">
-          {['directive', 'regular', 'recurring'].map((mode) => (
-            <button key={mode} onClick={() => { setActiveMode(mode as any); setSecondaryFilter('all'); }} className={`group relative py-7 text-[13px] font-black uppercase tracking-[0.55em] transition-all duration-500 ${activeMode === mode ? `text-sky-400` : 'text-slate-600 hover:text-slate-400'}`}>
-              {mode.toUpperCase()}
-              {activeMode === mode && <div className={`absolute -bottom-0.5 left-0 right-0 h-[5px] bg-sky-500 shadow-[0_0_30px_rgba(14,165,233,1)] rounded-full`} />}
+          {[
+            { id: 'directive', label: 'ДИРЕКТИВЫ' },
+            { id: 'regular', label: 'ЗАДАЧИ' },
+            { id: 'recurring', label: 'РЕГЛАМЕНТ' }
+          ].map((mode) => (
+            <button key={mode.id} onClick={() => { setActiveMode(mode.id as any); setSecondaryFilter('all'); }} className={`group relative py-7 text-[13px] font-black uppercase tracking-[0.55em] transition-all duration-500 ${activeMode === mode.id ? `text-sky-400` : 'text-slate-600 hover:text-slate-400'}`}>
+              {mode.label}
+              {activeMode === mode.id && <div className={`absolute -bottom-0.5 left-0 right-0 h-[5px] bg-sky-500 shadow-[0_0_30px_rgba(14,165,233,1)] rounded-full`} />}
             </button>
           ))}
         </div>
         <div className="flex gap-12 px-10 items-center overflow-x-auto no-scrollbar">
-           {['all', 'critical', 'process', 'review'].map(f => (
-             <button key={f} onClick={() => setSecondaryFilter(f as any)} className={`group relative flex items-center gap-3.5 text-[11px] font-black uppercase tracking-[0.2em] transition-all ${secondaryFilter === f ? 'text-white' : 'text-slate-700 hover:text-slate-500'}`}>
-               {f.toUpperCase()}
-               {secondaryFilter === f && <div className={`absolute bottom-[-14px] left-0 right-0 h-[3px] bg-sky-500`} />}
+           {[
+             { id: 'all', label: 'ВСЕ' },
+             { id: 'critical', label: 'КРИТИЧЕСКИЕ' },
+             { id: 'process', label: 'В ПРОЦЕССЕ' },
+             { id: 'review', label: 'НА ПРОВЕРКЕ' }
+           ].map(f => (
+             <button key={f.id} onClick={() => setSecondaryFilter(f.id as any)} className={`group relative flex items-center gap-3.5 text-[11px] font-black uppercase tracking-[0.2em] transition-all ${secondaryFilter === f.id ? 'text-white' : 'text-slate-700 hover:text-slate-500'}`}>
+               {f.label}
+               {secondaryFilter === f.id && <div className={`absolute bottom-[-14px] left-0 right-0 h-[3px] bg-sky-500`} />}
              </button>
            ))}
         </div>
@@ -283,7 +316,7 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         {allTasks.length === 0 ? (
           <div className="py-60 text-center flex flex-col items-center gap-10">
              <div className="w-28 h-28 rounded-[3.5rem] bg-slate-900/20 border border-slate-800/40 flex items-center justify-center text-slate-800"><ICONS.Dashboard size={48} className="opacity-30" /></div>
-             <p className="max-w-md text-base font-bold text-slate-700 leading-relaxed tracking-[0.3em] uppercase text-[12px]">All clear in this sector.</p>
+             <p className="max-w-md text-base font-bold text-slate-700 leading-relaxed tracking-[0.3em] uppercase text-[12px]">В данном секторе задачи отсутствуют.</p>
           </div>
         ) : allTasks.map(t => (
           <TaskCard 
