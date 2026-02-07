@@ -127,6 +127,7 @@ export interface OwnerTask {
   priority: TaskPriority;
   assignedTo: TaskAssignee;
   isForAdmins?: boolean; 
+  isRoutine?: boolean;
   adminReport?: {
     text: string;
     links: string[];

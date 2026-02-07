@@ -107,7 +107,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   // Состояние редактирования
   const [editingTask, setEditingTask] = useState<OwnerTask | null>(null);
 
-  // Форма (используется и для создания, и для редактирования в модальном окне)
+  // Форма
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState<TaskPriority>('medium');
@@ -119,6 +119,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   const [newTaskReason, setNewTaskReason] = useState('');
   const [newTaskEffect, setNewTaskEffect] = useState('');
   const [newTaskForAdmins, setNewTaskForAdmins] = useState(false);
+  const [newTaskIsRoutine, setNewTaskIsRoutine] = useState(false);
 
   // Фильтры
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'all'>('all');
@@ -159,7 +160,6 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     if (!newTaskTitle.trim()) return;
 
     if (editingTask) {
-        // Логика обновления
         updateState(prev => ({
             ...prev,
             ownerTasks: (prev.ownerTasks || []).map(t => t.id === editingTask.id ? {
@@ -169,6 +169,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                 priority: newTaskPriority,
                 assignedTo: newTaskAssigned,
                 isForAdmins: newTaskForAdmins,
+                isRoutine: newTaskIsRoutine,
                 dueDate: newTaskDueDate || undefined,
                 tags: newTaskTags,
                 strategyData: {
@@ -182,7 +183,6 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
         }));
         setEditingTask(null);
     } else {
-        // Логика добавления
         const task: OwnerTask = {
             id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
             title: newTaskTitle,
@@ -191,6 +191,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
             priority: newTaskPriority,
             assignedTo: newTaskAssigned,
             isForAdmins: newTaskForAdmins,
+            isRoutine: newTaskIsRoutine,
             dueDate: newTaskDueDate || undefined,
             tags: newTaskTags,
             strategyData: {
@@ -207,10 +208,9 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
         updateState(prev => ({ ...prev, ownerTasks: [task, ...(prev.ownerTasks || [])] }));
     }
 
-    // Сброс полей
     setNewTaskTitle(''); setNewTaskDesc(''); setNewTaskModel(''); setNewTaskTags([]);
     setNewTaskGoal(''); setNewTaskReason(''); setNewTaskEffect(''); setNewTaskDueDate('');
-    setNewTaskForAdmins(false);
+    setNewTaskForAdmins(false); setNewTaskIsRoutine(false);
   };
 
   const startEditing = (task: OwnerTask) => {
@@ -226,6 +226,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     setNewTaskReason(task.strategyData?.reason || '');
     setNewTaskEffect(task.strategyData?.effect || '');
     setNewTaskForAdmins(!!task.isForAdmins);
+    setNewTaskIsRoutine(!!task.isRoutine);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -233,7 +234,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     setEditingTask(null);
     setNewTaskTitle(''); setNewTaskDesc(''); setNewTaskModel(''); setNewTaskTags([]);
     setNewTaskGoal(''); setNewTaskReason(''); setNewTaskEffect(''); setNewTaskDueDate('');
-    setNewTaskForAdmins(false);
+    setNewTaskForAdmins(false); setNewTaskIsRoutine(false);
   };
 
   const updateTaskStatus = (id: string, status: TaskStatus) => {
@@ -305,10 +306,11 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   const CrownIcon = ICONS.Crown || 'span';
   const GraduationIcon = ICONS.Internship || 'span';
   const EditIcon = ICONS.Edit || 'span';
+  const RotateCcwIcon = ICONS.RotateCcw || 'span';
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center animate-in fade-in zoom-in duration-500">
+      <div className="min-h-[60vh] flex items-center justify-center animate-in fade-in zoom-in duration-300">
         <div className="glass-card p-12 rounded-[40px] w-full max-w-md border-amber-500/10 shadow-2xl text-center bg-slate-950/50">
             <div className="w-20 h-20 bg-amber-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-amber-500/20">
               <CrownIcon size={40} className="text-amber-500" />
@@ -374,12 +376,12 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
-        {/* NEW DIRECTIVE FORM (LEFT COLUMN) */}
+        {/* NEW DIRECTIVE FORM */}
         <div className="lg:col-span-4 space-y-6">
            <div className={`glass-card p-8 rounded-[32px] border shadow-xl space-y-6 bg-slate-900/20 transition-all ${editingTask ? 'border-amber-500/50 shadow-amber-500/10' : 'border-slate-800'}`}>
               <div className="space-y-1">
                  <h2 className="text-xl font-black font-outfit text-white">{editingTask ? 'Редактировать Директиву' : 'Новая Директива'}</h2>
-                 <p className="text-[10px] text-slate-600 uppercase font-black tracking-widest">{editingTask ? 'Внесение корректировок' : 'Проектирование будущего'}</p>
+                 <p className="text-[10px] text-slate-600 uppercase font-black tracking-widest">Проектирование будущего</p>
               </div>
               
               <div className="space-y-5">
@@ -393,14 +395,14 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                     />
                     <textarea 
                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-white text-xs outline-none focus:border-indigo-500/50 transition-all min-h-[70px] placeholder:text-slate-800" 
-                       placeholder="Краткая суть директивы..." 
+                       placeholder="Краткая суть..." 
                        value={newTaskDesc} 
                        onChange={e => setNewTaskDesc(e.target.value)} 
                     />
                  </div>
 
                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Дедлайн выполнения</label>
+                    <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Дедлайн</label>
                     <input 
                        type="date" 
                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-[11px] text-indigo-400 font-black outline-none"
@@ -409,19 +411,32 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                     />
                  </div>
 
-                 <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-                    <div className="space-y-0.5">
-                       <p className="text-[10px] font-black text-sky-400 uppercase tracking-widest">Делегировать Админам</p>
-                       <p className="text-[8px] text-slate-500">Задача появится в Admin Table</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" checked={newTaskForAdmins} onChange={e => setNewTaskForAdmins(e.target.checked)} />
-                      <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600"></div>
-                    </label>
+                 <div className="grid grid-cols-1 gap-3">
+                   <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                      <div className="space-y-0.5">
+                         <p className="text-[10px] font-black text-sky-400 uppercase tracking-widest">Для Админов</p>
+                         <p className="text-[8px] text-slate-500">Появится в Admin Table</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" className="sr-only peer" checked={newTaskForAdmins} onChange={e => setNewTaskForAdmins(e.target.checked)} />
+                        <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600"></div>
+                      </label>
+                   </div>
+                   
+                   <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                      <div className="space-y-0.5">
+                         <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Постоянная задача</p>
+                         <p className="text-[8px] text-slate-500">Будет в блоке "Регламент"</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" className="sr-only peer" checked={newTaskIsRoutine} onChange={e => setNewTaskIsRoutine(e.target.checked)} />
+                        <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                      </label>
+                   </div>
                  </div>
 
                  <div className="space-y-3">
-                    <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Метки воздействия</label>
+                    <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Метки</label>
                     <div className="flex flex-wrap gap-2">
                        {(Object.keys(TAG_META) as OwnerTag[]).map(t => (
                          <button 
@@ -435,27 +450,27 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                     </div>
                  </div>
 
-                 <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Ответственный</label>
-                    <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-[10px] text-white font-bold outline-none" value={newTaskAssigned} onChange={e => setNewTaskAssigned(e.target.value as any)}>
-                       {Object.entries(ASSIGNEE_LABELS).map(([val, lab]) => <option key={val} value={val}>{lab}</option>)}
-                    </select>
-                 </div>
-
-                 <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Приоритет</label>
-                    <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-[10px] text-white font-bold outline-none" value={newTaskPriority} onChange={e => setNewTaskPriority(e.target.value as any)}>
-                       <option value="urgent">КРИТИЧЕСКИ</option>
-                       <option value="high">Высокий</option>
-                       <option value="medium">Средний</option>
-                       <option value="low">Низкий</option>
-                    </select>
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                       <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Ответственный</label>
+                       <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-[10px] text-white font-bold outline-none" value={newTaskAssigned} onChange={e => setNewTaskAssigned(e.target.value as any)}>
+                          {Object.entries(ASSIGNEE_LABELS).map(([val, lab]) => <option key={val} value={val}>{lab}</option>)}
+                       </select>
+                    </div>
+                    <div className="space-y-1">
+                       <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Приоритет</label>
+                       <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-[10px] text-white font-bold outline-none" value={newTaskPriority} onChange={e => setNewTaskPriority(e.target.value as any)}>
+                          <option value="urgent">КРИТИЧЕСКИ</option>
+                          <option value="high">Высокий</option>
+                          <option value="medium">Средний</option>
+                          <option value="low">Низкий</option>
+                       </select>
+                    </div>
                  </div>
 
                  <div className="space-y-4 pt-4 border-t border-slate-800/50">
-                    <StrategyInput label="Главная Цель" placeholder="Для чего это действие?" value={newTaskGoal} onChange={setNewTaskGoal} />
-                    <StrategyInput label="Основание" placeholder="Почему это важно сейчас?" value={newTaskReason} onChange={setNewTaskReason} />
-                    <StrategyInput label="Ожидаемый Эффект" placeholder="Результат в деньгах или системе?" value={newTaskEffect} onChange={setNewTaskEffect} />
+                    <StrategyInput label="Цель" placeholder="Для чего это?" value={newTaskGoal} onChange={setNewTaskGoal} />
+                    <StrategyInput label="Эффект" placeholder="Что даст выполнение?" value={newTaskEffect} onChange={setNewTaskEffect} />
                  </div>
 
                  <div className="flex flex-col gap-3">
@@ -473,9 +488,8 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
            </div>
         </div>
 
-        {/* BOARD (RIGHT COLUMN) */}
+        {/* BOARD */}
         <div className="lg:col-span-8 space-y-6">
-           
            {/* FILTERS */}
            <div className="glass-card p-6 rounded-[32px] border-slate-800 shadow-lg flex flex-wrap gap-6 items-center bg-slate-900/40">
               <div className="space-y-1">
@@ -514,12 +528,9 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                   const stat = STATUS_META[task.status];
                   const isExpanded = expandedTasks.has(task.id);
                   const isCompleted = task.status === 'completed';
-                  
-                  // Логика просрочки
                   const now = new Date();
                   const dueDate = task.dueDate ? new Date(task.dueDate) : null;
                   const isOverdue = !isCompleted && dueDate && dueDate < now;
-                  
                   const assigneeLabel = ASSIGNEE_LABELS[task.assignedTo];
 
                   return (
@@ -527,7 +538,6 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                       key={task.id} 
                       className={`glass-card rounded-[32px] border transition-all duration-300 overflow-hidden ${isCompleted ? 'opacity-50 grayscale' : isOverdue ? 'border-rose-500/50 shadow-rose-500/10' : 'border-slate-800 hover:border-indigo-500/30 shadow-xl'}`}
                     >
-                       {/* CARD HEADER */}
                        <div className="p-7 flex items-start justify-between gap-6">
                           <div className="flex-1 space-y-4">
                              <div className="flex items-center gap-2 flex-wrap">
@@ -536,13 +546,18 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                                    <span key={tag} className={`px-2 py-0.5 rounded text-[8px] font-black text-white ${TAG_META[tag].color} shadow-sm tracking-tighter`}>{tag}</span>
                                 ))}
                                 
+                                {task.isRoutine && (
+                                  <span className="text-[8px] bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 rounded font-black uppercase tracking-widest flex items-center gap-1">
+                                    <RotateCcwIcon size={10} /> РЕГЛАМЕНТ
+                                  </span>
+                                )}
+
                                 {task.isForAdmins && (
                                    <span className="text-[8px] bg-sky-600/20 text-sky-400 border border-sky-500/30 px-2 py-0.5 rounded font-black uppercase tracking-widest flex items-center gap-1">
                                       <GraduationIcon size={10} /> У АДМИНОВ
                                    </span>
                                 )}
 
-                                {/* ДИНАМИЧЕСКИЙ СТАТУС ДЕДЛАЙНА */}
                                 {isCompleted ? (
                                   <span className="text-[8px] bg-emerald-600 text-white px-2 py-0.5 rounded font-black uppercase tracking-widest flex items-center gap-1">
                                     ✅ ВЫПОЛНЕНО: {assigneeLabel}
@@ -563,7 +578,6 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                                 {task.description && <p className="text-[11px] text-slate-500 leading-relaxed">{task.description}</p>}
                              </div>
 
-                             {/* PROGRESS */}
                              <div className="pt-2 flex items-center gap-4">
                                 <div className="flex-1 h-[3px] bg-slate-950 rounded-full overflow-hidden flex">
                                    {[1,2,3,4,5].map(step => (
@@ -593,42 +607,37 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                                 <button 
                                     onClick={() => startEditing(task)}
                                     className="w-10 h-10 rounded-2xl flex items-center justify-center bg-slate-950 text-slate-500 border border-slate-800 hover:text-white hover:border-amber-500/50 transition-all"
-                                    title="Редактировать"
                                 >
                                     <EditIcon size={16} />
                                 </button>
                                 <button 
                                   onClick={() => toggleTaskExpansion(task.id)}
-                                  className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${isExpanded ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-600 border border-slate-800 hover:text-white hover:border-indigo-500/50'}`}
+                                  className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${isExpanded ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-600 border border-slate-800 hover:text-white'}`}
                                 >
                                    <PlusIcon size={18} className={isExpanded ? 'rotate-45' : ''}/>
                                 </button>
-                                <div className="flex flex-col gap-1.5">
-                                   <select 
-                                      className="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-[8px] font-black text-slate-400 outline-none uppercase tracking-widest focus:border-indigo-500/50 transition-all"
-                                      value={task.status}
-                                      onChange={(e) => updateTaskStatus(task.id, e.target.value as any)}
-                                    >
-                                      {Object.entries(STATUS_LABELS).map(([val, lab]) => <option key={val} value={val}>{lab}</option>)}
-                                   </select>
-                                   <button onClick={() => deleteTask(task.id)} className="text-slate-700 hover:text-rose-500 transition-colors text-[8px] font-bold uppercase text-right px-2">Удалить</button>
-                                </div>
+                             </div>
+                             <div className="flex flex-col gap-1.5">
+                                <select 
+                                  className="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-[8px] font-black text-slate-400 outline-none uppercase tracking-widest"
+                                  value={task.status}
+                                  onChange={(e) => updateTaskStatus(task.id, e.target.value as any)}
+                                >
+                                  {Object.entries(STATUS_LABELS).map(([val, lab]) => <option key={val} value={val}>{lab}</option>)}
+                                </select>
+                                <button onClick={() => deleteTask(task.id)} className="text-slate-700 hover:text-rose-500 text-[8px] font-bold uppercase text-right px-2">Удалить</button>
                              </div>
                           </div>
                        </div>
 
-                       {/* EXPANDABLE SECTION */}
                        {isExpanded && (
-                         <div className="bg-slate-950/40 border-t border-slate-900/50 animate-in slide-in-from-top-4 duration-300 p-8 space-y-8">
-                            
-                            {/* STRATEGY BLOCKS */}
+                         <div className="bg-slate-950/40 border-t border-slate-900/50 p-8 space-y-8">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                <StrategyBlock label="ГЛАВНАЯ ЦЕЛЬ" text={task.strategyData?.goal || ''} color="text-indigo-400" />
-                               <StrategyBlock label="ОСНОВАНИЕ / ПОЧЕМУ СЕЙЧАС" text={task.strategyData?.reason || ''} color="text-sky-400" />
+                               <StrategyBlock label="ОСНОВАНИЕ" text={task.strategyData?.reason || ''} color="text-sky-400" />
                                <StrategyBlock label="ОЖИДАЕМЫЙ ЭФФЕКТ" text={task.strategyData?.effect || ''} color="text-emerald-400" />
                             </div>
 
-                            {/* ADMIN REPORT SECTION (IF COMPLETED) */}
                             {task.adminReport && (
                                <div className="p-6 rounded-3xl bg-sky-950/20 border border-sky-500/20 space-y-3">
                                   <div className="flex items-center gap-2 mb-2">
@@ -648,23 +657,22 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                                </div>
                             )}
 
-                            {/* LOGS */}
-                            <div className="space-y-4">
+                            <div className="space-y-4 pl-2">
                                <div className="flex justify-between items-center border-b border-slate-900/50 pb-2.5">
                                   <h4 className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Протокол решений</h4>
                                   <button onClick={() => setActiveNoteInput(task.id)} className="text-[9px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest">Добавить запись</button>
                                </div>
                                
-                               <div className="space-y-3.5 pl-2">
+                               <div className="space-y-3.5">
                                   {task.notes.length === 0 ? (
-                                    <p className="text-[10px] text-slate-700 italic">Журнал пуст. Зафиксируйте первый шаг...</p>
+                                    <p className="text-[10px] text-slate-700 italic">Журнал пуст...</p>
                                   ) : (
                                     task.notes.map(note => (
-                                      <div key={note.id} className="relative flex gap-5 group/note">
-                                         <div className={`w-0.5 h-full absolute -left-2 top-0 ${note.author === 'Andrey' ? 'bg-amber-500' : 'bg-indigo-500'} opacity-20 group-hover/note:opacity-50 transition-opacity`}></div>
+                                      <div key={note.id} className="relative flex gap-5">
+                                         <div className={`w-0.5 h-full absolute -left-2 top-0 ${note.author === 'Andrey' ? 'bg-amber-500' : 'bg-indigo-500'} opacity-20`}></div>
                                          <div className="flex-1 space-y-1">
                                             <div className="flex items-center gap-3">
-                                               <span className={`text-[8px] font-black uppercase tracking-widest ${note.author === 'Andrey' ? 'text-amber-500' : 'text-indigo-500'}`}>{note.author === 'Andrey' ? 'Андрей' : 'Антон'}</span>
+                                               <span className={`text-[8px] font-black uppercase tracking-widest ${note.author === 'Andrey' ? 'text-amber-500' : 'text-indigo-500'}`}>{note.author}</span>
                                                <span className="text-[7px] text-slate-700 font-mono">{new Date(note.createdAt).toLocaleString()}</span>
                                             </div>
                                             <p className="text-[11px] text-slate-300 leading-relaxed bg-slate-900/40 p-2.5 rounded-xl border border-slate-800/30">{note.text}</p>
@@ -675,23 +683,19 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                                </div>
 
                                {activeNoteInput === task.id && (
-                                 <div className="bg-slate-900/60 p-5 rounded-[24px] border border-indigo-500/20 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                                 <div className="bg-slate-900/60 p-5 rounded-[24px] border border-indigo-500/20 space-y-4">
                                     <textarea 
-                                      className="w-full bg-transparent border-none outline-none text-xs text-white min-h-[70px] placeholder:text-slate-700" 
-                                      placeholder="Опишите текущий результат или важное изменение..." 
+                                      className="w-full bg-transparent border-none outline-none text-xs text-white min-h-[70px]" 
+                                      placeholder="Опишите результат..." 
                                       value={noteText}
                                       onChange={e => setNoteText(e.target.value)}
-                                      autoFocus
                                     />
-                                    <div className="flex justify-between items-center pt-2 border-t border-slate-800/50">
+                                    <div className="flex justify-between items-center pt-2">
                                        <div className="flex gap-2">
-                                          <button onClick={() => setNoteAuthor('Andrey')} className={`w-8 h-8 rounded-xl text-[9px] font-black border transition-all ${noteAuthor === 'Andrey' ? 'bg-amber-500 border-amber-400 text-slate-950' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>A</button>
-                                          <button onClick={() => setNoteAuthor('Anton')} className={`w-8 h-8 rounded-xl text-[9px] font-black border transition-all ${noteAuthor === 'Anton' ? 'bg-indigo-500 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>P</button>
+                                          <button onClick={() => setNoteAuthor('Andrey')} className={`w-8 h-8 rounded-xl text-[9px] font-black border transition-all ${noteAuthor === 'Andrey' ? 'bg-amber-500 text-slate-950' : 'bg-slate-950 text-slate-600'}`}>A</button>
+                                          <button onClick={() => setNoteAuthor('Anton')} className={`w-8 h-8 rounded-xl text-[9px] font-black border transition-all ${noteAuthor === 'Anton' ? 'bg-indigo-500 text-white' : 'bg-slate-950 text-slate-600'}`}>P</button>
                                        </div>
-                                       <div className="flex gap-4">
-                                          <button onClick={() => setActiveNoteInput(null)} className="text-[10px] text-slate-500 hover:text-white uppercase font-bold tracking-widest">Отмена</button>
-                                          <button onClick={() => addNote(task.id)} className="bg-indigo-600 px-5 py-2 rounded-xl text-[10px] font-black text-white uppercase shadow-lg shadow-indigo-600/20 active:scale-95 transition-all">Записать в журнал</button>
-                                       </div>
+                                       <button onClick={() => addNote(task.id)} className="bg-indigo-600 px-5 py-2 rounded-xl text-[10px] font-black text-white uppercase">Записать</button>
                                     </div>
                                  </div>
                                )}

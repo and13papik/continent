@@ -1,31 +1,215 @@
-
 import React, { useState, useMemo } from 'react';
-import { AppState, OwnerTask, TaskPriority, TaskStatus, TaskAssignee, TaskNote } from '../types';
+import { AppState, OwnerTask, TaskPriority, TaskStatus, TaskAssignee, TaskNote, OwnerTag } from '../types';
 import { ICONS } from '../constants';
 
 // --- ВСПОМОГАТЕЛЬНЫЕ КОМПОНЕНТЫ ---
 
-function StatWidget({ label, value, color, icon, overdue }: { label: string; value: number; color: string; icon: React.ReactNode, overdue?: boolean }) {
-  const colorClasses: Record<string, string> = {
-    rose: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
-    sky: 'bg-sky-500/10 text-sky-500 border-sky-500/20',
-    amber: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-    indigo: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
-    emerald: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-  };
-
+function StrategyInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void, placeholder?: string }) {
   return (
-    <div className={`glass-card p-4 rounded-3xl border flex items-center gap-4 transition-all hover:translate-y-[-2px] ${overdue ? 'ring-1 ring-rose-500/50 shadow-lg shadow-rose-500/10' : ''} ${colorClasses[color] || 'border-slate-800'}`}>
-      <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 bg-slate-950/50">
-         {icon}
-      </div>
-      <div>
-         <p className="text-[9px] font-black uppercase text-slate-500 tracking-widest leading-none mb-1.5">{label}</p>
-         <p className="text-xl font-bold font-outfit text-white leading-none">{value}</p>
-      </div>
+    <div className="space-y-1">
+      <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">{label}</label>
+      <input 
+        type="text" 
+        className="w-full bg-slate-950 border border-slate-800/50 rounded-xl px-4 py-2.5 text-[11px] text-white outline-none focus:border-sky-500/50 transition-all placeholder:text-slate-700" 
+        placeholder={placeholder}
+        value={value} 
+        onChange={e => onChange(e.target.value)} 
+      />
     </div>
   );
 }
+
+function StrategyBlock({ label, text, color }: { label: string; text: string; color: string }) {
+  if (!text) return null;
+  return (
+    <div className="space-y-1.5 p-3 rounded-2xl bg-slate-900/30 border border-slate-800/50">
+      <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">{label}</label>
+      <div className={`text-[11px] leading-relaxed font-medium ${color}`}>{text}</div>
+    </div>
+  );
+}
+
+function SectionHeader({ title, icon, color }: { title: string, icon: React.ReactNode, color: string }) {
+  return (
+    <div className={`flex items-center gap-3 py-4 border-b border-slate-900 mb-4`}>
+       <div className={`w-10 h-10 rounded-2xl flex items-center justify-center bg-${color}-500/10 text-${color}-400 border border-${color}-500/20`}>
+          {icon}
+       </div>
+       <h2 className="text-lg font-black font-outfit text-white uppercase tracking-tight">{title}</h2>
+    </div>
+  );
+}
+
+// Moved metadata outside component to be accessible by TaskCard
+const PRIORITY_META: Record<TaskPriority, { label: string; color: string; bg: string }> = {
+  urgent: { label: 'СРОЧНО', color: 'text-rose-500', bg: 'bg-rose-500/10' },
+  high: { label: 'ВЫСОКИЙ', color: 'text-amber-500', bg: 'bg-amber-500/10' },
+  medium: { label: 'ОБЫЧНЫЙ', color: 'text-sky-500', bg: 'bg-sky-500/10' },
+  low: { label: 'НИЗКИЙ', color: 'text-slate-400', bg: 'bg-slate-500/10' }
+};
+
+const STATUS_META: Record<TaskStatus, { label: string; color: string; step: number }> = {
+  idea: { label: 'Идея', color: 'text-slate-500', step: 1 },
+  planned: { label: 'В планах', color: 'text-indigo-400', step: 2 },
+  in_progress: { label: 'В работе', color: 'text-sky-400', step: 3 },
+  waiting: { label: 'Ожидание', color: 'text-amber-400', step: 4 },
+  completed: { label: 'Готово', color: 'text-emerald-500', step: 5 }
+};
+
+const ASSIGNEE_LABELS: Record<string, string> = {
+  Rector: 'Rector',
+  Mentor: 'Mentor',
+  Admins: 'Оба админа'
+};
+
+// TaskCard moved outside to fix key prop typing errors and avoid remounts on parent render
+const TaskCard = ({ 
+  task, 
+  isExpanded, 
+  toggleExpansion, 
+  setCompletingTaskId, 
+  startEditing, 
+  updateTaskStatus, 
+  deleteTask,
+  activeNoteInput,
+  setActiveNoteInput,
+  noteText,
+  setNoteText,
+  noteAuthor,
+  setNoteAuthor,
+  addNote
+}: { 
+  task: OwnerTask;
+  isExpanded: boolean;
+  toggleExpansion: (id: string) => void;
+  setCompletingTaskId: (id: string) => void;
+  startEditing: (task: OwnerTask) => void;
+  updateTaskStatus: (id: string, status: TaskStatus) => void;
+  deleteTask: (id: string) => void;
+  activeNoteInput: string | null;
+  setActiveNoteInput: (id: string | null) => void;
+  noteText: string;
+  setNoteText: (text: string) => void;
+  noteAuthor: 'Rector' | 'Mentor';
+  setNoteAuthor: (author: 'Rector' | 'Mentor') => void;
+  addNote: (taskId: string) => void;
+}) => {
+  const prio = PRIORITY_META[task.priority];
+  const stat = STATUS_META[task.status];
+  const isCompleted = task.status === 'completed';
+  const isDirective = !task.id.startsWith('admin-task');
+  const isRoutine = task.isRoutine;
+
+  return (
+    <div className={`glass-card rounded-3xl border transition-all duration-300 overflow-hidden ${isCompleted ? 'opacity-40 grayscale' : 'border-slate-800 hover:border-sky-500/30'}`}>
+       <div className="p-6 flex flex-col md:flex-row justify-between gap-6">
+          <div className="flex-1 space-y-3">
+             <div className="flex items-center gap-2 flex-wrap">
+                <span className={`px-2 py-0.5 rounded text-[8px] font-black tracking-widest ${prio.bg} ${prio.color}`}>{prio.label}</span>
+                {isDirective && !isRoutine && (
+                  <span className="text-[8px] bg-amber-500/10 text-amber-500 border border-amber-500/30 px-2 py-0.5 rounded font-black uppercase flex items-center gap-1">
+                    <ICONS.Crown size={10}/> DIRECTIVE
+                  </span>
+                )}
+                {isRoutine && (
+                  <span className="text-[8px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 rounded font-black uppercase flex items-center gap-1">
+                    <ICONS.RotateCcw size={10}/> РЕГЛАМЕНТ
+                  </span>
+                )}
+                <span className="text-[8px] bg-slate-900 text-sky-400 px-2 py-0.5 rounded border border-slate-800 font-black uppercase">👤 {ASSIGNEE_LABELS[task.assignedTo] || task.assignedTo}</span>
+                {task.dueDate && <span className="text-[8px] text-slate-500 font-mono font-bold uppercase ml-auto">До: {task.dueDate}</span>}
+             </div>
+
+             <div className="space-y-1">
+                <h3 className="text-base font-bold font-outfit text-white tracking-tight">{task.title}</h3>
+                {task.description && <p className="text-[10px] text-slate-400 leading-relaxed line-clamp-2">{task.description}</p>}
+             </div>
+
+             <div className="pt-2 flex items-center gap-3">
+                <div className="flex-1 h-[2px] bg-slate-900 rounded-full flex overflow-hidden">
+                   {[1,2,3,4,5].map(step => (
+                     <div key={step} className={`flex-1 ${step <= stat.step ? 'bg-sky-500' : 'bg-transparent'}`}></div>
+                   ))}
+                </div>
+                <span className={`text-[8px] font-black uppercase tracking-widest ${stat.color}`}>{stat.label}</span>
+             </div>
+          </div>
+
+          <div className="flex flex-col items-end gap-3 shrink-0">
+             <div className="flex gap-2">
+                 {!isCompleted && (
+                     <button onClick={() => setCompletingTaskId(task.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-2 rounded-xl text-[9px] uppercase tracking-widest active:scale-95 shadow-lg shadow-emerald-500/20">
+                        Завершить
+                     </button>
+                 )}
+                 {!isDirective && (
+                     <button onClick={() => startEditing(task)} className="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-900 border border-slate-800 text-slate-500 hover:text-white transition-all">
+                        <ICONS.Edit size={14} />
+                     </button>
+                 )}
+                 <button onClick={() => toggleExpansion(task.id)} className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${isExpanded ? 'bg-sky-600 text-white' : 'bg-slate-900 text-slate-600 border border-slate-800'}`}>
+                    <ICONS.Plus size={14} className={isExpanded ? 'rotate-45' : ''}/>
+                 </button>
+             </div>
+             <select className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[8px] font-black text-slate-500 uppercase outline-none" value={task.status} onChange={(e) => updateTaskStatus(task.id, e.target.value as any)}>
+                <option value="planned">В планах</option>
+                <option value="in_progress">В работе</option>
+                <option value="waiting">Ожидание</option>
+                <option value="completed">Готово</option>
+             </select>
+             {!isDirective && <button onClick={() => deleteTask(task.id)} className="text-[8px] font-bold text-slate-700 hover:text-rose-500 uppercase">Удалить</button>}
+          </div>
+       </div>
+
+       {isExpanded && (
+          <div className="bg-slate-950/40 border-t border-slate-900/50 p-6 space-y-6 animate-in slide-in-from-top-2">
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <StrategyBlock label="ЦЕЛЬ" text={task.strategyData?.goal || ''} color="text-sky-400" />
+                <StrategyBlock label="ОСНОВАНИЕ" text={task.strategyData?.reason || ''} color="text-indigo-400" />
+                <StrategyBlock label="ЭФФЕКТ" text={task.strategyData?.effect || ''} color="text-emerald-400" />
+             </div>
+
+             {task.adminReport && (
+                <div className="p-4 rounded-2xl bg-emerald-950/20 border border-emerald-500/20 space-y-2">
+                   <p className="text-[8px] font-black text-emerald-500 uppercase">Финальный отчет</p>
+                   <p className="text-[10px] text-slate-200">{task.adminReport.text}</p>
+                   <div className="flex gap-2 pt-1">
+                      {task.adminReport.links.map((l, i) => <a key={i} href={l} target="_blank" className="text-[8px] bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded border border-emerald-500/20">Link #{i+1}</a>)}
+                   </div>
+                </div>
+             )}
+
+             <div className="space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-900 pb-1.5">
+                   <h4 className="text-[9px] font-black text-slate-600 uppercase">Протокол логов</h4>
+                   <button onClick={() => setActiveNoteInput(task.id)} className="text-[8px] font-bold text-sky-400">Добавить запись</button>
+                </div>
+                {task.notes.map(n => (
+                  <div key={n.id} className="text-[10px] space-y-1">
+                     <div className="flex items-center gap-2 opacity-50">
+                        <span className="font-black uppercase text-sky-400">{n.author}</span>
+                        <span className="text-[8px] font-mono">{new Date(n.createdAt).toLocaleString()}</span>
+                     </div>
+                     <p className="text-slate-300 bg-slate-900/40 p-2 rounded-xl border border-slate-800/30">{n.text}</p>
+                  </div>
+                ))}
+                {activeNoteInput === task.id && (
+                   <div className="bg-slate-900 p-4 rounded-2xl border border-sky-500/20 space-y-3">
+                      <textarea className="w-full bg-transparent border-none outline-none text-[10px] text-white" placeholder="Зафиксируйте прогресс..." value={noteText} onChange={e => setNoteText(e.target.value)} autoFocus />
+                      <div className="flex justify-between items-center pt-2">
+                         <div className="flex gap-1">
+                            {['Rector', 'Mentor'].map(a => <button key={a} onClick={() => setNoteAuthor(a as any)} className={`w-6 h-6 rounded-lg text-[8px] font-black ${noteAuthor === a ? 'bg-sky-500 text-slate-950' : 'bg-slate-950 text-slate-600 border border-slate-800'}`}>{a[0]}</button>)}
+                         </div>
+                         <button onClick={() => addNote(task.id)} className="bg-sky-600 px-4 py-1 rounded-lg text-[9px] font-black text-white uppercase">Записать</button>
+                      </div>
+                   </div>
+                )}
+             </div>
+          </div>
+       )}
+    </div>
+  );
+};
 
 // --- ОСНОВНОЙ КОМПОНЕНТ ---
 
@@ -35,52 +219,26 @@ interface AdminTableProps {
 }
 
 const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  
-  // Состояния для выполнения отчета
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [reportText, setReportText] = useState('');
   const [reportLinks, setReportLinks] = useState('');
 
-  // Состояние редактирования
   const [editingTask, setEditingTask] = useState<OwnerTask | null>(null);
-
-  // Форма создания (внутренние задачи)
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState<TaskPriority>('medium');
-  const [newTaskAssigned, setNewTaskAssigned] = useState<'Rector' | 'Mentor' | 'Admins'>('Admins');
+  const [newTaskAssigned, setNewTaskAssigned] = useState<TaskAssignee>('Admins');
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
 
-  const PRIORITY_META = useMemo<Record<TaskPriority, { label: string; color: string; bg: string }>>(() => ({
-    urgent: { label: 'СРОЧНО', color: 'text-rose-500', bg: 'bg-rose-500/10' },
-    high: { label: 'ВЫСОКИЙ', color: 'text-amber-500', bg: 'bg-amber-500/10' },
-    medium: { label: 'ОБЫЧНЫЙ', color: 'text-sky-500', bg: 'bg-sky-500/10' },
-    low: { label: 'НИЗКИЙ', color: 'text-slate-400', bg: 'bg-slate-500/10' }
-  }), []);
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+  const [activeNoteInput, setActiveNoteInput] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState('');
+  const [noteAuthor, setNoteAuthor] = useState<'Rector' | 'Mentor'>('Rector');
 
-  const ASSIGNEE_LABELS: Record<string, string> = {
-    Andrey: 'Андрей',
-    Anton: 'Антон',
-    Rector: 'Rector (Админ 1)',
-    Mentor: 'Mentor (Админ 2)',
-    Owners: 'Оба владельца',
-    Admins: 'Оба админа',
-    All: 'Весь состав'
-  };
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === '123') setIsAuthenticated(true);
-    else alert('Доступ закрыт. Только для Администраторов.');
-  };
-
-  const saveTask = () => {
+  const saveInternalTask = () => {
     if (!newTaskTitle.trim()) return;
 
     if (editingTask) {
-        // Редактирование существующей задачи админа
         updateState(prev => ({
             ...prev,
             ownerTasks: (prev.ownerTasks || []).map(t => t.id === editingTask.id ? {
@@ -88,22 +246,22 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
                 title: newTaskTitle,
                 description: newTaskDesc,
                 priority: newTaskPriority,
-                assignedTo: newTaskAssigned as any,
+                assignedTo: newTaskAssigned,
                 dueDate: newTaskDueDate || undefined,
                 updatedAt: new Date().toISOString()
             } : t)
         }));
         setEditingTask(null);
     } else {
-        // Создание новой задачи админа
         const task: OwnerTask = {
             id: `admin-task-${Date.now()}`,
             title: newTaskTitle,
             description: newTaskDesc,
             status: 'planned',
             priority: newTaskPriority,
-            assignedTo: newTaskAssigned as any,
+            assignedTo: newTaskAssigned,
             isForAdmins: true,
+            isRoutine: false,
             tags: [],
             notes: [],
             dueDate: newTaskDueDate || undefined,
@@ -113,7 +271,6 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
         };
         updateState(prev => ({ ...prev, ownerTasks: [task, ...(prev.ownerTasks || [])] }));
     }
-
     setNewTaskTitle(''); setNewTaskDesc(''); setNewTaskDueDate('');
   };
 
@@ -133,7 +290,7 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
   };
 
   const deleteTask = (id: string) => {
-    if (!confirm('Вы действительно хотите удалить свою задачу?')) return;
+    if (!confirm('Удалить внутреннюю задачу?')) return;
     updateState(prev => ({
       ...prev,
       deletedIds: [...prev.deletedIds, id],
@@ -141,9 +298,24 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
     }));
   };
 
+  const addNote = (taskId: string) => {
+    if (!noteText.trim()) return;
+    const note: TaskNote = {
+      id: String(Date.now()),
+      text: noteText,
+      author: noteAuthor as any,
+      createdAt: new Date().toISOString()
+    };
+    updateState(prev => ({
+      ...prev,
+      ownerTasks: (prev.ownerTasks || []).map(t => t.id === taskId ? { ...t, notes: [...t.notes, note], updatedAt: new Date().toISOString() } : t)
+    }));
+    setNoteText('');
+    setActiveNoteInput(null);
+  };
+
   const submitReport = () => {
-    if (!reportText.trim()) return alert('Пожалуйста, напишите краткий отчет о выполнении.');
-    
+    if (!reportText.trim()) return alert('Напишите отчет.');
     const linksArray = reportLinks.split('\n').filter(l => l.trim().startsWith('http'));
 
     updateState(prev => ({
@@ -152,16 +324,10 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
         ...t,
         status: 'completed',
         updatedAt: new Date().toISOString(),
-        adminReport: {
-          text: reportText,
-          links: linksArray
-        }
+        adminReport: { text: reportText, links: linksArray }
       } : t)
     }));
-
-    setCompletingTaskId(null);
-    setReportText('');
-    setReportLinks('');
+    setCompletingTaskId(null); setReportText(''); setReportLinks('');
   };
 
   const updateTaskStatus = (id: string, status: TaskStatus) => {
@@ -171,294 +337,157 @@ const AdminTable: React.FC<AdminTableProps> = ({ state, updateState }) => {
     }));
   };
 
-  const adminTasks = useMemo(() => {
-    const list = (state.ownerTasks || []).filter(t => t.isForAdmins || ['Rector', 'Mentor', 'Admins'].includes(t.assignedTo));
-    return list.sort((a, b) => {
-      if (a.status === 'completed' && b.status !== 'completed') return 1;
-      if (a.status !== 'completed' && b.status === 'completed') return -1;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+  const toggleExpansion = (id: string) => {
+    const next = new Set(expandedTasks);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setExpandedTasks(next);
+  };
+
+  const allRelevantTasks = useMemo(() => {
+    return (state.ownerTasks || []).filter(t => t.isForAdmins || ['Rector', 'Mentor', 'Admins'].includes(t.assignedTo));
   }, [state.ownerTasks]);
 
-  const stats = useMemo(() => {
-    const now = new Date();
+  // Группировка задач
+  const taskGroups = useMemo(() => {
     return {
-      active: adminTasks.filter(t => t.status !== 'completed').length,
-      overdue: adminTasks.filter(t => t.status !== 'completed' && t.dueDate && new Date(t.dueDate) < now).length,
-      today: adminTasks.filter(t => t.status !== 'completed' && t.dueDate && new Date(t.dueDate).toDateString() === now.toDateString()).length,
-      completed: adminTasks.filter(t => t.status === 'completed').length
+      directives: allRelevantTasks.filter(t => !t.id.startsWith('admin-task') && !t.isRoutine),
+      routines: allRelevantTasks.filter(t => t.isRoutine),
+      internal: allRelevantTasks.filter(t => t.id.startsWith('admin-task'))
     };
-  }, [adminTasks]);
+  }, [allRelevantTasks]);
 
-  const LockIcon = ICONS.Lock || 'span';
+  const stats = useMemo(() => {
+    return {
+      total: allRelevantTasks.length,
+      directives: taskGroups.directives.filter(t => t.status !== 'completed').length,
+      routines: taskGroups.routines.length,
+      internal: taskGroups.internal.filter(t => t.status !== 'completed').length
+    };
+  }, [allRelevantTasks, taskGroups]);
+
   const GraduationIcon = ICONS.Internship || 'span';
-  const AlertIcon = ICONS.AlertTriangle || 'span';
   const RotateIcon = ICONS.RotateCcw || 'span';
-  const PlusIcon = ICONS.Plus || 'span';
-  const CheckIcon = ICONS.Salary || 'span';
-  const EditIcon = ICONS.Edit || 'span';
-  const TrashIcon = ICONS.Trash || 'span';
+  const CrownIcon = ICONS.Crown || 'span';
+  const ClockIcon = ICONS.Calendar || 'span';
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center animate-in fade-in zoom-in duration-500">
-        <div className="glass-card p-12 rounded-[40px] w-full max-w-md border-sky-500/10 shadow-2xl text-center bg-slate-950/50">
-            <div className="w-20 h-20 bg-sky-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-sky-500/20">
-              <GraduationIcon size={40} className="text-sky-400" />
-            </div>
-            <h1 className="text-2xl font-bold text-white mb-2 font-outfit uppercase tracking-wider">Admin HQ</h1>
-            <p className="text-slate-400 text-sm mb-8">Операционный штаб администраторов</p>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <input 
-                type="password" 
-                autoFocus 
-                className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-4 text-center text-2xl tracking-[0.5em] text-white outline-none focus:border-sky-500/50 transition-all" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-                placeholder="•••"
-              />
-              <button className="w-full bg-sky-600 hover:bg-sky-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-sky-600/20 uppercase tracking-[0.2em] text-xs">Авторизация</button>
-            </form>
-        </div>
-      </div>
-    );
-  }
+  // Helper function to render a list of TaskCards with all required props
+  const renderTaskCards = (tasks: OwnerTask[]) => {
+    return tasks.map(t => (
+      <TaskCard 
+        key={t.id} 
+        task={t}
+        isExpanded={expandedTasks.has(t.id)}
+        toggleExpansion={toggleExpansion}
+        setCompletingTaskId={setCompletingTaskId}
+        startEditing={startEditing}
+        updateTaskStatus={updateTaskStatus}
+        deleteTask={deleteTask}
+        activeNoteInput={activeNoteInput}
+        setActiveNoteInput={setActiveNoteInput}
+        noteText={noteText}
+        setNoteText={setNoteText}
+        noteAuthor={noteAuthor}
+        setNoteAuthor={setNoteAuthor}
+        addNote={addNote}
+      />
+    ));
+  };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 pb-20 max-w-7xl mx-auto">
-      {/* HEADER */}
+    <div className="space-y-8 pb-20 max-w-7xl mx-auto animate-in fade-in duration-700">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <div className="px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-[9px] font-black text-sky-400 uppercase tracking-widest">Operations Hub</div>
-          </div>
-          <h1 className="text-4xl font-black font-outfit text-white tracking-tight">Рабочий Стол Админов</h1>
-          <p className="text-slate-500 text-sm mt-1">Управление текущими задачами и отчетность</p>
+          <h1 className="text-3xl font-black font-outfit text-white tracking-tight">Admin Table</h1>
+          <p className="text-slate-500 text-sm mt-1">Рабочий штаб операционного контроля</p>
         </div>
-        
-        <button onClick={() => setIsAuthenticated(false)} className="bg-slate-900 border border-slate-800 p-2.5 rounded-2xl text-slate-500 hover:text-rose-400 transition-all active:scale-90">
-           <LockIcon size={20} />
-        </button>
+        <div className="flex gap-4">
+           <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex items-center gap-6">
+              <div className="text-center">
+                 <p className="text-[8px] font-black uppercase text-amber-500">Директивы</p>
+                 <p className="text-lg font-black text-white">{stats.directives}</p>
+              </div>
+              <div className="w-px h-6 bg-slate-800"></div>
+              <div className="text-center">
+                 <p className="text-[8px] font-black uppercase text-indigo-400">Регламент</p>
+                 <p className="text-lg font-black text-white">{stats.routines}</p>
+              </div>
+              <div className="w-px h-6 bg-slate-800"></div>
+              <div className="text-center">
+                 <p className="text-[8px] font-black uppercase text-sky-400">Задачи</p>
+                 <p className="text-lg font-black text-white">{stats.internal}</p>
+              </div>
+           </div>
+        </div>
       </header>
 
-      {/* STATS */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-         <StatWidget label="В работе" value={stats.active} color="indigo" icon={<RotateIcon size={18}/>} />
-         <StatWidget label="Просрочено" value={stats.overdue} color="rose" icon={<AlertIcon size={18}/>} overdue={stats.overdue > 0} />
-         <StatWidget label="На сегодня" value={stats.today} color="amber" icon={<ICONS.Calendar size={18}/>} />
-         <StatWidget label="Выполнено" value={stats.completed} color="emerald" icon={<CheckIcon size={18}/>} />
-      </section>
-
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* NEW INTERNAL TASK */}
+        {/* SIDEBAR FORM */}
         <div className="lg:col-span-4 space-y-6">
-           <div className={`glass-card p-8 rounded-[32px] shadow-xl space-y-6 bg-slate-900/20 border transition-all ${editingTask ? 'border-sky-500/50 shadow-sky-500/10' : 'border-slate-800'}`}>
-              <div className="space-y-1">
-                 <h2 className="text-xl font-black font-outfit text-white">{editingTask ? 'Редактировать задачу' : 'Внутренняя Задача'}</h2>
-                 <p className="text-[10px] text-slate-600 uppercase font-black tracking-widest">{editingTask ? 'Внесение корректив' : 'Самоорганизация отдела'}</p>
-              </div>
-              
-              <div className="space-y-5">
-                 <div className="space-y-2">
-                    <input 
-                       type="text" 
-                       className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3.5 text-white font-bold outline-none focus:border-sky-500/50 transition-all text-sm" 
-                       placeholder="Что нужно сделать?" 
-                       value={newTaskTitle} 
-                       onChange={e => setNewTaskTitle(e.target.value)} 
-                    />
-                    <textarea 
-                       className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-white text-xs outline-none focus:border-sky-500/50 transition-all min-h-[70px]" 
-                       placeholder="Детали выполнения..." 
-                       value={newTaskDesc} 
-                       onChange={e => setNewTaskDesc(e.target.value)} 
-                    />
-                 </div>
-
-                 <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Дедлайн</label>
-                    <input 
-                       type="date" 
-                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-[11px] text-sky-400 font-black outline-none"
-                       value={newTaskDueDate}
-                       onChange={e => setNewTaskDueDate(e.target.value)}
-                    />
-                 </div>
-
-                 <div className="grid grid-cols-2 gap-4">
+           <div className={`glass-card p-8 rounded-[32px] border shadow-xl space-y-5 bg-slate-900/20 transition-all ${editingTask ? 'border-sky-500/50 shadow-sky-500/10' : 'border-slate-800'}`}>
+              <h2 className="text-lg font-black font-outfit text-white uppercase tracking-tight">{editingTask ? 'Редактор' : 'Новая задача'}</h2>
+              <div className="space-y-4">
+                 <input type="text" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-white font-bold outline-none text-xs placeholder:text-slate-700" placeholder="Что нужно сделать?" value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} />
+                 <textarea className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-white text-[10px] outline-none min-h-[60px]" placeholder="Детали..." value={newTaskDesc} onChange={e => setNewTaskDesc(e.target.value)} />
+                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                       <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Исполнитель</label>
-                       <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-[10px] text-white font-bold outline-none" value={newTaskAssigned} onChange={e => setNewTaskAssigned(e.target.value as any)}>
+                       <label className="text-[8px] font-black text-slate-600 uppercase">Срок</label>
+                       <input type="date" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-[10px] text-sky-400 outline-none" value={newTaskDueDate} onChange={e => setNewTaskDueDate(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                       <label className="text-[8px] font-black text-slate-600 uppercase">Исполнитель</label>
+                       <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-[10px] text-white outline-none font-bold" value={newTaskAssigned} onChange={e => setNewTaskAssigned(e.target.value as any)}>
                           <option value="Admins">Оба админа</option>
                           <option value="Rector">Rector</option>
                           <option value="Mentor">Mentor</option>
                        </select>
                     </div>
-                    <div className="space-y-1">
-                       <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Приоритет</label>
-                       <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-[10px] text-white font-bold outline-none" value={newTaskPriority} onChange={e => setNewTaskPriority(e.target.value as any)}>
-                          <option value="urgent">СРОЧНО</option>
-                          <option value="high">Высокий</option>
-                          <option value="medium">Обычный</option>
-                          <option value="low">Низкий</option>
-                       </select>
-                    </div>
                  </div>
-
-                 <div className="flex flex-col gap-3">
-                    <button 
-                        onClick={saveTask} 
-                        className={`w-full font-black py-4 rounded-2xl shadow-xl transition-all uppercase tracking-[0.2em] text-[10px] active:scale-95 ${editingTask ? 'bg-sky-600 text-white hover:bg-sky-500 shadow-sky-600/20' : 'bg-sky-600 text-white hover:bg-sky-500 shadow-sky-600/20'}`}
-                    >
-                        {editingTask ? 'Сохранить изменения' : 'Добавить в план'}
-                    </button>
-                    {editingTask && (
-                        <button onClick={cancelEditing} className="w-full text-slate-500 hover:text-white py-2 text-[10px] font-black uppercase tracking-widest">Отмена</button>
-                    )}
-                 </div>
+                 <button onClick={saveInternalTask} className="w-full bg-sky-600 hover:bg-sky-500 text-white font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest active:scale-95 shadow-xl shadow-sky-600/20">{editingTask ? 'Сохранить' : 'Создать задачу'}</button>
+                 {editingTask && <button onClick={cancelEditing} className="w-full text-slate-500 text-[10px] uppercase font-bold">Отмена</button>}
               </div>
            </div>
         </div>
 
         {/* TASK BOARD */}
-        <div className="lg:col-span-8 space-y-4">
-           {adminTasks.map(task => {
-              const prio = PRIORITY_META[task.priority];
-              const isCompleted = task.status === 'completed';
-              const now = new Date();
-              const dueDate = task.dueDate ? new Date(task.dueDate) : null;
-              const isOverdue = !isCompleted && dueDate && dueDate < now;
-              const assigneeLabel = ASSIGNEE_LABELS[task.assignedTo];
+        <div className="lg:col-span-8 space-y-10">
+           
+           {/* SECTION 1: DIRECTIVES */}
+           <section>
+              <SectionHeader title="Штабные Директивы" icon={<CrownIcon size={20}/>} color="amber" />
+              <div className="space-y-3">
+                 {taskGroups.directives.length === 0 ? <p className="text-[10px] text-slate-700 py-10 text-center italic border border-dashed border-slate-900 rounded-3xl">Новых директив от владельцев нет</p> : renderTaskCards(taskGroups.directives)}
+              </div>
+           </section>
 
-              // Может ли админ редактировать эту запись (только свои внутренние)
-              const isOwnTask = task.id.startsWith('admin-task-');
+           {/* SECTION 2: ROUTINES */}
+           <section>
+              <SectionHeader title="Регламент / Постоянные" icon={<ClockIcon size={20}/>} color="indigo" />
+              <div className="space-y-3">
+                 {taskGroups.routines.length === 0 ? <p className="text-[10px] text-slate-700 py-10 text-center italic border border-dashed border-slate-900 rounded-3xl">Регламентные задачи не назначены</p> : renderTaskCards(taskGroups.routines)}
+              </div>
+           </section>
 
-              return (
-                <div key={task.id} className={`glass-card rounded-[32px] border transition-all ${isCompleted ? 'opacity-40 grayscale blur-[0.3px]' : isOverdue ? 'border-rose-500/50 bg-rose-500/5' : 'border-slate-800 hover:border-sky-500/30'}`}>
-                   <div className="p-7 flex flex-col md:flex-row justify-between gap-6">
-                      <div className="flex-1 space-y-4">
-                         <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`px-2 py-0.5 rounded text-[8px] font-black tracking-widest ${prio.bg} ${prio.color}`}>{prio.label}</span>
-                            
-                            {isCompleted ? (
-                               <span className="text-[8px] bg-emerald-600 text-white px-2 py-0.5 rounded font-black uppercase tracking-widest">✅ ВЫПОЛНЕНО ({assigneeLabel})</span>
-                            ) : isOverdue ? (
-                               <span className="text-[8px] bg-rose-600 text-white px-2 py-0.5 rounded font-black uppercase tracking-widest animate-pulse">⚠️ ПРОСРОЧЕНО ({assigneeLabel})</span>
-                            ) : (
-                               <span className="text-[8px] bg-slate-950 text-sky-400 px-2 py-0.5 rounded border border-slate-800 font-black uppercase tracking-widest">👤 {assigneeLabel}</span>
-                            )}
+           {/* SECTION 3: INTERNAL */}
+           <section>
+              <SectionHeader title="Внутренние Задачи Админов" icon={<GraduationIcon size={20}/>} color="sky" />
+              <div className="space-y-3">
+                 {taskGroups.internal.length === 0 ? <p className="text-[10px] text-slate-700 py-10 text-center italic border border-dashed border-slate-900 rounded-3xl">Внутренний план пуст</p> : renderTaskCards(taskGroups.internal)}
+              </div>
+           </section>
 
-                            {task.dueDate && <span className={`text-[8px] font-mono font-bold ${isOverdue ? 'text-rose-400' : 'text-slate-500'}`}>Срок: {task.dueDate}</span>}
-                         </div>
-
-                         <div className="space-y-1.5">
-                            <h3 className="text-xl font-bold font-outfit text-white tracking-tight">{task.title}</h3>
-                            {task.description && <p className="text-[11px] text-slate-400 leading-relaxed">{task.description}</p>}
-                         </div>
-
-                         {/* OWNER CONTEXT (IF FROM OWNER) */}
-                         {!task.id.startsWith('admin-task') && (
-                            <div className="flex gap-4 p-3 rounded-2xl bg-slate-950/50 border border-slate-800/50">
-                               <div className="text-[8px] font-black text-amber-500 uppercase tracking-widest vertical-text py-2">Owner Directive</div>
-                               <div className="flex-1 space-y-2">
-                                  {task.strategyData?.goal && <p className="text-[10px] text-slate-300"><span className="text-amber-500 font-bold uppercase tracking-tighter">Цель:</span> {task.strategyData.goal}</p>}
-                                  {task.strategyData?.effect && <p className="text-[10px] text-slate-300"><span className="text-emerald-500 font-bold uppercase tracking-tighter">Эффект:</span> {task.strategyData.effect}</p>}
-                               </div>
-                            </div>
-                         )}
-                      </div>
-
-                      <div className="flex flex-col items-end gap-3 shrink-0">
-                         <div className="flex gap-2">
-                             {isOwnTask && !isCompleted && (
-                                 <button 
-                                    onClick={() => startEditing(task)}
-                                    className="w-10 h-10 rounded-2xl flex items-center justify-center bg-slate-950 text-slate-500 border border-slate-800 hover:text-white hover:border-sky-500/50 transition-all"
-                                    title="Редактировать"
-                                 >
-                                    <EditIcon size={16} />
-                                 </button>
-                             )}
-                             {!isCompleted && (
-                                <button 
-                                  onClick={() => setCompletingTaskId(task.id)}
-                                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-3 rounded-2xl shadow-xl shadow-emerald-600/20 text-[10px] uppercase tracking-widest transition-all active:scale-95"
-                                >
-                                   Выполнено
-                                </button>
-                             )}
-                         </div>
-                         <div className="flex flex-col gap-2 w-full">
-                            <select 
-                              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-[8px] font-black text-slate-500 outline-none uppercase tracking-widest"
-                              value={task.status}
-                              onChange={(e) => updateTaskStatus(task.id, e.target.value as any)}
-                            >
-                              <option value="planned">В планах</option>
-                              <option value="in_progress">В работе</option>
-                              <option value="waiting">Ожидание</option>
-                              <option value="completed">Готово</option>
-                            </select>
-                            {isOwnTask && (
-                                <button onClick={() => deleteTask(task.id)} className="text-[8px] font-bold text-slate-700 hover:text-rose-500 uppercase tracking-widest text-right px-2">Удалить</button>
-                            )}
-                         </div>
-                      </div>
-                   </div>
-
-                   {/* REPORT DISPLAY IF COMPLETED */}
-                   {task.adminReport && (
-                      <div className="bg-emerald-950/10 border-t border-emerald-500/10 p-6 space-y-3">
-                         <div className="flex items-center gap-2">
-                            <CheckIcon size={14} className="text-emerald-500" />
-                            <h4 className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Отчет о выполнении</h4>
-                         </div>
-                         <p className="text-[11px] text-slate-300">{task.adminReport.text}</p>
-                         <div className="flex flex-wrap gap-2">
-                            {task.adminReport.links.map((link, idx) => (
-                               <a key={idx} href={link} target="_blank" rel="noopener noreferrer" className="text-[9px] text-sky-400 hover:underline">Результат #{idx+1}</a>
-                            ))}
-                         </div>
-                      </div>
-                   )}
-                </div>
-              );
-           })}
         </div>
       </div>
 
-      {/* REPORT MODAL */}
       {completingTaskId && (
-         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="glass-card w-full max-w-lg rounded-[2.5rem] p-10 border-sky-500/30 shadow-2xl relative">
-               <h2 className="text-2xl font-black text-white mb-2 font-outfit uppercase tracking-tight">Финальный Отчет</h2>
-               <p className="text-slate-500 text-xs mb-8 uppercase tracking-widest font-black">Подтверждение результата задачи</p>
-               
-               <div className="space-y-6">
-                  <div className="space-y-2">
-                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Что было сделано?</label>
-                     <textarea 
-                       className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-white text-xs outline-none focus:border-sky-500 transition-all min-h-[120px]" 
-                       placeholder="Опишите кратко результат..."
-                       value={reportText}
-                       onChange={e => setReportText(e.target.value)}
-                       autoFocus
-                     />
-                  </div>
-                  <div className="space-y-2">
-                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Ссылки на результаты / Фото (каждая с новой строки)</label>
-                     <textarea 
-                       className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-white text-[10px] font-mono outline-none focus:border-sky-500 transition-all min-h-[80px]" 
-                       placeholder="https://..."
-                       value={reportLinks}
-                       onChange={e => setReportLinks(e.target.value)}
-                     />
-                  </div>
-
+         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in">
+            <div className="glass-card w-full max-w-lg rounded-[2.5rem] p-10 border-sky-500/30">
+               <h2 className="text-xl font-black text-white mb-6 uppercase">Отчет о выполнении</h2>
+               <div className="space-y-5">
+                  <textarea className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-xs text-white min-h-[120px] outline-none" placeholder="Что было сделано?" value={reportText} onChange={e => setReportText(e.target.value)} />
+                  <textarea className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-[10px] font-mono text-sky-400 min-h-[80px] outline-none" placeholder="Ссылки на результат (каждая с новой строки)" value={reportLinks} onChange={e => setReportLinks(e.target.value)} />
                   <div className="flex gap-4 pt-4">
-                     <button onClick={() => setCompletingTaskId(null)} className="flex-1 bg-slate-900 text-slate-500 font-black py-4 rounded-2xl uppercase tracking-widest text-[10px] hover:text-white transition-all">Отмена</button>
-                     <button onClick={submitReport} className="flex-[2] bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-600/20 uppercase tracking-widest text-[10px]">Подтвердить выполнение</button>
+                     <button onClick={() => setCompletingTaskId(null)} className="flex-1 bg-slate-900 text-slate-500 font-bold py-3 rounded-xl uppercase text-[10px]">Отмена</button>
+                     <button onClick={submitReport} className="flex-[2] bg-emerald-600 text-white font-black py-3 rounded-xl uppercase text-[10px] shadow-lg shadow-emerald-600/20">Отправить отчет</button>
                   </div>
                </div>
             </div>
