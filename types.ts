@@ -106,15 +106,26 @@ export interface PaidStatus {
   updatedAt?: string;
 }
 
-export type TaskStatus = 'idea' | 'planned' | 'in_progress' | 'waiting' | 'completed';
+// Professional Status Set
+export type TaskStatus = 'in_progress' | 'blocked' | 'waiting_external' | 'review' | 'completed';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type OwnerTag = 'CRITICAL' | 'MONEY' | 'SYSTEM' | 'CONTENT' | 'BLOCKER';
+export type TaskType = 'directive' | 'regular' | 'recurring';
+export type RecurrenceCycle = 'daily' | 'weekly' | 'monthly';
 
 export interface TaskNote {
   id: string;
   text: string;
   author: 'Andrey' | 'Anton' | 'Rector' | 'Mentor';
   createdAt: string;
+}
+
+export interface TaskAuditEntry {
+  id: string;
+  action: string;
+  actor: string;
+  timestamp: string;
+  details?: string;
 }
 
 export type TaskAssignee = 'Andrey' | 'Anton' | 'Rector' | 'Mentor' | 'Owners' | 'Admins' | 'All';
@@ -125,7 +136,11 @@ export interface OwnerTask {
   description: string;
   status: TaskStatus;
   priority: TaskPriority;
+  taskType: TaskType;
   assignedTo: TaskAssignee;
+  recurrenceCycle?: RecurrenceCycle;
+  lastCompletedAt?: string;
+  isPinned?: boolean;
   isForAdmins?: boolean; 
   isRoutine?: boolean;
   adminReport?: {
@@ -139,6 +154,7 @@ export interface OwnerTask {
     effect: string;
   };
   notes: TaskNote[];
+  auditLog: TaskAuditEntry[]; // Internal audit log
   modelId?: string;
   dueDate?: string;
   createdAt: string;
@@ -153,7 +169,7 @@ export interface ShiftData {
 
 export interface DailyTotalEntry {
   id: string;
-  date: string; // Новое поле для фильтрации по дням
+  date: string; 
   modelName: string;
   night: ShiftData;
   morning: ShiftData;

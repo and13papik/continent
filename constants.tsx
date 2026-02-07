@@ -49,7 +49,8 @@ export const ICONS: Record<string, any> = {
   Salary: BadgeDollarSign,
   BadgeDollarSign: BadgeDollarSign,
   CircleDollarSign: CircleDollarSign,
-  Internship: GraduationCap
+  Internship: GraduationCap,
+  Crown: Crown
 };
 
 export const PLATFORM_NAMES: Record<string, string> = {
