@@ -146,7 +146,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === '1233211') setIsAuthenticated(true);
+    if (password === '1123') setIsAuthenticated(true);
     else alert('Неверный код доступа');
   };
 
@@ -440,7 +440,7 @@ const HistoryList = ({ items, onRemove, title, isOwner, isExpenses }: any) => (
                         </p>
                      </div>
                      <div className="flex justify-between items-center mt-0.5">
-                        <p className="text-[10px] text-slate-500 italic truncate pr-4">{item.comment || '—'}</p>
+                        <p className="text-xs text-slate-500 italic truncate pr-4">{item.comment || '—'}</p>
                         <p className="text-[8px] font-bold text-slate-600 font-mono shrink-0 uppercase tracking-tighter">{item.date}</p>
                      </div>
                   </div>

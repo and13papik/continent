@@ -52,8 +52,9 @@ const TaskCard: React.FC<{
   currentRole: string;
   onToggle: (id: string) => void;
   onUpdateStatus: (id: string, s: TaskStatus) => void;
+  onDelete: (id: string) => void;
   addNote: (id: string, text: string) => void;
-}> = ({ task, isEx, currentRole, onToggle, onUpdateStatus, addNote }) => {
+}> = ({ task, isEx, currentRole, onToggle, onUpdateStatus, onDelete, addNote }) => {
   const [noteVal, setNoteVal] = useState('');
   const [showNote, setShowNote] = useState(false);
   const [isSendingToTg, setIsSendingToTg] = useState(false);
@@ -62,6 +63,9 @@ const TaskCard: React.FC<{
   const stat = STATUS_META[task.status] || STATUS_META.in_progress;
   const isDirective = task.taskType === 'directive';
   const isCompleted = task.status === 'completed';
+  
+  // Задача считается "собственной" для админов, если она создана в Admin Table
+  const isOwnTask = task.id.startsWith('admin-task');
 
   const sendTaskToTelegram = async () => {
     setIsSendingToTg(true);
@@ -155,6 +159,11 @@ const TaskCard: React.FC<{
                       </button>
                     ))}
                  </div>
+                 {isOwnTask && (
+                   <button onClick={() => onDelete(task.id)} className="w-8 h-8 rounded-xl flex items-center justify-center transition-all border border-slate-900 bg-slate-950 text-slate-600 hover:text-rose-500 hover:border-rose-500/50">
+                      <ICONS.Trash size={16} />
+                   </button>
+                 )}
                  <button onClick={() => onToggle(task.id)} className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border opacity-20 hover:opacity-100 ${isEx ? 'bg-slate-800 text-white' : 'bg-slate-950 border-slate-900'}`}>
                     <ICONS.Plus size={16} className={isEx ? 'rotate-45' : ''} />
                  </button>
@@ -240,6 +249,15 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         auditLog: [...(t.auditLog || []), logAudit(`Статус изменен на ${status}`, currentAdminRole)], 
         updatedAt: new Date().toISOString() 
       } : t)
+    }));
+  };
+
+  const deleteTask = (id: string) => {
+    if (!confirm('Удалить эту задачу навсегда?')) return;
+    updateState(prev => ({
+      ...prev,
+      deletedIds: [...(prev.deletedIds || []), id],
+      ownerTasks: (prev.ownerTasks || []).filter(t => t.id !== id)
     }));
   };
 
@@ -419,6 +437,7 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
             isEx={expanded.has(t.id)} 
             onToggle={id => { const n = new Set(expanded); if(n.has(id)) n.delete(id); else n.add(id); setExpanded(n); }} 
             onUpdateStatus={updateStatus} 
+            onDelete={deleteTask}
             addNote={addNote} 
           />
         ))}

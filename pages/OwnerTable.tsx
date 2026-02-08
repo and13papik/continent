@@ -79,7 +79,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === '1233211') { setIsAuthenticated(true); }
+    if (password === '1123') { setIsAuthenticated(true); }
     else alert('Доступ запрещен');
   };
 
@@ -87,6 +87,15 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
     action, actor, timestamp: new Date().toISOString()
   });
+
+  const deleteTask = (id: string) => {
+    if (!confirm('Вы уверены, что хотите безвозвратно удалить эту задачу?')) return;
+    updateState(prev => ({
+      ...prev,
+      deletedIds: [...(prev.deletedIds || []), id],
+      ownerTasks: (prev.ownerTasks || []).filter(t => t.id !== id)
+    }));
+  };
 
   const sendTaskToTelegram = async (task: OwnerTask) => {
     setIsSendingToTg(task.id);
@@ -209,7 +218,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
       const prioOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-      return (prioOrder[a.priority] ?? 2) - (prioOrder[b.priority] ?? 2);
+      return (prioOrder[a.priority] ?? 2) - (prioOrder[a.priority] ?? 2);
     });
   }, [state.ownerTasks, activeMode, secondaryFilter, currentOwner]);
 
@@ -342,7 +351,8 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                             >
                                {isSendingToTg === task.id ? 'ОТПРАВКА...' : <>🚀 В ТЕЛЕГРАМ</>}
                             </button>
-                            <button onClick={() => startEditing(task)} className="w-10 h-10 rounded-2xl flex items-center justify-center bg-slate-950 border border-slate-800 text-slate-600 hover:text-white"><ICONS.Edit size={16}/></button>
+                            <button onClick={() => startEditing(task)} className="w-10 h-10 rounded-2xl flex items-center justify-center bg-slate-950 border border-slate-800 text-slate-600 hover:text-white transition-all hover:border-indigo-500/50"><ICONS.Edit size={16}/></button>
+                            <button onClick={() => deleteTask(task.id)} className="w-10 h-10 rounded-2xl flex items-center justify-center bg-slate-950 border border-slate-800 text-slate-600 hover:text-rose-500 transition-all hover:border-rose-500/50"><ICONS.Trash size={16}/></button>
                             <button onClick={() => { const n = new Set(expandedTasks); if(n.has(task.id)) n.delete(task.id); else n.add(task.id); setExpandedTasks(n); }} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${isEx ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-600'}`}><ICONS.Plus size={18} className={isEx ? 'rotate-45' : ''}/></button>
                          </div>
                          <div className="flex gap-1">
