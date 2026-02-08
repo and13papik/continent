@@ -74,6 +74,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   const [newTaskType, setNewTaskType] = useState<TaskType>('directive');
   const [newTaskCycle, setNewTaskCycle] = useState<RecurrenceCycle>('daily');
   const [newTaskGoal, setNewTaskGoal] = useState('');
+  const [newTaskDueDate, setNewTaskDueDate] = useState('');
 
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
@@ -123,8 +124,11 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
 
     let message = `🚨 <b>CORE${headerAddon}: Новая задача</b>\n\n`;
     message += `<b>Тип:</b> ${typeLabel}\n`;
-    message += `<b>Приоритет:</b> ${prioEmoji} ${prioLabel}\n\n`;
-    message += `<b>Задача:</b> ${task.title}\n\n`;
+    message += `<b>Приоритет:</b> ${prioEmoji} ${prioLabel}\n`;
+    if (task.dueDate) {
+      message += `<b>Дедлайн:</b> ${new Date(task.dueDate).toLocaleDateString()}\n`;
+    }
+    message += `\n<b>Задача:</b> ${task.title}\n\n`;
     message += `<b>Исполнитель:</b> ${mentionTags}`;
 
     try {
@@ -164,6 +168,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                 ...t,
                 title: newTaskTitle, description: newTaskDesc, priority: newTaskPriority,
                 assignedTo: newTaskAssigned, taskType: newTaskType,
+                dueDate: newTaskDueDate || undefined,
                 recurrenceCycle: newTaskType === 'recurring' ? newTaskCycle : undefined,
                 strategyData: { goal: newTaskGoal, reason: '', effect: '' },
                 auditLog: [...(t.auditLog || []), logAudit('Изменено владельцем', currentOwner)],
@@ -176,6 +181,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
             id: `task-${Date.now()}`,
             title: newTaskTitle, description: newTaskDesc, status: 'idea',
             priority: newTaskPriority, taskType: newTaskType, assignedTo: newTaskAssigned,
+            dueDate: newTaskDueDate || undefined,
             recurrenceCycle: newTaskType === 'recurring' ? newTaskCycle : undefined,
             tags: [], strategyData: { goal: newTaskGoal, reason: '', effect: '' },
             notes: [], auditLog: [logAudit('Создано владельцем', currentOwner)],
@@ -184,7 +190,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
         };
         updateState(prev => ({ ...prev, ownerTasks: [task, ...(prev.ownerTasks || [])] }));
     }
-    setNewTaskTitle(''); setNewTaskDesc(''); setNewTaskGoal('');
+    setNewTaskTitle(''); setNewTaskDesc(''); setNewTaskGoal(''); setNewTaskDueDate('');
   };
 
   const startEditing = (task: OwnerTask) => {
@@ -193,6 +199,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     setNewTaskPriority(task.priority); setNewTaskAssigned(task.assignedTo);
     setNewTaskType(task.taskType || 'regular'); setNewTaskCycle(task.recurrenceCycle || 'daily');
     setNewTaskGoal(task.strategyData?.goal || '');
+    setNewTaskDueDate(task.dueDate || '');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -304,11 +311,22 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                     </div>
                  </div>
 
-                 <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Исполнитель</label>
-                    <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-[10px] text-white font-bold outline-none" value={newTaskAssigned} onChange={e => setNewTaskAssigned(e.target.value as any)}>
-                       {Object.entries(ASSIGNEE_LABELS).map(([val, lab]) => <option key={val} value={val}>{lab}</option>)}
-                    </select>
+                 <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                       <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Исполнитель</label>
+                       <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-[10px] text-white font-bold outline-none" value={newTaskAssigned} onChange={e => setNewTaskAssigned(e.target.value as any)}>
+                          {Object.entries(ASSIGNEE_LABELS).map(([val, lab]) => <option key={val} value={val}>{lab}</option>)}
+                       </select>
+                    </div>
+                    <div className="space-y-1">
+                       <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Дедлайн</label>
+                       <input 
+                         type="date" 
+                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-[10px] text-white outline-none"
+                         value={newTaskDueDate}
+                         onChange={e => setNewTaskDueDate(e.target.value)}
+                       />
+                    </div>
                  </div>
 
                  <StrategyInput label="Целевой результат" value={newTaskGoal} onChange={setNewTaskGoal} placeholder="Что считаем успехом?.." />
@@ -327,16 +345,48 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
               const stat = STATUS_META[task.status] || STATUS_META.idea;
               const isEx = expandedTasks.has(task.id);
 
+              // Логика дедлайна
+              const now = new Date();
+              const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+              const isOverdue = dueDate && now > dueDate && task.status !== 'completed';
+              const isClosing = dueDate && !isOverdue && (dueDate.getTime() - now.getTime()) < 86400000 && task.status !== 'completed';
+
+              let overdueText = "";
+              if (isOverdue) {
+                 if (task.assignedTo === 'Mentor') overdueText = "⚠️ АДМИН MENTOR ПРОСРОЧИЛ ЗАДАЧУ!";
+                 else if (task.assignedTo === 'Rector') overdueText = "⚠️ АДМИН RECTOR ПРОСРОЧИЛ ЗАДАЧУ!";
+                 else overdueText = "⚠️ АДМИНИСТРАЦИЯ ПРОСРОЧИЛА ЗАДАЧУ!";
+              }
+
               return (
-                <div key={task.id} className={`glass-card rounded-[32px] border transition-all duration-300 overflow-hidden ${task.status === 'review' ? 'border-amber-500 ring-4 ring-amber-500/10 shadow-[0_0_40px_rgba(245,158,11,0.1)]' : 'border-slate-800'}`}>
+                <div key={task.id} className={`glass-card rounded-[32px] border transition-all duration-300 overflow-hidden ${isOverdue ? 'border-rose-600 bg-rose-600/5' : task.status === 'review' ? 'border-amber-500 ring-4 ring-amber-500/10' : 'border-slate-800'}`}>
                    <div className="p-7 flex flex-col md:flex-row justify-between gap-6">
                       <div className="flex-1 space-y-4">
                          <div className="flex items-center gap-2 flex-wrap">
                             <span className={`px-2 py-0.5 rounded text-[8px] font-black tracking-widest ${prio.bg} ${prio.color}`}>{prio.label}</span>
                             <span className="text-[8px] bg-slate-950 text-indigo-400 px-2 py-0.5 rounded border border-slate-800 font-black uppercase">👤 {ASSIGNEE_LABELS[task.assignedTo]}</span>
+                            {task.dueDate && (
+                               <span className={`text-[8px] px-2 py-0.5 rounded font-black border ${isOverdue ? 'bg-rose-600 text-white border-rose-500' : isClosing ? 'bg-amber-600 text-white border-amber-500 animate-pulse' : 'bg-slate-950 text-slate-500 border-slate-800'}`}>
+                                  📅 ДО: {new Date(task.dueDate).toLocaleDateString()}
+                               </span>
+                            )}
                             {task.status === 'review' && <span className="text-[8px] bg-amber-500 text-slate-950 px-2 py-0.5 rounded font-black uppercase animate-pulse">РАБОТА ЗАВЕРШЕНА — ПРОВЕРЬТЕ</span>}
                          </div>
+                         
                          <h3 className="text-xl font-bold font-outfit text-white tracking-tight">{task.title}</h3>
+                         
+                         {isOverdue && (
+                            <div className="py-2 px-3 bg-rose-600 rounded-xl text-[10px] font-black text-white uppercase tracking-widest inline-block animate-bounce shadow-lg shadow-rose-600/20">
+                               {overdueText}
+                            </div>
+                         )}
+
+                         {isClosing && (
+                            <div className="py-1 px-2 bg-amber-500/20 rounded-lg text-[9px] font-black text-amber-500 uppercase tracking-widest inline-block">
+                               ⏳ Срок истекает скоро (Менее 24ч)
+                            </div>
+                         )}
+
                          <div className="flex items-center gap-4">
                             <div className="flex-1 h-[2px] bg-slate-950 rounded-full flex overflow-hidden">
                                {[1,2,3,4,5].map(step => (

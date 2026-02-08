@@ -64,6 +64,12 @@ const TaskCard: React.FC<{
   const isDirective = task.taskType === 'directive';
   const isCompleted = task.status === 'completed';
   
+  // Логика дедлайна для админов
+  const now = new Date();
+  const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+  const isOverdue = dueDate && now > dueDate && !isCompleted;
+  const isClosing = dueDate && !isOverdue && (dueDate.getTime() - now.getTime()) < 86400000 && !isCompleted;
+
   // Задача считается "собственной" для админов, если она создана в Admin Table
   const isOwnTask = task.id.startsWith('admin-task');
 
@@ -95,6 +101,9 @@ const TaskCard: React.FC<{
 
     let message = `🏛 <b>ADMIN${headerAddon}: Задача делегирована</b>\n\n`;
     message += `<b>Приоритет:</b> ${prioEmoji} ${prioLabel}\n`;
+    if (task.dueDate) {
+       message += `<b>Дедлайн:</b> ${new Date(task.dueDate).toLocaleDateString()}\n`;
+    }
     message += `<b>Задача:</b> ${task.title}\n\n`;
     message += `<b>Исполнитель:</b> ${mentionTags}`;
 
@@ -126,7 +135,7 @@ const TaskCard: React.FC<{
   };
 
   return (
-    <div className={`glass-card rounded-[2.5rem] border transition-all duration-500 overflow-hidden ${isDirective ? 'border-amber-500/30 shadow-[0_0_60px_rgba(245,158,11,0.04)]' : 'border-slate-800/40'} ${isCompleted ? 'opacity-30 grayscale' : 'hover:border-slate-700/80'}`}>
+    <div className={`glass-card rounded-[2.5rem] border transition-all duration-500 overflow-hidden ${isOverdue ? 'border-rose-600 bg-rose-600/5' : isDirective ? 'border-amber-500/30 shadow-[0_0_60px_rgba(245,158,11,0.04)]' : 'border-slate-800/40'} ${isCompleted ? 'opacity-30 grayscale' : 'hover:border-slate-700/80'}`}>
        <div className="p-10 flex flex-col md:flex-row justify-between gap-10">
           <div className="flex-1 space-y-6">
              <div className="flex items-center gap-3 flex-wrap">
@@ -137,9 +146,21 @@ const TaskCard: React.FC<{
                   </span>
                 )}
                 <span className="text-[8px] text-slate-500 border border-slate-800/60 px-2.5 py-0.5 rounded-[4px] font-black uppercase tracking-widest">👤 {ASSIGNEE_LABELS[task.assignedTo]}</span>
+                {task.dueDate && (
+                   <span className={`text-[8px] px-2.5 py-0.5 rounded-[4px] font-black uppercase flex items-center gap-1.5 border ${isOverdue ? 'bg-rose-600 text-white border-rose-500 shadow-[0_0_15px_rgba(225,29,72,0.4)]' : isClosing ? 'bg-amber-600 text-white border-amber-500 animate-pulse' : 'bg-slate-950 text-slate-500 border-slate-800'}`}>
+                      <ICONS.Calendar size={10}/> {isOverdue ? 'ПРОСРОЧЕНО' : `ДО: ${new Date(task.dueDate).toLocaleDateString()}`}
+                   </span>
+                )}
              </div>
 
-             <h3 className="text-2xl font-bold font-outfit text-white tracking-tight leading-tight">{task.title}</h3>
+             <div className="space-y-2">
+                <h3 className="text-2xl font-bold font-outfit text-white tracking-tight leading-tight">{task.title}</h3>
+                {isClosing && (
+                   <div className="flex items-center gap-2 text-amber-500 text-[10px] font-black uppercase tracking-widest">
+                      <ICONS.AlertTriangle size={12} /> ДЕЙСТВУЙТЕ: Осталось мало времени!
+                   </div>
+                )}
+             </div>
              
              <div className="flex items-center gap-5 pt-2">
                 <div className="flex-1 h-[2px] bg-slate-900/60 rounded-full flex overflow-hidden">
@@ -250,6 +271,7 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   const [newPrio, setNewPrio] = useState<TaskPriority>('medium');
   const [newGoal, setNewGoal] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [newDueDate, setNewDueDate] = useState('');
 
   const logAudit = (action: string, actor: string): TaskAuditEntry => ({
     id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -299,6 +321,7 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         priority: newPrio, 
         taskType: 'regular', 
         assignedTo: newTo,
+        dueDate: newDueDate || undefined,
         tags: [], 
         notes: [], 
         strategyData: { goal: newGoal, reason: '', effect: '' },
@@ -308,7 +331,7 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         periodId: state.selectedPeriodId
     };
     updateState(prev => ({ ...prev, ownerTasks: [task, ...(prev.ownerTasks || [])] }));
-    setNewTitle(''); setNewGoal(''); setNewDesc(''); setIsCreating(false);
+    setNewTitle(''); setNewGoal(''); setNewDesc(''); setNewDueDate(''); setIsCreating(false);
   };
 
   const allTasks = useMemo(() => {
@@ -396,11 +419,22 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                           <option value="All">Весь состав</option>
                        </select>
                     </div>
-                    <div>
-                       <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Приоритет</label>
-                       <select className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-4 text-xs text-white font-bold outline-none cursor-pointer focus:border-sky-500/50" value={newPrio} onChange={e => setNewPrio(e.target.value as any)}>
-                          {Object.entries(PRIORITY_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                       </select>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                           <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Приоритет</label>
+                           <select className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-4 text-xs text-white font-bold outline-none cursor-pointer focus:border-sky-500/50" value={newPrio} onChange={e => setNewPrio(e.target.value as any)}>
+                              {Object.entries(PRIORITY_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                           </select>
+                        </div>
+                        <div>
+                           <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Дедлайн</label>
+                           <input 
+                              type="date" 
+                              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-4 text-xs text-white font-bold outline-none focus:border-sky-500/50"
+                              value={newDueDate}
+                              onChange={e => setNewDueDate(e.target.value)}
+                           />
+                        </div>
                     </div>
                     <StrategyInput label="Целевой результат" value={newGoal} onChange={setNewGoal} placeholder="Что считаем успехом?.." />
                  </div>
