@@ -100,14 +100,19 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   const sendTaskToTelegram = async (task: OwnerTask) => {
     setIsSendingToTg(task.id);
     
-    // Определение кого тегать (HTML формат)
+    // Определение кого тегать и какие username писать в заголовке
     let mentionTags = '';
+    let headerAddon = '';
+    
     if (task.assignedTo === 'Mentor') {
       mentionTags = '<a href="tg://user?id=7475447497">@adm_mentr</a>';
+      headerAddon = ' (@adm_mentr)';
     } else if (task.assignedTo === 'Rector') {
       mentionTags = '<a href="tg://user?id=6537516111">@adm_rctr</a>';
+      headerAddon = ' (@adm_rctr)';
     } else if (task.assignedTo === 'Admins' || task.assignedTo === 'All') {
-      mentionTags = '<a href="tg://user?id=7475447497">@adm_mentr</a> <a href="tg://user?id=6537516111">@adm_rctr</a>';
+      mentionTags = '<a href="tg://user?id=7475447497">@adm_mentr</a> и <a href="tg://user?id=6537516111">@adm_rctr</a>';
+      headerAddon = ' (@adm_mentr, @adm_rctr)';
     } else {
       mentionTags = '@continental_agency';
     }
@@ -116,7 +121,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     const prioLabel = PRIORITY_META[task.priority]?.label || 'Средний';
     const prioEmoji = PRIORITY_META[task.priority]?.emoji || '⚡️';
 
-    let message = `🚨 <b>CORE: Новая задача</b>\n\n`;
+    let message = `🚨 <b>CORE${headerAddon}: Новая задача</b>\n\n`;
     message += `<b>Тип:</b> ${typeLabel}\n`;
     message += `<b>Приоритет:</b> ${prioEmoji} ${prioLabel}\n\n`;
     message += `<b>Задача:</b> ${task.title}\n\n`;
@@ -218,7 +223,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
       const prioOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-      return (prioOrder[a.priority] ?? 2) - (prioOrder[a.priority] ?? 2);
+      return (prioOrder[a.priority] ?? 2) - (prioOrder[b.priority] ?? 2);
     });
   }, [state.ownerTasks, activeMode, secondaryFilter, currentOwner]);
 

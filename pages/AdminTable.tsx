@@ -70,18 +70,33 @@ const TaskCard: React.FC<{
   const sendTaskToTelegram = async () => {
     setIsSendingToTg(true);
     
-    // В Admin Table при делегировании на овнеров всегда тегаем @continental_agency
-    const mentionTag = (task.assignedTo === 'Andrey' || task.assignedTo === 'Anton' || task.assignedTo === 'Owners') 
-      ? '@continental_agency' 
-      : 'Администрация';
+    // Определение кого тегать (HTML формат)
+    let mentionTags = '';
+    let headerAddon = '';
+    
+    if (task.assignedTo === 'Andrey' || task.assignedTo === 'Anton' || task.assignedTo === 'Owners') {
+      mentionTags = '@continental_agency';
+      headerAddon = ' (@continental_agency)';
+    } else if (task.assignedTo === 'Mentor') {
+      mentionTags = '<a href="tg://user?id=7475447497">@adm_mentr</a>';
+      headerAddon = ' (@adm_mentr)';
+    } else if (task.assignedTo === 'Rector') {
+      mentionTags = '<a href="tg://user?id=6537516111">@adm_rctr</a>';
+      headerAddon = ' (@adm_rctr)';
+    } else if (task.assignedTo === 'Admins' || task.assignedTo === 'All') {
+      mentionTags = '<a href="tg://user?id=7475447497">@adm_mentr</a> и <a href="tg://user?id=6537516111">@adm_rctr</a>';
+      headerAddon = ' (@adm_mentr, @adm_rctr)';
+    } else {
+      mentionTags = 'Администрация';
+    }
 
     const prioLabel = PRIORITY_META[task.priority]?.label || 'Средний';
     const prioEmoji = PRIORITY_META[task.priority]?.emoji || '⚡️';
 
-    let message = `🏛 <b>ADMIN: Задача делегирована</b>\n\n`;
+    let message = `🏛 <b>ADMIN${headerAddon}: Задача делегирована</b>\n\n`;
     message += `<b>Приоритет:</b> ${prioEmoji} ${prioLabel}\n`;
     message += `<b>Задача:</b> ${task.title}\n\n`;
-    message += `<b>Исполнитель:</b> ${mentionTag}`;
+    message += `<b>Исполнитель:</b> ${mentionTags}`;
 
     try {
       const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
