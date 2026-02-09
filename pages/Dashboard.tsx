@@ -139,8 +139,12 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
 
   const toggleOperatorPaid = (op: string, currentRemainder: number) => {
     updateState(prev => {
-      const targetId = `paid-op-${op}-${activePeriodId}`;
-      const existingStatus = prev.paidStatuses.find(s => s.id === targetId);
+      // Ищем по характеристикам
+      const existingStatus = prev.paidStatuses.find(s => 
+        s.entityName === op && 
+        s.entityType === 'operator' && 
+        s.periodId === activePeriodId
+      );
       
       if (existingStatus) {
         return { 
@@ -166,7 +170,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         }
 
         const newStatus: PaidStatus = {
-          id: targetId,
+          id: `paid-op-${op}-${activePeriodId}-${Date.now()}`,
           entityName: op,
           entityType: 'operator',
           periodId: activePeriodId,
@@ -174,12 +178,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
           updatedAt: new Date().toISOString()
         };
 
-        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Удаляем ID из deletedIds
-        const cleanDeletedIds = (prev.deletedIds || []).filter(id => id !== targetId);
-
         return { 
           ...prev, 
-          deletedIds: cleanDeletedIds,
           operationsData: newOperations,
           paidStatuses: [...prev.paidStatuses, newStatus] 
         };

@@ -94,16 +94,22 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
 
   const toggleModelPaid = (model: string, currentRemainder: number) => {
     updateState(prev => {
-      const targetId = `paid-model-${model}-${activePeriodId}`;
-      const existing = prev.paidStatuses.find(s => s.id === targetId);
+      // Ищем существующий статус по атрибутам, а не по ID
+      const existing = prev.paidStatuses.find(s => 
+        s.entityName === model && 
+        s.entityType === 'model' && 
+        s.periodId === activePeriodId
+      );
       
       if (existing) {
+        // Если запись была — удаляем её ID (добавляем в deletedIds)
         return { 
           ...prev, 
           deletedIds: [...(prev.deletedIds || []), existing.id],
           paidStatuses: prev.paidStatuses.filter(s => s.id !== existing.id) 
         };
       } else {
+        // Если записи не было — создаем НОВУЮ с абсолютно уникальным ID (через Date.now)
         let newOperations = [...prev.operationsData];
         if (currentRemainder > 0) {
           const autoPayment: OperationRecord = {
@@ -122,7 +128,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
         }
 
         const newPaid: PaidStatus = {
-          id: targetId,
+          id: `paid-model-${model}-${activePeriodId}-${Date.now()}`,
           entityName: model,
           entityType: 'model',
           periodId: activePeriodId,
@@ -130,12 +136,8 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
           updatedAt: new Date().toISOString()
         };
         
-        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Удаляем ID из deletedIds, чтобы запись не затиралась при синхронизации
-        const cleanDeletedIds = (prev.deletedIds || []).filter(id => id !== targetId);
-
         return { 
           ...prev, 
-          deletedIds: cleanDeletedIds,
           operationsData: newOperations,
           paidStatuses: [...prev.paidStatuses, newPaid] 
         };
