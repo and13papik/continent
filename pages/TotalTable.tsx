@@ -1,10 +1,10 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AppState, DailyTotalEntry, ShiftData } from '../types';
 import { ICONS } from '../constants';
 
 const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
-// Установлен новый ID группы по умолчанию
-const DEFAULT_CHAT_ID = '-4748511729';
+const DEFAULT_CHAT_ID = '-1003748692600';
 
 const SHIFTS = [
   { key: 'night' as const, label: 'Ночь', icon: '🌙', color: 'bg-indigo-950/80', cellColor: 'bg-indigo-500/5', textColor: 'text-indigo-400' },
@@ -33,28 +33,41 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   const [isSending, setIsSending] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // Хелпер для экранирования HTML (чтобы имена с < > & не ломали отчет)
   const esc = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  // Фильтруем записи только для выбранной даты
   const entriesForDate = useMemo(() => {
     return (state.totalTableEntries || []).filter(e => e.date === selectedDate);
   }, [state.totalTableEntries, selectedDate]);
 
-  // Инициализация таблицы для выбранной даты, если она пуста
+  // Функция поиска последних известных целей для анкеты
+  const getLastKnownGoals = (modelName: string) => {
+    const allEntries = [...(state.totalTableEntries || [])].sort((a, b) => b.date.localeCompare(a.date));
+    const lastEntry = allEntries.find(e => e.modelName === modelName);
+    return {
+      night: lastEntry?.night.goal ?? 60,
+      morning: lastEntry?.morning.goal ?? 60,
+      day: lastEntry?.day.goal ?? 60,
+      evening: lastEntry?.evening.goal ?? 60
+    };
+  };
+
+  // Инициализация таблицы с наследованием целей
   useEffect(() => {
     if (entriesForDate.length === 0 && state.models.length > 0) {
-      const initialEntries = state.models.map((m, idx) => ({
-        id: `entry-${selectedDate}-${m.replace(/\s+/g, '-').toLowerCase()}-${idx}`,
-        date: selectedDate,
-        modelName: m,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        night: { balance: undefined as any, goal: 60 },
-        morning: { balance: undefined as any, goal: 60 },
-        day: { balance: undefined as any, goal: 60 },
-        evening: { balance: undefined as any, goal: 60 }
-      }));
+      const initialEntries = state.models.map((m, idx) => {
+        const goals = getLastKnownGoals(m);
+        return {
+          id: `entry-${selectedDate}-${m.replace(/\s+/g, '-').toLowerCase()}-${idx}`,
+          date: selectedDate,
+          modelName: m,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          night: { balance: undefined as any, goal: goals.night },
+          morning: { balance: undefined as any, goal: goals.morning },
+          day: { balance: undefined as any, goal: goals.day },
+          evening: { balance: undefined as any, goal: goals.evening }
+        };
+      });
       updateState(prev => ({ 
         ...prev, 
         totalTableEntries: [...(prev.totalTableEntries || []), ...initialEntries] 
@@ -96,15 +109,16 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   const handleAddModel = () => {
     const name = prompt('Введите имя анкеты:');
     if (!name) return;
+    const goals = getLastKnownGoals(name);
     const newEntry: DailyTotalEntry = {
       id: `entry-custom-${selectedDate}-${Date.now()}`,
       date: selectedDate,
       modelName: name,
       updatedAt: new Date().toISOString(),
-      night: { balance: undefined as any, goal: 60 },
-      morning: { balance: undefined as any, goal: 60 },
-      day: { balance: undefined as any, goal: 60 },
-      evening: { balance: undefined as any, goal: 60 }
+      night: { balance: undefined as any, goal: goals.night },
+      morning: { balance: undefined as any, goal: goals.morning },
+      day: { balance: undefined as any, goal: goals.day },
+      evening: { balance: undefined as any, goal: goals.evening }
     };
     updateState(prev => ({
       ...prev,
@@ -113,7 +127,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   };
 
   const handleReset = () => {
-    if (!confirm('Очистить балансы за ВЫБРАННУЮ дату? Цели останутся.')) return;
+    if (!confirm('Очистить БАЛАНСЫ за выбранную дату? ЦЕЛИ останутся зафиксированными.')) return;
     const now = new Date().toISOString();
     updateState(prev => ({
       ...prev,
@@ -212,7 +226,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
       if (!blob) throw new Error('Не удалось создать изображение таблицы');
 
-      // ФОРМИРОВАНИЕ ТЕКСТА (ИСПОЛЬЗУЕМ HTML ДЛЯ СТАБИЛЬНОСТИ)
       let message = `<b>📊 ОТЧЕТ: ${shiftInfo.label.toUpperCase()} ${shiftInfo.icon}</b>\n`;
       message += `📅 Дата: ${new Date(selectedDate).toLocaleDateString('ru-RU')}\n\n`;
 
@@ -259,7 +272,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         message += `\n\n🏆 <b>ОБЩИЙ ТОТАЛ СУТОК</b>: ${totals.overallBalance.toFixed(0)}$ / ${totals.overallPlan.toFixed(0)}$ (${totals.overallPlan > 0 ? Math.round(totals.overallBalance/totals.overallPlan*100) : 0}%)`;
       }
 
-      // Добавление отметок пользователей (HTML синтаксис)
       message += `\n\n🔔 @continental_agency <a href="tg://user?id=7475447497">Admin Mentor</a> <a href="tg://user?id=6537516111">Admin Rector</a>`;
 
       const formData = new FormData();
@@ -292,13 +304,11 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
   return (
     <div className="space-y-6 animate-in fade-in duration-700 pb-20 max-w-[1400px] mx-auto">
-      {/* HEADER */}
       <header className="flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800 shadow-xl">
         <div className="flex items-center gap-4">
            <div className="bg-indigo-600 p-2 rounded-xl text-white font-bold font-outfit text-sm">Continental Core</div>
            <div className="h-6 w-px bg-slate-800 hidden md:block"></div>
            
-           {/* ВЫБОР ДАТЫ */}
            <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 shadow-inner group transition-all hover:border-indigo-500/30">
               <ICONS.Calendar size={14} className="text-slate-500 group-hover:text-indigo-400" />
               <input 
@@ -325,12 +335,10 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         </div>
       </header>
 
-      {/* MAIN TABLE WRAPPER FOR SCREENSHOT */}
       <div ref={tableRef} className="glass-card rounded-[2.5rem] border-slate-800 shadow-2xl overflow-hidden bg-slate-950">
         <div className="overflow-x-auto">
            <table className="w-full border-collapse">
               <thead>
-                 {/* SHIFT GROUPS */}
                  <tr>
                     <th className="bg-slate-950 p-4 w-12 border-r border-slate-800"></th>
                     <th className="bg-slate-950 p-4 text-left border-r border-slate-800 text-slate-500 text-[10px] font-black uppercase tracking-widest">Анкета</th>
@@ -357,7 +365,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                     <th data-html2canvas-ignore colSpan={3} className="bg-indigo-900/50 p-3 text-center text-[10px] font-black text-white uppercase tracking-[0.2em]">Итого</th>
                     <th data-html2canvas-ignore className="bg-slate-950 p-4 w-12"></th>
                  </tr>
-                 {/* SUB HEADERS */}
                  <tr className="bg-slate-900/80 text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800">
                     <th className="p-2 border-r border-slate-800">№</th>
                     <th className="p-2 text-left border-r border-slate-800">Name</th>
@@ -425,7 +432,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                        </tr>
                     );
                  })}
-                 {/* FOOTER TOTALS */}
                  <tr className="bg-slate-950 font-black text-xs">
                     <td colSpan={2} className="p-4 text-center border-r border-slate-800 text-slate-400 uppercase tracking-widest">Итого</td>
                     {SHIFTS.map(s => (
@@ -444,7 +450,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         </div>
       </div>
 
-      {/* SUMMARY WIDGETS */}
       <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
          {SHIFTS.map(s => (
             <div key={s.key} className="glass-card p-5 rounded-3xl border-slate-800 flex items-center justify-between">
@@ -457,7 +462,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
          ))}
       </section>
 
-      {/* FINAL SUMMARY BANNER */}
       <div className="glass-card p-8 rounded-[2.5rem] bg-gradient-to-r from-indigo-900/20 via-slate-900 to-indigo-900/20 border-slate-800 shadow-2xl relative overflow-hidden">
          <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500/30"></div>
          <div className="flex items-center gap-4 mb-6">

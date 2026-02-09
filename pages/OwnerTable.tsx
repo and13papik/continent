@@ -4,7 +4,7 @@ import { AppState, OwnerTask, TaskPriority, TaskStatus, OwnerTag, TaskNote, Task
 import { ICONS } from '../constants';
 
 const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
-const DEFAULT_CHAT_ID = '-4748511729';
+const DEFAULT_CHAT_ID = '-1003748692600';
 
 // --- ПОМОЩНИКИ ---
 
