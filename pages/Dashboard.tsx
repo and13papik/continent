@@ -1,5 +1,4 @@
 
-// Added React import to fix 'Cannot find namespace React' errors
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppState, AccountingPeriod, PaidStatus, OperationRecord } from '../types';
@@ -24,7 +23,6 @@ function StatCard({
   subLabel?: string;
   highlighted?: boolean;
 }) {
-  // Безопасное сопоставление цветов для Tailwind JIT
   const colorClasses: Record<string, string> = {
     indigo: 'border-indigo-500/40 bg-indigo-500/10 text-indigo-400 shadow-indigo-500/5',
     sky: 'border-sky-500/40 bg-sky-500/10 text-sky-400 shadow-sky-500/5',
@@ -81,152 +79,77 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     const totalRefunds = periodOps.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
     
     const totalGross = (rawPlatformGross + rawManualGross) - totalRefunds;
-    
     const totalRawNet = periodIncomes.reduce((s, r) => s + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
     const avgOpRate = rawPlatformGross > 0 ? totalRawNet / rawPlatformGross : 0.20;
 
     const totals = { 
-      totalGross,
-      platformGross: rawPlatformGross,
-      manualGross: rawManualGross,
+      totalGross, platformGross: rawPlatformGross, manualGross: rawManualGross,
       netEarned: totalRawNet - (totalRefunds * avgOpRate),
-      bonuses: 0,
-      penalties: 0,
-      refunds: totalRefunds,
-      advances: 0, 
-      paidOut: 0,  
-      remainder: 0, 
+      bonuses: 0, penalties: 0, refunds: totalRefunds, advances: 0, paidOut: 0, remainder: 0, 
       adminDetails: [] as { name: string, amount: number, rate: number }[],
-      of: { gross: 0, net: 0 }, 
-      pp: { gross: 0, net: 0 }, 
-      cr: { gross: 0, net: 0 } 
+      of: { gross: 0, net: 0 }, pp: { gross: 0, net: 0 }, cr: { gross: 0, net: 0 } 
     };
 
     periodIncomes.forEach(r => {
-      totals.of.gross += r.onlyFans;
-      totals.of.net += r.nettoOF;
-      totals.pp.gross += r.paypal;
-      totals.pp.net += r.nettoPP;
-      totals.cr.gross += r.crypto;
-      totals.cr.net += r.nettoCrypto;
+      totals.of.gross += r.onlyFans; totals.of.net += r.nettoOF;
+      totals.pp.gross += r.paypal; totals.pp.net += r.nettoPP;
+      totals.cr.gross += r.crypto; totals.cr.net += r.nettoCrypto;
     });
 
     periodOps.forEach(op => {
-      // Исключаем админов из операционной сводки
       const isOperator = !adminNames.includes(op.operator);
-
       if (!op.model) {
-        if (op.type === 'bonus' && isOperator) {
-          totals.bonuses += op.amount;
-        } else if ((op.type === 'penalty' || op.type === 'internship') && isOperator) {
-          totals.penalties += op.amount;
-        } else if (op.type === 'advance' && isOperator) {
-          totals.advances += op.amount;
-          totals.paidOut += op.amount;
-        } else if (op.type === 'salary_payment' && isOperator) {
-          totals.paidOut += op.amount;
-        }
+        if (op.type === 'bonus' && isOperator) totals.bonuses += op.amount;
+        else if ((op.type === 'penalty' || op.type === 'internship') && isOperator) totals.penalties += op.amount;
+        else if (op.type === 'advance' && isOperator) { totals.advances += op.amount; totals.paidOut += op.amount; }
+        else if (op.type === 'salary_payment' && isOperator) totals.paidOut += op.amount;
       }
     });
 
     totals.remainder = (totals.netEarned + totals.bonuses) - (totals.penalties + totals.paidOut);
-
-    state.admins.forEach(admin => {
-      totals.adminDetails.push({ 
-        name: admin.name, 
-        amount: totalGross * (admin.rate / 100),
-        rate: admin.rate
-      });
-    });
-
+    state.admins.forEach(admin => { totals.adminDetails.push({ name: admin.name, amount: totalGross * (admin.rate / 100), rate: admin.rate }); });
     return totals;
   }, [state.incomeData, state.ownerManualIncomes, state.operationsData, state.admins, activePeriodId]);
 
   const operatorRows = useMemo(() => {
-    const adminNames = state.admins.map(a => a.name);
     const raw = state.operators.map(op => {
       const incomes = state.incomeData.filter(r => r.operator === op && r.periodId === activePeriodId);
       const ops = state.operationsData.filter(o => o.operator === op && o.periodId === activePeriodId && !o.model);
-      
       const rawG = incomes.reduce((sum, r) => sum + r.total, 0);
       const rawN = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
-      
-      const allPeriodRefunds = state.operationsData.filter(o => o.type === 'refund' && o.operator === op && o.periodId === activePeriodId);
-      const opRefunds = allPeriodRefunds.reduce((sum, o) => sum + o.amount, 0);
-      
+      const opRefunds = state.operationsData.filter(o => o.type === 'refund' && o.operator === op && o.periodId === activePeriodId).reduce((sum, o) => sum + o.amount, 0);
       const avgRate = rawG > 0 ? rawN / rawG : 0.20;
-      
       const totalGross = rawG - opRefunds;
       const totalNet = rawN - (opRefunds * avgRate);
-      
       const adjPlus = ops.filter(o => o.type === 'bonus').reduce((sum, o) => sum + o.amount, 0);
       const adjMinus = ops.filter(o => ['penalty', 'advance', 'salary_payment', 'internship'].includes(o.type)).reduce((sum, o) => sum + o.amount, 0);
-
       const remainder = totalNet + adjPlus - adjMinus;
       const isPaid = state.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
-
       return { 
-        op, 
-        totalGross, 
-        refunds: opRefunds, 
-        remainder, 
-        isPaid,
-        ofG: incomes.reduce((sum, r) => sum + r.onlyFans, 0),
-        ofN: incomes.reduce((sum, r) => sum + r.nettoOF, 0),
-        ppG: incomes.reduce((sum, r) => sum + r.paypal, 0),
-        ppN: incomes.reduce((sum, r) => sum + r.nettoPP, 0),
-        crG: incomes.reduce((sum, r) => sum + r.crypto, 0),
-        crN: incomes.reduce((sum, r) => sum + r.nettoCrypto, 0)
+        op, totalGross, refunds: opRefunds, remainder, isPaid,
+        ofG: incomes.reduce((sum, r) => sum + r.onlyFans, 0), ofN: incomes.reduce((sum, r) => sum + r.nettoOF, 0),
+        ppG: incomes.reduce((sum, r) => sum + r.paypal, 0), ppN: incomes.reduce((sum, r) => sum + r.nettoPP, 0),
+        crG: incomes.reduce((sum, r) => sum + r.crypto, 0), crN: incomes.reduce((sum, r) => sum + r.nettoCrypto, 0)
       };
     });
-
     const sorted = raw.sort((a, b) => b.remainder - a.remainder);
     const maxGross = Math.max(...sorted.map(r => r.totalGross), 1);
     return sorted.map(r => ({ ...r, percentOfMax: (r.totalGross / maxGross) * 100 }));
-  }, [state.incomeData, state.operationsData, state.operators, activePeriodId, state.paidStatuses, state.admins]);
+  }, [state.incomeData, state.operationsData, state.operators, activePeriodId, state.paidStatuses]);
 
-  const handleCloseMonth = () => {
-    if (!activePeriod || activePeriod.status === 'closed') return;
-    const confirmClose = window.confirm(`Закрыть период "${activePeriod.label}"?`);
-    if (!confirmClose) return;
-
-    updateState(prev => {
-      const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-      const lastP = prev.accountingPeriods[prev.accountingPeriods.length - 1];
-      let nextMonthIdx = new Date().getMonth(), nextYear = new Date().getFullYear();
-      if (lastP) {
-        const lastDate = new Date(lastP.startAt);
-        nextMonthIdx = lastDate.getMonth() + 1; nextYear = lastDate.getFullYear();
-        if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
-      }
-      const nextPeriodLabel = `${months[nextMonthIdx]} ${nextYear}`;
-      const nextId = String(Date.now());
-      const newP: AccountingPeriod = { id: nextId, label: nextPeriodLabel, startAt: new Date(nextYear, nextMonthIdx, 1).toISOString(), endAt: null, status: 'open' };
-      return { ...prev, accountingPeriods: [...prev.accountingPeriods.map(p => p.id === activePeriodId ? { ...p, status: 'closed' as const, endAt: new Date().toISOString() } : p), newP], selectedPeriodId: nextId };
-    });
-  };
-
-  /**
-   * Продвинутая логика кнопки "Выплачено":
-   * Автоматически создает операцию 'salary_payment' на сумму остатка.
-   * Исправлен баг синхронизации: теперь при снятии галочки ID добавляется в deletedIds.
-   */
   const toggleOperatorPaid = (op: string, currentRemainder: number) => {
     updateState(prev => {
-      const existingStatus = prev.paidStatuses.find(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
+      const targetId = `paid-op-${op}-${activePeriodId}`;
+      const existingStatus = prev.paidStatuses.find(s => s.id === targetId);
       
       if (existingStatus) {
-        // Если уже выплачено, снимаем статус И добавляем ID в deletedIds для облачной синхронизации
         return { 
           ...prev, 
           deletedIds: [...(prev.deletedIds || []), existingStatus.id],
           paidStatuses: prev.paidStatuses.filter(s => s.id !== existingStatus.id) 
         };
       } else {
-        // Если меняем на "Выплачено":
         let newOperations = [...prev.operationsData];
-        
-        // Если есть положительный остаток - автоматически "выплачиваем" его через транзакцию
         if (currentRemainder > 0) {
           const autoPayment: OperationRecord = {
             id: `auto-sal-${op}-${Date.now()}`,
@@ -243,7 +166,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         }
 
         const newStatus: PaidStatus = {
-          id: `paid-op-${op}-${activePeriodId}`,
+          id: targetId,
           entityName: op,
           entityType: 'operator',
           periodId: activePeriodId,
@@ -251,8 +174,12 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
           updatedAt: new Date().toISOString()
         };
 
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Удаляем ID из deletedIds
+        const cleanDeletedIds = (prev.deletedIds || []).filter(id => id !== targetId);
+
         return { 
           ...prev, 
+          deletedIds: cleanDeletedIds,
           operationsData: newOperations,
           paidStatuses: [...prev.paidStatuses, newStatus] 
         };
@@ -260,7 +187,25 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     });
   };
 
-  // Безопасное получение иконок
+  const handleCloseMonth = () => {
+    if (!activePeriod || activePeriod.status === 'closed') return;
+    const confirmClose = window.confirm(`Закрыть период "${activePeriod.label}"?`);
+    if (!confirmClose) return;
+    updateState(prev => {
+      const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+      const lastP = prev.accountingPeriods[prev.accountingPeriods.length - 1];
+      let nextMonthIdx = new Date().getMonth(), nextYear = new Date().getFullYear();
+      if (lastP) {
+        const lastDate = new Date(lastP.startAt);
+        nextMonthIdx = lastDate.getMonth() + 1; nextYear = lastDate.getFullYear();
+        if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
+      }
+      const nextId = String(Date.now());
+      const newP: AccountingPeriod = { id: nextId, label: `${months[nextMonthIdx]} ${nextYear}`, startAt: new Date(nextYear, nextMonthIdx, 1).toISOString(), endAt: null, status: 'open' };
+      return { ...prev, accountingPeriods: [...prev.accountingPeriods.map(p => p.id === activePeriodId ? { ...p, status: 'closed' as const, endAt: new Date().toISOString() } : p), newP], selectedPeriodId: nextId };
+    });
+  };
+
   const DashboardIcon = ICONS.Dashboard || 'span';
   const TransferIcon = ICONS.Transfer || 'span';
   const IncomeIcon = ICONS.Income || 'span';
@@ -282,14 +227,11 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
                 {state.accountingPeriods.slice().reverse().map(p => <option key={p.id} value={p.id}>{p.label} {p.status === 'closed' ? '🔒' : ''}</option>)}
              </select>
              {activePeriod?.status === 'open' && (
-                <button onClick={handleCloseMonth} className="flex items-center gap-2 px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95">
-                  <LockIcon size={12} /> Закрыть месяц
-                </button>
+                <button onClick={handleCloseMonth} className="flex items-center gap-2 px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95"><LockIcon size={12} /> Закрыть месяц</button>
              )}
           </div>
         </div>
       </header>
-
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <div className="space-y-4">
           <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Доходы и Платформы</h2>
@@ -299,7 +241,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
             <StatCard title="CRYPTO" value={`$${stats.cr.gross.toLocaleString()}`} subValue={`$${stats.cr.net.toLocaleString()}`} subLabel="Net" color="emerald" icon={<IncomeIcon size={16}/>} />
           </div>
         </div>
-
         <div className="space-y-4">
           <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Корректировки</h2>
           <div className="flex flex-col gap-3">
@@ -309,7 +250,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
             <StatCard title="АВАНСОВ (Staff)" value={`$${stats.advances.toLocaleString()}`} color="amber" icon={<AdvanceIcon size={16}/>} />
           </div>
         </div>
-
         <div className="space-y-4">
           <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Операционная ЗП</h2>
           <div className="flex flex-col gap-3">
@@ -318,7 +258,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
             <StatCard title="ОСТАТОК ОПЕРАТОРАМ" value={`$${stats.remainder.toLocaleString()}`} color="indigo" icon={<RemainderIcon size={16}/>} highlighted />
           </div>
         </div>
-
         <div className="space-y-4">
           <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Администраторы</h2>
           <div className="flex flex-col gap-3">
@@ -326,18 +265,14 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
               <div key={ad.name} className="glass-card p-4 rounded-2xl bg-slate-900/40 border-slate-800 transition-transform hover:scale-[1.02] flex flex-col justify-center min-w-0">
                 <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-1 truncate">{ad.name}</p>
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <p className="text-lg font-black text-white font-outfit leading-tight">
-                    ${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </p>
+                  <p className="text-lg font-black text-white font-outfit leading-tight">${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                   <span className="text-[8px] text-slate-500 font-bold">({ad.rate}%)</span>
                 </div>
               </div>
             ))}
-            <div className="flex-1"></div>
           </div>
         </div>
       </div>
-
       <div className="glass-card rounded-[2rem] overflow-hidden shadow-2xl border-slate-800/50">
         <div className="p-6 border-b border-slate-800 bg-slate-900/40 flex flex-col md:flex-row justify-between items-center gap-4">
           <h2 className="text-lg font-bold font-outfit">Ведомость персонала</h2>
@@ -359,43 +294,20 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
             <tbody className="divide-y divide-slate-800">
               {operatorRows.map(row => (
                 <tr key={row.op} className="hover:bg-indigo-500/5 transition-all">
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-white text-sm cursor-pointer" onClick={() => navigate('/reports', { state: { operator: row.op } })}>{row.op}</div>
-                  </td>
+                  <td className="px-6 py-4"><div className="font-bold text-white text-sm cursor-pointer" onClick={() => navigate('/reports', { state: { operator: row.op } })}>{row.op}</div></td>
                   <td className="px-4 py-4 w-44">
                     <div className="flex flex-col gap-1">
                        <div className="flex justify-between items-center text-[8px] font-black text-slate-500">
                           <span className="text-white">${row.totalGross.toFixed(0)}</span>
                           {row.refunds > 0 && <span className="text-rose-500">Ref: -${row.refunds.toFixed(0)}</span>}
                        </div>
-                       <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.5)] transition-all duration-1000" style={{ width: `${row.percentOfMax}%` }}></div>
-                       </div>
+                       <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.5)] transition-all duration-1000" style={{ width: `${row.percentOfMax}%` }}></div></div>
                     </div>
                   </td>
-                  <td className="px-4 py-4 text-center">
-                    <div className="flex flex-col">
-                      <span className="text-[9px] text-slate-500 font-mono">${row.ofG.toFixed(0)}</span>
-                      <span className="text-blue-400 font-mono font-bold text-xs">${row.ofN.toFixed(1)}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 text-center">
-                    <div className="flex flex-col">
-                      <span className="text-[9px] text-slate-500 font-mono">${row.ppG.toFixed(0)}</span>
-                      <span className="text-sky-400 font-mono font-bold text-xs">${row.ppN.toFixed(1)}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 text-center">
-                    <div className="flex flex-col">
-                      <span className="text-[9px] text-slate-500 font-mono">${row.crG.toFixed(0)}</span>
-                      <span className="text-emerald-400 font-mono font-bold text-xs">${row.crN.toFixed(1)}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 text-center">
-                    <div className={`text-sm font-black font-mono ${row.remainder >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      ${row.remainder.toFixed(1)}
-                    </div>
-                  </td>
+                  <td className="px-4 py-4 text-center"><div className="flex flex-col"><span className="text-[9px] text-slate-500 font-mono">${row.ofG.toFixed(0)}</span><span className="text-blue-400 font-mono font-bold text-xs">${row.ofN.toFixed(1)}</span></div></td>
+                  <td className="px-4 py-4 text-center"><div className="flex flex-col"><span className="text-[9px] text-slate-500 font-mono">${row.ppG.toFixed(0)}</span><span className="text-sky-400 font-mono font-bold text-xs">${row.ppN.toFixed(1)}</span></div></td>
+                  <td className="px-4 py-4 text-center"><div className="flex flex-col"><span className="text-[9px] text-slate-500 font-mono">${row.crG.toFixed(0)}</span><span className="text-emerald-400 font-mono font-bold text-xs">${row.crN.toFixed(1)}</span></div></td>
+                  <td className="px-4 py-4 text-center"><div className={`text-sm font-black font-mono ${row.remainder >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>${row.remainder.toFixed(1)}</div></td>
                   <td className="px-6 py-4 text-right">
                     <button onClick={() => toggleOperatorPaid(row.op, row.remainder)} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${row.isPaid ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}>
                       {row.isPaid ? 'Выплачено' : 'Ожидает'}
