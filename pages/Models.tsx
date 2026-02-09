@@ -23,8 +23,13 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       const refunds = modelOps.filter(o => o.type === 'refund');
       const totalRefunds = refunds.reduce((sum, o) => sum + o.amount, 0);
       
+      // Авансы
       const advances = modelOps.filter(o => o.type === 'advance');
       const totalAdvances = advances.reduce((sum, o) => sum + o.amount, 0);
+
+      // Выплаты (ЗП)
+      const salaryPayments = modelOps.filter(o => o.type === 'salary_payment');
+      const totalSalaries = salaryPayments.reduce((sum, o) => sum + o.amount, 0);
 
       const grossOF = records.reduce((sum, r) => sum + r.onlyFans, 0);
       const grossPP = records.reduce((sum, r) => sum + r.paypal, 0);
@@ -42,7 +47,9 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       
       const bonusTotal = bonuses.reduce((sum, b) => sum + b.amount, 0);
       const accruedSalary = (earnOF + earnPP + earnCR + bonusTotal) - (genericRefunds * avgModelRate);
-      const totalEarn = accruedSalary - totalAdvances;
+      
+      // ИСПРАВЛЕНИЕ: Теперь вычитаем и авансы, и уже проведенные выплаты
+      const totalEarn = accruedSalary - totalAdvances - totalSalaries;
       
       const isPaid = state.paidStatuses.some(s => s.entityName === model && s.entityType === 'model' && s.periodId === activePeriodId);
 
@@ -52,7 +59,9 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
         earnOF, earnPP, earnCR, bonusTotal,
         totalRefunds,
         totalAdvances,
+        totalSalaries,
         advances,
+        salaryPayments,
         accruedSalary,
         totalEarn, isPaid, bonuses
       };
@@ -94,22 +103,21 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
 
   const toggleModelPaid = (model: string, currentRemainder: number) => {
     updateState(prev => {
-      // Ищем существующий статус по атрибутам, а не по ID
       const existing = prev.paidStatuses.find(s => 
         s.entityName === model && 
         s.entityType === 'model' && 
         s.periodId === activePeriodId
       );
       
+      const targetId = `paid-model-${model}-${activePeriodId}`;
+
       if (existing) {
-        // Если запись была — удаляем её ID (добавляем в deletedIds)
         return { 
           ...prev, 
           deletedIds: [...(prev.deletedIds || []), existing.id],
           paidStatuses: prev.paidStatuses.filter(s => s.id !== existing.id) 
         };
       } else {
-        // Если записи не было — создаем НОВУЮ с абсолютно уникальным ID (через Date.now)
         let newOperations = [...prev.operationsData];
         if (currentRemainder > 0) {
           const autoPayment: OperationRecord = {
@@ -128,7 +136,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
         }
 
         const newPaid: PaidStatus = {
-          id: `paid-model-${model}-${activePeriodId}-${Date.now()}`,
+          id: `${targetId}-${Date.now()}`,
           entityName: model,
           entityType: 'model',
           periodId: activePeriodId,
@@ -138,6 +146,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
         
         return { 
           ...prev, 
+          deletedIds: (prev.deletedIds || []).filter(id => id !== targetId),
           operationsData: newOperations,
           paidStatuses: [...prev.paidStatuses, newPaid] 
         };
@@ -208,12 +217,12 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
                  <p className="text-xl font-black text-white font-mono">${modelStats.reduce((s,m) => s + m.totalGross, 0).toLocaleString()}</p>
               </div>
               <div className="text-center">
-                 <p className="text-[10px] text-amber-500 font-black uppercase mb-1">Выдано авансов</p>
-                 <p className="text-xl font-black text-amber-400 font-mono">-${modelStats.reduce((s,m) => s + m.totalAdvances, 0).toLocaleString()}</p>
+                 <p className="text-[10px] text-amber-500 font-black uppercase mb-1">Выдано авансов/ЗП</p>
+                 <p className="text-xl font-black text-amber-400 font-mono">-${modelStats.reduce((s,m) => s + m.totalAdvances + m.totalSalaries, 0).toLocaleString()}</p>
               </div>
               <div className="text-center">
                  <p className="text-[10px] text-indigo-500 font-black uppercase mb-1">Остаток к выплате</p>
-                 <p className="text-xl font-black text-indigo-400 font-mono">${modelStats.reduce((s,m) => s + m.totalEarn, 0).toLocaleString()}</p>
+                 <p className="text-xl font-black text-indigo-400 font-mono">${Math.max(0, modelStats.reduce((s,m) => s + m.totalEarn, 0)).toLocaleString()}</p>
               </div>
            </div>
         </div>
@@ -223,7 +232,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
               <tr className="bg-slate-900/50 text-slate-500 font-bold text-[10px] uppercase tracking-widest border-b border-slate-800">
                 <th className="px-8 py-6">Анкета</th>
                 <th className="px-6 py-6 text-center">Платформы (Gross)</th>
-                <th className="px-6 py-6 text-center">Корректировки (Бонус / Аванс)</th>
+                <th className="px-6 py-6 text-center">Корректировки (Бонус / Аванс / ЗП)</th>
                 <th className="px-6 py-6 text-right">Начислено / Остаток</th>
                 <th className="px-8 py-6 text-right">Статус</th>
               </tr>
@@ -252,6 +261,11 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
                                A: -{a.amount} <button onClick={() => removeOperation(a.id)} className="hover:text-rose-500 ml-1"><ICONS.Trash size={10}/></button>
                             </div>
                           ))}
+                          {m.salaryPayments.map(s => (
+                            <div key={s.id} className="flex items-center gap-1 bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded text-[9px] font-black border border-indigo-500/20">
+                               S: -{s.amount.toFixed(0)} <button onClick={() => removeOperation(s.id)} className="hover:text-rose-500 ml-1"><ICONS.Trash size={10}/></button>
+                            </div>
+                          ))}
                        </div>
                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <div className="flex items-center gap-1">
@@ -267,7 +281,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
                     </div>
                   </td>
                   <td className="px-6 py-5 text-right">
-                    <div className={`font-black font-mono text-xl group-hover:scale-105 transition-transform origin-right ${m.totalEarn >= 0 ? 'text-indigo-400' : 'text-rose-400'}`}>${m.totalEarn.toFixed(2)}</div>
+                    <div className={`font-black font-mono text-xl group-hover:scale-105 transition-transform origin-right ${m.totalEarn > 0.01 ? 'text-indigo-400' : 'text-slate-500'}`}>${Math.max(0, m.totalEarn).toFixed(2)}</div>
                     <div className="text-[8px] text-slate-500 font-black uppercase">Начислено: ${m.accruedSalary.toFixed(1)}</div>
                   </td>
                   <td className="px-8 py-5 text-right">
