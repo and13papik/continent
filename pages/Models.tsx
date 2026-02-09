@@ -119,16 +119,36 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
     }));
   };
 
-  const toggleModelPaid = (model: string) => {
+  const toggleModelPaid = (model: string, currentRemainder: number) => {
     updateState(prev => {
       const existing = prev.paidStatuses.find(s => s.entityName === model && s.entityType === 'model' && s.periodId === activePeriodId);
+      
       if (existing) {
         return { 
           ...prev, 
-          deletedIds: [...prev.deletedIds, existing.id],
+          deletedIds: [...(prev.deletedIds || []), existing.id],
           paidStatuses: prev.paidStatuses.filter(s => s.id !== existing.id) 
         };
       } else {
+        let newOperations = [...prev.operationsData];
+        
+        // Автоматически создаем операцию выплаты, если остаток > 0
+        if (currentRemainder > 0) {
+          const autoPayment: OperationRecord = {
+            id: `auto-sal-model-${model}-${Date.now()}`,
+            type: 'salary_payment',
+            operator: 'SYSTEM',
+            model: model,
+            amount: currentRemainder,
+            comment: 'Авто-выплата (Модели)',
+            date: new Date().toISOString().split('T')[0],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            periodId: activePeriodId
+          };
+          newOperations = [autoPayment, ...newOperations];
+        }
+
         const newPaid: PaidStatus = {
           id: `paid-model-${model}-${activePeriodId}`,
           entityName: model,
@@ -137,7 +157,12 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
-        return { ...prev, paidStatuses: [...prev.paidStatuses, newPaid] };
+        
+        return { 
+          ...prev, 
+          operationsData: newOperations,
+          paidStatuses: [...prev.paidStatuses, newPaid] 
+        };
       }
     });
   };
@@ -285,7 +310,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
                   </td>
                   <td className="px-8 py-5 text-right">
                     <button 
-                      onClick={() => toggleModelPaid(m.model)}
+                      onClick={() => toggleModelPaid(m.model, m.totalEarn)}
                       className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${m.isPaid ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}
                     >
                       {m.isPaid ? 'Выплачено' : 'Ожидает'}
