@@ -19,6 +19,7 @@ const getCellStatusClasses = (balance: any, goal: number) => {
   }
 
   const val = parseFloat(balance);
+  if (isNaN(val)) return 'bg-slate-900/20 border-slate-800 text-slate-700 opacity-40';
   
   if (val === 0) return 'bg-rose-600 border-rose-400 text-white ring-4 ring-rose-500/50 shadow-[0_0_25px_rgba(244,63,94,0.6)] font-black animate-pulse z-10';
   
@@ -36,14 +37,19 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
   const esc = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+  // Защищенный useMemo для фильтрации записей
   const entriesForDate = useMemo(() => {
-    return (state.totalTableEntries || []).filter(e => e.date === selectedDate);
+    return (state.totalTableEntries || []).filter(e => e && e.date === selectedDate);
   }, [state.totalTableEntries, selectedDate]);
 
-  // Функция поиска последних известных целей для анкеты (с защитой ?. )
+  // Функция поиска последних известных целей для анкеты с железобетонными проверками
   const getLastKnownGoals = (modelName: string) => {
-    const allEntries = [...(state.totalTableEntries || [])].sort((a, b) => b.date.localeCompare(a.date));
-    const lastEntry = allEntries.find(e => e.modelName === modelName);
+    const allEntries = [...(state.totalTableEntries || [])]
+      .filter(e => e && typeof e.date === 'string') // Убеждаемся что дата - строка, иначе упадет localeCompare
+      .sort((a, b) => b.date.localeCompare(a.date));
+      
+    const lastEntry = allEntries.find(e => e && e.modelName === modelName);
+    
     return {
       night: lastEntry?.night?.goal ?? 60,
       morning: lastEntry?.morning?.goal ?? 60,
@@ -52,15 +58,16 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     };
   };
 
-  // Инициализация таблицы с наследованием целей
+  // Инициализация таблицы с наследованием целей (Защита от бесконечного цикла)
   useEffect(() => {
-    if (entriesForDate.length === 0 && state.models.length > 0) {
+    if (entriesForDate.length === 0 && Array.isArray(state.models) && state.models.length > 0 && selectedDate) {
       const initialEntries = state.models.map((m, idx) => {
-        const goals = getLastKnownGoals(m);
+        const safeModelName = typeof m === 'string' ? m : `Model-${idx}`;
+        const goals = getLastKnownGoals(safeModelName);
         return {
-          id: `entry-${selectedDate}-${m.replace(/\s+/g, '-').toLowerCase()}-${idx}`,
+          id: `entry-${selectedDate}-${safeModelName.replace(/\s+/g, '-').toLowerCase()}-${idx}`,
           date: selectedDate,
-          modelName: m,
+          modelName: safeModelName,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           night: { balance: undefined as any, goal: goals.night },
@@ -69,19 +76,26 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
           evening: { balance: undefined as any, goal: goals.evening }
         };
       });
-      updateState(prev => ({ 
-        ...prev, 
-        totalTableEntries: [...(prev.totalTableEntries || []), ...initialEntries] 
-      }));
+      
+      updateState(prev => {
+        // Двойная проверка ВНУТРИ обновления стейта, чтобы избежать гонки рендеров и зависания
+        const currentEntries = (prev.totalTableEntries || []).filter(e => e && e.date === selectedDate);
+        if (currentEntries.length > 0) return prev;
+        
+        return { 
+          ...prev, 
+          totalTableEntries: [...(prev.totalTableEntries || []), ...initialEntries] 
+        };
+      });
     }
-  }, [selectedDate, state.models, entriesForDate.length]);
+  }, [selectedDate, state.models, entriesForDate.length, updateState]);
 
   const handleUpdate = (entryId: string, shift: keyof DailyTotalEntry, field: keyof ShiftData, value: string) => {
     const val = value === '' ? undefined : parseFloat(value);
     updateState(prev => ({
       ...prev,
       totalTableEntries: (prev.totalTableEntries || []).map(e => 
-        e.id === entryId ? { 
+        (e && e.id === entryId) ? { 
           ...e, 
           [shift]: { ...((e[shift] as ShiftData) || {}), [field]: val },
           updatedAt: new Date().toISOString()
@@ -94,7 +108,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     updateState(prev => ({
       ...prev,
       totalTableEntries: (prev.totalTableEntries || []).map(e => 
-        e.id === entryId ? { ...e, modelName: newName, updatedAt: new Date().toISOString() } : e
+        (e && e.id === entryId) ? { ...e, modelName: newName, updatedAt: new Date().toISOString() } : e
       )
     }));
   };
@@ -103,7 +117,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     if (!confirm('Удалить эту анкету из таблицы за это число?')) return;
     updateState(prev => ({
       ...prev,
-      totalTableEntries: (prev.totalTableEntries || []).filter(e => e.id !== entryId)
+      totalTableEntries: (prev.totalTableEntries || []).filter(e => e && e.id !== entryId)
     }));
   };
 
@@ -133,7 +147,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     updateState(prev => ({
       ...prev,
       totalTableEntries: (prev.totalTableEntries || []).map(e => 
-        e.date === selectedDate ? {
+        (e && e.date === selectedDate) ? {
           ...e,
           updatedAt: now,
           night: { ...(e.night || {}), balance: undefined as any },
@@ -157,6 +171,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     };
 
     entriesForDate.forEach(e => {
+      if (!e) return;
       res.night.balance += (e.night?.balance || 0); res.night.goal += (e.night?.goal || 0);
       res.morning.balance += (e.morning?.balance || 0); res.morning.goal += (e.morning?.goal || 0);
       res.day.balance += (e.day?.balance || 0); res.day.goal += (e.day?.goal || 0);
@@ -234,6 +249,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       let totalShiftGoal = 0;
 
       entriesForDate.forEach(e => {
+        if (!e) return;
         const s = (e[shiftKey] as ShiftData) || { balance: undefined, goal: 0 };
         const bal = s.balance === undefined ? 0 : s.balance;
         const goal = s.goal || 0;
@@ -245,7 +261,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                        bal === 0 ? '🔴 КРИТИЧЕСКАЯ СРАКА (0$)' :
                        bal >= goal ? '✅ ПЛАН' : '❌НЕ ВЫПОЛНЕН';
         
-        message += `• <b>${esc(e.modelName)}</b>: ${bal}$ / ${goal}$ — ${status}\n`;
+        message += `• <b>${esc(e.modelName || 'Неизвестно')}</b>: ${bal}$ / ${goal}$ — ${status}\n`;
       });
 
       message += `\n📈 <b>ИТОГО ЗА ${shiftInfo.label.toUpperCase()} СМЕНУ</b>: ${totalShiftBal.toFixed(0)}$ / ${totalShiftGoal.toFixed(0)}$`;
@@ -262,10 +278,11 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
         message += `👤 <b>ПЕРСОНАЛЬНЫЙ ИТОГ:</b>\n`;
         entriesForDate.forEach(e => {
+            if (!e) return;
             const modelDailyTotal = (e.night?.balance || 0) + (e.morning?.balance || 0) + (e.day?.balance || 0) + (e.evening?.balance || 0);
             const modelDailyGoal = (e.night?.goal || 0) + (e.morning?.goal || 0) + (e.day?.goal || 0) + (e.evening?.goal || 0);
             const status = modelDailyTotal >= modelDailyGoal ? '✅' : '❌';
-            message += `• ${esc(e.modelName)}: ${modelDailyTotal.toFixed(0)}$ / ${modelDailyGoal.toFixed(0)}$ — ${status}\n`;
+            message += `• ${esc(e.modelName || 'Неизвестно')}: ${modelDailyTotal.toFixed(0)}$ / ${modelDailyGoal.toFixed(0)}$ — ${status}\n`;
         });
 
         const percent = totals.overallPlan > 0 ? Math.round(totals.overallBalance/totals.overallPlan*100) : 0;
@@ -302,7 +319,10 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   };
 
   const isShiftComplete = (shiftKey: 'night' | 'morning' | 'day' | 'evening') => {
-    return entriesForDate.length > 0 && entriesForDate.every(e => e[shiftKey]?.balance !== undefined && e[shiftKey]?.balance !== null);
+    return entriesForDate.length > 0 && entriesForDate.every(e => {
+        if (!e || !e[shiftKey]) return false;
+        return e[shiftKey].balance !== undefined && e[shiftKey].balance !== null;
+    });
   };
 
   return (
@@ -385,12 +405,24 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
               </thead>
               <tbody className="divide-y divide-slate-800">
                  {entriesForDate.map((entry, idx) => {
-                    const rowPlan = (entry.night?.goal || 0) + (entry.morning?.goal || 0) + (entry.day?.goal || 0) + (entry.evening?.goal || 0);
-                    const rowBalance = (entry.night?.balance || 0) + (entry.morning?.balance || 0) + (entry.day?.balance || 0) + (entry.evening?.balance || 0);
+                    if (!entry) return null; // Безопасность
+
+                    const nightG = entry.night?.goal || 0;
+                    const mornG = entry.morning?.goal || 0;
+                    const dayG = entry.day?.goal || 0;
+                    const eveG = entry.evening?.goal || 0;
+                    const rowPlan = nightG + mornG + dayG + eveG;
+
+                    const nightB = entry.night?.balance || 0;
+                    const mornB = entry.morning?.balance || 0;
+                    const dayB = entry.day?.balance || 0;
+                    const eveB = entry.evening?.balance || 0;
+                    const rowBalance = nightB + mornB + dayB + eveB;
+                    
                     const rowRemaining = Math.max(0, rowPlan - rowBalance);
 
                     return (
-                       <tr key={entry.id} className="hover:bg-slate-900/30 transition-colors group">
+                       <tr key={entry.id || `fallback-idx-${idx}`} className="hover:bg-slate-900/30 transition-colors group">
                           <td className="p-3 text-center border-r border-slate-800 text-[10px] font-bold text-slate-600">{idx + 1}</td>
                           <td className="p-3 border-r border-slate-800 font-bold text-slate-200 text-sm">
                              <input 
