@@ -22,7 +22,8 @@ const getCellStatusClasses = (balance: any, goal: number) => {
   
   if (val === 0) return 'bg-rose-600 border-rose-400 text-white ring-4 ring-rose-500/50 shadow-[0_0_25px_rgba(244,63,94,0.6)] font-black animate-pulse z-10';
   
-  const ratio = val / goal;
+  const safeGoal = goal || 1; // Защита от деления на ноль
+  const ratio = val / safeGoal;
   if (ratio < 0.5) return 'bg-orange-600/30 border-orange-500/50 text-orange-200';
   if (ratio < 1) return 'bg-amber-500/20 border-amber-500/40 text-amber-200';
   return 'bg-emerald-600/50 border-emerald-400 text-emerald-100 font-black shadow-[0_0_15px_rgba(16,185,129,0.3)]';
@@ -39,15 +40,15 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     return (state.totalTableEntries || []).filter(e => e.date === selectedDate);
   }, [state.totalTableEntries, selectedDate]);
 
-  // Функция поиска последних известных целей для анкеты
+  // Функция поиска последних известных целей для анкеты (с защитой ?. )
   const getLastKnownGoals = (modelName: string) => {
     const allEntries = [...(state.totalTableEntries || [])].sort((a, b) => b.date.localeCompare(a.date));
     const lastEntry = allEntries.find(e => e.modelName === modelName);
     return {
-      night: lastEntry?.night.goal ?? 60,
-      morning: lastEntry?.morning.goal ?? 60,
-      day: lastEntry?.day.goal ?? 60,
-      evening: lastEntry?.evening.goal ?? 60
+      night: lastEntry?.night?.goal ?? 60,
+      morning: lastEntry?.morning?.goal ?? 60,
+      day: lastEntry?.day?.goal ?? 60,
+      evening: lastEntry?.evening?.goal ?? 60
     };
   };
 
@@ -82,7 +83,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       totalTableEntries: (prev.totalTableEntries || []).map(e => 
         e.id === entryId ? { 
           ...e, 
-          [shift]: { ...(e[shift] as ShiftData), [field]: val },
+          [shift]: { ...((e[shift] as ShiftData) || {}), [field]: val },
           updatedAt: new Date().toISOString()
         } : e
       )
@@ -135,10 +136,10 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         e.date === selectedDate ? {
           ...e,
           updatedAt: now,
-          night: { ...e.night, balance: undefined as any },
-          morning: { ...e.morning, balance: undefined as any },
-          day: { ...e.day, balance: undefined as any },
-          evening: { ...e.evening, balance: undefined as any }
+          night: { ...(e.night || {}), balance: undefined as any },
+          morning: { ...(e.morning || {}), balance: undefined as any },
+          day: { ...(e.day || {}), balance: undefined as any },
+          evening: { ...(e.evening || {}), balance: undefined as any }
         } : e
       )
     }));
@@ -156,10 +157,10 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     };
 
     entriesForDate.forEach(e => {
-      res.night.balance += (e.night.balance || 0); res.night.goal += (e.night.goal || 0);
-      res.morning.balance += (e.morning.balance || 0); res.morning.goal += (e.morning.goal || 0);
-      res.day.balance += (e.day.balance || 0); res.day.goal += (e.day.goal || 0);
-      res.evening.balance += (e.evening.balance || 0); res.evening.goal += (e.evening.goal || 0);
+      res.night.balance += (e.night?.balance || 0); res.night.goal += (e.night?.goal || 0);
+      res.morning.balance += (e.morning?.balance || 0); res.morning.goal += (e.morning?.goal || 0);
+      res.day.balance += (e.day?.balance || 0); res.day.goal += (e.day?.goal || 0);
+      res.evening.balance += (e.evening?.balance || 0); res.evening.goal += (e.evening?.goal || 0);
     });
 
     res.overallPlan = res.night.goal + res.morning.goal + res.day.goal + res.evening.goal;
@@ -233,16 +234,18 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       let totalShiftGoal = 0;
 
       entriesForDate.forEach(e => {
-        const s = e[shiftKey] as ShiftData;
+        const s = (e[shiftKey] as ShiftData) || { balance: undefined, goal: 0 };
         const bal = s.balance === undefined ? 0 : s.balance;
+        const goal = s.goal || 0;
+
         totalShiftBal += bal;
-        totalShiftGoal += s.goal;
+        totalShiftGoal += goal;
         
         const status = s.balance === undefined ? '⚪️ НЕ ЗАПОЛНЕНО' : 
                        bal === 0 ? '🔴 КРИТИЧЕСКАЯ СРАКА (0$)' :
-                       bal >= s.goal ? '✅ ПЛАН' : '❌НЕ ВЫПОЛНЕН';
+                       bal >= goal ? '✅ ПЛАН' : '❌НЕ ВЫПОЛНЕН';
         
-        message += `• <b>${esc(e.modelName)}</b>: ${bal}$ / ${s.goal}$ — ${status}\n`;
+        message += `• <b>${esc(e.modelName)}</b>: ${bal}$ / ${goal}$ — ${status}\n`;
       });
 
       message += `\n📈 <b>ИТОГО ЗА ${shiftInfo.label.toUpperCase()} СМЕНУ</b>: ${totalShiftBal.toFixed(0)}$ / ${totalShiftGoal.toFixed(0)}$`;
@@ -259,8 +262,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
         message += `👤 <b>ПЕРСОНАЛЬНЫЙ ИТОГ:</b>\n`;
         entriesForDate.forEach(e => {
-            const modelDailyTotal = (e.night.balance || 0) + (e.morning.balance || 0) + (e.day.balance || 0) + (e.evening.balance || 0);
-            const modelDailyGoal = (e.night.goal || 0) + (e.morning.goal || 0) + (e.day.goal || 0) + (e.evening.goal || 0);
+            const modelDailyTotal = (e.night?.balance || 0) + (e.morning?.balance || 0) + (e.day?.balance || 0) + (e.evening?.balance || 0);
+            const modelDailyGoal = (e.night?.goal || 0) + (e.morning?.goal || 0) + (e.day?.goal || 0) + (e.evening?.goal || 0);
             const status = modelDailyTotal >= modelDailyGoal ? '✅' : '❌';
             message += `• ${esc(e.modelName)}: ${modelDailyTotal.toFixed(0)}$ / ${modelDailyGoal.toFixed(0)}$ — ${status}\n`;
         });
@@ -299,7 +302,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   };
 
   const isShiftComplete = (shiftKey: 'night' | 'morning' | 'day' | 'evening') => {
-    return entriesForDate.length > 0 && entriesForDate.every(e => e[shiftKey].balance !== undefined);
+    return entriesForDate.length > 0 && entriesForDate.every(e => e[shiftKey]?.balance !== undefined && e[shiftKey]?.balance !== null);
   };
 
   return (
@@ -382,8 +385,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
               </thead>
               <tbody className="divide-y divide-slate-800">
                  {entriesForDate.map((entry, idx) => {
-                    const rowPlan = (entry.night.goal || 0) + (entry.morning.goal || 0) + (entry.day.goal || 0) + (entry.evening.goal || 0);
-                    const rowBalance = (entry.night.balance || 0) + (entry.morning.balance || 0) + (entry.day.balance || 0) + (entry.evening.balance || 0);
+                    const rowPlan = (entry.night?.goal || 0) + (entry.morning?.goal || 0) + (entry.day?.goal || 0) + (entry.evening?.goal || 0);
+                    const rowBalance = (entry.night?.balance || 0) + (entry.morning?.balance || 0) + (entry.day?.balance || 0) + (entry.evening?.balance || 0);
                     const rowRemaining = Math.max(0, rowPlan - rowBalance);
 
                     return (
@@ -393,18 +396,18 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                              <input 
                                 type="text" 
                                 className="bg-transparent w-full text-white font-bold outline-none focus:bg-white/5 px-2 py-1 rounded" 
-                                value={entry.modelName} 
+                                value={entry.modelName || ''} 
                                 onChange={e => handleRenameModel(entry.id, e.target.value)} 
                              />
                           </td>
                           
                           {SHIFTS.map(s => (
                              <React.Fragment key={s.key}>
-                                <td className={`p-1 border-r border-slate-800/30 transition-all ${getCellStatusClasses(entry[s.key].balance, entry[s.key].goal)}`}>
+                                <td className={`p-1 border-r border-slate-800/30 transition-all ${getCellStatusClasses(entry[s.key]?.balance, entry[s.key]?.goal || 0)}`}>
                                    <input 
                                       type="number" 
                                       className="w-full bg-transparent text-center text-sm font-black outline-none transition-all py-2 placeholder:text-slate-700/50"
-                                      value={entry[s.key].balance ?? ''} 
+                                      value={entry[s.key]?.balance ?? ''} 
                                       onChange={e => handleUpdate(entry.id, s.key, 'balance', e.target.value)}
                                       placeholder="0"
                                    />
@@ -413,7 +416,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                                    <input 
                                       type="number" 
                                       className="w-full bg-transparent text-center text-sm font-black text-slate-200 outline-none focus:bg-white/5 transition-all py-2 placeholder:text-slate-700"
-                                      value={entry[s.key].goal ?? ''} 
+                                      value={entry[s.key]?.goal ?? ''} 
                                       onChange={e => handleUpdate(entry.id, s.key, 'goal', e.target.value)}
                                       placeholder="0"
                                    />
