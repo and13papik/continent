@@ -65,7 +65,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         const safeModelName = typeof m === 'string' ? m : `Model-${idx}`;
         const goals = getLastKnownGoals(safeModelName);
         return {
-          id: `entry-${selectedDate}-${safeModelName.replace(/\s+/g, '-').toLowerCase()}-${idx}`,
+          id: `entry-${selectedDate}-${safeModelName.replace(/\s+/g, '-').toLowerCase()}-${idx}-${Date.now()}`,
           date: selectedDate,
           modelName: safeModelName,
           createdAt: new Date().toISOString(),
@@ -117,6 +117,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     if (!confirm('Удалить эту анкету из таблицы за это число?')) return;
     updateState(prev => ({
       ...prev,
+      deletedIds: [...(prev.deletedIds || []), entryId], // Теперь ID сохраняется в списке удаленных
       totalTableEntries: (prev.totalTableEntries || []).filter(e => e && e.id !== entryId)
     }));
   };
