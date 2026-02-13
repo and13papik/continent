@@ -27,7 +27,8 @@ export function createInitialState(): AppState {
         modelBonuses: parsed.modelBonuses || [],
         paidStatuses: parsed.paidStatuses || [],
         ownerTasks: parsed.ownerTasks || [],
-        totalTableEntries: parsed.totalTableEntries || []
+        totalTableEntries: parsed.totalTableEntries || [],
+        modelDefaultGoals: parsed.modelDefaultGoals || {}
       };
     } catch (e) {
       console.error("Failed to parse storage", e);
@@ -62,6 +63,7 @@ export function createInitialState(): AppState {
     paidStatuses: [],
     ownerTasks: [],
     totalTableEntries: [],
+    modelDefaultGoals: {},
     deletedIds: []
   };
 }
@@ -79,9 +81,6 @@ export function restoreEmergencyBackup(): AppState | null {
   return data ? JSON.parse(data) : null;
 }
 
-/**
- * Слияние массивов объектов по ID с учетом меток времени и списка удаленных
- */
 function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?: string }>(
   local: T[], 
   remote: T[], 
@@ -90,7 +89,6 @@ function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?:
   const map = new Map<string, T>();
   const deletedSet = new Set(deletedIds.map(id => String(id)));
   
-  // 1. Берем данные из облака
   remote.forEach(item => {
     const itemId = String(item.id);
     if (!deletedSet.has(itemId)) {
@@ -98,7 +96,6 @@ function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?:
     }
   });
   
-  // 2. Накладываем локальные данные (побеждают при конфликте, если не удалены)
   local.forEach(item => {
     const itemId = String(item.id);
     if (deletedSet.has(itemId)) return;
@@ -110,7 +107,6 @@ function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?:
       const itemTime = new Date(item.updatedAt || item.createdAt || 0).getTime();
       const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
       
-      // Локальная версия выигрывает, если она новее или равна удаленной
       if (itemTime >= existingTime) {
         map.set(itemId, item);
       }
@@ -147,7 +143,6 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         
         finalState.deletedIds = combinedDeletedIds;
 
-        // Умное слияние всех финансовых данных
         finalState.incomeData = mergeArraysById(state.incomeData, remote.incomeData, combinedDeletedIds);
         finalState.operationsData = mergeArraysById(state.operationsData, remote.operationsData, combinedDeletedIds);
         finalState.ownerExpenses = mergeArraysById(state.ownerExpenses, remote.ownerExpenses, combinedDeletedIds);
@@ -156,9 +151,8 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         finalState.modelBonuses = mergeArraysById(state.modelBonuses || [], remote.modelBonuses || [], combinedDeletedIds);
         finalState.paidStatuses = mergeArraysById(state.paidStatuses, remote.paidStatuses, combinedDeletedIds);
         finalState.ownerTasks = mergeArraysById(state.ownerTasks || [], remote.ownerTasks || [], combinedDeletedIds);
+        finalState.modelDefaultGoals = { ...(remote.modelDefaultGoals || {}), ...(state.modelDefaultGoals || {}) };
         
-        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Слияние Total Table по ID записей, а не целиком по таймстампу
-        // Это предотвращает затирание локальных правок баланса при синхронизации
         if (state.totalTableEntries || remote.totalTableEntries) {
             finalState.totalTableEntries = mergeArraysById(
               state.totalTableEntries || [], 

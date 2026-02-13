@@ -23,7 +23,7 @@ const getCellStatusClasses = (balance: any, goal: number) => {
   
   if (val === 0) return 'bg-rose-600 border-rose-400 text-white ring-4 ring-rose-500/50 shadow-[0_0_25px_rgba(244,63,94,0.6)] font-black animate-pulse z-10';
   
-  const safeGoal = goal || 1; // Защита от деления на ноль
+  const safeGoal = goal || 1; 
   const ratio = val / safeGoal;
   if (ratio < 0.5) return 'bg-orange-600/30 border-orange-500/50 text-orange-200';
   if (ratio < 1) return 'bg-amber-500/20 border-amber-500/40 text-amber-200';
@@ -37,15 +37,19 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
   const esc = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  // Защищенный useMemo для фильтрации записей
   const entriesForDate = useMemo(() => {
     return (state.totalTableEntries || []).filter(e => e && e.date === selectedDate);
   }, [state.totalTableEntries, selectedDate]);
 
-  // Функция поиска последних известных целей для анкеты с железобетонными проверками
   const getLastKnownGoals = (modelName: string) => {
+    // 1. Проверяем установленные цели по умолчанию в стейте
+    if (state.modelDefaultGoals && state.modelDefaultGoals[modelName]) {
+      return state.modelDefaultGoals[modelName];
+    }
+
+    // 2. Ищем в истории последних записей
     const allEntries = [...(state.totalTableEntries || [])]
-      .filter(e => e && typeof e.date === 'string') // Убеждаемся что дата - строка, иначе упадет localeCompare
+      .filter(e => e && typeof e.date === 'string')
       .sort((a, b) => b.date.localeCompare(a.date));
       
     const lastEntry = allEntries.find(e => e && e.modelName === modelName);
@@ -58,7 +62,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     };
   };
 
-  // Инициализация таблицы с наследованием целей (Защита от бесконечного цикла)
   useEffect(() => {
     if (entriesForDate.length === 0 && Array.isArray(state.models) && state.models.length > 0 && selectedDate) {
       const initialEntries = state.models.map((m, idx) => {
@@ -78,7 +81,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       });
       
       updateState(prev => {
-        // Двойная проверка ВНУТРИ обновления стейта, чтобы избежать гонки рендеров и зависания
         const currentEntries = (prev.totalTableEntries || []).filter(e => e && e.date === selectedDate);
         if (currentEntries.length > 0) return prev;
         
@@ -92,16 +94,74 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
   const handleUpdate = (entryId: string, shift: keyof DailyTotalEntry, field: keyof ShiftData, value: string) => {
     const val = value === '' ? undefined : parseFloat(value);
-    updateState(prev => ({
-      ...prev,
-      totalTableEntries: (prev.totalTableEntries || []).map(e => 
-        (e && e.id === entryId) ? { 
-          ...e, 
-          [shift]: { ...((e[shift] as ShiftData) || {}), [field]: val },
+    
+    updateState(prev => {
+      const targetEntry = (prev.totalTableEntries || []).find(e => e.id === entryId);
+      const modelName = targetEntry?.modelName;
+
+      // Если обновляем ЦЕЛЬ, сохраняем её как глобальную цель по умолчанию для этой модели
+      let updatedDefaults = prev.modelDefaultGoals || {};
+      if (field === 'goal' && modelName && val !== undefined) {
+        updatedDefaults = {
+          ...updatedDefaults,
+          [modelName]: {
+            ...(updatedDefaults[modelName] || { night: 60, morning: 60, day: 60, evening: 60 }),
+            [shift]: val
+          }
+        };
+      }
+
+      return {
+        ...prev,
+        modelDefaultGoals: updatedDefaults,
+        totalTableEntries: (prev.totalTableEntries || []).map(e => 
+          (e && e.id === entryId) ? { 
+            ...e, 
+            [shift]: { ...((e[shift] as ShiftData) || {}), [field]: val },
+            updatedAt: new Date().toISOString()
+          } : e
+        )
+      };
+    });
+  };
+
+  const handleSyncGoalsToAll = () => {
+    if (!confirm('Применить текущие цели из этой таблицы КО ВСЕМ дням (существующим и будущим)?')) return;
+    
+    updateState(prev => {
+      const currentDateEntries = (prev.totalTableEntries || []).filter(e => e.date === selectedDate);
+      const newDefaults: Record<string, any> = { ...(prev.modelDefaultGoals || {}) };
+      
+      currentDateEntries.forEach(e => {
+        newDefaults[e.modelName] = {
+          night: e.night.goal,
+          morning: e.morning.goal,
+          day: e.day.goal,
+          evening: e.evening.goal
+        };
+      });
+
+      // Также обновляем цели во ВСЕХ существующих записях таблицы
+      const updatedTotalEntries = (prev.totalTableEntries || []).map(e => {
+        const def = newDefaults[e.modelName];
+        if (!def) return e;
+        return {
+          ...e,
+          night: { ...e.night, goal: def.night },
+          morning: { ...e.morning, goal: def.morning },
+          day: { ...e.day, goal: def.day },
+          evening: { ...e.evening, goal: def.evening },
           updatedAt: new Date().toISOString()
-        } : e
-      )
-    }));
+        };
+      });
+
+      return {
+        ...prev,
+        modelDefaultGoals: newDefaults,
+        totalTableEntries: updatedTotalEntries
+      };
+    });
+    alert('Цели успешно синхронизированы по всей системе!');
   };
 
   const handleRenameModel = (entryId: string, newName: string) => {
@@ -117,7 +177,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     if (!confirm('Удалить эту анкету из таблицы за это число?')) return;
     updateState(prev => ({
       ...prev,
-      deletedIds: [...(prev.deletedIds || []), entryId], // Теперь ID сохраняется в списке удаленных
+      deletedIds: [...(prev.deletedIds || []), entryId],
       totalTableEntries: (prev.totalTableEntries || []).filter(e => e && e.id !== entryId)
     }));
   };
@@ -350,11 +410,14 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         </div>
         
         <div className="flex gap-3">
+           <button onClick={handleSyncGoalsToAll} className="bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/30 text-emerald-400 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/10">
+              <ICONS.RotateCcw size={14} /> Применить цели ко всем дням
+           </button>
            <button onClick={handleAddModel} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2">
               <ICONS.Plus size={14} /> Добавить анкету
            </button>
            <button onClick={handleReset} className="bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2">
-              <ICONS.RotateCcw size={14} /> Очистить
+              <ICONS.Trash size={14} /> Очистить
            </button>
         </div>
       </header>
@@ -406,7 +469,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
               </thead>
               <tbody className="divide-y divide-slate-800">
                  {entriesForDate.map((entry, idx) => {
-                    if (!entry) return null; // Безопасность
+                    if (!entry) return null; 
 
                     const nightG = entry.night?.goal || 0;
                     const mornG = entry.morning?.goal || 0;

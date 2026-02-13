@@ -36,6 +36,20 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     loadSnapshots();
   }, [state.syncUrl, state.syncKey]);
 
+  const handleUpdateDefaultGoal = (modelName: string, shift: 'night' | 'morning' | 'day' | 'evening', value: string) => {
+    const val = parseFloat(value) || 0;
+    updateState(prev => ({
+      ...prev,
+      modelDefaultGoals: {
+        ...(prev.modelDefaultGoals || {}),
+        [modelName]: {
+          ...(prev.modelDefaultGoals?.[modelName] || { night: 60, morning: 60, day: 60, evening: 60 }),
+          [shift]: val
+        }
+      }
+    }));
+  };
+
   const exportData = () => {
     const dataStr = JSON.stringify(state, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
@@ -62,12 +76,11 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     reader.readAsText(file);
   };
 
-  // ФУНКЦИЯ СБРОСА ДОХОДОВ
   const handleWipeData = () => {
     if (!confirm('ВНИМАНИЕ! Это удалит ВСЕ доходы, операции, авансы и бонусы за все время. Имена операторов и моделей останутся. Продолжить?')) return;
     if (!confirm('ПОСЛЕДНЕЕ ПРЕДУПРЕЖДЕНИЕ: Все финансовые данные будут обнулены. Это необратимо.')) return;
     
-    createEmergencyBackup(state); // Сохраняем в черный ящик перед удалением
+    createEmergencyBackup(state); 
 
     updateState(prev => ({
       ...prev,
@@ -83,12 +96,6 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     }));
     
     alert('Все финансовые данные успешно удалены. Операторы и модели сохранены.');
-  };
-
-  const handleTestConnection = async () => {
-    setDbTestResult(null);
-    const result = await testDatabaseConnection(syncUrlInput, syncKeyInput);
-    setDbTestResult(result);
   };
 
   const handleApplySettings = () => {
@@ -124,15 +131,6 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
       syncKey: state.syncKey
     }));
     alert('Система успешно восстановлена из снапшота!');
-  };
-
-  const handleEmergencyRestore = () => {
-    const backup = restoreEmergencyBackup();
-    if (!backup) return alert('Локальных бекапов не найдено.');
-    if (confirm('Восстановить данные из последнего "черного ящика" (локального авто-бекапа)?')) {
-      updateState(() => backup);
-      alert('Данные восстановлены!');
-    }
   };
 
   const saveRenameOperator = () => {
@@ -171,7 +169,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
           <p className="text-slate-400">Конфигурация системы и защита данных</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleEmergencyRestore} className="bg-rose-600/20 text-rose-400 border border-rose-500/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-rose-600/30 transition-all">Черный ящик</button>
+          <button onClick={() => { const b = restoreEmergencyBackup(); if(b) updateState(() => b); }} className="bg-rose-600/20 text-rose-400 border border-rose-500/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-rose-600/30 transition-all">Черный ящик</button>
           <label className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all">
             Импорт
             <input type="file" className="hidden" accept=".json" onChange={importData} />
@@ -180,7 +178,46 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
         </div>
       </header>
 
-      {/* Cloud Sync & Snapshots */}
+      <div className="glass-card p-8 rounded-[32px] border-amber-500/20 shadow-2xl space-y-6">
+        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+          <ICONS.Crown size={20} className="text-amber-400" /> Цели анкет по умолчанию (Стандарты)
+        </h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="text-slate-500 uppercase font-black tracking-widest border-b border-slate-800">
+                <th className="py-3 px-4">Анкета</th>
+                <th className="py-3 px-4 text-center">Ночь 🌙</th>
+                <th className="py-3 px-4 text-center">Утро 🌅</th>
+                <th className="py-3 px-4 text-center">День ☀️</th>
+                <th className="py-3 px-4 text-center">Вечер 🌇</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {state.models.map(m => {
+                const goals = state.modelDefaultGoals?.[m] || { night: 60, morning: 60, day: 60, evening: 60 };
+                return (
+                  <tr key={m} className="hover:bg-white/5 transition-colors">
+                    <td className="py-3 px-4 font-bold text-slate-300">{m}</td>
+                    {(['night', 'morning', 'day', 'evening'] as const).map(shift => (
+                      <td key={shift} className="py-2 px-2">
+                        <input 
+                          type="number" 
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-center text-white font-mono outline-none focus:border-amber-500/50"
+                          value={goals[shift]}
+                          onChange={e => handleUpdateDefaultGoal(m, shift, e.target.value)}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[10px] text-slate-500 italic">Эти значения будут автоматически подставляться при создании новых дней в Total Table.</p>
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-1 glass-card p-8 rounded-[32px] border-indigo-500/20 shadow-2xl space-y-6">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -203,12 +240,6 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
             <button onClick={forcePull} disabled={isManualSyncing} className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50">Загрузить "main"</button>
             <button onClick={handleWipeData} className="w-full bg-rose-600/20 hover:bg-rose-600/40 text-rose-500 border border-rose-500/30 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">Сбросить доходы</button>
           </div>
-          
-          {dbTestResult && (
-            <div className={`p-4 rounded-2xl border flex items-center gap-3 ${dbTestResult.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'}`}>
-              <span className="text-sm font-bold">{dbTestResult.message}</span>
-            </div>
-          )}
         </div>
 
         <div className="xl:col-span-2 glass-card p-8 rounded-[32px] border-slate-800 shadow-2xl space-y-6">
@@ -248,12 +279,10 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
                 ))
               )}
            </div>
-           <p className="text-[10px] text-slate-500 italic">Приложение сохраняет до 20 последних версий в облаке автоматически.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Operators Management */}
         <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <ICONS.Reports size={18} className="text-sky-400" /> Штат операторов
@@ -284,7 +313,6 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
           </div>
         </div>
 
-        {/* Models Management */}
         <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <ICONS.Models size={18} className="text-indigo-400" /> Модели

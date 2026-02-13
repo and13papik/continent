@@ -1,5 +1,4 @@
 
-
 export type Platform = 'onlyFans' | 'paypal' | 'crypto';
 
 export interface AccountingPeriod {
@@ -107,15 +106,12 @@ export interface PaidStatus {
   updatedAt?: string;
 }
 
-// Professional Status Set
-// Fixed TaskStatus: added 'idea' to resolve errors in OwnerTable and AdminTable
 export type TaskStatus = 'idea' | 'in_progress' | 'blocked' | 'waiting_external' | 'review' | 'completed';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type OwnerTag = 'CRITICAL' | 'MONEY' | 'SYSTEM' | 'CONTENT' | 'BLOCKER';
 export type TaskType = 'directive' | 'regular' | 'recurring';
 export type RecurrenceCycle = 'daily' | 'weekly' | 'monthly';
 
-// Fixed type compatibility by moving TaskAssignee up and using it for TaskNote author
 export type TaskAssignee = 'Andrey' | 'Anton' | 'Rector' | 'Mentor' | 'Owners' | 'Admins' | 'All';
 
 export interface TaskNote {
@@ -157,7 +153,7 @@ export interface OwnerTask {
     effect: string;
   };
   notes: TaskNote[];
-  auditLog: TaskAuditEntry[]; // Internal audit log
+  auditLog: TaskAuditEntry[]; 
   modelId?: string;
   dueDate?: string;
   createdAt: string;
@@ -205,6 +201,7 @@ export interface AppState {
   paidStatuses: PaidStatus[];
   ownerTasks?: OwnerTask[];
   totalTableEntries?: DailyTotalEntry[]; 
+  modelDefaultGoals?: Record<string, { night: number; morning: number; day: number; evening: number }>;
   tgChatId?: string; 
   deletedIds: string[]; 
   syncUrl?: string;
