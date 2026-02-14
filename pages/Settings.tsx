@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { AppState, CloudSnapshot, AccountingPeriod, IncomeRecord, OperationRecord } from '../types';
+import { AppState, CloudSnapshot, AccountingPeriod } from '../types';
 import { ICONS } from '../constants';
 import { fetchFromCloud, testDatabaseConnection, listCloudSnapshots, createEmergencyBackup, restoreEmergencyBackup } from '../store';
 
@@ -19,120 +19,43 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
   const [syncUrlInput, setSyncUrlInput] = useState(state.syncUrl || '');
   const [syncKeyInput, setSyncKeyInput] = useState(state.syncKey || '');
   const [isManualSyncing, setIsManualSyncing] = useState(false);
+  const [dbTestResult, setDbTestResult] = useState<{ success: boolean; message: string } | null>(null);
   
   const [snapshots, setSnapshots] = useState<CloudSnapshot[]>([]);
   const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
 
-  // --- УЛУЧШЕННЫЙ МАСТЕР ИСПРАВЛЕНИЯ ---
-  const issueReport = useMemo(() => {
+  // Инструмент починки данных
+  const homelessCount = useMemo(() => {
     const periodIds = new Set(state.accountingPeriods.map(p => p.id));
-    const periodsMap = new Map<string, string>(); // ID -> YYYY-MM
-    state.accountingPeriods.forEach(p => {
-      const d = new Date(p.startAt);
-      periodsMap.set(p.id, `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-    });
-
-    const homelessCount = [
-      ...state.incomeData.filter(i => !periodIds.has(i.periodId)),
-      ...state.operationsData.filter(o => !periodIds.has(o.periodId))
-    ].length;
-
-    const misplacedCount = [
-      ...state.incomeData.filter(i => {
-        const pMonthStr = periodsMap.get(i.periodId);
-        return pMonthStr && !i.date.startsWith(pMonthStr);
-      }),
-      ...state.operationsData.filter(o => {
-        const pMonthStr = periodsMap.get(o.periodId);
-        return pMonthStr && !o.date.startsWith(pMonthStr);
-      })
-    ].length;
-
-    return { total: homelessCount + misplacedCount, homelessCount, misplacedCount };
+    const badIncomes = state.incomeData.filter(i => !periodIds.has(i.periodId)).length;
+    const badOps = state.operationsData.filter(o => !periodIds.has(o.periodId)).length;
+    return badIncomes + badOps;
   }, [state.incomeData, state.operationsData, state.accountingPeriods]);
 
-  const repairDataStructure = () => {
-    if (!confirm(`Будет выполнен Капитальный ремонт:\n1. Период "Январь" станет строго январским.\n2. Период "Февраль" станет строго февральским.\n3. Записи февраля (25к) уйдут из января (50к).\n\nПродолжить?`)) return;
+  const repairData = () => {
+    const confirmRepair = confirm(`Найдено ${homelessCount} записей без привязки к периоду. Создать для них период "Восстановленные данные"? Это вернет пропавшие за февраль записи.`);
+    if (!confirmRepair) return;
 
     updateState(prev => {
-      const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-      
-      // 1. Исправляем даты начала периодов по их именам
-      let nextPeriods = prev.accountingPeriods.map(p => {
-        const lowerLabel = p.label.toLowerCase();
-        const monthIdx = months.findIndex(m => lowerLabel.includes(m.toLowerCase()));
-        
-        if (monthIdx !== -1) {
-            const yearMatch = p.label.match(/\d{4}/);
-            const year = yearMatch ? parseInt(yearMatch[0]) : 2025;
-            // Устанавливаем 1-е число месяца в полдень, чтобы избежать проблем с таймзонами
-            return {
-                ...p,
-                startAt: new Date(year, monthIdx, 1, 12, 0, 0).toISOString()
-            };
-        }
-        return p;
-      });
-      
-      // 2. Функция распределения
-      const getOrCreatePeriod = (dateStr: string) => {
-        const d = new Date(dateStr);
-        const m = d.getMonth();
-        const y = d.getFullYear();
-        
-        let found = nextPeriods.find(p => {
-          const pd = new Date(p.startAt);
-          return pd.getMonth() === m && pd.getFullYear() === y;
-        });
-
-        if (!found) {
-          found = {
-            id: `auto-${y}-${m}-${Date.now()}`,
-            label: `${months[m]} ${y}`,
-            startAt: new Date(y, m, 1, 12, 0, 0).toISOString(),
-            endAt: null,
-            status: 'open'
-          };
-          nextPeriods.push(found);
-        }
-        return found.id;
+      const newPeriod: AccountingPeriod = {
+        id: `recovered-${Date.now()}`,
+        label: `Восстановлено ${new Date().toLocaleDateString()}`,
+        startAt: new Date().toISOString(),
+        endAt: null,
+        status: 'open'
       };
-
-      // 3. Перепривязываем все записи по их фактической дате
-      const nextIncomes = prev.incomeData.map(i => ({
-        ...i, 
-        periodId: getOrCreatePeriod(i.date),
-        updatedAt: new Date().toISOString()
-      }));
-
-      const nextOps = prev.operationsData.map(o => ({
-        ...o, 
-        periodId: getOrCreatePeriod(o.date),
-        updatedAt: new Date().toISOString()
-      }));
-
-      const nextManualIncomes = (prev.ownerManualIncomes || []).map(i => ({
-        ...i,
-        periodId: getOrCreatePeriod(i.date)
-      }));
-
-      const nextExpenses = prev.ownerExpenses.map(e => ({
-        ...e,
-        periodId: getOrCreatePeriod(e.date)
-      }));
-
+      
+      const periodIds = new Set(prev.accountingPeriods.map(p => p.id));
+      
       return {
         ...prev,
-        version: prev.version + 100, // Форсируем синхронизацию
-        accountingPeriods: nextPeriods,
-        incomeData: nextIncomes,
-        operationsData: nextOps,
-        ownerManualIncomes: nextManualIncomes,
-        ownerExpenses: nextExpenses
+        accountingPeriods: [...prev.accountingPeriods, newPeriod],
+        selectedPeriodId: newPeriod.id,
+        incomeData: prev.incomeData.map(i => periodIds.has(i.periodId) ? i : { ...i, periodId: newPeriod.id }),
+        operationsData: prev.operationsData.map(o => periodIds.has(o.periodId) ? o : { ...o, periodId: newPeriod.id })
       };
     });
-
-    alert('Готово! Теперь Январь и Февраль разделены корректно.');
+    alert('Система восстановлена!');
   };
 
   const loadSnapshots = async () => {
@@ -188,8 +111,11 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
   };
 
   const handleWipeData = () => {
-    if (!confirm('Удалить ВСЕ финансовые данные?')) return;
+    if (!confirm('ВНИМАНИЕ! Это удалит ВСЕ доходы, операции, авансы и бонусы за все время. Имена операторов и моделей останутся. Продолжить?')) return;
+    if (!confirm('ПОСЛЕДНЕЕ ПРЕДУПРЕЖДЕНИЕ: Все финансовые данные будут обнулены. Это необратимо.')) return;
+    
     createEmergencyBackup(state); 
+
     updateState(prev => ({
       ...prev,
       incomeData: [],
@@ -202,32 +128,50 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
       lastUpdated: Date.now(),
       version: prev.version + 1
     }));
+    
+    alert('Все финансовые данные успешно удалены. Операторы и модели сохранены.');
   };
 
   const handleApplySettings = () => {
     updateState(p => ({ ...p, syncUrl: syncUrlInput, syncKey: syncKeyInput }));
-    alert('Настройки сохранены.');
+    alert('Настройки сохранены локально.');
   };
 
   const forcePull = async () => {
-     if (!syncUrlInput || !syncKeyInput) return;
+     if (!syncUrlInput || !syncKeyInput) return alert('Сначала введите URL и Ключ');
+     if (!confirm('Внимание: это ЗАМЕНИТ ваши текущие данные данными из облака (main). Продолжить?')) return;
+     
      setIsManualSyncing(true);
+     createEmergencyBackup(state); 
+     
      const remote = await fetchFromCloud(syncUrlInput, syncKeyInput);
-     if (remote) {
+     if (remote && remote.accountingPeriods) {
         updateState(() => ({ ...remote, syncUrl: syncUrlInput, syncKey: syncKeyInput }));
-        alert('Данные загружены.');
+        alert('Данные успешно загружены!');
+     } else {
+        alert('Данные не найдены.');
      }
      setIsManualSyncing(false);
   };
 
   const restoreFromSnapshot = (snap: CloudSnapshot) => {
-    if (!confirm(`Откатить систему к ${new Date(snap.updated_at).toLocaleString()}?`)) return;
+    const dateStr = new Date(snap.updated_at).toLocaleString();
+    if (!confirm(`Вы действительно хотите откатить ВСЮ систему к состоянию на ${dateStr}? Текущие данные будут стерты.`)) return;
+    
     createEmergencyBackup(state); 
-    updateState(() => ({ ...snap.state, syncUrl: state.syncUrl, syncKey: state.syncKey }));
+    updateState(() => ({
+      ...snap.state,
+      syncUrl: state.syncUrl,
+      syncKey: state.syncKey
+    }));
+    alert('Система успешно восстановлена из снапшота!');
   };
 
   const saveRenameOperator = () => {
-    if (!editOp || !editOp.current.trim() || editOp.old === editOp.current) { setEditOp(null); return; }
+    if (!editOp || !editOp.current.trim() || editOp.old === editOp.current) {
+      setEditOp(null);
+      return;
+    }
     updateState(prev => ({
       ...prev,
       operators: prev.operators.map(o => o === editOp.old ? editOp.current : o),
@@ -238,7 +182,10 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
   };
 
   const saveRenameModel = () => {
-    if (!editModel || !editModel.current.trim() || editModel.old === editModel.current) { setEditModel(null); return; }
+    if (!editModel || !editModel.current.trim() || editModel.old === editModel.current) {
+      setEditModel(null);
+      return;
+    }
     updateState(prev => ({
       ...prev,
       models: prev.models.map(m => m === editModel.old ? editModel.current : m),
@@ -253,7 +200,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold font-outfit text-white">Настройки</h1>
-          <p className="text-slate-400">Конфигурация системы и разделение данных</p>
+          <p className="text-slate-400">Конфигурация системы и защита данных</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => { const b = restoreEmergencyBackup(); if(b) updateState(() => b); }} className="bg-rose-600/20 text-rose-400 border border-rose-500/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-rose-600/30 transition-all">Черный ящик</button>
@@ -265,25 +212,24 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
         </div>
       </header>
 
-      {/* КНОПКА ГЕНЕРАЛЬНОЙ ПОЧИНКИ */}
-      <div className="bg-indigo-600/10 border border-indigo-500/40 p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl">
-         <div className="flex items-center gap-5">
-            <div className="w-16 h-16 rounded-3xl bg-indigo-500/20 flex items-center justify-center text-indigo-400">
-               <ICONS.AlertTriangle size={32} />
+      {homelessCount > 0 && (
+         <div className="bg-amber-600/10 border border-amber-500/40 p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl">
+            <div className="flex items-center gap-5">
+               <div className="w-16 h-16 rounded-3xl bg-amber-500/20 flex items-center justify-center text-amber-500">
+                  <ICONS.AlertTriangle size={32} />
+               </div>
+               <div>
+                  <h3 className="text-xl font-bold text-white font-outfit">Инструмент восстановления</h3>
+                  <p className="text-sm text-slate-400 mt-1">Обнаружено {homelessCount} записей без периода. Нажмите для восстановления структуры.</p>
+               </div>
             </div>
-            <div>
-               <h3 className="text-xl font-bold text-white font-outfit">Исправить за 1 клик</h3>
-               <p className="text-sm text-slate-400 mt-1">
-                 Нажмите, чтобы разделить Январь (50к) и Февраль (25к). Система автоматически перенесет записи в правильные месяцы.
-               </p>
-            </div>
+            <button onClick={repairData} className="bg-amber-600 hover:bg-amber-500 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95">Восстановить</button>
          </div>
-         <button onClick={repairDataStructure} className="bg-indigo-600 hover:bg-indigo-500 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95">Запустить ремонт</button>
-      </div>
+      )}
 
       <div className="glass-card p-8 rounded-[32px] border-amber-500/20 shadow-2xl space-y-6">
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
-          <ICONS.Crown size={20} className="text-amber-400" /> Цели анкет по умолчанию
+          <ICONS.Crown size={20} className="text-amber-400" /> Цели анкет по умолчанию (Стандарты)
         </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -304,7 +250,12 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
                     <td className="py-3 px-4 font-bold text-slate-300">{m}</td>
                     {(['night', 'morning', 'day', 'evening'] as const).map(shift => (
                       <td key={shift} className="py-2 px-2">
-                        <input type="number" className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-center text-white font-mono outline-none focus:border-amber-500/50" value={goals[shift]} onChange={e => handleUpdateDefaultGoal(m, shift, e.target.value)} />
+                        <input 
+                          type="number" 
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-center text-white font-mono outline-none focus:border-amber-500/50"
+                          value={goals[shift]}
+                          onChange={e => handleUpdateDefaultGoal(m, shift, e.target.value)}
+                        />
                       </td>
                     ))}
                   </tr>
@@ -313,6 +264,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
             </tbody>
           </table>
         </div>
+        <p className="text-[10px] text-slate-500 italic">Эти значения будут автоматически подставляться при создании новых дней в Total Table.</p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
@@ -320,13 +272,21 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <ICONS.Dashboard size={20} className="text-indigo-400" /> Supabase Config
           </h2>
+          
           <div className="space-y-4">
-            <input className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3 text-sm text-white outline-none" value={syncUrlInput} onChange={e => setSyncUrlInput(e.target.value)} placeholder="URL" />
-            <input type="password" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3 text-sm text-white outline-none" value={syncKeyInput} onChange={e => setSyncKeyInput(e.target.value)} placeholder="Key" />
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Project URL</label>
+              <input className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3 text-sm text-white outline-none focus:border-indigo-500 transition-all" value={syncUrlInput} onChange={e => setSyncUrlInput(e.target.value)} placeholder="https://xxxx.supabase.co" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Anon Key</label>
+              <input type="password" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3 text-sm text-white outline-none focus:border-indigo-500 transition-all" value={syncKeyInput} onChange={e => setSyncKeyInput(e.target.value)} placeholder="eyJhb..." />
+            </div>
           </div>
-          <div className="flex flex-col gap-3">
-            <button onClick={handleApplySettings} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-2xl font-bold text-sm shadow-lg transition-all active:scale-95">Применить</button>
-            <button onClick={forcePull} disabled={isManualSyncing} className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50">Загрузить из облака</button>
+
+          <div className="flex flex-col gap-3 pt-4">
+            <button onClick={handleApplySettings} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-2xl font-bold text-sm shadow-lg shadow-indigo-600/20 transition-all active:scale-95">Применить</button>
+            <button onClick={forcePull} disabled={isManualSyncing} className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50">Загрузить "main"</button>
             <button onClick={handleWipeData} className="w-full bg-rose-600/20 hover:bg-rose-600/40 text-rose-500 border border-rose-500/30 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">Сбросить доходы</button>
           </div>
         </div>
@@ -334,20 +294,39 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
         <div className="xl:col-span-2 glass-card p-8 rounded-[32px] border-slate-800 shadow-2xl space-y-6">
            <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <ICONS.Calendar size={20} className="text-emerald-400" /> Снапшоты
+                <ICONS.Calendar size={20} className="text-emerald-400" /> Облачные снапшоты (Бекапы)
               </h2>
               <button onClick={loadSnapshots} className="text-indigo-400 hover:text-white transition-all"><ICONS.RotateCcw size={18} className={isLoadingSnapshots ? 'animate-spin' : ''}/></button>
            </div>
+
            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-              {snapshots.map(snap => (
-                <div key={snap.id} className="bg-slate-900/40 p-4 rounded-2xl border border-slate-800 flex items-center justify-between group hover:border-indigo-500/30 transition-all">
-                  <div>
-                    <p className="text-sm font-bold text-white">{new Date(snap.updated_at).toLocaleString()}</p>
-                    <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">v.{snap.state.version}</p>
-                  </div>
-                  <button onClick={() => restoreFromSnapshot(snap)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all">Восстановить</button>
+              {snapshots.length === 0 && !isLoadingSnapshots ? (
+                <div className="p-10 text-center border-2 border-dashed border-slate-800 rounded-3xl text-slate-600">
+                  История изменений пуста или облако не подключено
                 </div>
-              ))}
+              ) : (
+                snapshots.map(snap => (
+                  <div key={snap.id} className="bg-slate-900/40 p-4 rounded-2xl border border-slate-800 flex items-center justify-between group hover:border-indigo-500/30 transition-all">
+                    <div className="flex items-center gap-4">
+                       <div className="w-10 h-10 rounded-xl bg-slate-950 flex items-center justify-center text-emerald-500 font-bold border border-slate-800">
+                         {snap.state.version || '?'}
+                       </div>
+                       <div>
+                          <p className="text-sm font-bold text-white">{new Date(snap.updated_at).toLocaleString()}</p>
+                          <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">
+                            {snap.state.incomeData.length} записей дохода • {snap.state.operationsData.length} операций
+                          </p>
+                       </div>
+                    </div>
+                    <button 
+                      onClick={() => restoreFromSnapshot(snap)}
+                      className="opacity-0 group-hover:opacity-100 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                    >
+                      Восстановить
+                    </button>
+                  </div>
+                ))
+              )}
            </div>
         </div>
       </div>
