@@ -92,8 +92,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     const pDate = new Date(activePeriod.startAt);
     const pMonthStr = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
 
-    // ФИЛЬТРУЕМ ТОЛЬКО ЗАПИСИ, КОТОРЫЕ ПРИНАДЛЕЖАТ ЭТОМУ МЕСЯЦУ КАЛЕНДАРНО
-    // Это гарантирует, что если в Январе лежат записи Февраля, они не будут посчитаны
+    // СТРОГИЙ ФИЛЬТР ПО МЕСЯЦУ: Считаем только те записи, чей месяц совпадает с месяцем периода
     const periodIncomes = state.incomeData.filter(r => 
       r.periodId === activePeriodId && r.date.startsWith(pMonthStr)
     );
@@ -247,7 +246,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
       }
       const nextId = String(Date.now());
-      const newP: AccountingPeriod = { id: nextId, label: `${months[nextMonthIdx]} ${nextYear}`, startAt: new Date(nextYear, nextMonthIdx, 1).toISOString(), endAt: null, status: 'open' };
+      const newP: AccountingPeriod = { id: nextId, label: `${months[nextMonthIdx]} ${nextYear}`, startAt: new Date(nextYear, nextMonthIdx, 1, 12, 0, 0).toISOString(), endAt: null, status: 'open' };
       return { ...prev, accountingPeriods: [...prev.accountingPeriods.map(p => p.id === activePeriodId ? { ...p, status: 'closed' as const, endAt: new Date().toISOString() } : p), newP], selectedPeriodId: nextId };
     });
   };
