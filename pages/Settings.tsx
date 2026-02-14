@@ -24,7 +24,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
   const [snapshots, setSnapshots] = useState<CloudSnapshot[]>([]);
   const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
 
-  // --- УЛУЧШЕННЫЙ ИНСТРУМЕНТ ВОССТАНОВЛЕНИЯ ---
+  // --- УЛУЧШЕННЫЙ МАСТЕР ИСПРАВЛЕНИЯ ---
   const issueReport = useMemo(() => {
     const periodIds = new Set(state.accountingPeriods.map(p => p.id));
     const periodsMap = new Map<string, { m: number, y: number }>();
@@ -34,13 +34,13 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     });
 
     // 1. Бездомные записи (периода вообще нет)
-    const homeless = [
+    const homelessCount = [
       ...state.incomeData.filter(i => !periodIds.has(i.periodId)),
       ...state.operationsData.filter(o => !periodIds.has(o.periodId))
-    ];
+    ].length;
 
-    // 2. Смещенные записи (период есть, но дата не совпадает с месяцем периода)
-    const misplaced = [
+    // 2. Смещенные записи (период есть, но дата не совпадает с месяцем периода - ПРИЧИНА ОШИБКИ ПОЛЬЗОВАТЕЛЯ)
+    const misplacedCount = [
       ...state.incomeData.filter(i => {
         const p = periodsMap.get(i.periodId);
         if (!p) return false;
@@ -53,20 +53,19 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
         const d = new Date(o.date);
         return d.getMonth() !== p.m || d.getFullYear() !== p.y;
       })
-    ];
+    ].length;
 
-    return { total: homeless.length + misplaced.length, homeless, misplaced };
+    return { total: homelessCount + misplacedCount, homelessCount, misplacedCount };
   }, [state.incomeData, state.operationsData, state.accountingPeriods]);
 
   const repairDataStructure = () => {
-    if (issueReport.total === 0) return alert('Проблем не обнаружено.');
-    if (!confirm(`Будет перепроверено ${issueReport.total} записей. Система автоматически создаст недостающие периоды и перенесет записи в правильные месяцы. Продолжить?`)) return;
+    if (issueReport.total === 0) return alert('Проблем в структуре данных не обнаружено.');
+    if (!confirm(`Будет перепроверено и перепривязано ${issueReport.total} записей. Это разделит статистику Января и Февраля по календарным месяцам. Продолжить?`)) return;
 
     updateState(prev => {
       let nextPeriods = [...prev.accountingPeriods];
-      let nextIncomes = [...prev.incomeData];
-      let nextOps = [...prev.operationsData];
-
+      
+      // Функция поиска или создания правильного периода для даты
       const getOrCreatePeriod = (dateStr: string) => {
         const d = new Date(dateStr);
         const m = d.getMonth();
@@ -81,7 +80,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
           const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
           found = {
             id: `auto-${y}-${m}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            label: `${months[m]} ${y} (Auto)`,
+            label: `${months[m]} ${y}`,
             startAt: new Date(y, m, 1).toISOString(),
             endAt: null,
             status: 'open'
@@ -91,28 +90,46 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
         return found.id;
       };
 
-      // Исправляем все доходы
-      nextIncomes = nextIncomes.map(i => {
+      // 1. Перепривязываем доходы
+      const nextIncomes = prev.incomeData.map(i => {
         const correctId = getOrCreatePeriod(i.date);
-        return i.periodId !== correctId ? { ...i, periodId: correctId, updatedAt: new Date().toISOString() } : i;
+        return { ...i, periodId: correctId, updatedAt: new Date().toISOString() };
       });
 
-      // Исправляем все операции
-      nextOps = nextOps.map(o => {
+      // 2. Перепривязываем операции
+      const nextOps = prev.operationsData.map(o => {
         const correctId = getOrCreatePeriod(o.date);
-        return o.periodId !== correctId ? { ...o, periodId: correctId, updatedAt: new Date().toISOString() } : o;
+        return { ...o, periodId: correctId, updatedAt: new Date().toISOString() };
+      });
+
+      // 3. Перепривязываем бонусы моделей
+      const nextBonuses = (prev.modelBonuses || []).map(b => {
+        // У бонусов часто нет точной даты, берем дату создания
+        const correctId = getOrCreatePeriod(b.createdAt || new Date().toISOString());
+        return { ...b, periodId: correctId };
+      });
+
+      // 4. Перепривязываем статусы выплат (по возможности)
+      const nextPaidStatuses = prev.paidStatuses.map(s => {
+          // Если период статуса не существует, привязываем к последнему открытому или текущему
+          if (!nextPeriods.find(p => p.id === s.periodId)) {
+              return { ...s, periodId: nextPeriods[nextPeriods.length-1].id };
+          }
+          return s;
       });
 
       return {
         ...prev,
-        version: prev.version + 10, // Форсируем синхронизацию
+        version: prev.version + 50, // Форсируем синхронизацию, чтобы изменения точно сохранились в облаке
         accountingPeriods: nextPeriods,
         incomeData: nextIncomes,
-        operationsData: nextOps
+        operationsData: nextOps,
+        modelBonuses: nextBonuses,
+        paidStatuses: nextPaidStatuses
       };
     });
 
-    alert('Структура данных восстановлена! Проверьте список периодов.');
+    alert('Глубокая перепривязка завершена! Теперь данные Февраля отделены от Января.');
   };
 
   const loadSnapshots = async () => {
@@ -278,12 +295,12 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
                <div>
                   <h3 className="text-xl font-bold text-white font-outfit">Мастер исправления данных</h3>
                   <p className="text-sm text-slate-400 mt-1">
-                    Найдено {issueReport.homeless.length} "потерянных" записей и {issueReport.misplaced.length} записей не в своих месяцах. 
-                    Нажмите для автоматической починки.
+                    Найдено {issueReport.misplacedCount} записей Февраля внутри Января (и наоборот). 
+                    Нажмите для автоматического разделения статистики.
                   </p>
                </div>
             </div>
-            <button onClick={repairDataStructure} className="bg-indigo-600 hover:bg-indigo-500 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95">Проверить и починить</button>
+            <button onClick={repairDataStructure} className="bg-indigo-600 hover:bg-indigo-500 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95">Разделить по месяцам</button>
          </div>
       )}
 

@@ -68,7 +68,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
 
-  // Глобальная проверка целостности дат
+  // Глобальная проверка целостности дат (записи, которые по ID в этом периоде, но по дате - нет)
   const misplacedRecords = useMemo(() => {
     if (!activePeriod) return [];
     const periodStart = new Date(activePeriod.startAt);
@@ -78,6 +78,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     const badIncome = state.incomeData.filter(i => {
       if (i.periodId !== activePeriodId) return false;
       const d = new Date(i.date);
+      // Если месяц или год не совпадает с периодом
       return d.getMonth() !== month || d.getFullYear() !== year;
     });
 
@@ -96,24 +97,20 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     const m = periodStart.getMonth();
     const y = periodStart.getFullYear();
 
-    // Фильтруем записи: ОНИ ДОЛЖНЫ БЫТЬ И ПО ID, И ПО ДАТЕ ЭТОГО МЕСЯЦА
-    // Это исключает попадание февраля в январь
+    // СУПЕР-СТРОГИЙ ФИЛЬТР: Считаем только то, что реально было в этом месяце
     const periodIncomes = state.incomeData.filter(r => {
-      if (r.periodId !== activePeriodId) return false;
       const d = new Date(r.date);
-      return d.getMonth() === m && d.getFullYear() === y;
+      return r.periodId === activePeriodId && d.getMonth() === m && d.getFullYear() === y;
     });
 
     const manualIncomes = (state.ownerManualIncomes || []).filter(i => {
-      if (i.periodId !== activePeriodId) return false;
       const d = new Date(i.date);
-      return d.getMonth() === m && d.getFullYear() === y;
+      return i.periodId === activePeriodId && d.getMonth() === m && d.getFullYear() === y;
     });
 
     const periodOps = state.operationsData.filter(o => {
-      if (o.periodId !== activePeriodId) return false;
       const d = new Date(o.date);
-      return d.getMonth() === m && d.getFullYear() === y;
+      return o.periodId === activePeriodId && d.getMonth() === m && d.getFullYear() === y;
     });
 
     const adminNames = state.admins.map(a => a.name);
@@ -163,24 +160,21 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
 
     const raw = state.operators.map(op => {
       const incomes = state.incomeData.filter(r => {
-        if (r.operator !== op || r.periodId !== activePeriodId) return false;
         const d = new Date(r.date);
-        return d.getMonth() === m && d.getFullYear() === y;
+        return r.operator === op && r.periodId === activePeriodId && d.getMonth() === m && d.getFullYear() === y;
       });
 
       const ops = state.operationsData.filter(o => {
-        if (o.operator !== op || o.periodId !== activePeriodId || !!o.model) return false;
         const d = new Date(o.date);
-        return d.getMonth() === m && d.getFullYear() === y;
+        return o.operator === op && o.periodId === activePeriodId && !o.model && d.getMonth() === m && d.getFullYear() === y;
       });
 
       const rawG = incomes.reduce((sum, r) => sum + r.total, 0);
       const rawN = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
       
       const opRefunds = state.operationsData.filter(o => {
-        if (o.type !== 'refund' || o.operator !== op || o.periodId !== activePeriodId) return false;
         const d = new Date(o.date);
-        return d.getMonth() === m && d.getFullYear() === y;
+        return o.type === 'refund' && o.operator === op && o.periodId === activePeriodId && d.getMonth() === m && d.getFullYear() === y;
       }).reduce((sum, o) => sum + o.amount, 0);
 
       const avgRate = rawG > 0 ? rawN / rawG : 0.20;
@@ -298,18 +292,18 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       </header>
 
       {misplacedRecords.length > 0 && (
-        <div className="bg-amber-500/10 border border-amber-500/30 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl shadow-amber-500/5">
+        <div className="bg-rose-500/10 border border-rose-500/30 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl shadow-rose-500/5">
            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-500 shadow-inner">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 flex items-center justify-center text-rose-500 shadow-inner">
                  <ICONS.AlertTriangle size={24} />
               </div>
               <div>
                  <h3 className="text-lg font-bold text-white font-outfit uppercase tracking-tight">Обнаружен конфликт данных</h3>
-                 <p className="text-xs text-slate-400">В периоде {activePeriod?.label} найдено {misplacedRecords.length} записей с датами другого месяца. Они исключены из расчетов.</p>
+                 <p className="text-xs text-slate-400">В периоде {activePeriod?.label} найдены записи другого месяца (всего {misplacedRecords.length}). Они временно исключены из отчета, чтобы не портить статистику.</p>
               </div>
            </div>
-           <button onClick={() => navigate('/settings')} className="bg-amber-600 hover:bg-amber-500 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95">
-              Исправить в настройках
+           <button onClick={() => navigate('/settings')} className="bg-rose-600 hover:bg-rose-500 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95">
+              Исправить сейчас
            </button>
         </div>
       )}
