@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AppState, IncomeRecord } from '../types';
 import { ICONS } from '../constants';
 
@@ -23,10 +23,19 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [modelData, setModelData] = useState<Record<string, ModelEntry>>({});
   
-  // Обновлено: PP по умолчанию 17%
   const [baselinePercents, setBaselinePercents] = useState({ of: '20', pp: '17', cr: '20' });
 
   const activePeriod = state.accountingPeriods.find(p => p.id === state.selectedPeriodId)!;
+
+  // Проверка: соответствует ли дата выбранному месяцу?
+  const isPeriodMismatch = useMemo(() => {
+    if (!date || !activePeriod) return false;
+    const inputDate = new Date(date);
+    const start = new Date(activePeriod.startAt);
+    
+    // Сравниваем год и месяц. Если они не совпадают - выводим предупреждение.
+    return inputDate.getMonth() !== start.getMonth() || inputDate.getFullYear() !== start.getFullYear();
+  }, [date, activePeriod]);
 
   const toggleModel = (m: string) => {
     setSelectedModels(prev => {
@@ -60,6 +69,10 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
     if (!operator || !date || selectedModels.length === 0) {
       alert('Заполните все данные');
       return;
+    }
+
+    if (isPeriodMismatch) {
+        if (!confirm(`ВНИМАНИЕ: Выбранная дата (${date}) не совпадает с текущим периодом (${activePeriod.label}). Записать доход в ${activePeriod.label}?`)) return;
     }
 
     const newRecords: IncomeRecord[] = [];
@@ -125,6 +138,13 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
         )}
       </header>
 
+      {isPeriodMismatch && (
+          <div className="bg-rose-600/20 border border-rose-500/40 p-4 rounded-2xl flex items-center gap-3 text-rose-400 animate-in slide-in-from-top-2">
+             <ICONS.AlertTriangle size={20} />
+             <p className="text-xs font-bold uppercase tracking-tight">Внимание: Выбранная дата не относится к {activePeriod.label}!</p>
+          </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-3 space-y-6">
           <div className="glass-card p-6 rounded-3xl space-y-4">
@@ -142,7 +162,12 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Дата</label>
-                <input type="date" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-indigo-500" value={date} onChange={(e) => setDate(e.target.value)} />
+                <input 
+                  type="date" 
+                  className={`w-full bg-slate-900 border rounded-2xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${isPeriodMismatch ? 'border-rose-500 bg-rose-500/5' : 'border-slate-700'}`} 
+                  value={date} 
+                  onChange={(e) => setDate(e.target.value)} 
+                />
               </div>
             </div>
           </div>

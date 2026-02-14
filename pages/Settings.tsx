@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { AppState, CloudSnapshot } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { AppState, CloudSnapshot, AccountingPeriod } from '../types';
 import { ICONS } from '../constants';
 import { fetchFromCloud, testDatabaseConnection, listCloudSnapshots, createEmergencyBackup, restoreEmergencyBackup } from '../store';
 
@@ -23,6 +23,40 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
   
   const [snapshots, setSnapshots] = useState<CloudSnapshot[]>([]);
   const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
+
+  // Инструмент починки данных
+  const homelessCount = useMemo(() => {
+    const periodIds = new Set(state.accountingPeriods.map(p => p.id));
+    const badIncomes = state.incomeData.filter(i => !periodIds.has(i.periodId)).length;
+    const badOps = state.operationsData.filter(o => !periodIds.has(o.periodId)).length;
+    return badIncomes + badOps;
+  }, [state.incomeData, state.operationsData, state.accountingPeriods]);
+
+  const repairData = () => {
+    const confirmRepair = confirm(`Найдено ${homelessCount} записей без привязки к периоду. Создать для них период "Восстановленные данные"? Это вернет пропавшие за февраль записи.`);
+    if (!confirmRepair) return;
+
+    updateState(prev => {
+      const newPeriod: AccountingPeriod = {
+        id: `recovered-${Date.now()}`,
+        label: `Восстановлено ${new Date().toLocaleDateString()}`,
+        startAt: new Date().toISOString(),
+        endAt: null,
+        status: 'open'
+      };
+      
+      const periodIds = new Set(prev.accountingPeriods.map(p => p.id));
+      
+      return {
+        ...prev,
+        accountingPeriods: [...prev.accountingPeriods, newPeriod],
+        selectedPeriodId: newPeriod.id,
+        incomeData: prev.incomeData.map(i => periodIds.has(i.periodId) ? i : { ...i, periodId: newPeriod.id }),
+        operationsData: prev.operationsData.map(o => periodIds.has(o.periodId) ? o : { ...o, periodId: newPeriod.id })
+      };
+    });
+    alert('Система восстановлена!');
+  };
 
   const loadSnapshots = async () => {
     if (!state.syncUrl || !state.syncKey) return;
@@ -177,6 +211,21 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
           <button onClick={exportData} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all">Экспорт</button>
         </div>
       </header>
+
+      {homelessCount > 0 && (
+         <div className="bg-amber-600/10 border border-amber-500/40 p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl">
+            <div className="flex items-center gap-5">
+               <div className="w-16 h-16 rounded-3xl bg-amber-500/20 flex items-center justify-center text-amber-500">
+                  <ICONS.AlertTriangle size={32} />
+               </div>
+               <div>
+                  <h3 className="text-xl font-bold text-white font-outfit">Инструмент восстановления</h3>
+                  <p className="text-sm text-slate-400 mt-1">Обнаружено {homelessCount} записей без периода. Нажмите для восстановления структуры.</p>
+               </div>
+            </div>
+            <button onClick={repairData} className="bg-amber-600 hover:bg-amber-500 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95">Восстановить</button>
+         </div>
+      )}
 
       <div className="glass-card p-8 rounded-[32px] border-amber-500/20 shadow-2xl space-y-6">
         <h2 className="text-xl font-bold text-white flex items-center gap-2">

@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AppState, AccountingPeriod, PaidStatus, OperationRecord } from '../types';
+import { AppState, AccountingPeriod, PaidStatus, OperationRecord, IncomeRecord } from '../types';
 import { ICONS } from '../constants';
 
 // --- ВСПОМОГАТЕЛЬНЫЕ КОМПОНЕНТЫ ---
@@ -67,6 +67,40 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   const navigate = useNavigate();
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
+
+  // Проверка на наличие "бездомных" записей (из-за которых данные могли "пропасть")
+  const homelessRecords = useMemo(() => {
+    const periodIds = new Set(state.accountingPeriods.map(p => p.id));
+    const badIncome = state.incomeData.filter(i => !periodIds.has(i.periodId));
+    const badOps = state.operationsData.filter(o => !periodIds.has(o.periodId));
+    return [...badIncome, ...badOps];
+  }, [state.incomeData, state.operationsData, state.accountingPeriods]);
+
+  const repairHomeless = () => {
+    const confirmRepair = confirm(`Обнаружено ${homelessRecords.length} записей без привязки к периоду. Создать для них новый период "Восстановленные данные"?`);
+    if (!confirmRepair) return;
+
+    updateState(prev => {
+      const newPeriod: AccountingPeriod = {
+        id: `recovered-${Date.now()}`,
+        label: `Восстановлено ${new Date().toLocaleDateString()}`,
+        startAt: new Date().toISOString(),
+        endAt: null,
+        status: 'open'
+      };
+      
+      const periodIds = new Set(prev.accountingPeriods.map(p => p.id));
+      
+      return {
+        ...prev,
+        accountingPeriods: [...prev.accountingPeriods, newPeriod],
+        selectedPeriodId: newPeriod.id,
+        incomeData: prev.incomeData.map(i => periodIds.has(i.periodId) ? i : { ...i, periodId: newPeriod.id }),
+        operationsData: prev.operationsData.map(o => periodIds.has(o.periodId) ? o : { ...o, periodId: newPeriod.id })
+      };
+    });
+    alert('Данные успешно возвращены в систему!');
+  };
 
   const stats = useMemo(() => {
     const periodIncomes = state.incomeData.filter(r => r.periodId === activePeriodId);
@@ -139,7 +173,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
 
   const toggleOperatorPaid = (op: string, currentRemainder: number) => {
     updateState(prev => {
-      // Ищем по характеристикам
       const existingStatus = prev.paidStatuses.find(s => 
         s.entityName === op && 
         s.entityType === 'operator' && 
@@ -232,6 +265,24 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
           </div>
         </div>
       </header>
+
+      {homelessRecords.length > 0 && (
+        <div className="bg-rose-500/10 border border-rose-500/20 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-6 animate-pulse shadow-xl shadow-rose-500/5">
+           <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 flex items-center justify-center text-rose-500 shadow-inner">
+                 <ICONS.AlertTriangle size={24} />
+              </div>
+              <div>
+                 <h3 className="text-lg font-bold text-white font-outfit uppercase tracking-tight">Обнаружены "пропавшие" записи</h3>
+                 <p className="text-xs text-slate-400">Найдено {homelessRecords.length} записей, у которых удален период (февраль мог исчезнуть из-за конфликта синхронизации).</p>
+              </div>
+           </div>
+           <button onClick={repairHomeless} className="bg-rose-600 hover:bg-rose-500 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-rose-600/20 active:scale-95">
+              Восстановить данные
+           </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <div className="space-y-4">
           <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Доходы и Платформы</h2>
