@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { AppState, CloudSnapshot, AccountingPeriod } from '../types';
+import { AppState, CloudSnapshot, AccountingPeriod, IncomeRecord, OperationRecord } from '../types';
 import { ICONS } from '../constants';
 import { fetchFromCloud, testDatabaseConnection, listCloudSnapshots, createEmergencyBackup, restoreEmergencyBackup } from '../store';
 
@@ -24,38 +24,95 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
   const [snapshots, setSnapshots] = useState<CloudSnapshot[]>([]);
   const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
 
-  // Инструмент починки данных
-  const homelessCount = useMemo(() => {
+  // --- УЛУЧШЕННЫЙ ИНСТРУМЕНТ ВОССТАНОВЛЕНИЯ ---
+  const issueReport = useMemo(() => {
     const periodIds = new Set(state.accountingPeriods.map(p => p.id));
-    const badIncomes = state.incomeData.filter(i => !periodIds.has(i.periodId)).length;
-    const badOps = state.operationsData.filter(o => !periodIds.has(o.periodId)).length;
-    return badIncomes + badOps;
+    const periodsMap = new Map<string, { m: number, y: number }>();
+    state.accountingPeriods.forEach(p => {
+      const d = new Date(p.startAt);
+      periodsMap.set(p.id, { m: d.getMonth(), y: d.getFullYear() });
+    });
+
+    // 1. Бездомные записи (периода вообще нет)
+    const homeless = [
+      ...state.incomeData.filter(i => !periodIds.has(i.periodId)),
+      ...state.operationsData.filter(o => !periodIds.has(o.periodId))
+    ];
+
+    // 2. Смещенные записи (период есть, но дата не совпадает с месяцем периода)
+    const misplaced = [
+      ...state.incomeData.filter(i => {
+        const p = periodsMap.get(i.periodId);
+        if (!p) return false;
+        const d = new Date(i.date);
+        return d.getMonth() !== p.m || d.getFullYear() !== p.y;
+      }),
+      ...state.operationsData.filter(o => {
+        const p = periodsMap.get(o.periodId);
+        if (!p) return false;
+        const d = new Date(o.date);
+        return d.getMonth() !== p.m || d.getFullYear() !== p.y;
+      })
+    ];
+
+    return { total: homeless.length + misplaced.length, homeless, misplaced };
   }, [state.incomeData, state.operationsData, state.accountingPeriods]);
 
-  const repairData = () => {
-    const confirmRepair = confirm(`Найдено ${homelessCount} записей без привязки к периоду. Создать для них период "Восстановленные данные"? Это вернет пропавшие за февраль записи.`);
-    if (!confirmRepair) return;
+  const repairDataStructure = () => {
+    if (issueReport.total === 0) return alert('Проблем не обнаружено.');
+    if (!confirm(`Будет перепроверено ${issueReport.total} записей. Система автоматически создаст недостающие периоды и перенесет записи в правильные месяцы. Продолжить?`)) return;
 
     updateState(prev => {
-      const newPeriod: AccountingPeriod = {
-        id: `recovered-${Date.now()}`,
-        label: `Восстановлено ${new Date().toLocaleDateString()}`,
-        startAt: new Date().toISOString(),
-        endAt: null,
-        status: 'open'
+      let nextPeriods = [...prev.accountingPeriods];
+      let nextIncomes = [...prev.incomeData];
+      let nextOps = [...prev.operationsData];
+
+      const getOrCreatePeriod = (dateStr: string) => {
+        const d = new Date(dateStr);
+        const m = d.getMonth();
+        const y = d.getFullYear();
+        
+        let found = nextPeriods.find(p => {
+          const pd = new Date(p.startAt);
+          return pd.getMonth() === m && pd.getFullYear() === y;
+        });
+
+        if (!found) {
+          const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+          found = {
+            id: `auto-${y}-${m}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            label: `${months[m]} ${y} (Auto)`,
+            startAt: new Date(y, m, 1).toISOString(),
+            endAt: null,
+            status: 'open'
+          };
+          nextPeriods.push(found);
+        }
+        return found.id;
       };
-      
-      const periodIds = new Set(prev.accountingPeriods.map(p => p.id));
-      
+
+      // Исправляем все доходы
+      nextIncomes = nextIncomes.map(i => {
+        const correctId = getOrCreatePeriod(i.date);
+        return i.periodId !== correctId ? { ...i, periodId: correctId, updatedAt: new Date().toISOString() } : i;
+      });
+
+      // Исправляем все операции
+      nextOps = nextOps.map(o => {
+        const correctId = getOrCreatePeriod(o.date);
+        return o.periodId !== correctId ? { ...o, periodId: correctId, updatedAt: new Date().toISOString() } : o;
+      });
+
       return {
         ...prev,
-        accountingPeriods: [...prev.accountingPeriods, newPeriod],
-        selectedPeriodId: newPeriod.id,
-        incomeData: prev.incomeData.map(i => periodIds.has(i.periodId) ? i : { ...i, periodId: newPeriod.id }),
-        operationsData: prev.operationsData.map(o => periodIds.has(o.periodId) ? o : { ...o, periodId: newPeriod.id })
+        version: prev.version + 10, // Форсируем синхронизацию
+        accountingPeriods: nextPeriods,
+        incomeData: nextIncomes,
+        operationsData: nextOps
       };
     });
-    alert('Система восстановлена!');
+
+    alert('Структура данных восстановлена! Проверьте список периодов.');
   };
 
   const loadSnapshots = async () => {
@@ -212,18 +269,21 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
         </div>
       </header>
 
-      {homelessCount > 0 && (
-         <div className="bg-amber-600/10 border border-amber-500/40 p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl">
+      {issueReport.total > 0 && (
+         <div className="bg-indigo-600/10 border border-indigo-500/40 p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl animate-pulse">
             <div className="flex items-center gap-5">
-               <div className="w-16 h-16 rounded-3xl bg-amber-500/20 flex items-center justify-center text-amber-500">
+               <div className="w-16 h-16 rounded-3xl bg-indigo-500/20 flex items-center justify-center text-indigo-400">
                   <ICONS.AlertTriangle size={32} />
                </div>
                <div>
-                  <h3 className="text-xl font-bold text-white font-outfit">Инструмент восстановления</h3>
-                  <p className="text-sm text-slate-400 mt-1">Обнаружено {homelessCount} записей без периода. Нажмите для восстановления структуры.</p>
+                  <h3 className="text-xl font-bold text-white font-outfit">Мастер исправления данных</h3>
+                  <p className="text-sm text-slate-400 mt-1">
+                    Найдено {issueReport.homeless.length} "потерянных" записей и {issueReport.misplaced.length} записей не в своих месяцах. 
+                    Нажмите для автоматической починки.
+                  </p>
                </div>
             </div>
-            <button onClick={repairData} className="bg-amber-600 hover:bg-amber-500 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95">Восстановить</button>
+            <button onClick={repairDataStructure} className="bg-indigo-600 hover:bg-indigo-500 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95">Проверить и починить</button>
          </div>
       )}
 
