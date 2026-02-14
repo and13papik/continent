@@ -33,9 +33,20 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
     const inputDate = new Date(date);
     const start = new Date(activePeriod.startAt);
     
-    // Сравниваем год и месяц. Если они не совпадают - выводим предупреждение.
     return inputDate.getMonth() !== start.getMonth() || inputDate.getFullYear() !== start.getFullYear();
   }, [date, activePeriod]);
+
+  // Поиск ID периода, который соответствует выбранной дате
+  const suggestedPeriodId = useMemo(() => {
+      const d = new Date(date);
+      const m = d.getMonth();
+      const y = d.getFullYear();
+      const found = state.accountingPeriods.find(p => {
+          const pd = new Date(p.startAt);
+          return pd.getMonth() === m && pd.getFullYear() === y;
+      });
+      return found?.id;
+  }, [date, state.accountingPeriods]);
 
   const toggleModel = (m: string) => {
     setSelectedModels(prev => {
@@ -71,8 +82,19 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
       return;
     }
 
+    let targetPeriodId = state.selectedPeriodId;
+
     if (isPeriodMismatch) {
-        if (!confirm(`ВНИМАНИЕ: Выбранная дата (${date}) не совпадает с текущим периодом (${activePeriod.label}). Записать доход в ${activePeriod.label}?`)) return;
+        if (suggestedPeriodId) {
+            const confirmMove = confirm(`ВНИМАНИЕ: Вы вводите дату (${date}), которая относится к другому периоду. Перенести эту запись в правильный месяц автоматически?`);
+            if (confirmMove) {
+                targetPeriodId = suggestedPeriodId;
+            } else {
+                if (!confirm(`Вы уверены, что хотите записать ФЕВРАЛЬСКИЙ доход в ЯНВАРСКИЙ период? Это исказит статистику.`)) return;
+            }
+        } else {
+            if (!confirm(`ВНИМАНИЕ: Для выбранной даты (${date}) еще не создан период. Записать доход в текущий (${activePeriod.label})?`)) return;
+        }
     }
 
     const newRecords: IncomeRecord[] = [];
@@ -91,7 +113,7 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
           id: String(Date.now() + Math.random()),
           date,
           createdAt: new Date().toISOString(),
-          periodId: state.selectedPeriodId,
+          periodId: targetPeriodId,
           operator,
           model: m,
           onlyFans: of,

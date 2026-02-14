@@ -68,24 +68,20 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
 
-  // Глобальная проверка целостности дат (записи, которые по ID в этом периоде, но по дате - нет)
+  // Глобальная проверка целостности дат (строго по YYYY-MM)
   const misplacedRecords = useMemo(() => {
     if (!activePeriod) return [];
-    const periodStart = new Date(activePeriod.startAt);
-    const month = periodStart.getMonth();
-    const year = periodStart.getFullYear();
+    const pDate = new Date(activePeriod.startAt);
+    const pMonthStr = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
 
     const badIncome = state.incomeData.filter(i => {
       if (i.periodId !== activePeriodId) return false;
-      const d = new Date(i.date);
-      // Если месяц или год не совпадает с периодом
-      return d.getMonth() !== month || d.getFullYear() !== year;
+      return !i.date.startsWith(pMonthStr);
     });
 
     const badOps = state.operationsData.filter(o => {
       if (o.periodId !== activePeriodId) return false;
-      const d = new Date(o.date);
-      return d.getMonth() !== month || d.getFullYear() !== year;
+      return !o.date.startsWith(pMonthStr);
     });
 
     return [...badIncome, ...badOps];
@@ -93,28 +89,24 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
 
   const stats = useMemo(() => {
     if (!activePeriod) return null;
-    const periodStart = new Date(activePeriod.startAt);
-    const m = periodStart.getMonth();
-    const y = periodStart.getFullYear();
+    const pDate = new Date(activePeriod.startAt);
+    const pMonthStr = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
 
-    // СУПЕР-СТРОГИЙ ФИЛЬТР: Считаем только то, что реально было в этом месяце
-    const periodIncomes = state.incomeData.filter(r => {
-      const d = new Date(r.date);
-      return r.periodId === activePeriodId && d.getMonth() === m && d.getFullYear() === y;
-    });
+    // ФИЛЬТРУЕМ ТОЛЬКО ЗАПИСИ, КОТОРЫЕ ПРИНАДЛЕЖАТ ЭТОМУ МЕСЯЦУ КАЛЕНДАРНО
+    // Это гарантирует, что если в Январе лежат записи Февраля, они не будут посчитаны
+    const periodIncomes = state.incomeData.filter(r => 
+      r.periodId === activePeriodId && r.date.startsWith(pMonthStr)
+    );
 
-    const manualIncomes = (state.ownerManualIncomes || []).filter(i => {
-      const d = new Date(i.date);
-      return i.periodId === activePeriodId && d.getMonth() === m && d.getFullYear() === y;
-    });
+    const manualIncomes = (state.ownerManualIncomes || []).filter(i => 
+      i.periodId === activePeriodId && i.date.startsWith(pMonthStr)
+    );
 
-    const periodOps = state.operationsData.filter(o => {
-      const d = new Date(o.date);
-      return o.periodId === activePeriodId && d.getMonth() === m && d.getFullYear() === y;
-    });
+    const periodOps = state.operationsData.filter(o => 
+      o.periodId === activePeriodId && o.date.startsWith(pMonthStr)
+    );
 
     const adminNames = state.admins.map(a => a.name);
-    
     const rawPlatformGross = periodIncomes.reduce((s, r) => s + r.total, 0);
     const rawManualGross = manualIncomes.reduce((s, i) => s + i.amount, 0);
     const totalRefunds = periodOps.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
@@ -154,28 +146,24 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
 
   const operatorRows = useMemo(() => {
     if (!activePeriod) return [];
-    const periodStart = new Date(activePeriod.startAt);
-    const m = periodStart.getMonth();
-    const y = periodStart.getFullYear();
+    const pDate = new Date(activePeriod.startAt);
+    const pMonthStr = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
 
     const raw = state.operators.map(op => {
-      const incomes = state.incomeData.filter(r => {
-        const d = new Date(r.date);
-        return r.operator === op && r.periodId === activePeriodId && d.getMonth() === m && d.getFullYear() === y;
-      });
+      const incomes = state.incomeData.filter(r => 
+        r.operator === op && r.periodId === activePeriodId && r.date.startsWith(pMonthStr)
+      );
 
-      const ops = state.operationsData.filter(o => {
-        const d = new Date(o.date);
-        return o.operator === op && o.periodId === activePeriodId && !o.model && d.getMonth() === m && d.getFullYear() === y;
-      });
+      const ops = state.operationsData.filter(o => 
+        o.operator === op && o.periodId === activePeriodId && !o.model && o.date.startsWith(pMonthStr)
+      );
 
       const rawG = incomes.reduce((sum, r) => sum + r.total, 0);
       const rawN = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
       
-      const opRefunds = state.operationsData.filter(o => {
-        const d = new Date(o.date);
-        return o.type === 'refund' && o.operator === op && o.periodId === activePeriodId && d.getMonth() === m && d.getFullYear() === y;
-      }).reduce((sum, o) => sum + o.amount, 0);
+      const opRefunds = state.operationsData.filter(o => 
+        o.type === 'refund' && o.operator === op && o.periodId === activePeriodId && o.date.startsWith(pMonthStr)
+      ).reduce((sum, o) => sum + o.amount, 0);
 
       const avgRate = rawG > 0 ? rawN / rawG : 0.20;
       const totalGross = rawG - opRefunds;
@@ -298,12 +286,12 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
                  <ICONS.AlertTriangle size={24} />
               </div>
               <div>
-                 <h3 className="text-lg font-bold text-white font-outfit uppercase tracking-tight">Обнаружен конфликт данных</h3>
-                 <p className="text-xs text-slate-400">В периоде {activePeriod?.label} найдены записи другого месяца (всего {misplacedRecords.length}). Они временно исключены из отчета, чтобы не портить статистику.</p>
+                 <h3 className="text-lg font-bold text-white font-outfit uppercase tracking-tight">Внимание: данные перемешаны</h3>
+                 <p className="text-xs text-slate-400">В периоде {activePeriod?.label} найдены записи другого месяца (всего {misplacedRecords.length}). Они ИСКЛЮЧЕНЫ из итогов этого отчета.</p>
               </div>
            </div>
            <button onClick={() => navigate('/settings')} className="bg-rose-600 hover:bg-rose-500 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95">
-              Исправить сейчас
+              Разделить Январь и Февраль
            </button>
         </div>
       )}
