@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { AppState, OperationType, OperationRecord, Platform, IncomeRecord } from '../types';
 import { ICONS, OPERATION_META, PLATFORM_NAMES } from '../constants';
+import { findPeriodIdByDate } from '../store';
 
 interface OperationsProps {
   state: AppState;
@@ -44,6 +45,8 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
       return;
     }
 
+    const finalPeriodId = findPeriodIdByDate(eventDate, state.accountingPeriods) || targetPeriodId;
+
     const newOp: OperationRecord = {
       id: String(Date.now()),
       type,
@@ -53,7 +56,7 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
       comment,
       date: eventDate,
       createdAt: new Date().toISOString(),
-      periodId: targetPeriodId,
+      periodId: finalPeriodId,
       platform: platform === 'all' ? undefined : platform
     };
 

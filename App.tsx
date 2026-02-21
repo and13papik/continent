@@ -89,7 +89,7 @@ const App: React.FC = () => {
             if (current.version === versionAtStart) {
                setCloudStatus('success');
                setLastSyncTime(new Date().toLocaleTimeString());
-               return result.newState;
+               return result.newState!;
             }
             console.log("Sync result discarded: local state changed during request");
             return current;

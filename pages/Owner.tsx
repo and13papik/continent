@@ -351,7 +351,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
               <input type="text" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Заметка..." value={incomeComment} onChange={e => setIncomeComment(e.target.value)} />
               <button onClick={addExtraIncome} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl shadow-xl">Сохранить</button>
             </div>
-            <HistoryList items={stats.currentManualIncomes} onRemove={id => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerManualIncomes: p.ownerManualIncomes?.filter(i => i.id !== id)}))} title="История доходов" />
+            <HistoryList items={stats.currentManualIncomes} onRemove={(id: string) => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerManualIncomes: p.ownerManualIncomes?.filter(i => i.id !== id)}))} title="История доходов" />
           </div>
 
           <div className="glass-card p-8 rounded-[3rem] border-rose-500/20 shadow-2xl flex flex-col">
@@ -367,7 +367,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                 <input type="text" className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Заметка..." value={expenseComment} onChange={e => setExpenseComment(e.target.value)} />
                 <button onClick={addBusinessExpense} className="w-full bg-rose-600 hover:bg-rose-500 text-white font-black py-4 rounded-2xl shadow-xl">Сохранить</button>
              </div>
-             <HistoryList items={stats.currentExpenses} onRemove={id => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerExpenses: p.ownerExpenses.filter(e => e.id !== id)}))} title="История расходов" isExpenses />
+             <HistoryList items={stats.currentExpenses} onRemove={(id: string) => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerExpenses: p.ownerExpenses.filter(e => e.id !== id)}))} title="История расходов" isExpenses />
           </div>
 
           <div className="glass-card p-8 rounded-[3rem] border-amber-500/20 shadow-2xl flex flex-col">
@@ -384,7 +384,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
               <input type="text" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Заметка..." value={advanceComment} onChange={e => setAdvanceComment(e.target.value)} />
               <button onClick={addOwnerAdvance} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-4 rounded-2xl shadow-xl">Выдать</button>
             </div>
-            <HistoryList items={stats.currentOwnerAdvances} onRemove={id => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerAdvances: p.ownerAdvances.filter(a => a.id !== id)}))} title="История авансов" isOwner />
+            <HistoryList items={stats.currentOwnerAdvances} onRemove={(id: string) => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerAdvances: p.ownerAdvances.filter(a => a.id !== id)}))} title="История авансов" isOwner />
           </div>
       </div>
     </div>
@@ -421,8 +421,8 @@ const HistoryList = ({ items, onRemove, title, isOwner, isExpenses }: any) => (
                {isExpenses && <div className={`absolute left-0 top-0 bottom-0 w-1 ${cat?.color.replace('text-', 'bg-')}`}></div>}
                <div className="p-4 flex items-center gap-4">
                   {isExpenses ? (
-                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${cat?.bg} ${cat?.color} border ${cat?.border} shrink-0 shadow-inner`}>
-                        <cat.icon size={18} />
+                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${cat?.bg || ''} ${cat?.color || ''} border ${cat?.border || ''} shrink-0 shadow-inner`}>
+                        {cat && <cat.icon size={18} />}
                      </div>
                   ) : (
                      <div className="w-10 h-10 rounded-xl bg-emerald-500/5 flex items-center justify-center text-emerald-500 border border-emerald-500/10 shrink-0">

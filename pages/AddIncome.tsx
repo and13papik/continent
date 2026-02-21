@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { AppState, IncomeRecord } from '../types';
 import { ICONS } from '../constants';
+import { findPeriodIdByDate } from '../store';
 
 interface AddIncomeProps {
   state: AppState;
@@ -72,8 +73,26 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
     }
 
     if (isPeriodMismatch) {
+        const inputDate = new Date(date);
+        const targetMonth = inputDate.getMonth();
+        const targetYear = inputDate.getFullYear();
+        
+        const existingPeriod = state.accountingPeriods.find(p => {
+          const pDate = new Date(p.startAt);
+          return pDate.getMonth() === targetMonth && pDate.getFullYear() === targetYear;
+        });
+
+        if (existingPeriod && existingPeriod.id !== state.selectedPeriodId) {
+          if (confirm(`ВНИМАНИЕ: Выбранная дата (${date}) относится к периоду "${existingPeriod.label}", но сейчас выбран "${activePeriod.label}". Переключиться на "${existingPeriod.label}" перед сохранением?`)) {
+            updateState(prev => ({ ...prev, selectedPeriodId: existingPeriod.id }));
+            return; // Прерываем сохранение, чтобы пользователь мог проверить данные в новом периоде
+          }
+        }
+
         if (!confirm(`ВНИМАНИЕ: Выбранная дата (${date}) не совпадает с текущим периодом (${activePeriod.label}). Записать доход в ${activePeriod.label}?`)) return;
     }
+
+    const targetPeriodId = findPeriodIdByDate(date, state.accountingPeriods) || state.selectedPeriodId;
 
     const newRecords: IncomeRecord[] = [];
     selectedModels.forEach(m => {
@@ -91,7 +110,7 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
           id: String(Date.now() + Math.random()),
           date,
           createdAt: new Date().toISOString(),
-          periodId: state.selectedPeriodId,
+          periodId: targetPeriodId,
           operator,
           model: m,
           onlyFans: of,
@@ -251,21 +270,21 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
   );
 };
 
-const IncomeField = ({ label, value, onChange, color }: any) => (
+const IncomeField = ({ label, value, onChange, color }: { label: string, value: string, onChange: (v: string) => void, color: string }) => (
   <div className="space-y-1">
     <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">{label}</label>
     <input type="number" placeholder="0" className={`w-full bg-slate-900/50 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono text-white focus:ring-1 focus:ring-${color}-500 outline-none`} value={value} onChange={e => onChange(e.target.value)} />
   </div>
 );
 
-const RateField = ({ label, value, onChange, color }: any) => (
+const RateField = ({ label, value, onChange, color }: { label: string, value: string, onChange: (v: string) => void, color: string }) => (
   <div className="space-y-1">
     <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">{label}</label>
     <input type="number" className={`w-full bg-${color}-500/5 border border-${color}-500/20 rounded-xl px-3 py-2 text-sm font-mono text-${color}-400 outline-none`} value={value} onChange={e => onChange(e.target.value)} />
   </div>
 );
 
-const GlobalRateInput = ({ label, value, onChange }: any) => (
+const GlobalRateInput = ({ label, value, onChange }: { label: string, value: string, onChange: (v: string) => void }) => (
   <div className="space-y-1">
     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{label}</label>
     <input type="number" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 font-mono text-indigo-400 font-bold outline-none focus:ring-2 focus:ring-indigo-500" value={value} onChange={e => onChange(e.target.value)} />

@@ -170,6 +170,7 @@ export interface DailyTotalEntry {
   id: string;
   date: string; 
   modelName: string;
+  periodId: string;
   night: ShiftData;
   morning: ShiftData;
   day: ShiftData;

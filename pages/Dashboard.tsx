@@ -172,20 +172,28 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   }, [state.incomeData, state.operationsData, state.operators, activePeriodId, state.paidStatuses]);
 
   const toggleOperatorPaid = (op: string, currentRemainder: number) => {
-    updateState(prev => {
-      const existingStatus = prev.paidStatuses.find(s => 
-        s.entityName === op && 
-        s.entityType === 'operator' && 
-        s.periodId === activePeriodId
-      );
+    const existingStatus = state.paidStatuses.find(s => 
+      s.entityName === op && 
+      s.entityType === 'operator' && 
+      s.periodId === activePeriodId
+    );
+
+    if (existingStatus) {
+      if (!confirm(`Отменить статус "Выплачено" для ${op}? ВНИМАНИЕ: Автоматически созданная операция выплаты НЕ будет удалена. Если вы хотите аннулировать платеж, удалите его вручную в разделе "Операции".`)) return;
       
-      if (existingStatus) {
-        return { 
-          ...prev, 
-          deletedIds: [...(prev.deletedIds || []), existingStatus.id],
-          paidStatuses: prev.paidStatuses.filter(s => s.id !== existingStatus.id) 
-        };
+      updateState(prev => ({ 
+        ...prev, 
+        deletedIds: [...(prev.deletedIds || []), existingStatus.id],
+        paidStatuses: prev.paidStatuses.filter(s => s.id !== existingStatus.id) 
+      }));
+    } else {
+      if (currentRemainder <= 0) {
+        if (!confirm(`У оператора ${op} нулевой или отрицательный остаток. Все равно отметить как выплачено?`)) return;
       } else {
+        if (!confirm(`Создать операцию выплаты для ${op} на сумму $${currentRemainder.toFixed(1)} и отметить как выплачено?`)) return;
+      }
+
+      updateState(prev => {
         let newOperations = [...prev.operationsData];
         if (currentRemainder > 0) {
           const autoPayment: OperationRecord = {
@@ -216,28 +224,85 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
           operationsData: newOperations,
           paidStatuses: [...prev.paidStatuses, newStatus] 
         };
-      }
-    });
+      });
+    }
   };
 
   const handleCloseMonth = () => {
     if (!activePeriod || activePeriod.status === 'closed') return;
-    const confirmClose = window.confirm(`Закрыть период "${activePeriod.label}"?`);
+    const confirmClose = window.confirm(`Закрыть период "${activePeriod.label}"? Это переключит вас на следующий месяц.`);
     if (!confirmClose) return;
+
+    updateState(prev => {
+      const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+      
+      // Находим текущий индекс активного периода в списке
+      const activeIdx = prev.accountingPeriods.findIndex(p => p.id === activePeriodId);
+      const nextInList = prev.accountingPeriods[activeIdx + 1];
+      
+      let nextId = nextInList?.id;
+      let newPeriods = prev.accountingPeriods.map(p => 
+        p.id === activePeriodId ? { ...p, status: 'closed' as const, endAt: new Date().toISOString() } : p
+      );
+
+      if (!nextId) {
+        // Если следующего периода нет в списке, создаем его
+        const lastP = prev.accountingPeriods[prev.accountingPeriods.length - 1];
+        let nextMonthIdx = new Date().getMonth(), nextYear = new Date().getFullYear();
+        if (lastP) {
+          const lastDate = new Date(lastP.startAt);
+          nextMonthIdx = lastDate.getMonth() + 1; 
+          nextYear = lastDate.getFullYear();
+          if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
+        }
+        nextId = String(Date.now());
+        const newP: AccountingPeriod = { 
+          id: nextId, 
+          label: `${months[nextMonthIdx]} ${nextYear}`, 
+          startAt: new Date(nextYear, nextMonthIdx, 1).toISOString(), 
+          endAt: null, 
+          status: 'open' 
+        };
+        newPeriods = [...newPeriods, newP];
+      }
+
+      return { 
+        ...prev, 
+        accountingPeriods: newPeriods, 
+        selectedPeriodId: nextId 
+      };
+    });
+  };
+
+  const handleStartNextMonth = () => {
     updateState(prev => {
       const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
       const lastP = prev.accountingPeriods[prev.accountingPeriods.length - 1];
       let nextMonthIdx = new Date().getMonth(), nextYear = new Date().getFullYear();
       if (lastP) {
         const lastDate = new Date(lastP.startAt);
-        nextMonthIdx = lastDate.getMonth() + 1; nextYear = lastDate.getFullYear();
+        nextMonthIdx = lastDate.getMonth() + 1; 
+        nextYear = lastDate.getFullYear();
         if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
       }
       const nextId = String(Date.now());
-      const newP: AccountingPeriod = { id: nextId, label: `${months[nextMonthIdx]} ${nextYear}`, startAt: new Date(nextYear, nextMonthIdx, 1).toISOString(), endAt: null, status: 'open' };
-      return { ...prev, accountingPeriods: [...prev.accountingPeriods.map(p => p.id === activePeriodId ? { ...p, status: 'closed' as const, endAt: new Date().toISOString() } : p), newP], selectedPeriodId: nextId };
+      const newP: AccountingPeriod = { 
+        id: nextId, 
+        label: `${months[nextMonthIdx]} ${nextYear}`, 
+        startAt: new Date(nextYear, nextMonthIdx, 1).toISOString(), 
+        endAt: null, 
+        status: 'open' 
+      };
+      return { 
+        ...prev, 
+        accountingPeriods: [...prev.accountingPeriods, newP], 
+        selectedPeriodId: nextId 
+      };
     });
   };
+
+  const isLatestPeriod = state.accountingPeriods[state.accountingPeriods.length - 1]?.id === activePeriodId;
+  const canStartNext = isLatestPeriod; // Можно добавить проверку на текущую дату, если нужно
 
   const DashboardIcon = ICONS.Dashboard || 'span';
   const TransferIcon = ICONS.Transfer || 'span';
@@ -255,13 +320,27 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white font-outfit">Main Dashboard</h1>
-          <div className="flex items-center gap-4 mt-1">
-             <select className="bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-1.5 text-indigo-400 font-bold outline-none cursor-pointer text-sm" value={state.selectedPeriodId} onChange={(e) => updateState(prev => ({ ...prev, selectedPeriodId: e.target.value }))}>
-                {state.accountingPeriods.slice().reverse().map(p => <option key={p.id} value={p.id}>{p.label} {p.status === 'closed' ? '🔒' : ''}</option>)}
-             </select>
-             {activePeriod?.status === 'open' && (
-                <button onClick={handleCloseMonth} className="flex items-center gap-2 px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95"><LockIcon size={12} /> Закрыть месяц</button>
-             )}
+          <div className="flex flex-wrap items-center gap-4 mt-1">
+             <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Период:</span>
+                <select className="bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-1.5 text-indigo-400 font-bold outline-none cursor-pointer text-sm" value={state.selectedPeriodId} onChange={(e) => updateState(prev => ({ ...prev, selectedPeriodId: e.target.value }))}>
+                   {state.accountingPeriods.slice().reverse().map(p => <option key={p.id} value={p.id}>{p.label} {p.status === 'closed' ? '🔒' : ''}</option>)}
+                </select>
+             </div>
+             
+             <div className="flex items-center gap-2">
+               {activePeriod?.status === 'open' && (
+                  <button onClick={handleCloseMonth} className="flex items-center gap-2 px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-500 hover:text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all border border-rose-500/30 active:scale-95 shadow-lg shadow-rose-500/5">
+                    <LockIcon size={12} /> Закрыть месяц
+                  </button>
+               )}
+               
+               {isLatestPeriod && (
+                  <button onClick={handleStartNextMonth} className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-95">
+                    <ICONS.Plus size={12} /> Открыть следующий
+                  </button>
+               )}
+             </div>
           </div>
         </div>
       </header>

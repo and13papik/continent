@@ -397,14 +397,14 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
   );
 };
 
-const InfoBox = ({ title, value, color, highlighted }: any) => (
+const InfoBox = ({ title, value, color, highlighted }: { title: string, value: number, color: string, highlighted?: boolean }) => (
   <div className={`glass-card p-6 rounded-3xl border ${highlighted ? 'border-indigo-500/40 bg-indigo-500/10 shadow-2xl' : 'border-slate-800'}`}>
     <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">{title}</p>
     <p className={`text-2xl font-black font-outfit ${highlighted ? 'text-white' : `text-${color}-400`}`}>${value.toLocaleString(undefined, { minimumFractionDigits: 1 })}</p>
   </div>
 );
 
-const DailyMini = ({ pill, rate, net, color }: any) => {
+const DailyMini = ({ pill, rate, net, color }: { pill: string, rate: string, net: number, color: string }) => {
   const cMap: any = { blue: 'text-blue-400 bg-blue-500/10 border-blue-500/10', sky: 'text-sky-400 bg-sky-500/10 border-sky-500/10', emerald: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/10' };
   return (
     <div className={`flex flex-col items-center px-2 py-1.5 rounded-lg border ${cMap[color]}`}>
@@ -415,14 +415,14 @@ const DailyMini = ({ pill, rate, net, color }: any) => {
   );
 };
 
-const AdjItem = ({ label, val, type }: any) => (
+const AdjItem = ({ label, val, type }: { label: string, val: number, type: 'plus' | 'minus' }) => (
   <div className="flex items-center justify-between">
      <span className="text-slate-500 font-bold text-[10px] uppercase tracking-widest">{label}</span>
      <span className={`font-mono font-bold text-base ${type === 'plus' ? 'text-emerald-400' : 'text-rose-400'}`}>{type === 'plus' ? '+' : '-'}${val.toFixed(1)}</span>
   </div>
 );
 
-const RateField = ({ label, val, onChange, color }: any) => {
+const RateField = ({ label, val, onChange, color }: { label: string, val: number, onChange: (v: number) => void, color: string }) => {
   const colorMap: any = { blue: 'focus:ring-blue-500 text-blue-400', sky: 'focus:ring-sky-500 text-sky-400', emerald: 'focus:ring-emerald-500 text-emerald-400', indigo: 'focus:ring-indigo-500 text-indigo-400', amber: 'focus:ring-amber-500 text-amber-500' };
   return (
     <div className="space-y-1">

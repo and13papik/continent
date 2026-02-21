@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AppState, DailyTotalEntry, ShiftData } from '../types';
 import { ICONS } from '../constants';
+import { findPeriodIdByDate } from '../store';
 
 const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
 const DEFAULT_CHAT_ID = '-1003748692600';
@@ -38,8 +39,9 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   const esc = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   const entriesForDate = useMemo(() => {
-    return (state.totalTableEntries || []).filter(e => e && e.date === selectedDate);
-  }, [state.totalTableEntries, selectedDate]);
+    const targetPeriodId = findPeriodIdByDate(selectedDate, state.accountingPeriods) || state.selectedPeriodId;
+    return (state.totalTableEntries || []).filter(e => e && e.date === selectedDate && e.periodId === targetPeriodId);
+  }, [state.totalTableEntries, selectedDate, state.accountingPeriods, state.selectedPeriodId]);
 
   const getLastKnownGoals = (modelName: string) => {
     // 1. Проверяем установленные цели по умолчанию в стейте
@@ -64,6 +66,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
   useEffect(() => {
     if (entriesForDate.length === 0 && Array.isArray(state.models) && state.models.length > 0 && selectedDate) {
+      const targetPeriodId = findPeriodIdByDate(selectedDate, state.accountingPeriods) || state.selectedPeriodId;
+      
       const initialEntries = state.models.map((m, idx) => {
         const safeModelName = typeof m === 'string' ? m : `Model-${idx}`;
         const goals = getLastKnownGoals(safeModelName);
@@ -71,6 +75,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
           id: `entry-${selectedDate}-${safeModelName.replace(/\s+/g, '-').toLowerCase()}-${idx}-${Date.now()}`,
           date: selectedDate,
           modelName: safeModelName,
+          periodId: targetPeriodId,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           night: { balance: undefined as any, goal: goals.night },
@@ -186,10 +191,12 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     const name = prompt('Введите имя анкеты:');
     if (!name) return;
     const goals = getLastKnownGoals(name);
+    const targetPeriodId = findPeriodIdByDate(selectedDate, state.accountingPeriods) || state.selectedPeriodId;
     const newEntry: DailyTotalEntry = {
       id: `entry-custom-${selectedDate}-${Date.now()}`,
       date: selectedDate,
       modelName: name,
+      periodId: targetPeriodId,
       updatedAt: new Date().toISOString(),
       night: { balance: undefined as any, goal: goals.night },
       morning: { balance: undefined as any, goal: goals.morning },

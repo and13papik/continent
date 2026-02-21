@@ -226,3 +226,17 @@ export async function testDatabaseConnection(url: string, key: string): Promise<
     return { success: false, message: "Сервер недоступен" };
   }
 }
+
+export function findPeriodIdByDate(dateStr: string, periods: AccountingPeriod[]): string | null {
+  if (!dateStr || !periods.length) return null;
+  const date = new Date(dateStr);
+  const month = date.getMonth();
+  const year = date.getFullYear();
+  
+  const match = periods.find(p => {
+    const pDate = new Date(p.startAt);
+    return pDate.getMonth() === month && pDate.getFullYear() === year;
+  });
+  
+  return match ? match.id : null;
+}
