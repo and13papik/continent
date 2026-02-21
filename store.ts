@@ -240,3 +240,26 @@ export function findPeriodIdByDate(dateStr: string, periods: AccountingPeriod[])
   
   return match ? match.id : null;
 }
+
+export function reindexAllDataByDate(state: AppState): AppState {
+  const periods = state.accountingPeriods;
+  
+  const fix = (item: any) => {
+    const newId = findPeriodIdByDate(item.date, periods);
+    return newId ? { ...item, periodId: newId } : item;
+  };
+
+  return {
+    ...state,
+    incomeData: state.incomeData.map(fix),
+    operationsData: state.operationsData.map(fix),
+    ownerExpenses: (state.ownerExpenses || []).map(fix),
+    ownerManualIncomes: (state.ownerManualIncomes || []).map(fix),
+    ownerAdvances: (state.ownerAdvances || []).map(fix),
+    modelBonuses: (state.modelBonuses || []).map(fix),
+    totalTableEntries: (state.totalTableEntries || []).map(fix),
+    ownerTasks: (state.ownerTasks || []).map(fix),
+    lastUpdated: Date.now(),
+    version: (state.version || 0) + 1
+  };
+}

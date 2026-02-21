@@ -219,7 +219,8 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
       const isForMe = t.assignedTo === currentOwner || t.assignedTo === 'Owners' || t.assignedTo === 'All';
       const isDelegatedToAdmin = t.assignedTo === 'Rector' || t.assignedTo === 'Mentor' || t.assignedTo === 'Admins';
       const isVisibleDelegation = isDelegatedToAdmin && (!t.id.startsWith('admin-task') || t.status === 'review');
-      return isForMe || isVisibleDelegation;
+      const matchesPeriod = t.periodId === state.selectedPeriodId;
+      return (isForMe || isVisibleDelegation) && matchesPeriod;
     });
 
     if (secondaryFilter === 'critical') list = list.filter(t => t.priority === 'urgent' || t.priority === 'high');

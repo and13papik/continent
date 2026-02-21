@@ -329,10 +329,14 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
              </div>
              
              <div className="flex items-center gap-2">
-               {activePeriod?.status === 'open' && (
+               {activePeriod?.status === 'open' ? (
                   <button onClick={handleCloseMonth} className="flex items-center gap-2 px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-500 hover:text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all border border-rose-500/30 active:scale-95 shadow-lg shadow-rose-500/5">
                     <LockIcon size={12} /> Закрыть месяц
                   </button>
+               ) : (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 text-slate-500 text-[9px] font-black uppercase tracking-widest rounded-xl border border-slate-700/50">
+                    <LockIcon size={12} /> Месяц закрыт
+                  </div>
                )}
                
                {isLatestPeriod && (

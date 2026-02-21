@@ -343,7 +343,8 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     list = list.filter(t => {
       const isForMe = t.assignedTo === currentAdminRole || t.assignedTo === 'Admins' || t.assignedTo === 'All';
       const iDelegatedToOwner = t.id.startsWith('admin-task') && (t.assignedTo === 'Andrey' || t.assignedTo === 'Anton' || t.assignedTo === 'Owners');
-      return isForMe || iDelegatedToOwner;
+      const matchesPeriod = t.periodId === state.selectedPeriodId;
+      return (isForMe || iDelegatedToOwner) && matchesPeriod;
     });
 
     list = list.filter(t => t.taskType === activeMode);

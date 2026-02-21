@@ -19,6 +19,11 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
   const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0]);
   const [targetPeriodId, setTargetPeriodId] = useState(state.selectedPeriodId);
 
+  // Синхронизируем локальный выбор периода с глобальным при его изменении в шапке
+  React.useEffect(() => {
+    setTargetPeriodId(state.selectedPeriodId);
+  }, [state.selectedPeriodId]);
+
   const [editingOp, setEditingOp] = useState<OperationRecord | null>(null);
   
   // Состояния для расширенной фильтрации ленты

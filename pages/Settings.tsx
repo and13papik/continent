@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { AppState, CloudSnapshot, AccountingPeriod } from '../types';
 import { ICONS } from '../constants';
-import { fetchFromCloud, testDatabaseConnection, listCloudSnapshots, createEmergencyBackup, restoreEmergencyBackup } from '../store';
+import { fetchFromCloud, testDatabaseConnection, listCloudSnapshots, createEmergencyBackup, restoreEmergencyBackup, reindexAllDataByDate } from '../store';
 
 interface SettingsProps {
   state: AppState;
@@ -33,29 +33,9 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
   }, [state.incomeData, state.operationsData, state.accountingPeriods]);
 
   const repairData = () => {
-    const confirmRepair = confirm(`Найдено ${homelessCount} записей без привязки к периоду. Создать для них период "Восстановленные данные"? Это вернет пропавшие за февраль записи.`);
-    if (!confirmRepair) return;
-
-    updateState(prev => {
-      const newPeriod: AccountingPeriod = {
-        id: `recovered-${Date.now()}`,
-        label: `Восстановлено ${new Date().toLocaleDateString()}`,
-        startAt: new Date().toISOString(),
-        endAt: null,
-        status: 'open'
-      };
-      
-      const periodIds = new Set(prev.accountingPeriods.map(p => p.id));
-      
-      return {
-        ...prev,
-        accountingPeriods: [...prev.accountingPeriods, newPeriod],
-        selectedPeriodId: newPeriod.id,
-        incomeData: prev.incomeData.map(i => periodIds.has(i.periodId) ? i : { ...i, periodId: newPeriod.id }),
-        operationsData: prev.operationsData.map(o => periodIds.has(o.periodId) ? o : { ...o, periodId: newPeriod.id })
-      };
-    });
-    alert('Система восстановлена!');
+    if (!confirm('Это перераспределит все записи (доходы, операции, задачи) по правильным месяцам на основе их даты. Продолжить?')) return;
+    updateState(prev => reindexAllDataByDate(prev));
+    alert('Данные перераспределены!');
   };
 
   const loadSnapshots = async () => {
