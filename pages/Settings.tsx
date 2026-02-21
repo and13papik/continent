@@ -15,6 +15,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
   
   const [editOp, setEditOp] = useState<{ old: string; current: string } | null>(null);
   const [editModel, setEditModel] = useState<{ old: string; current: string } | null>(null);
+  const [editPeriod, setEditPeriod] = useState<{ id: string; label: string } | null>(null);
 
   const [syncUrlInput, setSyncUrlInput] = useState(state.syncUrl || '');
   const [syncKeyInput, setSyncKeyInput] = useState(state.syncKey || '');
@@ -175,6 +176,39 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     setEditModel(null);
   };
 
+  const saveRenamePeriod = () => {
+    if (!editPeriod || !editPeriod.label.trim()) {
+      setEditPeriod(null);
+      return;
+    }
+    updateState(prev => ({
+      ...prev,
+      accountingPeriods: prev.accountingPeriods.map(p => p.id === editPeriod.id ? { ...p, label: editPeriod.label } : p)
+    }));
+    setEditPeriod(null);
+  };
+
+  const deletePeriod = (id: string) => {
+    const period = state.accountingPeriods.find(p => p.id === id);
+    if (!period) return;
+
+    const hasData = state.incomeData.some(i => i.periodId === id) || 
+                    state.operationsData.some(o => o.periodId === id) ||
+                    (state.totalTableEntries || []).some(e => e.periodId === id);
+
+    if (hasData) {
+      if (!confirm(`В периоде "${period.label}" есть данные! Если вы удалите период, эти данные станут "бездомными". Продолжить?`)) return;
+    } else {
+      if (!confirm(`Удалить пустой период "${period.label}"?`)) return;
+    }
+
+    updateState(prev => ({
+      ...prev,
+      accountingPeriods: prev.accountingPeriods.filter(p => p.id !== id),
+      selectedPeriodId: prev.selectedPeriodId === id ? (prev.accountingPeriods[0]?.id || '') : prev.selectedPeriodId
+    }));
+  };
+
   return (
     <div className="space-y-8 pb-20 animate-in fade-in duration-500">
       <header className="flex justify-between items-center">
@@ -311,7 +345,37 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <ICONS.Calendar size={18} className="text-indigo-400" /> Управление периодами
+          </h2>
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+             {state.accountingPeriods.slice().reverse().map(p => (
+               <div key={p.id} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
+                 {editPeriod?.id === p.id ? (
+                   <div className="flex-1 flex gap-2">
+                     <input autoFocus className="flex-1 bg-slate-950 border border-indigo-500 rounded px-2 py-1 text-sm text-white outline-none" value={editPeriod.label} onChange={e => setEditPeriod({ ...editPeriod, label: e.target.value })} onKeyDown={e => e.key === 'Enter' && saveRenamePeriod()}/>
+                     <button onClick={saveRenamePeriod} className="text-emerald-400"><ICONS.Lock size={16}/></button>
+                   </div>
+                 ) : (
+                   <>
+                     <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-200">{p.label}</span>
+                        <span className="text-[8px] text-slate-500 uppercase font-black">{p.status === 'closed' ? 'Закрыт 🔒' : 'Открыт 🟢'}</span>
+                     </div>
+                     <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => setEditPeriod({ id: p.id, label: p.label })} className="text-slate-500 hover:text-indigo-400"><ICONS.Edit size={14}/></button>
+                        <button onClick={() => deletePeriod(p.id)} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
+                     </div>
+                   </>
+                 )}
+               </div>
+             ))}
+          </div>
+          <p className="text-[9px] text-slate-500 italic">Здесь вы можете переименовать "Восстановленные" периоды в нормальные названия месяцев.</p>
+        </div>
+
         <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <ICONS.Reports size={18} className="text-sky-400" /> Штат операторов
