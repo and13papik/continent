@@ -245,7 +245,9 @@ export function reindexAllDataByDate(state: AppState): AppState {
   const periods = state.accountingPeriods;
   
   const fix = (item: any) => {
-    const newId = findPeriodIdByDate(item.date, periods);
+    const dateToUse = item.date || item.createdAt;
+    if (!dateToUse) return item;
+    const newId = findPeriodIdByDate(dateToUse, periods);
     return newId ? { ...item, periodId: newId } : item;
   };
 

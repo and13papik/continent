@@ -93,6 +93,7 @@ export interface ModelBonus {
   periodId: string;
   amount: number;
   comment: string;
+  date: string;
   createdAt: string;
   updatedAt?: string;
 }

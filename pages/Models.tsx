@@ -77,6 +77,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       periodId: activePeriodId,
       amount: val,
       comment: 'Бонус',
+      date: new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString()
     };
     updateState(prev => ({ ...prev, modelBonuses: [...(prev.modelBonuses || []), newBonus] }));

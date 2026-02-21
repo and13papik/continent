@@ -350,6 +350,14 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <ICONS.Calendar size={18} className="text-indigo-400" /> Управление периодами
           </h2>
+          <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl space-y-3">
+             <p className="text-[10px] text-slate-400 leading-relaxed">
+               Если данные отображаются не в тех месяцах, используйте этот инструмент для автоматического перераспределения всех записей по датам.
+             </p>
+             <button onClick={repairData} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">
+               Перераспределить данные
+             </button>
+          </div>
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
              {state.accountingPeriods.slice().reverse().map(p => (
                <div key={p.id} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
