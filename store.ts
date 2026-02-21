@@ -42,7 +42,11 @@ export function createInitialState(): AppState {
     label: `${months[now.getMonth()]} ${now.getFullYear()}`,
     startAt: now.toISOString(),
     endAt: null,
-    status: 'open'
+    status: 'open',
+    operators: defaultOperators,
+    models: defaultModels,
+    modelRates: { of: 25, pp: 17, cr: 25 },
+    modelDefaultGoals: {}
   };
 
   return {

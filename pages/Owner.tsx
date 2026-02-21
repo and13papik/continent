@@ -38,6 +38,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
 
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId)!;
+  const currentModels = activePeriod.models || state.models;
 
   const stats = useMemo(() => {
     const incomes = state.incomeData.filter(r => r.periodId === activePeriodId);
@@ -71,7 +72,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     }, 0);
 
     // 2. МОДЕЛИ
-    const modelSummary = state.models.reduce((acc, model) => {
+    const modelSummary = currentModels.reduce((acc, model) => {
       const records = incomes.filter(r => r.model === model);
       const mOF = records.reduce((s, r) => s + r.onlyFans, 0) * (state.modelRates.of / 100);
       const mPP = records.reduce((s, r) => s + r.paypal, 0) * (state.modelRates.pp / 100);
@@ -122,7 +123,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       andrey: { totalShare: sharePerOwner, advances: (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId && a.ownerName === 'Andrey').reduce((s, a) => s + a.amount, 0) },
       anton: { totalShare: sharePerOwner, advances: (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId && a.ownerName === 'Anton').reduce((s, a) => s + a.amount, 0) },
     };
-  }, [state, activePeriodId]);
+  }, [state, activePeriodId, currentModels]);
 
   const addAdminPayment = (adminName: string) => {
     const val = parseFloat(adminPaidInputs[adminName]) || 0;

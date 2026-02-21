@@ -36,6 +36,11 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   const [isSending, setIsSending] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
+  const activePeriodId = state.selectedPeriodId;
+  const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
+  const currentModels = activePeriod?.models || state.models;
+  const currentGoals = activePeriod?.modelDefaultGoals || state.modelDefaultGoals || {};
+
   const esc = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   const entriesForDate = useMemo(() => {
@@ -44,9 +49,9 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   }, [state.totalTableEntries, selectedDate, state.accountingPeriods, state.selectedPeriodId]);
 
   const getLastKnownGoals = (modelName: string) => {
-    // 1. Проверяем установленные цели по умолчанию в стейте
-    if (state.modelDefaultGoals && state.modelDefaultGoals[modelName]) {
-      return state.modelDefaultGoals[modelName];
+    // 1. Проверяем установленные цели по умолчанию в активном периоде
+    if (currentGoals[modelName]) {
+      return currentGoals[modelName];
     }
 
     // 2. Ищем в истории последних записей
@@ -65,10 +70,10 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   };
 
   useEffect(() => {
-    if (entriesForDate.length === 0 && Array.isArray(state.models) && state.models.length > 0 && selectedDate) {
+    if (entriesForDate.length === 0 && Array.isArray(currentModels) && currentModels.length > 0 && selectedDate) {
       const targetPeriodId = findPeriodIdByDate(selectedDate, state.accountingPeriods) || state.selectedPeriodId;
       
-      const initialEntries = state.models.map((m, idx) => {
+      const initialEntries = currentModels.map((m, idx) => {
         const safeModelName = typeof m === 'string' ? m : `Model-${idx}`;
         const goals = getLastKnownGoals(safeModelName);
         return {
@@ -95,7 +100,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         };
       });
     }
-  }, [selectedDate, state.models, entriesForDate.length, updateState]);
+  }, [selectedDate, currentModels, entriesForDate.length, updateState]);
 
   const handleUpdate = (entryId: string, shift: keyof DailyTotalEntry, field: keyof ShiftData, value: string) => {
     const val = value === '' ? undefined : parseFloat(value);
@@ -104,8 +109,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       const targetEntry = (prev.totalTableEntries || []).find(e => e.id === entryId);
       const modelName = targetEntry?.modelName;
 
-      // Если обновляем ЦЕЛЬ, сохраняем её как глобальную цель по умолчанию для этой модели
-      let updatedDefaults = prev.modelDefaultGoals || {};
+      // Если обновляем ЦЕЛЬ, сохраняем её как глобальную цель по умолчанию для этой модели В ЭТОМ ПЕРИОДЕ
+      let updatedDefaults = currentGoals;
       if (field === 'goal' && modelName && val !== undefined) {
         updatedDefaults = {
           ...updatedDefaults,
@@ -118,7 +123,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
       return {
         ...prev,
-        modelDefaultGoals: updatedDefaults,
+        accountingPeriods: prev.accountingPeriods.map(p => p.id === activePeriodId ? { ...p, modelDefaultGoals: updatedDefaults } : p),
         totalTableEntries: (prev.totalTableEntries || []).map(e => 
           (e && e.id === entryId) ? { 
             ...e, 
@@ -135,7 +140,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     
     updateState(prev => {
       const currentDateEntries = (prev.totalTableEntries || []).filter(e => e.date === selectedDate);
-      const newDefaults: Record<string, any> = { ...(prev.modelDefaultGoals || {}) };
+      const newDefaults: Record<string, any> = { ...currentGoals };
       
       currentDateEntries.forEach(e => {
         newDefaults[e.modelName] = {
@@ -162,7 +167,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
       return {
         ...prev,
-        modelDefaultGoals: newDefaults,
+        accountingPeriods: prev.accountingPeriods.map(p => p.id === activePeriodId ? { ...p, modelDefaultGoals: newDefaults } : p),
         totalTableEntries: updatedTotalEntries
       };
     });

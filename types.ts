@@ -7,6 +7,10 @@ export interface AccountingPeriod {
   startAt: string;
   endAt: string | null;
   status: 'open' | 'closed';
+  operators?: string[];
+  models?: string[];
+  modelRates?: { of: number; pp: number; cr: number };
+  modelDefaultGoals?: Record<string, { night: number; morning: number; day: number; evening: number }>;
 }
 
 export interface IncomeRecord {

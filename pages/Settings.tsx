@@ -17,6 +17,12 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
   const [editModel, setEditModel] = useState<{ old: string; current: string } | null>(null);
   const [editPeriod, setEditPeriod] = useState<{ id: string; label: string } | null>(null);
 
+  const activePeriodId = state.selectedPeriodId;
+  const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
+  const currentOperators = activePeriod?.operators || state.operators;
+  const currentModels = activePeriod?.models || state.models;
+  const currentGoals = activePeriod?.modelDefaultGoals || state.modelDefaultGoals || {};
+
   const [syncUrlInput, setSyncUrlInput] = useState(state.syncUrl || '');
   const [syncKeyInput, setSyncKeyInput] = useState(state.syncKey || '');
   const [isManualSyncing, setIsManualSyncing] = useState(false);
@@ -55,13 +61,16 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     const val = parseFloat(value) || 0;
     updateState(prev => ({
       ...prev,
-      modelDefaultGoals: {
-        ...(prev.modelDefaultGoals || {}),
-        [modelName]: {
-          ...(prev.modelDefaultGoals?.[modelName] || { night: 60, morning: 60, day: 60, evening: 60 }),
-          [shift]: val
+      accountingPeriods: prev.accountingPeriods.map(p => p.id === activePeriodId ? {
+        ...p,
+        modelDefaultGoals: {
+          ...(p.modelDefaultGoals || prev.modelDefaultGoals || {}),
+          [modelName]: {
+            ...(p.modelDefaultGoals?.[modelName] || prev.modelDefaultGoals?.[modelName] || { night: 60, morning: 60, day: 60, evening: 60 }),
+            [shift]: val
+          }
         }
-      }
+      } : p)
     }));
   };
 
@@ -153,12 +162,23 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
       setEditOp(null);
       return;
     }
-    updateState(prev => ({
-      ...prev,
-      operators: prev.operators.map(o => o === editOp.old ? editOp.current : o),
-      incomeData: prev.incomeData.map(r => r.operator === editOp.old ? { ...r, operator: editOp.current } : r),
-      operationsData: prev.operationsData.map(o => o.operator === editOp.old ? { ...o, operator: editOp.current } : o)
-    }));
+    updateState(prev => {
+      const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
+      const updatedPeriods = prev.accountingPeriods.map(p => {
+        if (p.id === prev.selectedPeriodId) {
+          const ops = p.operators || prev.operators;
+          return { ...p, operators: ops.map(o => o === editOp.old ? editOp.current : o) };
+        }
+        return p;
+      });
+
+      return {
+        ...prev,
+        accountingPeriods: updatedPeriods,
+        incomeData: prev.incomeData.map(r => (r.operator === editOp.old && r.periodId === prev.selectedPeriodId) ? { ...r, operator: editOp.current } : r),
+        operationsData: prev.operationsData.map(o => (o.operator === editOp.old && o.periodId === prev.selectedPeriodId) ? { ...o, operator: editOp.current } : o)
+      };
+    });
     setEditOp(null);
   };
 
@@ -167,12 +187,22 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
       setEditModel(null);
       return;
     }
-    updateState(prev => ({
-      ...prev,
-      models: prev.models.map(m => m === editModel.old ? editModel.current : m),
-      incomeData: prev.incomeData.map(r => r.model === editModel.old ? { ...r, model: editModel.current } : r),
-      modelBonuses: (prev.modelBonuses || []).map(b => b.model === editModel.old ? { ...b, model: editModel.current } : b)
-    }));
+    updateState(prev => {
+      const updatedPeriods = prev.accountingPeriods.map(p => {
+        if (p.id === prev.selectedPeriodId) {
+          const mods = p.models || prev.models;
+          return { ...p, models: mods.map(m => m === editModel.old ? editModel.current : m) };
+        }
+        return p;
+      });
+
+      return {
+        ...prev,
+        accountingPeriods: updatedPeriods,
+        incomeData: prev.incomeData.map(r => (r.model === editModel.old && r.periodId === prev.selectedPeriodId) ? { ...r, model: editModel.current } : r),
+        modelBonuses: (prev.modelBonuses || []).map(b => (b.model === editModel.old && b.periodId === prev.selectedPeriodId) ? { ...b, model: editModel.current } : b)
+      };
+    });
     setEditModel(null);
   };
 
@@ -257,8 +287,8 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
-              {state.models.map(m => {
-                const goals = state.modelDefaultGoals?.[m] || { night: 60, morning: 60, day: 60, evening: 60 };
+              {currentModels.map(m => {
+                const goals = currentGoals[m] || { night: 60, morning: 60, day: 60, evening: 60 };
                 return (
                   <tr key={m} className="hover:bg-white/5 transition-colors">
                     <td className="py-3 px-4 font-bold text-slate-300">{m}</td>
@@ -386,14 +416,22 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
 
         <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <ICONS.Reports size={18} className="text-sky-400" /> Штат операторов
+            <ICONS.Reports size={18} className="text-sky-400" /> Штат операторов ({activePeriod?.label})
           </h2>
           <div className="flex gap-2">
              <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Имя..." value={newOp} onChange={e => setNewOp(e.target.value)}/>
-             <button onClick={() => { if(newOp) { updateState(p => ({...p, operators: [...p.operators, newOp]})); setNewOp(''); }}} className="bg-sky-600 px-3 rounded-lg"><ICONS.Plus size={18}/></button>
+             <button onClick={() => { 
+               if(newOp) { 
+                 updateState(p => ({
+                   ...p, 
+                   accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, operators: [...(ap.operators || p.operators), newOp] } : ap)
+                 })); 
+                 setNewOp(''); 
+               } 
+             }} className="bg-sky-600 px-3 rounded-lg"><ICONS.Plus size={18}/></button>
           </div>
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
-             {state.operators.map(o => (
+             {currentOperators.map(o => (
                <div key={o} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
                  {editOp?.old === o ? (
                    <div className="flex-1 flex gap-2">
@@ -405,7 +443,10 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
                      <span className="text-sm font-bold text-slate-200">{o}</span>
                      <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => setEditOp({ old: o, current: o })} className="text-slate-500 hover:text-sky-400"><ICONS.Edit size={14}/></button>
-                        <button onClick={() => updateState(p => ({...p, operators: p.operators.filter(x => x !== o)}))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
+                        <button onClick={() => updateState(p => ({
+                          ...p, 
+                          accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, operators: (ap.operators || p.operators).filter(x => x !== o) } : ap)
+                        }))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
                      </div>
                    </>
                  )}
@@ -416,14 +457,22 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
 
         <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <ICONS.Models size={18} className="text-indigo-400" /> Модели
+            <ICONS.Models size={18} className="text-indigo-400" /> Модели ({activePeriod?.label})
           </h2>
           <div className="flex gap-2">
              <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Название..." value={newModel} onChange={e => setNewModel(e.target.value)}/>
-             <button onClick={() => { if(newModel) { updateState(p => ({...p, models: [...p.models, newModel]})); setNewModel(''); }}} className="bg-indigo-600 px-3 rounded-lg"><ICONS.Plus size={18}/></button>
+             <button onClick={() => { 
+               if(newModel) { 
+                 updateState(p => ({
+                   ...p, 
+                   accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, models: [...(ap.models || p.models), newModel] } : ap)
+                 })); 
+                 setNewModel(''); 
+               } 
+             }} className="bg-indigo-600 px-3 rounded-lg"><ICONS.Plus size={18}/></button>
           </div>
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
-             {state.models.map(m => (
+             {currentModels.map(m => (
                <div key={m} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
                  {editModel?.old === m ? (
                     <div className="flex-1 flex gap-2">
@@ -435,7 +484,10 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
                      <span className="text-sm font-bold text-slate-200">{m}</span>
                      <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => setEditModel({ old: m, current: m })} className="text-slate-500 hover:text-indigo-400"><ICONS.Edit size={14}/></button>
-                        <button onClick={() => updateState(p => ({...p, models: p.models.filter(x => x !== m)}))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
+                        <button onClick={() => updateState(p => ({
+                          ...p, 
+                          accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, models: (ap.models || p.models).filter(x => x !== m) } : ap)
+                        }))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
                      </div>
                    </>
                  )}

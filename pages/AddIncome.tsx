@@ -27,6 +27,8 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
   const [baselinePercents, setBaselinePercents] = useState({ of: '20', pp: '17', cr: '20' });
 
   const activePeriod = state.accountingPeriods.find(p => p.id === state.selectedPeriodId)!;
+  const currentOperators = activePeriod.operators || state.operators;
+  const currentModels = activePeriod.models || state.models;
 
   // Проверка: соответствует ли дата выбранному месяцу?
   const isPeriodMismatch = useMemo(() => {
@@ -176,7 +178,7 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Оператор</label>
                 <select className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 text-white font-bold outline-none focus:ring-2 focus:ring-indigo-500" value={operator} onChange={(e) => setOperator(e.target.value)}>
                   <option value="">Выберите оператора</option>
-                  {state.operators.map(op => <option key={op} value={op}>{op}</option>)}
+                  {currentOperators.map(op => <option key={op} value={op}>{op}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
@@ -197,7 +199,7 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
               Выберите анкеты
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {state.models.map(m => (
+              {currentModels.map(m => (
                 <button key={m} onClick={() => toggleModel(m)} className={`px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-tighter transition-all border ${selectedModels.includes(m) ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20' : 'bg-slate-900/50 border-slate-800 text-slate-500 hover:border-slate-700'}`}>
                   {m}
                 </button>

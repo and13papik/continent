@@ -31,6 +31,8 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
   }, [location.state]);
 
   const activePeriod = state.accountingPeriods.find(p => p.id === state.selectedPeriodId);
+  const currentOperators = activePeriod?.operators || state.operators;
+  const currentModels = activePeriod?.models || state.models;
 
   const report = useMemo(() => {
     if (!selectedOperator) return null;
@@ -172,7 +174,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
         <div className="flex gap-3">
           <select className="bg-slate-900 border border-slate-700 rounded-2xl px-6 py-3 font-bold text-white shadow-xl outline-none min-w-[280px]" value={selectedOperator} onChange={(e) => setSelectedOperator(e.target.value)}>
             <option value="">Выберите сотрудника</option>
-            {state.operators.map(op => <option key={op} value={op}>{op}</option>)}
+            {currentOperators.map(op => <option key={op} value={op}>{op}</option>)}
           </select>
           {selectedOperator && (
              <button onClick={() => setShowQuickOp(!showQuickOp)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 rounded-2xl font-bold flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-indigo-600/20">

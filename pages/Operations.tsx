@@ -11,6 +11,11 @@ interface OperationsProps {
 
 const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
   const [type, setType] = useState<OperationType>('advance');
+  const activePeriodId = state.selectedPeriodId;
+  const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
+  const currentOperators = activePeriod?.operators || state.operators;
+  const currentModels = activePeriod?.models || state.models;
+
   const [operator, setOperator] = useState('');
   const [targetModel, setTargetModel] = useState('');
   const [amount, setAmount] = useState('');
@@ -196,14 +201,14 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Привязка к модели {type !== 'refund' && '(опционально)'}</label>
                 <select className={`w-full bg-slate-900 border rounded-xl px-4 py-3 text-sm text-white font-bold outline-none transition-all ${type === 'refund' && !targetModel ? 'border-amber-500/50' : 'border-slate-700'}`} value={targetModel} onChange={(e) => setTargetModel(e.target.value)}>
                   <option value="">Без модели</option>
-                  {state.models.map(m => <option key={m} value={m}>{m}</option>)}
+                  {currentModels.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
 
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Оператор</label>
               <select className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-bold outline-none" value={operator} onChange={(e) => setOperator(e.target.value)}>
                 <option value="">Выберите...</option>
-                {state.operators.map(op => <option key={op} value={op}>{op}</option>)}
+                {currentOperators.map(op => <option key={op} value={op}>{op}</option>)}
               </select>
             </div>
 
@@ -248,14 +253,14 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
                   <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Оператор</label>
                   <select className={`w-full bg-slate-950 border rounded-xl px-3 py-2 text-xs text-white font-bold outline-none transition-all ${filterOperator ? 'border-indigo-500 shadow-lg shadow-indigo-500/10' : 'border-slate-800'}`} value={filterOperator} onChange={e => setFilterOperator(e.target.value)}>
                      <option value="">Все сотрудники</option>
-                     {state.operators.map(op => <option key={op} value={op}>{op}</option>)}
+                     {currentOperators.map(op => <option key={op} value={op}>{op}</option>)}
                   </select>
                </div>
                <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Модель</label>
                   <select className={`w-full bg-slate-950 border rounded-xl px-3 py-2 text-xs text-white font-bold outline-none transition-all ${filterModel ? 'border-amber-500 shadow-lg shadow-amber-500/10' : 'border-slate-800'}`} value={filterModel} onChange={e => setFilterModel(e.target.value)}>
                      <option value="">Все анкеты</option>
-                     {state.models.map(m => <option key={m} value={m}>{m}</option>)}
+                     {currentModels.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                </div>
                <div className="space-y-1">
@@ -384,7 +389,7 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
                 <label className="text-[10px] text-amber-500 font-black uppercase tracking-widest ml-1">Модель</label>
                 <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-bold outline-none" value={editingOp.model || ''} onChange={e => setEditingOp({...editingOp, model: e.target.value})}>
                   <option value="">Без модели</option>
-                  {state.models.map(m => <option key={m} value={m}>{m}</option>)}
+                  {currentModels.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
 

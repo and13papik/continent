@@ -68,6 +68,9 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
 
+  const currentOperators = activePeriod?.operators || state.operators;
+  const currentModels = activePeriod?.models || state.models;
+
   // Проверка на наличие "бездомных" записей (из-за которых данные могли "пропасть")
   const homelessRecords = useMemo(() => {
     const periodIds = new Set(state.accountingPeriods.map(p => p.id));
@@ -146,7 +149,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   }, [state.incomeData, state.ownerManualIncomes, state.operationsData, state.admins, activePeriodId]);
 
   const operatorRows = useMemo(() => {
-    const raw = state.operators.map(op => {
+    const raw = currentOperators.map(op => {
       const incomes = state.incomeData.filter(r => r.operator === op && r.periodId === activePeriodId);
       const ops = state.operationsData.filter(o => o.operator === op && o.periodId === activePeriodId && !o.model);
       const rawG = incomes.reduce((sum, r) => sum + r.total, 0);
@@ -169,7 +172,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     const sorted = raw.sort((a, b) => b.remainder - a.remainder);
     const maxGross = Math.max(...sorted.map(r => r.totalGross), 1);
     return sorted.map(r => ({ ...r, percentOfMax: (r.totalGross / maxGross) * 100 }));
-  }, [state.incomeData, state.operationsData, state.operators, activePeriodId, state.paidStatuses]);
+  }, [state.incomeData, state.operationsData, currentOperators, activePeriodId, state.paidStatuses]);
 
   const toggleOperatorPaid = (op: string, currentRemainder: number) => {
     const existingStatus = state.paidStatuses.find(s => 
@@ -261,7 +264,11 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
           label: `${months[nextMonthIdx]} ${nextYear}`, 
           startAt: new Date(nextYear, nextMonthIdx, 1).toISOString(), 
           endAt: null, 
-          status: 'open' 
+          status: 'open',
+          operators: activePeriod?.operators || prev.operators,
+          models: activePeriod?.models || prev.models,
+          modelRates: activePeriod?.modelRates || prev.modelRates,
+          modelDefaultGoals: activePeriod?.modelDefaultGoals || prev.modelDefaultGoals
         };
         newPeriods = [...newPeriods, newP];
       }
@@ -291,7 +298,11 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         label: `${months[nextMonthIdx]} ${nextYear}`, 
         startAt: new Date(nextYear, nextMonthIdx, 1).toISOString(), 
         endAt: null, 
-        status: 'open' 
+        status: 'open',
+        operators: activePeriod?.operators || prev.operators,
+        models: activePeriod?.models || prev.models,
+        modelRates: activePeriod?.modelRates || prev.modelRates,
+        modelDefaultGoals: activePeriod?.modelDefaultGoals || prev.modelDefaultGoals
       };
       return { 
         ...prev, 

@@ -11,11 +11,14 @@ interface ModelsProps {
 const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId)!;
+  const currentModels = activePeriod.models || state.models;
+  const currentRates = activePeriod.modelRates || state.modelRates;
+
   const [bonusInputs, setBonusInputs] = useState<Record<string, string>>({});
   const [advanceInputs, setAdvanceInputs] = useState<Record<string, string>>({});
 
   const modelStats = useMemo(() => {
-    return state.models.map(model => {
+    return currentModels.map(model => {
       const records = state.incomeData.filter(r => r.model === model && r.periodId === activePeriodId);
       const bonuses = (state.modelBonuses || []).filter(b => b.model === model && b.periodId === activePeriodId);
       const modelOps = state.operationsData.filter(o => o.model === model && o.periodId === activePeriodId);
@@ -38,12 +41,12 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       const totalGrossRaw = grossOF + grossPP + grossCR;
       const totalGross = totalGrossRaw - totalRefunds;
 
-      const earnOF = Math.max(0, grossOF - refunds.filter(r => r.platform === 'onlyFans').reduce((s,o) => s+o.amount, 0)) * (state.modelRates.of / 100);
-      const earnPP = Math.max(0, grossPP - refunds.filter(r => r.platform === 'paypal').reduce((s,o) => s+o.amount, 0)) * (state.modelRates.pp / 100);
-      const earnCR = Math.max(0, grossCR - refunds.filter(r => r.platform === 'crypto').reduce((s,o) => s+o.amount, 0)) * (state.modelRates.cr / 100);
+      const earnOF = Math.max(0, grossOF - refunds.filter(r => r.platform === 'onlyFans').reduce((s,o) => s+o.amount, 0)) * (currentRates.of / 100);
+      const earnPP = Math.max(0, grossPP - refunds.filter(r => r.platform === 'paypal').reduce((s,o) => s+o.amount, 0)) * (currentRates.pp / 100);
+      const earnCR = Math.max(0, grossCR - refunds.filter(r => r.platform === 'crypto').reduce((s,o) => s+o.amount, 0)) * (currentRates.cr / 100);
       
       const genericRefunds = refunds.filter(r => !r.platform).reduce((s,o) => s+o.amount, 0);
-      const avgModelRate = totalGrossRaw > 0 ? (earnOF + earnPP + earnCR) / totalGrossRaw : (state.modelRates.of / 100);
+      const avgModelRate = totalGrossRaw > 0 ? (earnOF + earnPP + earnCR) / totalGrossRaw : (currentRates.of / 100);
       
       const bonusTotal = bonuses.reduce((sum, b) => sum + b.amount, 0);
       const accruedSalary = (earnOF + earnPP + earnCR + bonusTotal) - (genericRefunds * avgModelRate);
@@ -66,7 +69,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
         totalEarn, isPaid, bonuses
       };
     }).sort((a, b) => b.totalGross - a.totalGross);
-  }, [state.incomeData, state.models, activePeriodId, state.modelRates, state.modelBonuses, state.paidStatuses, state.operationsData]);
+  }, [state.incomeData, currentModels, activePeriodId, currentRates, state.modelBonuses, state.paidStatuses, state.operationsData]);
 
   const addBonus = (model: string) => {
     const val = parseFloat(bonusInputs[model]) || 0;
@@ -175,15 +178,21 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
 
   const updateGlobalRate = (val: string) => {
     const rate = parseFloat(val) || 0;
-    updateState(prev => ({ ...prev, modelRates: { of: rate, pp: rate, cr: rate } }));
+    updateState(prev => ({ 
+      ...prev, 
+      accountingPeriods: prev.accountingPeriods.map(p => p.id === activePeriodId ? { ...p, modelRates: { of: rate, pp: rate, cr: rate } } : p)
+    }));
   };
 
   const updateSpecificRate = (field: keyof typeof state.modelRates, val: string) => {
     const rate = parseFloat(val) || 0;
-    updateState(prev => ({ ...prev, modelRates: { ...prev.modelRates, [field]: rate } }));
+    updateState(prev => ({ 
+      ...prev, 
+      accountingPeriods: prev.accountingPeriods.map(p => p.id === activePeriodId ? { ...p, modelRates: { ...(p.modelRates || prev.modelRates), [field]: rate } } : p)
+    }));
   };
 
-  const isUniform = state.modelRates.of === state.modelRates.pp && state.modelRates.pp === state.modelRates.cr;
+  const isUniform = currentRates.of === currentRates.pp && currentRates.pp === currentRates.cr;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -196,15 +205,15 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Общая выплата (%)</label>
             <div className="relative">
-              <input type="number" className="w-24 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-indigo-400 font-bold focus:ring-2 focus:ring-indigo-500 outline-none" value={isUniform ? state.modelRates.of : ''} placeholder="MIX" onChange={(e) => updateGlobalRate(e.target.value)} />
+              <input type="number" className="w-24 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-indigo-400 font-bold focus:ring-2 focus:ring-indigo-500 outline-none" value={isUniform ? currentRates.of : ''} placeholder="MIX" onChange={(e) => updateGlobalRate(e.target.value)} />
               <span className="absolute right-3 top-2.5 text-slate-600 text-xs">%</span>
             </div>
           </div>
           <div className="h-10 w-px bg-slate-800 hidden md:block" />
           <div className="flex gap-4">
-            <RateInput label="OF Rate" value={state.modelRates.of} color="blue" onChange={(v) => updateSpecificRate('of', v)} />
-            <RateInput label="PP Rate" value={state.modelRates.pp} color="sky" onChange={(v) => updateSpecificRate('pp', v)} />
-            <RateInput label="CR Rate" value={state.modelRates.cr} color="emerald" onChange={(v) => updateSpecificRate('cr', v)} />
+            <RateInput label="OF Rate" value={currentRates.of} color="blue" onChange={(v) => updateSpecificRate('of', v)} />
+            <RateInput label="PP Rate" value={currentRates.pp} color="sky" onChange={(v) => updateSpecificRate('pp', v)} />
+            <RateInput label="CR Rate" value={currentRates.cr} color="emerald" onChange={(v) => updateSpecificRate('cr', v)} />
           </div>
         </div>
       </header>
