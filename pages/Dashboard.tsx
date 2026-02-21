@@ -109,7 +109,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     const periodIncomes = state.incomeData.filter(r => r.periodId === activePeriodId);
     const manualIncomes = (state.ownerManualIncomes || []).filter(i => i.periodId === activePeriodId);
     const periodOps = state.operationsData.filter(o => o.periodId === activePeriodId);
-    const adminNames = state.admins.map(a => a.name);
+    const currentAdmins = activePeriod?.admins || state.admins;
+    const adminNames = currentAdmins.map(a => a.name);
     
     const rawPlatformGross = periodIncomes.reduce((s, r) => s + r.total, 0);
     const rawManualGross = manualIncomes.reduce((s, i) => s + i.amount, 0);
@@ -268,7 +269,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
           operators: activePeriod?.operators || prev.operators,
           models: activePeriod?.models || prev.models,
           modelRates: activePeriod?.modelRates || prev.modelRates,
-          modelDefaultGoals: activePeriod?.modelDefaultGoals || prev.modelDefaultGoals
+          modelDefaultGoals: activePeriod?.modelDefaultGoals || prev.modelDefaultGoals,
+          admins: activePeriod?.admins || prev.admins
         };
         newPeriods = [...newPeriods, newP];
       }
@@ -302,7 +304,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         operators: activePeriod?.operators || prev.operators,
         models: activePeriod?.models || prev.models,
         modelRates: activePeriod?.modelRates || prev.modelRates,
-        modelDefaultGoals: activePeriod?.modelDefaultGoals || prev.modelDefaultGoals
+        modelDefaultGoals: activePeriod?.modelDefaultGoals || prev.modelDefaultGoals,
+        admins: activePeriod?.admins || prev.admins
       };
       return { 
         ...prev, 

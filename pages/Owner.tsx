@@ -39,6 +39,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId)!;
   const currentModels = activePeriod.models || state.models;
+  const currentAdmins = activePeriod.admins || state.admins;
 
   const stats = useMemo(() => {
     const incomes = state.incomeData.filter(r => r.periodId === activePeriodId);
@@ -123,7 +124,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       andrey: { totalShare: sharePerOwner, advances: (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId && a.ownerName === 'Andrey').reduce((s, a) => s + a.amount, 0) },
       anton: { totalShare: sharePerOwner, advances: (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId && a.ownerName === 'Anton').reduce((s, a) => s + a.amount, 0) },
     };
-  }, [state, activePeriodId, currentModels]);
+  }, [state, activePeriodId, currentModels, currentAdmins]);
 
   const addAdminPayment = (adminName: string) => {
     const val = parseFloat(adminPaidInputs[adminName]) || 0;

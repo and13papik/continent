@@ -11,6 +11,7 @@ export interface AccountingPeriod {
   models?: string[];
   modelRates?: { of: number; pp: number; cr: number };
   modelDefaultGoals?: Record<string, { night: number; morning: number; day: number; evening: number }>;
+  admins?: Admin[];
 }
 
 export interface IncomeRecord {

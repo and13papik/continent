@@ -46,7 +46,8 @@ export function createInitialState(): AppState {
     operators: defaultOperators,
     models: defaultModels,
     modelRates: { of: 25, pp: 17, cr: 25 },
-    modelDefaultGoals: {}
+    modelDefaultGoals: {},
+    admins: defaultAdmins
   };
 
   return {
