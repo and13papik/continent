@@ -40,6 +40,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId)!;
   const currentModels = activePeriod.models || state.models;
   const currentAdmins = activePeriod.admins || state.admins;
+  const currentRates = activePeriod.modelRates || state.modelRates;
 
   const stats = useMemo(() => {
     const incomes = state.incomeData.filter(r => r.periodId === activePeriodId);
@@ -58,7 +59,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     const avgOpRate = rawPlatformGross > 0 ? rawStaffNet / rawPlatformGross : 0.20;
     
     const staffAccrued = (rawStaffNet - (totalRefundAmount * avgOpRate)) + ops.reduce((sum, o) => {
-      if (!o.model && !state.admins.some(a => a.name === o.operator)) {
+      if (!o.model && !currentAdmins.some(a => a.name === o.operator)) {
         if (o.type === 'bonus') return sum + o.amount;
         if (['penalty', 'internship'].includes(o.type)) return sum - o.amount;
       }
@@ -66,7 +67,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     }, 0);
 
     const staffPaid = ops.reduce((sum, o) => {
-      if (!o.model && !state.admins.some(a => a.name === o.operator)) {
+      if (!o.model && !currentAdmins.some(a => a.name === o.operator)) {
         if (['advance', 'salary_payment'].includes(o.type)) return sum + o.amount;
       }
       return sum;
@@ -75,14 +76,14 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     // 2. МОДЕЛИ
     const modelSummary = currentModels.reduce((acc, model) => {
       const records = incomes.filter(r => r.model === model);
-      const mOF = records.reduce((s, r) => s + r.onlyFans, 0) * (state.modelRates.of / 100);
-      const mPP = records.reduce((s, r) => s + r.paypal, 0) * (state.modelRates.pp / 100);
-      const mCR = records.reduce((s, r) => s + r.crypto, 0) * (state.modelRates.cr / 100);
+      const mOF = records.reduce((s, r) => s + r.onlyFans, 0) * (currentRates.of / 100);
+      const mPP = records.reduce((s, r) => s + r.paypal, 0) * (currentRates.pp / 100);
+      const mCR = records.reduce((s, r) => s + r.crypto, 0) * (currentRates.cr / 100);
       const mRefunds = ops.filter(o => o.type === 'refund' && o.model === model).reduce((s,o) => s + o.amount, 0);
       const mAdvances = ops.filter(o => o.type === 'advance' && o.model === model).reduce((s,o) => s + o.amount, 0);
       const mSalaries = ops.filter(o => o.type === 'salary_payment' && o.model === model).reduce((s,o) => s + o.amount, 0);
       const mBonuses = modelBonuses.filter(b => b.model === model).reduce((s,b) => s+b.amount, 0);
-      const mAvgRate = records.length > 0 ? (mOF + mPP + mCR) / records.reduce((s,r) => s+r.total, 1) : 0.25;
+      const mAvgRate = records.length > 0 ? (mOF + mPP + mCR) / records.reduce((s,r) => s+r.total, 1) : (currentRates.of / 100);
       
       const accrued = (mOF + mPP + mCR + mBonuses) - (mRefunds * mAvgRate);
       acc.accrued += accrued;
@@ -91,7 +92,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     }, { accrued: 0, paid: 0 });
 
     // 3. АДМИНЫ
-    const adminDetails = state.admins.map(admin => {
+    const adminDetails = currentAdmins.map(admin => {
       const accrued = grossTotal * (admin.rate / 100);
       const paid = ops.filter(o => o.operator === admin.name && !o.model && ['salary_payment', 'advance'].includes(o.type)).reduce((s, o) => s + o.amount, 0);
       return { ...admin, accrued, paid, remainder: accrued - paid };

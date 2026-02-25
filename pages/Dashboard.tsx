@@ -145,9 +145,9 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     });
 
     totals.remainder = (totals.netEarned + totals.bonuses) - (totals.penalties + totals.paidOut);
-    state.admins.forEach(admin => { totals.adminDetails.push({ name: admin.name, amount: totalGross * (admin.rate / 100), rate: admin.rate }); });
+    currentAdmins.forEach(admin => { totals.adminDetails.push({ name: admin.name, amount: totalGross * (admin.rate / 100), rate: admin.rate }); });
     return totals;
-  }, [state.incomeData, state.ownerManualIncomes, state.operationsData, state.admins, activePeriodId]);
+  }, [state.incomeData, state.ownerManualIncomes, state.operationsData, state.admins, activePeriodId, activePeriod]);
 
   const operatorRows = useMemo(() => {
     const raw = currentOperators.map(op => {

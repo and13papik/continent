@@ -12,6 +12,8 @@ interface SettingsProps {
 const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
   const [newOp, setNewOp] = useState('');
   const [newModel, setNewModel] = useState('');
+  const [newAdminName, setNewAdminName] = useState('');
+  const [newAdminRate, setNewAdminRate] = useState('8');
   
   const [editOp, setEditOp] = useState<{ old: string; current: string } | null>(null);
   const [editModel, setEditModel] = useState<{ old: string; current: string } | null>(null);
@@ -21,7 +23,22 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
   const currentOperators = activePeriod?.operators || state.operators;
   const currentModels = activePeriod?.models || state.models;
+  const currentAdmins = activePeriod?.admins || state.admins;
   const currentGoals = activePeriod?.modelDefaultGoals || state.modelDefaultGoals || {};
+
+  const handleAddAdmin = () => {
+    if (!newAdminName) return;
+    const rate = parseFloat(newAdminRate) || 0;
+    updateState(p => ({
+      ...p,
+      accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { 
+        ...ap, 
+        admins: [...(ap.admins || p.admins), { id: String(Date.now()), name: newAdminName, rate }] 
+      } : ap)
+    }));
+    setNewAdminName('');
+    setNewAdminRate('8');
+  };
 
   const [syncUrlInput, setSyncUrlInput] = useState(state.syncUrl || '');
   const [syncKeyInput, setSyncKeyInput] = useState(state.syncKey || '');
@@ -491,6 +508,45 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
                      </div>
                    </>
                  )}
+               </div>
+             ))}
+          </div>
+        </div>
+        <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <ICONS.Crown size={18} className="text-amber-400" /> Состав админов ({activePeriod?.label})
+          </h2>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+               <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Имя..." value={newAdminName} onChange={e => setNewAdminName(e.target.value)}/>
+               <input className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="%" type="number" value={newAdminRate} onChange={e => setNewAdminRate(e.target.value)}/>
+               <button onClick={handleAddAdmin} className="bg-amber-600 px-3 rounded-lg"><ICONS.Plus size={18}/></button>
+            </div>
+            <p className="text-[9px] text-slate-500 italic">Админы получают процент от общего оборота (Gross) за месяц.</p>
+          </div>
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+             {currentAdmins.map(a => (
+               <div key={a.id} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
+                 <div className="flex flex-col">
+                    <span className="text-sm font-bold text-slate-200">{a.name}</span>
+                    <span className="text-[10px] text-amber-500 font-bold">{a.rate}% от оборота</span>
+                 </div>
+                 <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => {
+                      const newRate = prompt(`Новая ставка для ${a.name} (%):`, String(a.rate));
+                      if (newRate !== null) {
+                        const rate = parseFloat(newRate) || 0;
+                        updateState(p => ({
+                          ...p,
+                          accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, admins: (ap.admins || p.admins).map(x => x.id === a.id ? { ...x, rate } : x) } : ap)
+                        }));
+                      }
+                    }} className="text-slate-500 hover:text-amber-400"><ICONS.Edit size={14}/></button>
+                    <button onClick={() => updateState(p => ({
+                      ...p, 
+                      accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, admins: (ap.admins || p.admins).filter(x => x.id !== a.id) } : ap)
+                    }))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
+                 </div>
                </div>
              ))}
           </div>
