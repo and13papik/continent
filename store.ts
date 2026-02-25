@@ -188,6 +188,34 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
   }
 }
 
+export async function forcePushToCloud(state: AppState): Promise<boolean> {
+  if (!state.syncUrl || !state.syncKey) return false;
+  
+  const baseUrl = state.syncUrl.trim().replace(/\/$/, "");
+  const url = `${baseUrl}/rest/v1/app_storage`;
+  const headers = { 
+    'apikey': state.syncKey.trim(), 
+    'Authorization': `Bearer ${state.syncKey.trim()}`,
+    'Content-Type': 'application/json'
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { ...headers, 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify({ 
+        id: 'main',
+        state: { ...state, lastSyncedAt: new Date().toISOString() }, 
+        updated_at: new Date().toISOString() 
+      })
+    });
+    return response.ok;
+  } catch (e) {
+    console.error("Force Push Error:", e);
+    return false;
+  }
+}
+
 export async function fetchFromCloud(url: string, key?: string): Promise<AppState | null> {
   if (!url || !key) return null;
   const baseUrl = url.trim().replace(/\/$/, "");

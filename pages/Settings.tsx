@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { AppState, CloudSnapshot, AccountingPeriod } from '../types';
 import { ICONS } from '../constants';
-import { fetchFromCloud, testDatabaseConnection, listCloudSnapshots, createEmergencyBackup, restoreEmergencyBackup, reindexAllDataByDate } from '../store';
+import { fetchFromCloud, testDatabaseConnection, listCloudSnapshots, createEmergencyBackup, restoreEmergencyBackup, reindexAllDataByDate, forcePushToCloud } from '../store';
 
 interface SettingsProps {
   state: AppState;
@@ -123,6 +123,18 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     
     createEmergencyBackup(state); 
 
+    const allIds = [
+      ...state.incomeData.map(i => i.id),
+      ...state.operationsData.map(o => o.id),
+      ...state.ownerExpenses.map(e => e.id),
+      ...(state.ownerManualIncomes || []).map(i => i.id),
+      ...state.ownerAdvances.map(a => a.id),
+      ...(state.modelBonuses || []).map(b => b.id),
+      ...state.paidStatuses.map(s => s.id),
+      ...(state.ownerTasks || []).map(t => t.id),
+      ...(state.totalTableEntries || []).map(e => e.id)
+    ];
+
     updateState(prev => ({
       ...prev,
       incomeData: [],
@@ -132,6 +144,9 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
       ownerAdvances: [],
       modelBonuses: [],
       paidStatuses: [],
+      ownerTasks: [],
+      totalTableEntries: [],
+      deletedIds: Array.from(new Set([...(prev.deletedIds || []), ...allIds])),
       lastUpdated: Date.now(),
       version: prev.version + 1
     }));
@@ -159,6 +174,20 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
         alert('Данные не найдены.');
      }
      setIsManualSyncing(false);
+  };
+
+  const forcePush = async () => {
+    if (!syncUrlInput || !syncKeyInput) return alert('Сначала введите URL и Ключ');
+    if (!confirm('ВНИМАНИЕ: Это ЗАМЕНИТ данные в облаке вашими текущими локальными данными. Это действие нельзя отменить. Продолжить?')) return;
+    
+    setIsManualSyncing(true);
+    const success = await forcePushToCloud(state);
+    if (success) {
+      alert('Данные успешно отправлены в облако и заменили старые!');
+    } else {
+      alert('Ошибка при отправке данных.');
+    }
+    setIsManualSyncing(false);
   };
 
   const restoreFromSnapshot = (snap: CloudSnapshot) => {
@@ -404,6 +433,13 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
              <button onClick={repairData} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">
                Перераспределить данные
              </button>
+             <button 
+                onClick={forcePush} 
+                disabled={isManualSyncing}
+                className="w-full bg-rose-600/20 hover:bg-rose-600 text-rose-500 hover:text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border border-rose-500/30"
+              >
+                {isManualSyncing ? 'Синхронизация...' : 'Force Push (Заменить облако)'}
+              </button>
           </div>
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
              {state.accountingPeriods.slice().reverse().map(p => (
