@@ -385,6 +385,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
           <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Доходы и Платформы</h2>
           <div className="flex flex-col gap-3">
             <StatCard title="ОБЩИЙ ТОТАЛ (Грязными)" value={`$${stats.totalGross.toLocaleString()}`} color="indigo" icon={<DashboardIcon size={16}/>} />
+            <StatCard title="ONLYFANS" value={`$${stats.of.gross.toLocaleString()}`} subValue={`$${stats.of.net.toLocaleString()}`} subLabel="Net" color="indigo" icon={<IncomeIcon size={16}/>} />
             <StatCard title="PAYPAL" value={`$${stats.pp.gross.toLocaleString()}`} subValue={`$${stats.pp.net.toLocaleString()}`} subLabel="Net" color="sky" icon={<TransferIcon size={16}/>} />
             <StatCard title="CRYPTO" value={`$${stats.cr.gross.toLocaleString()}`} subValue={`$${stats.cr.net.toLocaleString()}`} subLabel="Net" color="emerald" icon={<IncomeIcon size={16}/>} />
           </div>
