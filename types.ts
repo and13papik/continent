@@ -11,6 +11,7 @@ export interface AccountingPeriod {
   models?: string[];
   modelRates?: { of: number; pp: number; cr: number };
   modelDefaultGoals?: Record<string, { night: number; morning: number; day: number; evening: number }>;
+  modelMonthlyPlans?: Record<string, number>;
   admins?: Admin[];
 }
 
@@ -209,6 +210,7 @@ export interface AppState {
   ownerTasks?: OwnerTask[];
   totalTableEntries?: DailyTotalEntry[]; 
   modelDefaultGoals?: Record<string, { night: number; morning: number; day: number; evening: number }>;
+  modelMonthlyPlans?: Record<string, number>;
   tgChatId?: string; 
   deletedIds: string[]; 
   syncUrl?: string;

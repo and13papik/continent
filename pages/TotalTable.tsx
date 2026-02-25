@@ -40,15 +40,56 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
   const currentModels = activePeriod?.models || state.models;
   const currentGoals = activePeriod?.modelDefaultGoals || state.modelDefaultGoals || {};
+  const currentPlans = activePeriod?.modelMonthlyPlans || state.modelMonthlyPlans || {};
 
   const esc = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const getDynamicGoal = (modelName: string, dateStr: string) => {
+    const plan = currentPlans[modelName];
+    if (!plan) return null;
+
+    const date = new Date(dateStr);
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    
+    // Количество дней в этом месяце
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const currentDay = date.getDate();
+    const remainingDays = daysInMonth - currentDay + 1;
+
+    if (remainingDays <= 0) return null;
+
+    // Сколько уже заработано в этом периоде ДО этой даты
+    const earnedSoFar = (state.totalTableEntries || [])
+      .filter(e => e.modelName === modelName && e.periodId === activePeriodId && e.date < dateStr)
+      .reduce((sum, e) => {
+        return sum + (e.night?.balance || 0) + (e.morning?.balance || 0) + (e.day?.balance || 0) + (e.evening?.balance || 0);
+      }, 0);
+
+    const remainingToEarn = Math.max(0, plan - earnedSoFar);
+    // Цель на одну смену (4 смены в день)
+    const shiftGoal = Math.round(remainingToEarn / (remainingDays * 4));
+    
+    return shiftGoal;
+  };
 
   const entriesForDate = useMemo(() => {
     const targetPeriodId = findPeriodIdByDate(selectedDate, state.accountingPeriods) || state.selectedPeriodId;
     return (state.totalTableEntries || []).filter(e => e && e.date === selectedDate && e.periodId === targetPeriodId);
   }, [state.totalTableEntries, selectedDate, state.accountingPeriods, state.selectedPeriodId]);
 
-  const getLastKnownGoals = (modelName: string) => {
+  const getLastKnownGoals = (modelName: string, dateStr: string) => {
+    // 0. Пытаемся рассчитать динамическую цель
+    const dynamicGoal = getDynamicGoal(modelName, dateStr);
+    if (dynamicGoal !== null) {
+      return {
+        night: dynamicGoal,
+        morning: dynamicGoal,
+        day: dynamicGoal,
+        evening: dynamicGoal
+      };
+    }
+
     // 1. Проверяем установленные цели по умолчанию в активном периоде
     if (currentGoals[modelName]) {
       return currentGoals[modelName];
@@ -75,7 +116,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       
       const initialEntries = currentModels.map((m, idx) => {
         const safeModelName = typeof m === 'string' ? m : `Model-${idx}`;
-        const goals = getLastKnownGoals(safeModelName);
+        const goals = getLastKnownGoals(safeModelName, selectedDate);
         return {
           id: `entry-${selectedDate}-${safeModelName.replace(/\s+/g, '-').toLowerCase()}-${idx}-${Date.now()}`,
           date: selectedDate,
@@ -174,6 +215,27 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     alert('Цели успешно синхронизированы по всей системе!');
   };
 
+  const handleRecalculateDynamicGoals = () => {
+    if (!confirm('Пересчитать динамические цели для всех анкет на эту дату на основе месячного плана и остатка?')) return;
+    
+    updateState(prev => ({
+      ...prev,
+      totalTableEntries: (prev.totalTableEntries || []).map(e => {
+        if (e.date !== selectedDate) return e;
+        const goals = getDynamicGoal(e.modelName, selectedDate);
+        if (goals === null) return e;
+        return {
+          ...e,
+          night: { ...e.night, goal: goals },
+          morning: { ...e.morning, goal: goals },
+          day: { ...e.day, goal: goals },
+          evening: { ...e.evening, goal: goals },
+          updatedAt: new Date().toISOString()
+        };
+      })
+    }));
+  };
+
   const handleRenameModel = (entryId: string, newName: string) => {
     updateState(prev => ({
       ...prev,
@@ -195,7 +257,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   const handleAddModel = () => {
     const name = prompt('Введите имя анкеты:');
     if (!name) return;
-    const goals = getLastKnownGoals(name);
+    const goals = getLastKnownGoals(name, selectedDate);
     const targetPeriodId = findPeriodIdByDate(selectedDate, state.accountingPeriods) || state.selectedPeriodId;
     const newEntry: DailyTotalEntry = {
       id: `entry-custom-${selectedDate}-${Date.now()}`,
@@ -422,6 +484,9 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         </div>
         
         <div className="flex gap-3">
+           <button onClick={handleRecalculateDynamicGoals} className="bg-sky-600/20 hover:bg-sky-600 border border-sky-500/30 text-sky-400 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 shadow-lg shadow-sky-500/10">
+              <ICONS.RotateCcw size={14} /> Пересчитать динамические цели
+           </button>
            <button onClick={handleSyncGoalsToAll} className="bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/30 text-emerald-400 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/10">
               <ICONS.RotateCcw size={14} /> Применить цели ко всем дням
            </button>
@@ -476,6 +541,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                     <th data-html2canvas-ignore className="p-2 border-r border-slate-800/30 text-indigo-400">План</th>
                     <th data-html2canvas-ignore className="p-2 border-r border-slate-800/30 text-rose-400">Осталось</th>
                     <th data-html2canvas-ignore className="p-2 border-r border-slate-800 text-emerald-400">Итого</th>
+                    <th data-html2canvas-ignore className="p-2 border-r border-slate-800 text-amber-400">Месяц</th>
                     <th data-html2canvas-ignore className="p-2">Удалить</th>
                  </tr>
               </thead>
@@ -496,6 +562,12 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                     const rowBalance = nightB + mornB + dayB + eveB;
                     
                     const rowRemaining = Math.max(0, rowPlan - rowBalance);
+
+                    const monthlyPlan = currentPlans[entry.modelName] || 0;
+                    const earnedInPeriod = (state.totalTableEntries || [])
+                      .filter(e => e.modelName === entry.modelName && e.periodId === activePeriodId)
+                      .reduce((sum, e) => sum + (e.night?.balance || 0) + (e.morning?.balance || 0) + (e.day?.balance || 0) + (e.evening?.balance || 0), 0);
+                    const monthlyPercent = monthlyPlan > 0 ? Math.round((earnedInPeriod / monthlyPlan) * 100) : 0;
 
                     return (
                        <tr key={entry.id || `fallback-idx-${idx}`} className="hover:bg-slate-900/30 transition-colors group">
@@ -535,6 +607,12 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                           <td data-html2canvas-ignore className="p-3 text-center border-r border-slate-800/30 font-bold font-mono text-indigo-400 bg-indigo-500/5">{rowPlan.toFixed(0)}</td>
                           <td data-html2canvas-ignore className={`p-3 text-center border-r border-slate-800/30 font-bold font-mono ${rowRemaining > 0 ? 'text-rose-400' : 'text-emerald-400'} bg-slate-950/30`}>{rowRemaining.toFixed(0)}</td>
                           <td data-html2canvas-ignore className="p-3 text-center font-black font-mono text-emerald-400 bg-emerald-500/5 border-r border-slate-800">{rowBalance.toFixed(0)}</td>
+                          <td data-html2canvas-ignore className="p-3 text-center border-r border-slate-800 bg-slate-950">
+                             <div className="flex flex-col items-center">
+                                <span className="text-[10px] font-black text-amber-500">{monthlyPercent}%</span>
+                                <span className="text-[8px] text-slate-500 font-bold">{earnedInPeriod.toFixed(0)} / {monthlyPlan.toFixed(0)}</span>
+                             </div>
+                          </td>
                           <td data-html2canvas-ignore className="p-3 text-center">
                              <button onClick={() => handleRemoveModel(entry.id)} className="text-slate-600 hover:text-rose-500 transition-colors">
                                 <ICONS.Trash size={16} />

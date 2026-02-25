@@ -25,6 +25,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
   const currentModels = activePeriod?.models || state.models;
   const currentAdmins = activePeriod?.admins || state.admins;
   const currentGoals = activePeriod?.modelDefaultGoals || state.modelDefaultGoals || {};
+  const currentPlans = activePeriod?.modelMonthlyPlans || state.modelMonthlyPlans || {};
 
   const handleAddAdmin = () => {
     if (!newAdminName) return;
@@ -582,6 +583,39 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
                       ...p, 
                       accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, admins: (ap.admins || p.admins).filter(x => x.id !== a.id) } : ap)
                     }))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
+                 </div>
+               </div>
+             ))}
+          </div>
+        </div>
+
+        <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <ICONS.Income size={18} className="text-emerald-400" /> Месячные планы ({activePeriod?.label})
+          </h2>
+          <p className="text-[9px] text-slate-500 italic">Установите цель на месяц. Система будет автоматически рассчитывать ежедневные цели в Total Table.</p>
+          <div className="space-y-3 max-h-[400px] overflow-y-auto">
+             {currentModels.map(m => (
+               <div key={m} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
+                 <span className="text-sm font-bold text-slate-200">{m}</span>
+                 <div className="flex items-center gap-2">
+                    <input 
+                      type="number" 
+                      className="w-24 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-sm text-white text-right outline-none focus:border-emerald-500/50"
+                      placeholder="0"
+                      value={currentPlans[m] || ''}
+                      onChange={e => {
+                        const val = parseFloat(e.target.value) || 0;
+                        updateState(p => ({
+                          ...p,
+                          accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? {
+                            ...ap,
+                            modelMonthlyPlans: { ...(ap.modelMonthlyPlans || {}), [m]: val }
+                          } : ap)
+                        }));
+                      }}
+                    />
+                    <span className="text-xs text-slate-500">$</span>
                  </div>
                </div>
              ))}
