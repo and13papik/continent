@@ -45,8 +45,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   const esc = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   const getDynamicGoal = (modelName: string, dateStr: string) => {
-    const plan = currentPlans[modelName];
-    if (!plan) return null;
+    const plan = currentPlans[modelName.trim()];
+    if (plan === undefined || plan === null) return null;
 
     const date = new Date(dateStr);
     const year = date.getFullYear();
@@ -61,7 +61,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
     // Сколько уже заработано в этом периоде ДО этой даты
     const earnedSoFar = (state.totalTableEntries || [])
-      .filter(e => e.modelName === modelName && e.periodId === activePeriodId && e.date < dateStr)
+      .filter(e => e.modelName.trim() === modelName.trim() && e.periodId === activePeriodId && e.date < dateStr)
       .reduce((sum, e) => {
         return sum + (e.night?.balance || 0) + (e.morning?.balance || 0) + (e.day?.balance || 0) + (e.evening?.balance || 0);
       }, 0);
@@ -79,54 +79,36 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   }, [state.totalTableEntries, selectedDate, state.accountingPeriods, state.selectedPeriodId]);
 
   const getLastKnownGoals = (modelName: string, dateStr: string) => {
-    // 0. Пытаемся рассчитать динамическую цель
+    // Пытаемся рассчитать динамическую цель
     const dynamicGoal = getDynamicGoal(modelName, dateStr);
-    if (dynamicGoal !== null) {
-      return {
-        night: dynamicGoal,
-        morning: dynamicGoal,
-        day: dynamicGoal,
-        evening: dynamicGoal
-      };
-    }
-
-    // 1. Проверяем установленные цели по умолчанию в активном периоде
-    if (currentGoals[modelName]) {
-      return currentGoals[modelName];
-    }
-
-    // 2. Ищем в истории последних записей
-    const allEntries = [...(state.totalTableEntries || [])]
-      .filter(e => e && typeof e.date === 'string')
-      .sort((a, b) => b.date.localeCompare(a.date));
-      
-    const lastEntry = allEntries.find(e => e && e.modelName === modelName);
+    
+    // Если есть динамическая цель - используем её, иначе 0 (как просил пользователь - оставить только динамические)
+    const goalVal = dynamicGoal !== null ? dynamicGoal : 0;
     
     return {
-      night: lastEntry?.night?.goal ?? 60,
-      morning: lastEntry?.morning?.goal ?? 60,
-      day: lastEntry?.day?.goal ?? 60,
-      evening: lastEntry?.evening?.goal ?? 60
+      night: goalVal,
+      morning: goalVal,
+      day: goalVal,
+      evening: goalVal
     };
   };
 
   useEffect(() => {
-    if (Array.isArray(currentModels) && currentModels.length > 0 && selectedDate) {
+    if (selectedDate) {
       const targetPeriodId = findPeriodIdByDate(selectedDate, state.accountingPeriods) || state.selectedPeriodId;
       
-      // 1. Получаем список уникальных имен моделей
-      const uniqueModelNames = Array.from(new Set(currentModels.map(m => typeof m === 'string' ? m : '')));
+      // 1. Получаем список имен моделей, у которых есть месячный план (динамические цели)
+      const modelsWithPlans = Object.keys(currentPlans).map(m => m.trim()).filter(m => m !== '');
       
       // 2. Проверяем, какие модели УЖЕ есть в таблице за это число
-      const existingModelNames = new Set(entriesForDate.map(e => e.modelName));
+      const existingModelNames = new Set(entriesForDate.map(e => e.modelName.trim()));
       
-      // 3. Проверяем, какие модели были УДАЛЕНЫ за это число (используем детерминированные ID)
+      // 3. Проверяем, какие модели были УДАЛЕНЫ за это число
       const deletedIdsSet = new Set(state.deletedIds || []);
       
       const newEntries: DailyTotalEntry[] = [];
       
-      uniqueModelNames.forEach((modelName, idx) => {
-        if (!modelName) return;
+      modelsWithPlans.forEach((modelName) => {
         if (existingModelNames.has(modelName)) return;
         
         // Детерминированный ID для авто-генерации
@@ -152,7 +134,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       
       if (newEntries.length > 0) {
         updateState(prev => {
-          // Повторная проверка внутри updateState для предотвращения гонок
           const existingIds = new Set((prev.totalTableEntries || []).map(e => e.id));
           const filteredNew = newEntries.filter(ne => !existingIds.has(ne.id));
           
@@ -165,7 +146,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         });
       }
     }
-  }, [selectedDate, currentModels, entriesForDate.length, state.deletedIds, updateState]);
+  }, [selectedDate, currentPlans, entriesForDate.length, state.deletedIds, updateState]);
 
   const handleUpdate = (entryId: string, shift: keyof DailyTotalEntry, field: keyof ShiftData, value: string) => {
     const val = value === '' ? undefined : parseFloat(value);
