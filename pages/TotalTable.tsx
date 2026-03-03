@@ -75,8 +75,15 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
   const entriesForDate = useMemo(() => {
     const targetPeriodId = findPeriodIdByDate(selectedDate, state.accountingPeriods) || state.selectedPeriodId;
-    return (state.totalTableEntries || []).filter(e => e && e.date === selectedDate && e.periodId === targetPeriodId);
-  }, [state.totalTableEntries, selectedDate, state.accountingPeriods, state.selectedPeriodId]);
+    const allForDate = (state.totalTableEntries || []).filter(e => e && e.date === selectedDate && e.periodId === targetPeriodId);
+    
+    // Оставляем только те анкеты, у которых ЕСТЬ месячный план (динамические цели)
+    // Это убирает дубликаты от "Стандартов" и показывает только нужные анкеты
+    return allForDate.filter(e => {
+      const modelName = e.modelName.trim();
+      return currentPlans[modelName] !== undefined && currentPlans[modelName] !== null;
+    });
+  }, [state.totalTableEntries, selectedDate, state.accountingPeriods, state.selectedPeriodId, currentPlans]);
 
   const getLastKnownGoals = (modelName: string, dateStr: string) => {
     // Пытаемся рассчитать динамическую цель

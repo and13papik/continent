@@ -318,46 +318,6 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
          </div>
       )}
 
-      <div className="glass-card p-8 rounded-[32px] border-amber-500/20 shadow-2xl space-y-6">
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-          <ICONS.Crown size={20} className="text-amber-400" /> Цели анкет по умолчанию (Стандарты)
-        </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="text-slate-500 uppercase font-black tracking-widest border-b border-slate-800">
-                <th className="py-3 px-4">Анкета</th>
-                <th className="py-3 px-4 text-center">Ночь 🌙</th>
-                <th className="py-3 px-4 text-center">Утро 🌅</th>
-                <th className="py-3 px-4 text-center">День ☀️</th>
-                <th className="py-3 px-4 text-center">Вечер 🌇</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {currentModels.map(m => {
-                const goals = currentGoals[m] || { night: 60, morning: 60, day: 60, evening: 60 };
-                return (
-                  <tr key={m} className="hover:bg-white/5 transition-colors">
-                    <td className="py-3 px-4 font-bold text-slate-300">{m}</td>
-                    {(['night', 'morning', 'day', 'evening'] as const).map(shift => (
-                      <td key={shift} className="py-2 px-2">
-                        <input 
-                          type="number" 
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-center text-white font-mono outline-none focus:border-amber-500/50"
-                          value={goals[shift]}
-                          onChange={e => handleUpdateDefaultGoal(m, shift, e.target.value)}
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <p className="text-[10px] text-slate-500 italic">Эти значения будут автоматически подставляться при создании новых дней в Total Table.</p>
-      </div>
-
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-1 glass-card p-8 rounded-[32px] border-indigo-500/20 shadow-2xl space-y-6">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
