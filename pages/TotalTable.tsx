@@ -111,16 +111,35 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   };
 
   useEffect(() => {
-    if (entriesForDate.length === 0 && Array.isArray(currentModels) && currentModels.length > 0 && selectedDate) {
+    if (Array.isArray(currentModels) && currentModels.length > 0 && selectedDate) {
       const targetPeriodId = findPeriodIdByDate(selectedDate, state.accountingPeriods) || state.selectedPeriodId;
       
-      const initialEntries = currentModels.map((m, idx) => {
-        const safeModelName = typeof m === 'string' ? m : `Model-${idx}`;
-        const goals = getLastKnownGoals(safeModelName, selectedDate);
-        return {
-          id: `entry-${selectedDate}-${safeModelName.replace(/\s+/g, '-').toLowerCase()}-${idx}-${Date.now()}`,
+      // 1. Получаем список уникальных имен моделей
+      const uniqueModelNames = Array.from(new Set(currentModels.map(m => typeof m === 'string' ? m : '')));
+      
+      // 2. Проверяем, какие модели УЖЕ есть в таблице за это число
+      const existingModelNames = new Set(entriesForDate.map(e => e.modelName));
+      
+      // 3. Проверяем, какие модели были УДАЛЕНЫ за это число (используем детерминированные ID)
+      const deletedIdsSet = new Set(state.deletedIds || []);
+      
+      const newEntries: DailyTotalEntry[] = [];
+      
+      uniqueModelNames.forEach((modelName, idx) => {
+        if (!modelName) return;
+        if (existingModelNames.has(modelName)) return;
+        
+        // Детерминированный ID для авто-генерации
+        const deterministicId = `entry-${selectedDate}-${modelName.replace(/\s+/g, '-').toLowerCase()}`;
+        
+        // Если этот ID был удален - не добавляем его снова
+        if (deletedIdsSet.has(deterministicId)) return;
+        
+        const goals = getLastKnownGoals(modelName, selectedDate);
+        newEntries.push({
+          id: deterministicId,
           date: selectedDate,
-          modelName: safeModelName,
+          modelName: modelName,
           periodId: targetPeriodId,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -128,20 +147,25 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
           morning: { balance: undefined as any, goal: goals.morning },
           day: { balance: undefined as any, goal: goals.day },
           evening: { balance: undefined as any, goal: goals.evening }
-        };
+        });
       });
       
-      updateState(prev => {
-        const currentEntries = (prev.totalTableEntries || []).filter(e => e && e.date === selectedDate);
-        if (currentEntries.length > 0) return prev;
-        
-        return { 
-          ...prev, 
-          totalTableEntries: [...(prev.totalTableEntries || []), ...initialEntries] 
-        };
-      });
+      if (newEntries.length > 0) {
+        updateState(prev => {
+          // Повторная проверка внутри updateState для предотвращения гонок
+          const existingIds = new Set((prev.totalTableEntries || []).map(e => e.id));
+          const filteredNew = newEntries.filter(ne => !existingIds.has(ne.id));
+          
+          if (filteredNew.length === 0) return prev;
+          
+          return { 
+            ...prev, 
+            totalTableEntries: [...(prev.totalTableEntries || []), ...filteredNew] 
+          };
+        });
+      }
     }
-  }, [selectedDate, currentModels, entriesForDate.length, updateState]);
+  }, [selectedDate, currentModels, entriesForDate.length, state.deletedIds, updateState]);
 
   const handleUpdate = (entryId: string, shift: keyof DailyTotalEntry, field: keyof ShiftData, value: string) => {
     const val = value === '' ? undefined : parseFloat(value);
@@ -259,8 +283,10 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     if (!name) return;
     const goals = getLastKnownGoals(name, selectedDate);
     const targetPeriodId = findPeriodIdByDate(selectedDate, state.accountingPeriods) || state.selectedPeriodId;
+    const deterministicId = `entry-custom-${selectedDate}-${name.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}`;
+    
     const newEntry: DailyTotalEntry = {
-      id: `entry-custom-${selectedDate}-${Date.now()}`,
+      id: deterministicId,
       date: selectedDate,
       modelName: name,
       periodId: targetPeriodId,
