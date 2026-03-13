@@ -28,7 +28,8 @@ export function createInitialState(): AppState {
         paidStatuses: parsed.paidStatuses || [],
         ownerTasks: parsed.ownerTasks || [],
         totalTableEntries: parsed.totalTableEntries || [],
-        modelDefaultGoals: parsed.modelDefaultGoals || {}
+        modelDefaultGoals: parsed.modelDefaultGoals || {},
+        modelMonthlyPlans: parsed.modelMonthlyPlans || {}
       };
     } catch (e) {
       console.error("Failed to parse storage", e);
@@ -69,6 +70,7 @@ export function createInitialState(): AppState {
     ownerTasks: [],
     totalTableEntries: [],
     modelDefaultGoals: {},
+    modelMonthlyPlans: {},
     deletedIds: []
   };
 }
