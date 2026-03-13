@@ -170,9 +170,51 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
       return acc;
     }, {} as Record<string, { total: number; count: number }>);
 
-    const topOperators = Object.entries(operatorStats)
+    const topOperatorsMonth = Object.entries(operatorStats)
       .map(([name, stats]) => ({ name, total: stats.total, avg: stats.total / stats.count }))
-      .sort((a, b) => b.total - a.total);
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+
+    // Weekly Stats for Operators
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 is Sunday, 1 is Monday
+    const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    
+    const startOfCurrentWeek = new Date(now);
+    startOfCurrentWeek.setDate(now.getDate() - diffToMonday);
+    startOfCurrentWeek.setHours(0, 0, 0, 0);
+
+    const startOfPrevWeek = new Date(startOfCurrentWeek);
+    startOfPrevWeek.setDate(startOfCurrentWeek.getDate() - 7);
+    
+    const endOfPrevWeek = new Date(startOfCurrentWeek);
+    endOfPrevWeek.setMilliseconds(-1);
+
+    const currentWeekRecords = incomeData.filter(r => new Date(r.date) >= startOfCurrentWeek);
+    const prevWeekRecords = incomeData.filter(r => {
+      const d = new Date(r.date);
+      return d >= startOfPrevWeek && d <= endOfPrevWeek;
+    });
+
+    const opCurrentWeek: Record<string, number> = {};
+    const opPrevWeek: Record<string, number> = {};
+
+    currentWeekRecords.forEach(r => { opCurrentWeek[r.operator] = (opCurrentWeek[r.operator] || 0) + r.total; });
+    prevWeekRecords.forEach(r => { opPrevWeek[r.operator] = (opPrevWeek[r.operator] || 0) + r.total; });
+
+    const topOperatorsWeek = Object.entries(opCurrentWeek)
+      .map(([name, currentTotal]) => {
+        const prevTotal = opPrevWeek[name] || 0;
+        const growth = prevTotal > 0 ? ((currentTotal - prevTotal) / prevTotal) * 100 : currentTotal > 0 ? 100 : 0;
+        
+        let flag: 'green' | 'yellow' | 'red' = 'yellow';
+        if (growth > 5) flag = 'green';
+        else if (growth < -5) flag = 'red';
+
+        return { name, currentTotal, prevTotal, growth, flag };
+      })
+      .sort((a, b) => b.currentTotal - a.currentTotal)
+      .slice(0, 5);
 
     return {
       currentTotal,
@@ -185,7 +227,8 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
       projectedTotal,
       modelMetrics,
       dailyEntries,
-      topOperators,
+      topOperatorsMonth,
+      topOperatorsWeek,
       mostProfitableDays: [...dailyEntries].sort((a, b) => b.value - a.value).slice(0, 5),
       formatDate
     };
@@ -359,6 +402,85 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* TOP OPERATORS MONTH */}
+        <div className="glass-card p-6 rounded-3xl border-slate-800 space-y-6">
+          <h2 className="text-xl font-bold text-white flex items-center gap-3">
+            <ICONS.Internship className="text-sky-500" size={24} />
+            Топ 5 операторов месяца
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-800">
+                  <th className="py-4 text-[10px] uppercase text-slate-500 font-black tracking-widest">Оператор</th>
+                  <th className="py-4 text-[10px] uppercase text-slate-500 font-black tracking-widest text-right">Всего</th>
+                  <th className="py-4 text-[10px] uppercase text-slate-500 font-black tracking-widest text-right">Среднее</th>
+                </tr>
+              </thead>
+              <tbody>
+                {metrics.topOperatorsMonth.map((op, idx) => (
+                  <tr key={op.name} className="border-b border-slate-800/50 hover:bg-white/5 transition-colors group">
+                    <td className="py-4">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-black text-slate-600">{idx + 1}</span>
+                        <span className="font-bold text-white">{op.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-4 font-mono text-emerald-400 font-bold text-right">${op.total.toLocaleString()}</td>
+                    <td className="py-4 font-mono text-slate-300 text-right">${op.avg.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* TOP OPERATORS WEEK */}
+        <div className="glass-card p-6 rounded-3xl border-slate-800 space-y-6">
+          <h2 className="text-xl font-bold text-white flex items-center gap-3">
+            <ICONS.Reports className="text-indigo-500" size={24} />
+            Топ 5 операторов недели
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-800">
+                  <th className="py-4 text-[10px] uppercase text-slate-500 font-black tracking-widest">Оператор</th>
+                  <th className="py-4 text-[10px] uppercase text-slate-500 font-black tracking-widest text-right">Неделя</th>
+                  <th className="py-4 text-[10px] uppercase text-slate-500 font-black tracking-widest text-right">Динамика</th>
+                </tr>
+              </thead>
+              <tbody>
+                {metrics.topOperatorsWeek.map((op, idx) => (
+                  <tr key={op.name} className="border-b border-slate-800/50 hover:bg-white/5 transition-colors group">
+                    <td className="py-4">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-black text-slate-600">{idx + 1}</span>
+                        <span className="font-bold text-white">{op.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-4 font-mono text-white font-bold text-right">${op.currentTotal.toLocaleString()}</td>
+                    <td className="py-4 text-right">
+                      <div className="flex flex-col items-end">
+                        <div className={`flex items-center gap-1 text-xs font-black ${
+                          op.flag === 'green' ? 'text-emerald-400' : 
+                          op.flag === 'red' ? 'text-rose-400' : 'text-amber-400'
+                        }`}>
+                          {op.growth > 0 ? '↑' : op.growth < 0 ? '↓' : ''}
+                          {Math.abs(op.growth).toFixed(1)}%
+                        </div>
+                        <span className="text-[8px] text-slate-500 uppercase font-bold">vs прош. нед.</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* MOST PROFITABLE DAYS */}
         <div className="glass-card p-6 rounded-3xl border-slate-800 space-y-6">
@@ -372,45 +494,12 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-black text-slate-600">{idx + 1}</span>
                   <span className="text-sm font-bold text-slate-200">
-                    {new Date(day.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}
+                    {metrics.formatDate(day.date)}
                   </span>
                 </div>
                 <span className="text-sm font-mono font-bold text-emerald-400">${day.value.toLocaleString()}</span>
               </div>
             ))}
-          </div>
-        </div>
-
-        {/* TOP OPERATORS TABLE */}
-        <div className="lg:col-span-2 glass-card p-6 rounded-3xl border-slate-800 space-y-6">
-          <h2 className="text-xl font-bold text-white flex items-center gap-3">
-            <ICONS.Internship className="text-sky-500" size={24} />
-            Топ операторов месяца
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-800">
-                  <th className="py-4 text-[10px] uppercase text-slate-500 font-black tracking-widest">Оператор</th>
-                  <th className="py-4 text-[10px] uppercase text-slate-500 font-black tracking-widest">Всего за месяц</th>
-                  <th className="py-4 text-[10px] uppercase text-slate-500 font-black tracking-widest">Среднее/запись</th>
-                </tr>
-              </thead>
-              <tbody>
-                {metrics.topOperators.slice(0, 10).map((op, idx) => (
-                  <tr key={op.name} className="border-b border-slate-800/50 hover:bg-white/5 transition-colors group">
-                    <td className="py-4">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-black text-slate-600">{idx + 1}</span>
-                        <span className="font-bold text-white">{op.name}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 font-mono text-emerald-400 font-bold">${op.total.toLocaleString()}</td>
-                    <td className="py-4 font-mono text-slate-300">${op.avg.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
       </div>
