@@ -1,12 +1,12 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { AppState, IncomeRecord } from '../types';
 import { ICONS } from '../constants';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, LineChart, Line, Legend 
+  Cell, LineChart, Line, Legend, AreaChart, Area 
 } from 'recharts';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface MetricsProps {
   state: AppState;
@@ -17,102 +17,181 @@ const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981'
 
 const Metrics: React.FC<MetricsProps> = ({ state }) => {
   const incomeData = state.incomeData || [];
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
 
   const metrics = useMemo(() => {
     const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
     
-    // Start of current week (Monday)
-    const startOfWeek = new Date(now);
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    startOfWeek.setDate(diff);
-    startOfWeek.setHours(0, 0, 0, 0);
+    // Date helpers
+    const getDaysAgo = (days: number) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - days);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    };
 
-    // Start of current month
+    const startOfWeek = getDaysAgo(now.getDay() === 0 ? 6 : now.getDay() - 1);
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const rolling7DaysStart = getDaysAgo(7);
+    const baselineStart = getDaysAgo(30);
 
-    const opOverall: Record<string, number> = {};
-    const opWeek: Record<string, number> = {};
-    const opMonth: Record<string, number> = {};
-    const modelStats: Record<string, number> = {};
-    const dayOfWeekStats: Record<string, number> = {};
-    const dayOfWeekMonthStats: Record<string, number> = {};
-    const dailyStats: Record<string, number> = {};
+    // Data structures
+    const modelData: Record<string, {
+      total: number;
+      weekly: number;
+      monthly: number;
+      daily: Record<string, number>;
+      bestDay: { date: string; value: number };
+      worstDay: { date: string; value: number };
+      streaks: number;
+      currentStreak: number;
+    }> = {};
 
+    const operatorData: Record<string, {
+      total: number;
+      week: number;
+      month: number;
+      rolling7: number;
+      peakDay: number;
+    }> = {};
+
+    const agencyDaily: Record<string, number> = {};
+
+    // Process all income records
     incomeData.forEach(record => {
       const recordDate = new Date(record.date);
       const amount = record.total || 0;
+      const dateStr = record.date;
 
-      // Overall Operator
-      opOverall[record.operator] = (opOverall[record.operator] || 0) + amount;
+      // Agency Daily
+      agencyDaily[dateStr] = (agencyDaily[dateStr] || 0) + amount;
 
-      // Week Operator
-      if (recordDate >= startOfWeek) {
-        opWeek[record.operator] = (opWeek[record.operator] || 0) + amount;
+      // Model Data
+      if (!modelData[record.model]) {
+        modelData[record.model] = {
+          total: 0, weekly: 0, monthly: 0, daily: {},
+          bestDay: { date: '', value: -Infinity },
+          worstDay: { date: '', value: Infinity },
+          streaks: 0, currentStreak: 0
+        };
       }
+      const m = modelData[record.model];
+      m.total += amount;
+      m.daily[dateStr] = (m.daily[dateStr] || 0) + amount;
+      if (recordDate >= startOfWeek) m.weekly += amount;
+      if (recordDate >= startOfMonth) m.monthly += amount;
 
-      // Month Operator
-      if (recordDate >= startOfMonth) {
-        opMonth[record.operator] = (opMonth[record.operator] || 0) + amount;
-        
-        // Daily Stats for current month
-        const dateKey = record.date; // Assuming YYYY-MM-DD
-        dailyStats[dateKey] = (dailyStats[dateKey] || 0) + amount;
+      // Operator Data
+      if (!operatorData[record.operator]) {
+        operatorData[record.operator] = { total: 0, week: 0, month: 0, rolling7: 0, peakDay: 0 };
       }
-
-      // Model Stats
-      modelStats[record.model] = (modelStats[record.model] || 0) + amount;
-
-      // Day of Week Stats (Overall)
-      const dayName = recordDate.toLocaleDateString('ru-RU', { weekday: 'long' });
-      dayOfWeekStats[dayName] = (dayOfWeekStats[dayName] || 0) + amount;
-
-      // Day of Week Stats (Month)
-      if (recordDate >= startOfMonth) {
-        dayOfWeekMonthStats[dayName] = (dayOfWeekMonthStats[dayName] || 0) + amount;
-      }
+      const o = operatorData[record.operator];
+      o.total += amount;
+      if (recordDate >= startOfWeek) o.week += amount;
+      if (recordDate >= startOfMonth) o.month += amount;
+      if (recordDate >= rolling7DaysStart) o.rolling7 += amount;
+      if (amount > o.peakDay) o.peakDay = amount;
     });
 
-    const sortTop = (obj: Record<string, number>) => 
-      Object.entries(obj)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value);
-
-    const topOpOverall = sortTop(opOverall).slice(0, 3);
-    const topOpWeek = sortTop(opWeek).slice(0, 3);
-    const topOpMonth = sortTop(opMonth).slice(0, 3);
-    const topModels = sortTop(modelStats).slice(0, 10);
-    
-    const daysOrder = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
-    const dayStatsChart = daysOrder.map(day => ({
-      name: day.charAt(0).toUpperCase() + day.slice(1),
-      value: dayOfWeekStats[day] || 0,
-      monthValue: dayOfWeekMonthStats[day] || 0
-    }));
-
-    // Generate all days for current month for the daily chart
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const dailyStatsChart = [];
-    for (let i = 1; i <= daysInMonth; i++) {
-      const date = new Date(now.getFullYear(), now.getMonth(), i);
-      const dateStr = date.toISOString().split('T')[0];
-      dailyStatsChart.push({
-        day: i,
-        date: dateStr,
-        value: dailyStats[dateStr] || 0
+    // Post-process Model Data (Best/Worst/Streaks/Health)
+    const modelMetrics = Object.entries(modelData).map(([name, data]) => {
+      const dailyEntries = Object.entries(data.daily).sort((a, b) => a[0].localeCompare(b[0]));
+      
+      // Best/Worst
+      dailyEntries.forEach(([date, val]) => {
+        if (val > data.bestDay.value) data.bestDay = { date, value: val };
+        if (val < data.worstDay.value) data.worstDay = { date, value: val };
       });
-    }
+
+      // Streaks (> $1000)
+      let currentStreak = 0;
+      let maxStreak = 0;
+      // Sort all dates to check streaks properly
+      const allDates = dailyEntries.map(e => e[0]);
+      allDates.forEach(date => {
+        if (data.daily[date] >= 1000) {
+          currentStreak++;
+          maxStreak = Math.max(maxStreak, currentStreak);
+        } else {
+          currentStreak = 0;
+        }
+      });
+
+      // Rolling 7 days avg
+      const last7Days = [];
+      for(let i=0; i<7; i++) {
+        const d = getDaysAgo(i).toISOString().split('T')[0];
+        last7Days.push(data.daily[d] || 0);
+      }
+      const current7DayAvg = last7Days.reduce((a, b) => a + b, 0) / 7;
+
+      // Max 7 day avg for health score
+      let max7DayAvg = current7DayAvg;
+      if (dailyEntries.length >= 7) {
+        for (let i = 0; i <= dailyEntries.length - 7; i++) {
+          const window = dailyEntries.slice(i, i + 7);
+          const avg = window.reduce((sum, e) => sum + e[1], 0) / 7;
+          if (avg > max7DayAvg) max7DayAvg = avg;
+        }
+      }
+
+      const healthScore = max7DayAvg > 0 ? (current7DayAvg / max7DayAvg) * 100 : 0;
+
+      // Baseline (last 30 days)
+      const last30Days = [];
+      for(let i=0; i<30; i++) {
+        const d = getDaysAgo(i).toISOString().split('T')[0];
+        last30Days.push(data.daily[d] || 0);
+      }
+      const baselineAvg = last30Days.reduce((a, b) => a + b, 0) / 30;
+      
+      // Day-over-day change
+      const yesterday = getDaysAgo(1).toISOString().split('T')[0];
+      const dayBefore = getDaysAgo(2).toISOString().split('T')[0];
+      const yesterdayVal = data.daily[yesterday] || 0;
+      const dayBeforeVal = data.daily[dayBefore] || 0;
+      const dodChange = dayBeforeVal > 0 ? ((yesterdayVal - dayBeforeVal) / dayBeforeVal) * 100 : 0;
+
+      return {
+        name,
+        ...data,
+        current7DayAvg,
+        max7DayAvg,
+        healthScore,
+        baselineAvg,
+        dodChange,
+        maxStreak,
+        isAtRisk: healthScore < 60 || (dodChange < -20 && yesterdayVal < baselineAvg * 0.8)
+      };
+    });
+
+    // Agency Stats
+    const agencyDailyChart = Object.entries(agencyDaily)
+      .map(([date, value]) => ({ date, value }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-30);
+
+    const agencyAvgDaily = Object.values(agencyDaily).reduce((a, b) => a + b, 0) / Object.keys(agencyDaily).length;
+
+    // Top Operators
+    const topOperators = Object.entries(operatorData)
+      .map(([name, data]) => ({ name, ...data, rolling7Avg: data.rolling7 / 7 }))
+      .sort((a, b) => b.rolling7 - a.rolling7);
 
     return {
-      topOpOverall,
-      topOpWeek,
-      topOpMonth,
-      topModels,
-      dayStatsChart,
-      dailyStatsChart,
-      bestModel: topModels[0] || { name: 'Нет данных', value: 0 }
+      modelMetrics,
+      agencyDailyChart,
+      agencyAvgDaily,
+      topOperators,
+      totalRevenue: Object.values(agencyDaily).reduce((a, b) => a + b, 0)
     };
   }, [incomeData]);
+
+  const selectedModelData = useMemo(() => {
+    if (!selectedModel) return null;
+    return metrics.modelMetrics.find(m => m.name === selectedModel);
+  }, [selectedModel, metrics.modelMetrics]);
 
   return (
     <motion.div 
@@ -123,169 +202,260 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold font-outfit text-white">Метрика & Аналитика</h1>
-          <p className="text-slate-400">Глубокий анализ производительности операторов и моделей</p>
+          <p className="text-slate-400">Продвинутый анализ эффективности агентства</p>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
-          <ICONS.Reports className="text-indigo-400" size={20} />
-          <span className="text-indigo-400 font-bold text-sm">Обновлено: {new Date().toLocaleDateString()}</span>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Общий доход</p>
+            <p className="text-2xl font-black text-white">${metrics.totalRevenue.toLocaleString()}</p>
+          </div>
+          <div className="w-px h-10 bg-slate-800" />
+          <div className="flex items-center gap-2 px-4 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
+            <ICONS.Reports className="text-indigo-400" size={20} />
+            <span className="text-indigo-400 font-bold text-sm">Live</span>
+          </div>
         </div>
       </header>
 
-      {/* ТОП ОПЕРАТОРЫ */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <TopCard 
-          title="Топ операторы (Все время)" 
-          data={metrics.topOpOverall} 
-          icon={<ICONS.Internship size={20} />} 
-          color="indigo" 
-        />
-        <TopCard 
-          title="Топ операторы (Неделя)" 
-          data={metrics.topOpWeek} 
-          icon={<ICONS.Calendar size={20} />} 
-          color="emerald" 
-        />
-        <TopCard 
-          title="Топ операторы (Месяц)" 
-          data={metrics.topOpMonth} 
-          icon={<ICONS.Reports size={20} />} 
-          color="sky" 
-        />
-      </div>
-
-      {/* СУТОЧНЫЙ ЗАРАБОТОК (НОВОЕ) */}
+      {/* AGENCY TREND */}
       <div className="glass-card p-6 rounded-3xl border-slate-800 space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-white flex items-center gap-3">
-            <ICONS.Income className="text-emerald-500" size={24} />
-            Суточный заработок (Текущий месяц)
+            <ICONS.Dashboard className="text-indigo-500" size={24} />
+            Общая динамика агентства (30 дней)
           </h2>
-          <div className="text-right">
-            <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Лучший день месяца</p>
-            <p className="text-lg font-black text-emerald-500">
-              {metrics.dailyStatsChart.length > 0 
-                ? `${[...metrics.dailyStatsChart].sort((a, b) => b.value - a.value)[0].day}-е число ($${[...metrics.dailyStatsChart].sort((a, b) => b.value - a.value)[0].value.toLocaleString()})`
-                : '---'}
-            </p>
+          <div className="flex gap-4">
+            <div className="text-right">
+              <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Средний чек/день</p>
+              <p className="text-lg font-bold text-white">${metrics.agencyAvgDaily.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+            </div>
           </div>
         </div>
-        
         <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={metrics.dailyStatsChart}>
+            <AreaChart data={metrics.agencyDailyChart}>
+              <defs>
+                <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-              <XAxis dataKey="day" stroke="#64748b" fontSize={10} />
+              <XAxis 
+                dataKey="date" 
+                stroke="#64748b" 
+                fontSize={10} 
+                tickFormatter={(str) => new Date(str).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+              />
               <YAxis stroke="#64748b" fontSize={10} />
               <Tooltip 
                 contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
                 itemStyle={{ color: '#f8fafc' }}
-                labelFormatter={(label) => `${label}-е число`}
               />
-              <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
-            </BarChart>
+              <Area type="monotone" dataKey="value" stroke="#6366f1" fillOpacity={1} fill="url(#colorRev)" strokeWidth={3} />
+            </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* МОДЕЛИ */}
-        <div className="glass-card p-6 rounded-3xl border-slate-800 space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white flex items-center gap-3">
-              <ICONS.Models className="text-pink-500" size={24} />
-              Производительность моделей
-            </h2>
-            <div className="text-right">
-              <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Лучшая модель</p>
-              <p className="text-lg font-black text-pink-500">{metrics.bestModel.name}</p>
-            </div>
-          </div>
-          
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={metrics.topModels} layout="vertical" margin={{ left: 40, right: 40 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
-                <XAxis type="number" hide />
-                <YAxis 
-                  dataKey="name" 
-                  type="category" 
-                  stroke="#64748b" 
-                  fontSize={12} 
-                  width={100}
-                />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
-                  itemStyle={{ color: '#f8fafc' }}
-                />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                  {metrics.topModels.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* TOP OPERATORS TABLE */}
+        <div className="lg:col-span-2 glass-card p-6 rounded-3xl border-slate-800 space-y-6">
+          <h2 className="text-xl font-bold text-white flex items-center gap-3">
+            <ICONS.Internship className="text-emerald-500" size={24} />
+            Топ операторов (Rolling 7 Days)
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-800">
+                  <th className="py-4 text-[10px] uppercase text-slate-500 font-black tracking-widest">Оператор</th>
+                  <th className="py-4 text-[10px] uppercase text-slate-500 font-black tracking-widest">7дн Сумма</th>
+                  <th className="py-4 text-[10px] uppercase text-slate-500 font-black tracking-widest">7дн Среднее</th>
+                  <th className="py-4 text-[10px] uppercase text-slate-500 font-black tracking-widest">Пик (День)</th>
+                  <th className="py-4 text-[10px] uppercase text-slate-500 font-black tracking-widest">Месяц</th>
+                </tr>
+              </thead>
+              <tbody>
+                {metrics.topOperators.slice(0, 10).map((op, idx) => (
+                  <tr key={op.name} className="border-b border-slate-800/50 hover:bg-white/5 transition-colors group">
+                    <td className="py-4">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-black text-slate-600">{idx + 1}</span>
+                        <span className="font-bold text-white">{op.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-4 font-mono text-emerald-400 font-bold">${op.rolling7.toLocaleString()}</td>
+                    <td className="py-4 font-mono text-slate-300">${op.rolling7Avg.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                    <td className="py-4 font-mono text-amber-400 font-bold">${op.peakDay.toLocaleString()}</td>
+                    <td className="py-4 font-mono text-slate-400">${op.month.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* ДНИ НЕДЕЛИ */}
+        {/* MODEL HEALTH SCORES */}
         <div className="glass-card p-6 rounded-3xl border-slate-800 space-y-6">
           <h2 className="text-xl font-bold text-white flex items-center gap-3">
-            <ICONS.Calendar className="text-amber-500" size={24} />
-            Анализ по дням недели
+            <ICONS.Models className="text-pink-500" size={24} />
+            Здоровье анкет
           </h2>
-          
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={metrics.dayStatsChart}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={12} />
-                <YAxis stroke="#64748b" fontSize={12} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
-                  itemStyle={{ color: '#f8fafc' }}
-                />
-                <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="value" 
-                  name="Все время" 
-                  stroke="#6366f1" 
-                  strokeWidth={3} 
-                  dot={{ r: 4, fill: '#6366f1' }} 
-                  activeDot={{ r: 6 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="monthValue" 
-                  name="За месяц" 
-                  stroke="#10b981" 
-                  strokeWidth={3} 
-                  dot={{ r: 4, fill: '#10b981' }} 
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 bg-slate-900/50 rounded-2xl border border-slate-800">
-              <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1">Лучший день (Все время)</p>
-              <p className="text-lg font-bold text-white">
-                {[...metrics.dayStatsChart].sort((a, b) => b.value - a.value)[0]?.name || '---'}
-              </p>
-            </div>
-            <div className="p-4 bg-slate-900/50 rounded-2xl border border-slate-800">
-              <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1">Лучший день (Месяц)</p>
-              <p className="text-lg font-bold text-emerald-400">
-                {[...metrics.dayStatsChart].sort((a, b) => b.monthValue - a.monthValue)[0]?.name || '---'}
-              </p>
-            </div>
+          <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+            {metrics.modelMetrics.sort((a, b) => a.healthScore - b.healthScore).map(model => (
+              <div 
+                key={model.name} 
+                className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                  selectedModel === model.name ? 'bg-indigo-500/20 border-indigo-500' : 'bg-slate-900/40 border-slate-800 hover:border-slate-700'
+                }`}
+                onClick={() => setSelectedModel(model.name === selectedModel ? null : model.name)}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h3 className="font-bold text-white">{model.name}</h3>
+                    <p className="text-[10px] text-slate-500 uppercase font-bold">Health Score</p>
+                  </div>
+                  <div className={`px-2 py-1 rounded text-[10px] font-black uppercase ${
+                    model.healthScore > 80 ? 'bg-emerald-500/20 text-emerald-400' :
+                    model.healthScore > 60 ? 'bg-amber-500/20 text-amber-400' :
+                    'bg-red-500/20 text-red-400'
+                  }`}>
+                    {model.healthScore.toFixed(0)}%
+                  </div>
+                </div>
+                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${model.healthScore}%` }}
+                    className={`h-full ${
+                      model.healthScore > 80 ? 'bg-emerald-500' :
+                      model.healthScore > 60 ? 'bg-amber-500' :
+                      'bg-red-500'
+                    }`}
+                  />
+                </div>
+                {model.isAtRisk && (
+                  <div className="mt-2 flex items-center gap-1 text-[10px] text-red-400 font-bold uppercase">
+                    <ICONS.Delete size={12} /> В зоне риска
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
+
+      {/* MODEL DETAIL VIEW */}
+      <AnimatePresence>
+        {selectedModelData && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="glass-card p-8 rounded-3xl border-indigo-500/30 bg-indigo-500/5 space-y-8">
+              <div className="flex justify-between items-end">
+                <div>
+                  <h2 className="text-3xl font-black text-white">{selectedModelData.name}</h2>
+                  <p className="text-slate-400 italic">Детальная аналитика модели</p>
+                </div>
+                <button 
+                  onClick={() => setSelectedModel(null)}
+                  className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <ICONS.Delete size={24} className="text-slate-500" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <StatBox label="Среднее (30дн)" value={`$${selectedModelData.baselineAvg.toFixed(0)}`} color="indigo" />
+                <StatBox 
+                  label="Изменение (24ч)" 
+                  value={`${selectedModelData.dodChange > 0 ? '+' : ''}${selectedModelData.dodChange.toFixed(1)}%`} 
+                  color={selectedModelData.dodChange >= 0 ? 'emerald' : 'red'} 
+                />
+                <StatBox label="Лучший день" value={`$${selectedModelData.bestDay.value.toLocaleString()}`} color="amber" />
+                <StatBox label="Стрик (>1k)" value={`${selectedModelData.maxStreak} дн`} color="pink" />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <h3 className="text-sm font-black uppercase text-slate-500 tracking-widest">Тренд дохода (30 дней)</h3>
+                  <div className="h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={Object.entries(selectedModelData.daily).map(([date, value]) => ({ date, value })).sort((a,b) => a.date.localeCompare(b.date)).slice(-30)}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                        <XAxis dataKey="date" hide />
+                        <YAxis stroke="#64748b" fontSize={10} />
+                        <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }} />
+                        <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={3} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <h3 className="text-sm font-black uppercase text-slate-500 tracking-widest">Стабильность и Риски</h3>
+                  <div className="space-y-4">
+                    <RiskItem 
+                      label="Baseline Performance" 
+                      status={selectedModelData.current7DayAvg >= selectedModelData.baselineAvg * 0.9 ? 'good' : 'bad'}
+                      desc={`Текущее среднее ($${selectedModelData.current7DayAvg.toFixed(0)}) vs Baseline ($${selectedModelData.baselineAvg.toFixed(0)})`}
+                    />
+                    <RiskItem 
+                      label="Volatility Check" 
+                      status={selectedModelData.bestDay.value / selectedModelData.baselineAvg < 5 ? 'good' : 'warning'}
+                      desc="Соотношение пика к среднему значению"
+                    />
+                    <RiskItem 
+                      label="Account Health" 
+                      status={selectedModelData.healthScore > 70 ? 'good' : selectedModelData.healthScore > 50 ? 'warning' : 'bad'}
+                      desc={`Оценка жизнеспособности аккаунта: ${selectedModelData.healthScore.toFixed(1)}%`}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
+
+function StatBox({ label, value, color }: { label: string; value: string; color: string }) {
+  const colors: Record<string, string> = {
+    indigo: 'text-indigo-400',
+    emerald: 'text-emerald-400',
+    red: 'text-red-400',
+    amber: 'text-amber-400',
+    pink: 'text-pink-400'
+  };
+  return (
+    <div className="p-4 bg-slate-900/50 rounded-2xl border border-slate-800">
+      <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1">{label}</p>
+      <p className={`text-xl font-black ${colors[color] || 'text-white'}`}>{value}</p>
+    </div>
+  );
+}
+
+function RiskItem({ label, status, desc }: { label: string; status: 'good' | 'warning' | 'bad'; desc: string }) {
+  const icons = {
+    good: <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />,
+    warning: <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" />,
+    bad: <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+  };
+  return (
+    <div className="flex items-start gap-4 p-4 bg-slate-900/30 rounded-2xl border border-slate-800/50">
+      <div className="mt-1.5">{icons[status]}</div>
+      <div>
+        <p className="text-xs font-bold text-white">{label}</p>
+        <p className="text-[10px] text-slate-500">{desc}</p>
+      </div>
+    </div>
+  );
+}
 
 function TopCard({ title, data, icon, color }: { title: string; data: { name: string; value: number }[]; icon: React.ReactNode; color: 'indigo' | 'emerald' | 'sky' }) {
   const colorClasses = {
