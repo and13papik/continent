@@ -80,7 +80,10 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
     // Helper to format date for display
     const formatDate = (dateStr: string) => {
       if (dateStr === 'N/A') return 'N/A';
-      return new Date(dateStr).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+      const date = new Date(dateStr);
+      const dow = dowNames[date.getDay()];
+      const formattedDate = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+      return `${dow}, ${formattedDate}`;
     };
 
     // Best/Worst Day of Week (Totals)
@@ -103,8 +106,9 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
     if (worstDow.value === Infinity) worstDow.value = 0;
 
     // Forecast Calculation
-    const daysInMonth = currentPeriod ? Math.ceil((new Date(currentPeriod.endAt || new Date()).getTime() - new Date(currentPeriod.startAt).getTime()) / (1000 * 60 * 60 * 24)) : 30;
-    const daysPassed = dailyEntries.filter(d => d.value > 0).length || 1;
+    const getDaysInMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    const daysInMonth = currentPeriod ? (currentPeriod.endAt ? Math.ceil((new Date(currentPeriod.endAt).getTime() - new Date(currentPeriod.startAt).getTime()) / (1000 * 60 * 60 * 24)) : getDaysInMonth(new Date(currentPeriod.startAt))) : 30;
+    const daysPassed = dailyEntries.length || 1;
     const runRate = currentTotal / daysPassed;
     const projectedTotal = runRate * Math.max(daysInMonth, daysPassed);
 
@@ -112,7 +116,7 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
     const modelMetrics = state.models.map(name => {
       const mRecords = currentRecords.filter(r => r.model === name);
       const mTotal = mRecords.reduce((sum, r) => sum + (r.total || 0), 0);
-      const mGoal = state.modelMonthlyPlans?.[name] || 0;
+      const mGoal = currentPeriod?.modelMonthlyPlans?.[name] || state.modelMonthlyPlans?.[name] || 0;
       const mProgress = mGoal > 0 ? (mTotal / mGoal) * 100 : 0;
       
       const mDaily: Record<string, number> = {};
@@ -124,7 +128,8 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
         value: mDaily[d.date] || 0
       }));
 
-      const mDaysPassed = Object.keys(mDaily).length || 1;
+      // Forecast for model
+      const mDaysPassed = dailyEntries.length || 1;
       const mRunRate = mTotal / mDaysPassed;
       const mForecast = mRunRate * Math.max(daysInMonth, mDaysPassed);
       
