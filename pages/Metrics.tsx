@@ -36,6 +36,9 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
     const rolling7DaysStart = getDaysAgo(7);
     const baselineStart = getDaysAgo(30);
 
+    // Monthly Plan Helpers
+    const activePeriodId = state.selectedPeriodId;
+
     // Data structures
     const modelData: Record<string, {
       total: number;
@@ -46,6 +49,7 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
       worstDay: { date: string; value: number };
       streaks: number;
       currentStreak: number;
+      operators: Record<string, number>;
     }> = {};
 
     const operatorData: Record<string, {
@@ -73,12 +77,14 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
           total: 0, weekly: 0, monthly: 0, daily: {},
           bestDay: { date: '', value: -Infinity },
           worstDay: { date: '', value: Infinity },
-          streaks: 0, currentStreak: 0
+          streaks: 0, currentStreak: 0,
+          operators: {}
         };
       }
       const m = modelData[record.model];
       m.total += amount;
       m.daily[dateStr] = (m.daily[dateStr] || 0) + amount;
+      m.operators[record.operator] = (m.operators[record.operator] || 0) + amount;
       if (recordDate >= startOfWeek) m.weekly += amount;
       if (recordDate >= startOfMonth) m.monthly += amount;
 
@@ -153,6 +159,37 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
       const dayBeforeVal = data.daily[dayBefore] || 0;
       const dodChange = dayBeforeVal > 0 ? ((yesterdayVal - dayBeforeVal) / dayBeforeVal) * 100 : 0;
 
+      // Progress bar (Monthly)
+      const goal = state.modelMonthlyPlans?.[name] || 0;
+      const progress = goal > 0 ? (data.monthly / goal) * 100 : 0;
+
+      // Low Performance Flag (last 5 days below 70% of baseline)
+      const last5Days = [];
+      for(let i=0; i<5; i++) {
+        const dStr = getDaysAgo(i).toISOString().split('T')[0];
+        last5Days.push(data.daily[dStr] || 0);
+      }
+      const isUnderperforming = last5Days.every(v => v < baselineAvg * 0.7) && baselineAvg > 0;
+
+      // Best Day of Week
+      const dowTotals: Record<number, number> = {};
+      const dowCounts: Record<number, number> = {};
+      dailyEntries.forEach(([date, val]) => {
+        const d = new Date(date).getDay();
+        dowTotals[d] = (dowTotals[d] || 0) + val;
+        dowCounts[d] = (dowCounts[d] || 0) + 1;
+      });
+      let bestDow = -1;
+      let maxDowAvg = -1;
+      Object.entries(dowTotals).forEach(([dow, total]) => {
+        const avg = total / dowCounts[Number(dow)];
+        if (avg > maxDowAvg) {
+          maxDowAvg = avg;
+          bestDow = Number(dow);
+        }
+      });
+      const dowNames = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+
       return {
         name,
         ...data,
@@ -162,7 +199,11 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
         baselineAvg,
         dodChange,
         maxStreak,
-        isAtRisk: healthScore < 60 || (dodChange < -20 && yesterdayVal < baselineAvg * 0.8)
+        goal,
+        progress,
+        isUnderperforming,
+        bestDowName: bestDow !== -1 ? dowNames[bestDow] : 'N/A',
+        isAtRisk: healthScore < 60 || (dodChange < -20 && yesterdayVal < baselineAvg * 0.8) || isUnderperforming
       };
     });
 
@@ -186,7 +227,7 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
       topOperators,
       totalRevenue: Object.values(agencyDaily).reduce((a, b) => a + b, 0)
     };
-  }, [incomeData]);
+  }, [incomeData, state.modelMonthlyPlans, state.selectedPeriodId]);
 
   const selectedModelData = useMemo(() => {
     if (!selectedModel) return null;
@@ -255,6 +296,78 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
               <Area type="monotone" dataKey="value" stroke="#6366f1" fillOpacity={1} fill="url(#colorRev)" strokeWidth={3} />
             </AreaChart>
           </ResponsiveContainer>
+        </div>
+
+        {/* DAILY REVENUE LIST */}
+        <div className="mt-8">
+          <h3 className="text-sm font-black uppercase text-slate-500 tracking-widest mb-4">Детализация по дням</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
+            {[...metrics.agencyDailyChart].reverse().map(day => (
+              <div key={day.date} className="p-3 bg-slate-900/40 rounded-xl border border-slate-800/50 flex flex-col items-center">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">
+                  {new Date(day.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                </span>
+                <span className="text-sm font-black text-white">${day.value.toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* MODEL PROGRESS & HEALTH (MOVED FROM DASHBOARD) */}
+      <div className="glass-card p-6 rounded-3xl border-slate-800 space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-white flex items-center gap-3">
+            <ICONS.Models className="text-indigo-500" size={24} />
+            Прогресс моделей и Флаги здоровья
+          </h2>
+          <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+            Месячный план vs Реальность
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {metrics.modelMetrics.filter(m => m.goal > 0 || m.monthly > 0).map(model => (
+            <div key={model.name} className={`p-4 rounded-2xl border transition-all ${
+              model.isUnderperforming ? 'bg-rose-500/5 border-rose-500/30' : 'bg-slate-900/40 border-slate-800'
+            }`}>
+              <div className="flex justify-between items-start mb-3">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-black text-white truncate">{model.name}</h3>
+                  <p className="text-[10px] font-bold text-slate-500">
+                    ${model.monthly.toLocaleString()} / ${model.goal.toLocaleString()}
+                  </p>
+                </div>
+                {model.isUnderperforming && (
+                  <div className="px-2 py-0.5 rounded bg-rose-500 text-white text-[8px] font-black uppercase tracking-tighter animate-pulse">
+                    Low Performance
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-[9px] font-black uppercase tracking-widest">
+                  <span className="text-slate-500">Прогресс</span>
+                  <span className={model.progress >= 100 ? 'text-emerald-400' : 'text-indigo-400'}>
+                    {model.progress.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(model.progress, 100)}%` }}
+                    className={`h-full rounded-full ${
+                      model.progress >= 100 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 
+                      model.isUnderperforming ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]' :
+                      'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]'
+                    }`}
+                  />
+                </div>
+              </div>
+              <div className="mt-3 pt-3 border-t border-slate-800/50 flex justify-between items-center">
+                <span className="text-[9px] font-bold text-slate-500 uppercase">Лучший день:</span>
+                <span className="text-[9px] font-black text-indigo-400 uppercase">{model.bestDowName}</span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -378,6 +491,7 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
                 />
                 <StatBox label="Лучший день" value={`$${selectedModelData.bestDay.value.toLocaleString()}`} color="amber" />
                 <StatBox label="Стрик (>1k)" value={`${selectedModelData.maxStreak} дн`} color="pink" />
+                <StatBox label="Лучший день недели" value={selectedModelData.bestDowName} color="indigo" />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -414,6 +528,19 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
                       desc={`Оценка жизнеспособности аккаунта: ${selectedModelData.healthScore.toFixed(1)}%`}
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* OPERATOR BREAKDOWN FOR MODEL */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-black uppercase text-slate-500 tracking-widest">Выручка по операторам (Все время)</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {Object.entries(selectedModelData.operators).sort((a,b) => b[1] - a[1]).map(([opName, opTotal]) => (
+                    <div key={opName} className="p-4 bg-slate-900/40 rounded-2xl border border-slate-800/50 flex justify-between items-center">
+                      <span className="text-sm font-bold text-slate-200">{opName}</span>
+                      <span className="text-sm font-mono font-bold text-emerald-400">${opTotal.toLocaleString()}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
