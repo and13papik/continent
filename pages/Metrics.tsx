@@ -6,7 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   Cell, LineChart, Line, Legend, AreaChart, Area 
 } from 'recharts';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface MetricsProps {
   state: AppState;
@@ -450,7 +450,7 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
                 </div>
                 {model.isAtRisk && (
                   <div className="mt-2 flex items-center gap-1 text-[10px] text-red-400 font-bold uppercase">
-                    <ICONS.Delete size={12} /> В зоне риска
+                    <ICONS.AlertTriangle size={12} /> В зоне риска
                   </div>
                 )}
               </div>
@@ -478,7 +478,7 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
                   onClick={() => setSelectedModel(null)}
                   className="p-2 hover:bg-white/10 rounded-full transition-colors"
                 >
-                  <ICONS.Delete size={24} className="text-slate-500" />
+                  <ICONS.Close size={24} className="text-slate-500" />
                 </button>
               </div>
 

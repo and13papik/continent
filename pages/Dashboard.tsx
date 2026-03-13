@@ -7,7 +7,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell
 } from 'recharts';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 
 // --- ВСПОМОГАТЕЛЬНЫЕ КОМПОНЕНТЫ ---
 
