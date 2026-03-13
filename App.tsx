@@ -14,6 +14,7 @@ import OwnerTable from './pages/OwnerTable';
 import AdminTable from './pages/AdminTable';
 import TotalTable from './pages/TotalTable';
 import Settings from './pages/Settings';
+import Metrics from './pages/Metrics';
 
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>(createInitialState());
@@ -139,6 +140,7 @@ const App: React.FC = () => {
 
           <div className="flex flex-col gap-2">
             <NavLink to="/" icon={<ICONS.Dashboard size={18} />} label="Dashboard" />
+            <NavLink to="/metrics" icon={<ICONS.Reports size={18} />} label="Метрика" />
             <NavLink to="/add-income" icon={<ICONS.Income size={18} />} label="Добавить доход" />
             <NavLink to="/operations" icon={<ICONS.Operations size={18} />} label="Операции" />
             <NavLink to="/reports" icon={<ICONS.Reports size={18} />} label="Отчеты" />
@@ -190,6 +192,7 @@ const App: React.FC = () => {
           <div className="max-w-7xl mx-auto">
             <Routes>
               <Route path="/" element={<Dashboard state={state} updateState={updateState} />} />
+              <Route path="/metrics" element={<Metrics state={state} updateState={updateState} />} />
               <Route path="/add-income" element={<AddIncome state={state} updateState={updateState} />} />
               <Route path="/operations" element={<Operations state={state} updateState={updateState} />} />
               <Route path="/reports" element={<Reports state={state} updateState={updateState} />} />
