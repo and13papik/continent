@@ -186,6 +186,19 @@ export interface DailyTotalEntry {
   createdAt?: string;
 }
 
+export type ShiftType = 'morning' | 'day' | 'evening' | 'night';
+
+export interface RosterEntry {
+  id: string;
+  periodId: string;
+  date: string;
+  shift: ShiftType;
+  operator: string;
+  models: string[];
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface AppState {
   lastUpdated: number;
   version: number;
@@ -195,6 +208,7 @@ export interface AppState {
   admins: Admin[];
   incomeData: IncomeRecord[];
   operationsData: OperationRecord[];
+  rosterData?: RosterEntry[];
   accountingPeriods: AccountingPeriod[];
   selectedPeriodId: string;
   modelRates: {

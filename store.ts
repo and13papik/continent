@@ -28,6 +28,7 @@ export function createInitialState(): AppState {
         paidStatuses: parsed.paidStatuses || [],
         ownerTasks: parsed.ownerTasks || [],
         totalTableEntries: parsed.totalTableEntries || [],
+        rosterData: parsed.rosterData || [],
         modelDefaultGoals: parsed.modelDefaultGoals || {},
         modelMonthlyPlans: parsed.modelMonthlyPlans || {}
       };
@@ -69,6 +70,7 @@ export function createInitialState(): AppState {
     paidStatuses: [],
     ownerTasks: [],
     totalTableEntries: [],
+    rosterData: [],
     modelDefaultGoals: {},
     modelMonthlyPlans: {},
     deletedIds: []
@@ -158,6 +160,7 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         finalState.modelBonuses = mergeArraysById(state.modelBonuses || [], remote.modelBonuses || [], combinedDeletedIds);
         finalState.paidStatuses = mergeArraysById(state.paidStatuses, remote.paidStatuses, combinedDeletedIds);
         finalState.ownerTasks = mergeArraysById(state.ownerTasks || [], remote.ownerTasks || [], combinedDeletedIds);
+        finalState.rosterData = mergeArraysById(state.rosterData || [], remote.rosterData || [], combinedDeletedIds);
         finalState.modelDefaultGoals = { ...(remote.modelDefaultGoals || {}), ...(state.modelDefaultGoals || {}) };
         
         if (state.totalTableEntries || remote.totalTableEntries) {
@@ -295,6 +298,7 @@ export function reindexAllDataByDate(state: AppState): AppState {
     ownerAdvances: (state.ownerAdvances || []).map(fix),
     modelBonuses: (state.modelBonuses || []).map(fix),
     totalTableEntries: (state.totalTableEntries || []).map(fix),
+    rosterData: (state.rosterData || []).map(fix),
     ownerTasks: (state.ownerTasks || []).map(fix),
     lastUpdated: Date.now(),
     version: (state.version || 0) + 1

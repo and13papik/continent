@@ -1,0 +1,313 @@
+
+import React, { useState, useMemo } from 'react';
+import { AppState, RosterEntry, ShiftType, AccountingPeriod } from '../types';
+import { ICONS } from '../constants';
+import { motion, AnimatePresence } from 'framer-motion';
+
+interface RosterProps {
+  state: AppState;
+  updateState: (updater: (prev: AppState) => AppState) => void;
+}
+
+const SHIFTS: { type: ShiftType; label: string; time: string; color: string }[] = [
+  { type: 'morning', label: 'Утро', time: '08:00 - 14:00', color: 'from-amber-400 to-orange-500' },
+  { type: 'day', label: 'День', time: '14:00 - 20:00', color: 'from-sky-400 to-blue-500' },
+  { type: 'evening', label: 'Вечер', time: '20:00 - 02:00', color: 'from-indigo-400 to-purple-500' },
+  { type: 'night', label: 'Ночь', time: '02:00 - 08:00', color: 'from-slate-600 to-slate-900' },
+];
+
+const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [editingCell, setEditingCell] = useState<{ model: string; shift: ShiftType } | null>(null);
+
+  const currentPeriod = state.accountingPeriods.find((p: AccountingPeriod) => p.id === state.selectedPeriodId);
+  const models = currentPeriod?.models || state.models;
+  const operators = currentPeriod?.operators || state.operators;
+
+  const rosterEntries = useMemo(() => {
+    return (state.rosterData || []).filter((e: RosterEntry) => e.date === selectedDate && e.periodId === state.selectedPeriodId);
+  }, [state.rosterData, selectedDate, state.selectedPeriodId]);
+
+  const getAssignment = (model: string, shift: ShiftType) => {
+    return rosterEntries.find((e: RosterEntry) => e.shift === shift && e.models.includes(model));
+  };
+
+  const handleAssign = (operator: string) => {
+    if (!editingCell) return;
+
+    updateState(prev => {
+      const roster = [...(prev.rosterData || [])];
+      
+      // Find if this operator already has an entry for this shift/date
+      const existingEntryIdx = roster.findIndex((e: RosterEntry) => 
+        e.date === selectedDate && 
+        e.shift === editingCell.shift && 
+        e.operator === operator &&
+        e.periodId === state.selectedPeriodId
+      );
+
+      if (existingEntryIdx > -1) {
+        // Operator already assigned to some models in this shift
+        const entry = { ...roster[existingEntryIdx] };
+        if (entry.models.includes(editingCell.model)) {
+          // Remove if already there (toggle)
+          entry.models = entry.models.filter((m: string) => m !== editingCell.model);
+        } else {
+          // Add if not there, but limit to 2 models
+          if (entry.models.length < 2) {
+            entry.models = [...entry.models, editingCell.model];
+          } else {
+            // Replace first one or just don't add? Let's replace the oldest one
+            entry.models = [entry.models[1], editingCell.model];
+          }
+        }
+        
+        if (entry.models.length === 0) {
+          roster.splice(existingEntryIdx, 1);
+        } else {
+          roster[existingEntryIdx] = entry;
+        }
+      } else {
+        // New assignment for this operator in this shift
+        // But first, check if this (model, shift) already has someone else
+        const otherOpIdx = roster.findIndex((e: RosterEntry) => 
+          e.date === selectedDate && 
+          e.shift === editingCell.shift && 
+          e.models.includes(editingCell.model) &&
+          e.periodId === state.selectedPeriodId
+        );
+        
+        if (otherOpIdx > -1) {
+          // Remove this model from the other operator
+          const otherEntry = { ...roster[otherOpIdx] };
+          otherEntry.models = otherEntry.models.filter((m: string) => m !== editingCell.model);
+          if (otherEntry.models.length === 0) {
+            roster.splice(otherOpIdx, 1);
+          } else {
+            roster[otherOpIdx] = otherEntry;
+          }
+        }
+
+        // Now add the new operator
+        roster.push({
+          id: String(Date.now()),
+          periodId: state.selectedPeriodId,
+          date: selectedDate,
+          shift: editingCell.shift,
+          operator,
+          models: [editingCell.model],
+          createdAt: new Date().toISOString()
+        });
+      }
+
+      return { ...prev, rosterData: roster };
+    });
+    setEditingCell(null);
+  };
+
+  const clearCell = () => {
+    if (!editingCell) return;
+    updateState(prev => {
+      const roster = (prev.rosterData || []).filter((e: RosterEntry) => {
+        if (e.date === selectedDate && e.shift === editingCell.shift && e.models.includes(editingCell.model) && e.periodId === state.selectedPeriodId) {
+          e.models = e.models.filter((m: string) => m !== editingCell.model);
+          return e.models.length > 0;
+        }
+        return true;
+      });
+      return { ...prev, rosterData: roster };
+    });
+    setEditingCell(null);
+  };
+
+  return (
+    <div className="space-y-8 pb-20">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-black text-white tracking-tight mb-2">Состав</h1>
+          <p className="text-slate-400 font-medium">Управление сменами и распределение операторов</p>
+        </div>
+        
+        <div className="flex items-center gap-4 bg-slate-900/50 p-2 rounded-2xl border border-slate-800/50">
+          <input 
+            type="date" 
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="bg-transparent text-white font-bold outline-none px-4 py-2 cursor-pointer"
+          />
+        </div>
+      </div>
+
+      {/* Grid */}
+      <div className="glass-card rounded-[2.5rem] border-slate-800/50 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-slate-900/40">
+                <th className="p-6 text-left border-b border-slate-800/50 min-w-[200px]">
+                  <span className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-500">Модель / Анкета</span>
+                </th>
+                {SHIFTS.map(shift => (
+                  <th key={shift.type} className="p-6 text-center border-b border-slate-800/50 min-w-[180px]">
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="text-sm font-black text-white">{shift.label}</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{shift.time}</span>
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {models.map((model: string, mIdx: number) => (
+                <tr key={model} className={`group transition-colors ${mIdx % 2 === 0 ? 'bg-white/[0.02]' : 'bg-transparent'}`}>
+                  <td className="p-6 border-b border-slate-800/30">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 group-hover:bg-indigo-500/20 group-hover:text-indigo-400 transition-all">
+                        <ICONS.Models size={20} />
+                      </div>
+                      <span className="font-bold text-slate-200 group-hover:text-white transition-colors">{model}</span>
+                    </div>
+                  </td>
+                  {SHIFTS.map(shift => {
+                    const assignment = getAssignment(model, shift.type);
+                    return (
+                      <td 
+                        key={shift.type} 
+                        className="p-3 border-b border-slate-800/30 border-l border-slate-800/10"
+                      >
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => setEditingCell({ model, shift: shift.type })}
+                          className={`w-full h-16 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1 relative overflow-hidden group/cell ${
+                            assignment 
+                              ? 'bg-indigo-500/10 border-indigo-500/30 hover:border-indigo-500/50' 
+                              : 'bg-slate-900/20 border-dashed border-slate-800 hover:border-slate-700 hover:bg-slate-800/30'
+                          }`}
+                        >
+                          {assignment ? (
+                            <>
+                              <span className="text-xs font-black text-indigo-400 uppercase tracking-tighter">
+                                {assignment.operator}
+                              </span>
+                              <div className="flex gap-1">
+                                {assignment.models.map((m: string, i: number) => (
+                                  <div key={i} className="w-1 h-1 rounded-full bg-indigo-500" />
+                                ))}
+                              </div>
+                            </>
+                          ) : (
+                            <ICONS.Plus size={16} className="text-slate-700 group-hover/cell:text-slate-500 transition-colors" />
+                          )}
+                        </motion.button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Assignment Modal */}
+      <AnimatePresence>
+        {editingCell && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEditingCell(null)}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-xl"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-2xl glass-card rounded-[2.5rem] border-slate-800 p-8 md:p-12 shadow-2xl overflow-hidden"
+            >
+              {/* Background Glow */}
+              <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-600/20 blur-[100px] rounded-full" />
+              
+              <div className="relative space-y-8">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-black text-white">Назначить оператора</h2>
+                    <p className="text-slate-400 font-medium">
+                      {editingCell.model} • {SHIFTS.find(s => s.type === editingCell.shift)?.label}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => setEditingCell(null)}
+                    className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-slate-500 hover:text-white transition-colors"
+                  >
+                    <ICONS.Close size={24} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                  {operators.map((op: string) => {
+                    const isAssignedToThis = rosterEntries.find((e: RosterEntry) => e.shift === editingCell.shift && e.operator === op && e.models.includes(editingCell.model));
+                    const otherModels = rosterEntries.find((e: RosterEntry) => e.shift === editingCell.shift && e.operator === op)?.models.filter((m: string) => m !== editingCell.model) || [];
+                    
+                    return (
+                      <button
+                        key={op}
+                        onClick={() => handleAssign(op)}
+                        className={`p-4 rounded-2xl border-2 transition-all text-left space-y-1 group ${
+                          isAssignedToThis
+                            ? 'bg-indigo-600 border-indigo-500 text-white'
+                            : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                        }`}
+                      >
+                        <div className="font-bold truncate">{op}</div>
+                        {otherModels.length > 0 && (
+                          <div className={`text-[9px] uppercase font-black tracking-tighter ${isAssignedToThis ? 'text-indigo-200' : 'text-slate-600'}`}>
+                            + {otherModels[0]}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="pt-4 flex gap-4">
+                  <button
+                    onClick={clearCell}
+                    className="flex-1 py-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-bold hover:bg-rose-500/20 transition-all"
+                  >
+                    Очистить ячейку
+                  </button>
+                  <button
+                    onClick={() => setEditingCell(null)}
+                    className="flex-1 py-4 rounded-2xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 transition-all"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.02);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 10px;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default Roster;
