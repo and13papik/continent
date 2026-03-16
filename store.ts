@@ -29,6 +29,8 @@ export function createInitialState(): AppState {
         ownerTasks: parsed.ownerTasks || [],
         totalTableEntries: parsed.totalTableEntries || [],
         rosterData: parsed.rosterData || [],
+        priorityModels: parsed.priorityModels || [],
+        inactiveModels: parsed.inactiveModels || [],
         modelDefaultGoals: parsed.modelDefaultGoals || {},
         modelMonthlyPlans: parsed.modelMonthlyPlans || {}
       };
@@ -71,6 +73,8 @@ export function createInitialState(): AppState {
     ownerTasks: [],
     totalTableEntries: [],
     rosterData: [],
+    priorityModels: [],
+    inactiveModels: [],
     modelDefaultGoals: {},
     modelMonthlyPlans: {},
     deletedIds: []
@@ -161,6 +165,8 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         finalState.paidStatuses = mergeArraysById(state.paidStatuses, remote.paidStatuses, combinedDeletedIds);
         finalState.ownerTasks = mergeArraysById(state.ownerTasks || [], remote.ownerTasks || [], combinedDeletedIds);
         finalState.rosterData = mergeArraysById(state.rosterData || [], remote.rosterData || [], combinedDeletedIds);
+        finalState.priorityModels = Array.from(new Set([...(state.priorityModels || []), ...(remote.priorityModels || [])]));
+        finalState.inactiveModels = Array.from(new Set([...(state.inactiveModels || []), ...(remote.inactiveModels || [])]));
         finalState.modelDefaultGoals = { ...(remote.modelDefaultGoals || {}), ...(state.modelDefaultGoals || {}) };
         
         if (state.totalTableEntries || remote.totalTableEntries) {

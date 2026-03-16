@@ -209,6 +209,8 @@ export interface AppState {
   incomeData: IncomeRecord[];
   operationsData: OperationRecord[];
   rosterData?: RosterEntry[];
+  priorityModels?: string[];
+  inactiveModels?: string[];
   accountingPeriods: AccountingPeriod[];
   selectedPeriodId: string;
   modelRates: {

@@ -17,19 +17,53 @@ const SHIFTS: { type: ShiftType; label: string; time: string; color: string }[] 
 ];
 
 const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [editingCell, setEditingCell] = useState<{ model: string; shift: ShiftType } | null>(null);
 
   const currentPeriod = state.accountingPeriods.find((p: AccountingPeriod) => p.id === state.selectedPeriodId);
-  const models = currentPeriod?.models || state.models;
+  const allModels = currentPeriod?.models || state.models;
   const operators = currentPeriod?.operators || state.operators;
 
+  const priorityModels = state.priorityModels || [];
+  const inactiveModels = state.inactiveModels || [];
+
+  const groupedModels = useMemo(() => {
+    const priority = allModels.filter(m => priorityModels.includes(m));
+    const inactive = allModels.filter(m => inactiveModels.includes(m));
+    const regular = allModels.filter(m => !priorityModels.includes(m) && !inactiveModels.includes(m));
+    return { priority, regular, inactive };
+  }, [allModels, priorityModels, inactiveModels]);
+
   const rosterEntries = useMemo(() => {
-    return (state.rosterData || []).filter((e: RosterEntry) => e.date === selectedDate && e.periodId === state.selectedPeriodId);
-  }, [state.rosterData, selectedDate, state.selectedPeriodId]);
+    return (state.rosterData || []).filter((e: RosterEntry) => e.periodId === state.selectedPeriodId);
+  }, [state.rosterData, state.selectedPeriodId]);
 
   const getAssignment = (model: string, shift: ShiftType) => {
     return rosterEntries.find((e: RosterEntry) => e.shift === shift && e.models.includes(model));
+  };
+
+  const toggleModelStatus = (model: string, status: 'priority' | 'inactive') => {
+    updateState(prev => {
+      let newPriority = [...(prev.priorityModels || [])];
+      let newInactive = [...(prev.inactiveModels || [])];
+
+      if (status === 'priority') {
+        if (newPriority.includes(model)) {
+          newPriority = newPriority.filter(m => m !== model);
+        } else {
+          newPriority.push(model);
+          newInactive = newInactive.filter(m => m !== model);
+        }
+      } else {
+        if (newInactive.includes(model)) {
+          newInactive = newInactive.filter(m => m !== model);
+        } else {
+          newInactive.push(model);
+          newPriority = newPriority.filter(m => m !== model);
+        }
+      }
+
+      return { ...prev, priorityModels: newPriority, inactiveModels: newInactive };
+    });
   };
 
   const handleAssign = (operator: string) => {
@@ -38,9 +72,8 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     updateState(prev => {
       const roster = [...(prev.rosterData || [])];
       
-      // Find if this operator already has an entry for this shift/date
+      // Find if this operator already has an entry for this shift in this period
       const existingEntryIdx = roster.findIndex((e: RosterEntry) => 
-        e.date === selectedDate && 
         e.shift === editingCell.shift && 
         e.operator === operator &&
         e.periodId === state.selectedPeriodId
@@ -57,7 +90,6 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
           if (entry.models.length < 2) {
             entry.models = [...entry.models, editingCell.model];
           } else {
-            // Replace first one or just don't add? Let's replace the oldest one
             entry.models = [entry.models[1], editingCell.model];
           }
         }
@@ -71,14 +103,12 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         // New assignment for this operator in this shift
         // But first, check if this (model, shift) already has someone else
         const otherOpIdx = roster.findIndex((e: RosterEntry) => 
-          e.date === selectedDate && 
           e.shift === editingCell.shift && 
           e.models.includes(editingCell.model) &&
           e.periodId === state.selectedPeriodId
         );
         
         if (otherOpIdx > -1) {
-          // Remove this model from the other operator
           const otherEntry = { ...roster[otherOpIdx] };
           otherEntry.models = otherEntry.models.filter((m: string) => m !== editingCell.model);
           if (otherEntry.models.length === 0) {
@@ -88,11 +118,10 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
           }
         }
 
-        // Now add the new operator
         roster.push({
           id: String(Date.now()),
           periodId: state.selectedPeriodId,
-          date: selectedDate,
+          date: 'monthly', // No longer day-specific
           shift: editingCell.shift,
           operator,
           models: [editingCell.model],
@@ -109,7 +138,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     if (!editingCell) return;
     updateState(prev => {
       const roster = (prev.rosterData || []).filter((e: RosterEntry) => {
-        if (e.date === selectedDate && e.shift === editingCell.shift && e.models.includes(editingCell.model) && e.periodId === state.selectedPeriodId) {
+        if (e.shift === editingCell.shift && e.models.includes(editingCell.model) && e.periodId === state.selectedPeriodId) {
           e.models = e.models.filter((m: string) => m !== editingCell.model);
           return e.models.length > 0;
         }
@@ -118,6 +147,95 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       return { ...prev, rosterData: roster };
     });
     setEditingCell(null);
+  };
+
+  const renderModelRows = (models: string[], title: string, colorClass: string, icon: React.ReactNode) => {
+    if (models.length === 0) return null;
+    return (
+      <>
+        <tr className="bg-slate-900/60">
+          <td colSpan={5} className="p-4 border-b border-slate-800/50">
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${colorClass} bg-opacity-20`}>
+                {icon}
+              </div>
+              <span className="text-xs font-black uppercase tracking-[0.2em] text-white">{title}</span>
+              <span className="text-[10px] font-bold text-slate-500 ml-auto">{models.length} анкет</span>
+            </div>
+          </td>
+        </tr>
+        {models.map((model: string, mIdx: number) => (
+          <tr key={model} className={`group transition-colors ${mIdx % 2 === 0 ? 'bg-white/[0.01]' : 'bg-transparent'}`}>
+            <td className="p-6 border-b border-slate-800/30">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 group-hover:bg-indigo-500/20 group-hover:text-indigo-400 transition-all">
+                    <ICONS.Models size={20} />
+                  </div>
+                  <span className="font-bold text-slate-200 group-hover:text-white transition-colors">{model}</span>
+                </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button 
+                    onClick={() => toggleModelStatus(model, 'priority')}
+                    className={`p-2 rounded-lg transition-colors ${priorityModels.includes(model) ? 'text-amber-400 bg-amber-400/10' : 'text-slate-600 hover:text-amber-400 hover:bg-amber-400/10'}`}
+                    title="Приоритетная"
+                  >
+                    <ICONS.Crown size={14} />
+                  </button>
+                  <button 
+                    onClick={() => toggleModelStatus(model, 'inactive')}
+                    className={`p-2 rounded-lg transition-colors ${inactiveModels.includes(model) ? 'text-rose-400 bg-rose-400/10' : 'text-slate-600 hover:text-rose-400 hover:bg-rose-400/10'}`}
+                    title="Без чаттеров"
+                  >
+                    <ICONS.Penalty size={14} />
+                  </button>
+                </div>
+              </div>
+            </td>
+            {SHIFTS.map(shift => {
+              const assignment = getAssignment(model, shift.type);
+              const isGap = assignment?.operator === 'ДЫРКА';
+              return (
+                <td 
+                  key={shift.type} 
+                  className="p-3 border-b border-slate-800/30 border-l border-slate-800/10"
+                >
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setEditingCell({ model, shift: shift.type })}
+                    className={`w-full h-16 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1 relative overflow-hidden group/cell ${
+                      isGap
+                        ? 'bg-rose-500/20 border-rose-500/50 hover:border-rose-500'
+                        : assignment 
+                          ? 'bg-indigo-500/10 border-indigo-500/30 hover:border-indigo-500/50' 
+                          : 'bg-slate-900/20 border-dashed border-slate-800 hover:border-slate-700 hover:bg-slate-800/30'
+                    }`}
+                  >
+                    {assignment ? (
+                      <>
+                        <span className={`text-xs font-black uppercase tracking-tighter ${isGap ? 'text-rose-400' : 'text-indigo-400'}`}>
+                          {assignment.operator}
+                        </span>
+                        {!isGap && (
+                          <div className="flex gap-1">
+                            {assignment.models.map((m: string, i: number) => (
+                              <div key={i} className="w-1 h-1 rounded-full bg-indigo-500" />
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <ICONS.Plus size={16} className="text-slate-700 group-hover/cell:text-slate-500 transition-colors" />
+                    )}
+                  </motion.button>
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </>
+    );
   };
 
   return (
@@ -129,13 +247,9 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
           <p className="text-slate-400 font-medium">Управление сменами и распределение операторов</p>
         </div>
         
-        <div className="flex items-center gap-4 bg-slate-900/50 p-2 rounded-2xl border border-slate-800/50">
-          <input 
-            type="date" 
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="bg-transparent text-white font-bold outline-none px-4 py-2 cursor-pointer"
-          />
+        <div className="flex items-center gap-4 bg-indigo-500/10 px-6 py-3 rounded-2xl border border-indigo-500/20">
+          <ICONS.Calendar size={20} className="text-indigo-400" />
+          <span className="text-white font-black uppercase tracking-wider">{currentPeriod?.label || 'Текущий месяц'}</span>
         </div>
       </div>
 
@@ -145,7 +259,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-slate-900/40">
-                <th className="p-6 text-left border-b border-slate-800/50 min-w-[200px]">
+                <th className="p-6 text-left border-b border-slate-800/50 min-w-[250px]">
                   <span className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-500">Модель / Анкета</span>
                 </th>
                 {SHIFTS.map(shift => (
@@ -159,53 +273,9 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
               </tr>
             </thead>
             <tbody>
-              {models.map((model: string, mIdx: number) => (
-                <tr key={model} className={`group transition-colors ${mIdx % 2 === 0 ? 'bg-white/[0.02]' : 'bg-transparent'}`}>
-                  <td className="p-6 border-b border-slate-800/30">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 group-hover:bg-indigo-500/20 group-hover:text-indigo-400 transition-all">
-                        <ICONS.Models size={20} />
-                      </div>
-                      <span className="font-bold text-slate-200 group-hover:text-white transition-colors">{model}</span>
-                    </div>
-                  </td>
-                  {SHIFTS.map(shift => {
-                    const assignment = getAssignment(model, shift.type);
-                    return (
-                      <td 
-                        key={shift.type} 
-                        className="p-3 border-b border-slate-800/30 border-l border-slate-800/10"
-                      >
-                        <motion.button
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => setEditingCell({ model, shift: shift.type })}
-                          className={`w-full h-16 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1 relative overflow-hidden group/cell ${
-                            assignment 
-                              ? 'bg-indigo-500/10 border-indigo-500/30 hover:border-indigo-500/50' 
-                              : 'bg-slate-900/20 border-dashed border-slate-800 hover:border-slate-700 hover:bg-slate-800/30'
-                          }`}
-                        >
-                          {assignment ? (
-                            <>
-                              <span className="text-xs font-black text-indigo-400 uppercase tracking-tighter">
-                                {assignment.operator}
-                              </span>
-                              <div className="flex gap-1">
-                                {assignment.models.map((m: string, i: number) => (
-                                  <div key={i} className="w-1 h-1 rounded-full bg-indigo-500" />
-                                ))}
-                              </div>
-                            </>
-                          ) : (
-                            <ICONS.Plus size={16} className="text-slate-700 group-hover/cell:text-slate-500 transition-colors" />
-                          )}
-                        </motion.button>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+              {renderModelRows(groupedModels.priority, "Основные анкеты", "text-amber-400", <ICONS.Crown size={16} />)}
+              {renderModelRows(groupedModels.regular, "Стандартные", "text-indigo-400", <ICONS.Models size={16} />)}
+              {renderModelRows(groupedModels.inactive, "Без чаттеров", "text-slate-500", <ICONS.Penalty size={16} />)}
             </tbody>
           </table>
         </div>
@@ -249,6 +319,15 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                  {/* GAP BUTTON */}
+                  <button
+                    onClick={() => handleAssign('ДЫРКА')}
+                    className="p-4 rounded-2xl border-2 border-rose-500/30 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 transition-all flex flex-col items-center justify-center gap-1"
+                  >
+                    <ICONS.Penalty size={20} />
+                    <span className="font-black text-xs uppercase">ДЫРКА</span>
+                  </button>
+
                   {operators.map((op: string) => {
                     const isAssignedToThis = rosterEntries.find((e: RosterEntry) => e.shift === editingCell.shift && e.operator === op && e.models.includes(editingCell.model));
                     const otherModels = rosterEntries.find((e: RosterEntry) => e.shift === editingCell.shift && e.operator === op)?.models.filter((m: string) => m !== editingCell.model) || [];
