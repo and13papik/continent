@@ -173,17 +173,38 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
             </div>
           </td>
         </tr>
-        {models.map((model: string, mIdx: number) => (
-          <tr key={model} className={`group transition-colors ${mIdx % 2 === 0 ? 'bg-white/[0.01]' : 'bg-transparent'}`}>
-            <td className="p-6 border-b border-slate-800/30">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 group-hover:bg-indigo-500/20 group-hover:text-indigo-400 transition-all">
-                    <ICONS.Models size={20} />
+        {models.map((model: string, mIdx: number) => {
+          const isFullyStaffed = SHIFTS.every(shift => {
+            const assignment = getAssignment(model, shift.type);
+            return assignment && assignment.operator !== 'ДЫРКА';
+          });
+
+          return (
+            <tr key={model} className={`group transition-colors ${mIdx % 2 === 0 ? 'bg-white/[0.01]' : 'bg-transparent'}`}>
+              <td className={`p-6 border-b border-slate-800/30 transition-all duration-500 ${
+                isFullyStaffed 
+                  ? 'bg-emerald-500/[0.02] shadow-[inset_4px_0_0_0_#10b981]' 
+                  : 'bg-rose-500/[0.02] shadow-[inset_4px_0_0_0_#f43f5e]'
+              }`}>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 shadow-lg ${
+                      isFullyStaffed 
+                        ? 'bg-emerald-500/20 text-emerald-400 shadow-emerald-500/10 border border-emerald-500/20' 
+                        : 'bg-rose-500/20 text-rose-400 shadow-rose-500/10 border border-rose-500/20'
+                    }`}>
+                      <ICONS.Models size={20} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className={`font-bold transition-colors duration-500 ${isFullyStaffed ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {model}
+                      </span>
+                      <span className={`text-[9px] font-black uppercase tracking-widest ${isFullyStaffed ? 'text-emerald-500/50' : 'text-rose-500/50'}`}>
+                        {isFullyStaffed ? 'Укомплектована' : 'Есть пропуски'}
+                      </span>
+                    </div>
                   </div>
-                  <span className="font-bold text-slate-200 group-hover:text-white transition-colors">{model}</span>
-                </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button 
                     onClick={() => toggleModelStatus(model, 'priority')}
                     className={`p-2 rounded-lg transition-colors ${priorityModels.includes(model) ? 'text-amber-400 bg-amber-400/10' : 'text-slate-600 hover:text-amber-400 hover:bg-amber-400/10'}`}
@@ -241,8 +262,9 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                 </td>
               );
             })}
-          </tr>
-        ))}
+            </tr>
+          );
+        })}
       </>
     );
   };
