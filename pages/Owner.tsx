@@ -25,6 +25,8 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
   const [expensePlatform, setExpensePlatform] = useState<Platform>('onlyFans');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseComment, setExpenseComment] = useState('');
+  const [expenseFilter, setExpenseFilter] = useState<keyof typeof CATEGORIES | 'all'>('all');
+  const [expenseSearch, setExpenseSearch] = useState('');
 
   const [incomeAmount, setIncomeAmount] = useState('');
   const [incomePlatform, setIncomePlatform] = useState<Platform | 'all'>('all');
@@ -101,7 +103,11 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     const totalAdminAccrued = adminDetails.reduce((s, a) => s + a.accrued, 0);
     const totalAdminPaid = adminDetails.reduce((s, a) => s + a.paid, 0);
 
-    const bizExpenses = state.ownerExpenses.filter(e => e.periodId === activePeriodId).reduce((s,e) => s + e.amount, 0);
+    const currentExpenses = state.ownerExpenses.filter(e => e.periodId === activePeriodId);
+    const bizExpenses = currentExpenses.reduce((s,e) => s + e.amount, 0);
+    
+    const trafficTotal = currentExpenses.filter(e => e.category === 'traffic').reduce((s, e) => s + e.amount, 0);
+    const commissionTotal = currentExpenses.filter(e => e.category === 'commission').reduce((s, e) => s + e.amount, 0);
     
     // Чистая прибыль
     const netProfitTotal = grossTotal - (staffAccrued + modelSummary.accrued + totalAdminAccrued + bizExpenses);
@@ -119,7 +125,9 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       adminDetails,
       totalPaidGlobal, totalRemainderGlobal,
       bizExpenses,
-      currentExpenses: state.ownerExpenses.filter(e => e.periodId === activePeriodId),
+      trafficTotal,
+      commissionTotal,
+      currentExpenses,
       currentManualIncomes: (state.ownerManualIncomes || []).filter(i => i.periodId === activePeriodId),
       currentOwnerAdvances: (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId),
       andrey: { totalShare: sharePerOwner, advances: (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId && a.ownerName === 'Andrey').reduce((s, a) => s + a.amount, 0) },
@@ -370,7 +378,63 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                 <input type="text" className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Заметка..." value={expenseComment} onChange={e => setExpenseComment(e.target.value)} />
                 <button onClick={addBusinessExpense} className="w-full bg-rose-600 hover:bg-rose-500 text-white font-black py-4 rounded-2xl shadow-xl">Сохранить</button>
              </div>
-             <HistoryList items={stats.currentExpenses} onRemove={(id: string) => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerExpenses: p.ownerExpenses.filter(e => e.id !== id)}))} title="История расходов" isExpenses />
+
+             {/* Фильтрация и Сводка */}
+             <div className="mt-6 space-y-4">
+               <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1 flex flex-wrap gap-2">
+                    <button 
+                      onClick={() => setExpenseFilter('all')}
+                      className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${expenseFilter === 'all' ? 'bg-white text-black border-white' : 'bg-slate-900 text-slate-500 border-slate-800'}`}
+                    >
+                      Все
+                    </button>
+                    {Object.entries(CATEGORIES).map(([k, v]) => (
+                      <button 
+                        key={k}
+                        onClick={() => setExpenseFilter(k as any)}
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${expenseFilter === k ? `${v.bg} ${v.color} ${v.border}` : 'bg-slate-900 text-slate-500 border-slate-800'}`}
+                      >
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="relative">
+                    <ICONS.Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input 
+                      type="text" 
+                      placeholder="Поиск..." 
+                      className="bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-1.5 text-xs text-white outline-none focus:border-rose-500/50 w-full sm:w-40"
+                      value={expenseSearch}
+                      onChange={e => setExpenseSearch(e.target.value)}
+                    />
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-2 gap-3">
+                 <div className="bg-amber-500/5 border border-amber-500/20 p-3 rounded-2xl">
+                   <p className="text-[8px] font-black text-amber-500/60 uppercase tracking-widest mb-1">Трафик Итого</p>
+                   <p className="text-lg font-black text-amber-500 font-mono">${stats.trafficTotal.toLocaleString()}</p>
+                 </div>
+                 <div className="bg-indigo-500/5 border border-indigo-500/20 p-3 rounded-2xl">
+                   <p className="text-[8px] font-black text-indigo-500/60 uppercase tracking-widest mb-1">Комиссия Итого</p>
+                   <p className="text-lg font-black text-indigo-500 font-mono">${stats.commissionTotal.toLocaleString()}</p>
+                 </div>
+               </div>
+             </div>
+
+             <HistoryList 
+               items={stats.currentExpenses.filter(e => {
+                 const matchesFilter = expenseFilter === 'all' || e.category === expenseFilter;
+                 const matchesSearch = !expenseSearch || 
+                   e.comment?.toLowerCase().includes(expenseSearch.toLowerCase()) ||
+                   CATEGORIES[e.category as keyof typeof CATEGORIES]?.label.toLowerCase().includes(expenseSearch.toLowerCase());
+                 return matchesFilter && matchesSearch;
+               })} 
+               onRemove={(id: string) => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerExpenses: p.ownerExpenses.filter(e => e.id !== id)}))} 
+               title="История расходов" 
+               isExpenses 
+             />
           </div>
 
           <div className="glass-card p-8 rounded-[3rem] border-amber-500/20 shadow-2xl flex flex-col">
