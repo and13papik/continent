@@ -8,16 +8,16 @@ interface OwnerProps {
   updateState: (updater: (prev: AppState) => AppState) => void;
 }
 
-const CATEGORIES = {
-  traffic: { label: 'Трафик', icon: ICONS.ChevronRight, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
-  infra: { label: 'Инфраструктура', icon: ICONS.Settings, color: 'text-sky-400', bg: 'bg-sky-500/10', border: 'border-sky-500/20' },
-  items: { label: 'Покупки (белье/игрушки)', icon: ICONS.Gift, color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
-  commission: { label: 'Комиссия', icon: ICONS.Income, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
-  bonus: { label: 'Бонусы', icon: ICONS.Bonus, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-  other: { label: 'Прочее', icon: ICONS.Reports, color: 'text-slate-400', bg: 'bg-slate-500/10', border: 'border-slate-500/20' }
-};
-
 const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
+  const CATEGORIES = useMemo(() => ({
+    traffic: { label: 'Трафик', icon: ICONS.ChevronRight, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+    infra: { label: 'Инфраструктура', icon: ICONS.Settings, color: 'text-sky-400', bg: 'bg-sky-500/10', border: 'border-sky-500/20' },
+    items: { label: 'Покупки (белье/игрушки)', icon: ICONS.Gift, color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
+    commission: { label: 'Комиссия', icon: ICONS.Income, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
+    bonus: { label: 'Бонусы', icon: ICONS.Bonus, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+    other: { label: 'Прочее', icon: ICONS.Reports, color: 'text-slate-400', bg: 'bg-slate-500/10', border: 'border-slate-500/20' }
+  }), []);
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   
@@ -133,7 +133,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       andrey: { totalShare: sharePerOwner, advances: (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId && a.ownerName === 'Andrey').reduce((s, a) => s + a.amount, 0) },
       anton: { totalShare: sharePerOwner, advances: (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId && a.ownerName === 'Anton').reduce((s, a) => s + a.amount, 0) },
     };
-  }, [state, activePeriodId, currentModels, currentAdmins]);
+  }, [state, activePeriodId, currentModels, currentAdmins, currentRates]);
 
   const addAdminPayment = (adminName: string) => {
     const val = parseFloat(adminPaidInputs[adminName]) || 0;
@@ -411,30 +411,32 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                   </div>
                </div>
 
-               <div className="grid grid-cols-2 gap-3">
-                 <div className="bg-amber-500/5 border border-amber-500/20 p-3 rounded-2xl">
-                   <p className="text-[8px] font-black text-amber-500/60 uppercase tracking-widest mb-1">Трафик Итого</p>
-                   <p className="text-lg font-black text-amber-500 font-mono">${stats.trafficTotal.toLocaleString()}</p>
-                 </div>
-                 <div className="bg-indigo-500/5 border border-indigo-500/20 p-3 rounded-2xl">
-                   <p className="text-[8px] font-black text-indigo-500/60 uppercase tracking-widest mb-1">Комиссия Итого</p>
-                   <p className="text-lg font-black text-indigo-500 font-mono">${stats.commissionTotal.toLocaleString()}</p>
-                 </div>
-               </div>
+               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                  {Object.entries(CATEGORIES).map(([k, v]) => {
+                    const total = stats.currentExpenses.filter(e => e.category === k).reduce((s, e) => s + e.amount, 0);
+                    return (
+                      <div key={k} className={`${v.bg} border ${v.border} p-2 rounded-xl flex flex-col items-center justify-center text-center`}>
+                        <p className={`text-[7px] font-black uppercase tracking-tighter ${v.color} opacity-60 mb-1`}>{v.label}</p>
+                        <p className={`text-xs font-bold ${v.color} font-mono`}>${total.toLocaleString()}</p>
+                      </div>
+                    );
+                  })}
+                </div>
              </div>
 
              <HistoryList 
-               items={stats.currentExpenses.filter(e => {
-                 const matchesFilter = expenseFilter === 'all' || e.category === expenseFilter;
-                 const matchesSearch = !expenseSearch || 
-                   e.comment?.toLowerCase().includes(expenseSearch.toLowerCase()) ||
-                   CATEGORIES[e.category as keyof typeof CATEGORIES]?.label.toLowerCase().includes(expenseSearch.toLowerCase());
-                 return matchesFilter && matchesSearch;
-               })} 
-               onRemove={(id: string) => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerExpenses: p.ownerExpenses.filter(e => e.id !== id)}))} 
-               title="История расходов" 
-               isExpenses 
-             />
+                items={stats.currentExpenses.filter(e => {
+                  const matchesFilter = expenseFilter === 'all' || e.category === expenseFilter;
+                  const matchesSearch = !expenseSearch || 
+                    e.comment?.toLowerCase().includes(expenseSearch.toLowerCase()) ||
+                    (CATEGORIES[e.category as keyof typeof CATEGORIES] as any)?.label.toLowerCase().includes(expenseSearch.toLowerCase());
+                  return matchesFilter && matchesSearch;
+                })} 
+                onRemove={(id: string) => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerExpenses: p.ownerExpenses.filter(e => e.id !== id)}))} 
+                title="История расходов" 
+                isExpenses 
+                categories={CATEGORIES}
+              />
           </div>
 
           <div className="glass-card p-8 rounded-[3rem] border-amber-500/20 shadow-2xl flex flex-col">
@@ -474,28 +476,23 @@ const PayrollStatCard = ({ title, accrued, paid, color }: any) => (
    </div>
 );
 
-const HistoryList = ({ items, onRemove, title, isOwner, isExpenses }: any) => (
+const HistoryList = ({ items, onRemove, title, isOwner, isExpenses, categories }: any) => (
    <div className="mt-8 space-y-4 max-h-[400px] overflow-y-auto pr-2 scrollbar-hide">
       <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-800 pb-3 flex justify-between">
          {title}
          <span className="text-[8px] opacity-40">Total entries: {items.length}</span>
       </h3>
       {items.length === 0 ? <p className="text-xs text-slate-700 italic py-6 text-center">История пуста</p> : items.map((item: any) => {
-         const cat = isExpenses ? (CATEGORIES[item.category as keyof typeof CATEGORIES] || CATEGORIES.other) : null;
+         const cat = isExpenses ? (categories?.[item.category] || categories?.other) : null;
+         const Icon = isExpenses ? cat?.icon : (isOwner ? ICONS.Owner : ICONS.Income);
          
          return (
             <div key={item.id} className="group relative bg-slate-900/40 hover:bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden transition-all duration-300 hover:border-slate-700 hover:shadow-xl hover:shadow-black/20">
                {isExpenses && <div className={`absolute left-0 top-0 bottom-0 w-1 ${cat?.color.replace('text-', 'bg-')}`}></div>}
                <div className="p-4 flex items-center gap-4">
-                  {isExpenses ? (
-                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${cat?.bg || ''} ${cat?.color || ''} border ${cat?.border || ''} shrink-0 shadow-inner`}>
-                        {cat && <cat.icon size={18} />}
-                     </div>
-                  ) : (
-                     <div className="w-10 h-10 rounded-xl bg-emerald-500/5 flex items-center justify-center text-emerald-500 border border-emerald-500/10 shrink-0">
-                        {isOwner ? <ICONS.Owner size={18} /> : <ICONS.Income size={18} />}
-                     </div>
-                  )}
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isExpenses ? (cat?.bg || '') : 'bg-emerald-500/5'} ${isExpenses ? (cat?.color || '') : 'text-emerald-400'} border ${isExpenses ? (cat?.border || '') : 'border-emerald-500/10'} shrink-0 shadow-inner`}>
+                     {Icon && <Icon size={18} />}
+                  </div>
 
                   <div className="flex-1 min-w-0">
                      <div className="flex justify-between items-start">

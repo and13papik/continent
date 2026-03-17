@@ -21,7 +21,8 @@ import {
   GraduationCap,
   UserRound,
   Crown,
-  X
+  X,
+  Search
 } from 'lucide-react';
 
 export const ICONS: Record<string, any> = {
@@ -52,7 +53,8 @@ export const ICONS: Record<string, any> = {
   CircleDollarSign: CircleDollarSign,
   Internship: GraduationCap,
   Crown: Crown,
-  Close: X
+  Close: X,
+  Search: Search
 };
 
 export const PLATFORM_NAMES: Record<string, string> = {
