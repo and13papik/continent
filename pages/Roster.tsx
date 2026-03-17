@@ -70,66 +70,69 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     if (!editingCell) return;
 
     updateState(prev => {
+      const currentPeriodId = prev.selectedPeriodId;
       const roster = [...(prev.rosterData || [])];
+      const now = new Date().toISOString();
       
-      // Find if this operator already has an entry for this shift in this period
-      const existingEntryIdx = roster.findIndex((e: RosterEntry) => 
+      // 1. Check if it's already assigned to THIS operator (toggle off)
+      const wasAssignedToThis = roster.some(e => 
         e.shift === editingCell.shift && 
-        e.operator === operator &&
-        e.periodId === state.selectedPeriodId
+        e.operator === operator && 
+        e.models.includes(editingCell.model) &&
+        e.periodId === currentPeriodId
       );
 
-      if (existingEntryIdx > -1) {
-        // Operator already assigned to some models in this shift
-        const entry = { ...roster[existingEntryIdx] };
-        if (entry.models.includes(editingCell.model)) {
-          // Remove if already there (toggle)
-          entry.models = entry.models.filter((m: string) => m !== editingCell.model);
-        } else {
-          // Add if not there, but limit to 2 models
-          if (entry.models.length < 2) {
-            entry.models = [...entry.models, editingCell.model];
-          } else {
-            entry.models = [entry.models[1], editingCell.model];
+      // 2. Remove this model from ANY existing assignment in this shift
+      const updatedRoster = roster.map(entry => {
+        if (entry.shift === editingCell.shift && entry.periodId === currentPeriodId) {
+          if (entry.models.includes(editingCell.model)) {
+            return {
+              ...entry,
+              models: entry.models.filter(m => m !== editingCell.model),
+              updatedAt: now
+            };
           }
         }
-        
-        if (entry.models.length === 0) {
-          roster.splice(existingEntryIdx, 1);
-        } else {
-          roster[existingEntryIdx] = entry;
-        }
-      } else {
-        // New assignment for this operator in this shift
-        // But first, check if this (model, shift) already has someone else
-        const otherOpIdx = roster.findIndex((e: RosterEntry) => 
-          e.shift === editingCell.shift && 
-          e.models.includes(editingCell.model) &&
-          e.periodId === state.selectedPeriodId
-        );
-        
-        if (otherOpIdx > -1) {
-          const otherEntry = { ...roster[otherOpIdx] };
-          otherEntry.models = otherEntry.models.filter((m: string) => m !== editingCell.model);
-          if (otherEntry.models.length === 0) {
-            roster.splice(otherOpIdx, 1);
-          } else {
-            roster[otherOpIdx] = otherEntry;
-          }
-        }
+        return entry;
+      }).filter(e => e.models.length > 0);
 
-        roster.push({
-          id: String(Date.now()),
-          periodId: state.selectedPeriodId,
-          date: 'monthly', // No longer day-specific
+      if (wasAssignedToThis) {
+        // Toggle off: we already removed it in step 2
+        return { ...prev, rosterData: updatedRoster };
+      }
+
+      // 3. Assign to the new operator
+      const targetEntryIdx = updatedRoster.findIndex(e => 
+        e.shift === editingCell.shift && 
+        e.operator === operator && 
+        e.periodId === currentPeriodId
+      );
+
+      if (targetEntryIdx > -1) {
+        const entry = { ...updatedRoster[targetEntryIdx] };
+        // Limit to 2 models for real operators, but "ДЫРКА" can have more
+        if (operator === 'ДЫРКА' || entry.models.length < 2) {
+          entry.models = [...entry.models, editingCell.model];
+        } else {
+          // Replace the second one if already has 2
+          entry.models = [entry.models[0], editingCell.model];
+        }
+        entry.updatedAt = now;
+        updatedRoster[targetEntryIdx] = entry;
+      } else {
+        updatedRoster.push({
+          id: `roster_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          periodId: currentPeriodId,
+          date: 'monthly',
           shift: editingCell.shift,
           operator,
           models: [editingCell.model],
-          createdAt: new Date().toISOString()
+          createdAt: now,
+          updatedAt: now
         });
       }
 
-      return { ...prev, rosterData: roster };
+      return { ...prev, rosterData: updatedRoster };
     });
     setEditingCell(null);
   };
@@ -137,13 +140,19 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
   const clearCell = () => {
     if (!editingCell) return;
     updateState(prev => {
-      const roster = (prev.rosterData || []).filter((e: RosterEntry) => {
-        if (e.shift === editingCell.shift && e.models.includes(editingCell.model) && e.periodId === state.selectedPeriodId) {
-          e.models = e.models.filter((m: string) => m !== editingCell.model);
-          return e.models.length > 0;
+      const currentPeriodId = prev.selectedPeriodId;
+      const now = new Date().toISOString();
+      const roster = (prev.rosterData || []).map(e => {
+        if (e.shift === editingCell.shift && e.models.includes(editingCell.model) && e.periodId === currentPeriodId) {
+          return {
+            ...e,
+            models: e.models.filter(m => m !== editingCell.model),
+            updatedAt: now
+          };
         }
-        return true;
-      });
+        return e;
+      }).filter(e => e.models.length > 0);
+      
       return { ...prev, rosterData: roster };
     });
     setEditingCell(null);
