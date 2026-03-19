@@ -84,7 +84,16 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         e.periodId === currentPeriodId
       );
 
-      // 2. Remove this model from ANY existing assignment in this shift
+      // 2. Identify entries that will be deleted (those that have only this model and are in this shift)
+      const entriesToDelete = roster.filter(entry => 
+        entry.shift === editingCell.shift && 
+        entry.periodId === currentPeriodId && 
+        entry.models.includes(editingCell.model) &&
+        entry.models.length === 1
+      );
+      const newDeletedIds = [...(prev.deletedIds || []), ...entriesToDelete.map(e => e.id)];
+
+      // 3. Remove this model from ANY existing assignment in this shift
       const updatedRoster = roster.map(entry => {
         if (entry.shift === editingCell.shift && entry.periodId === currentPeriodId) {
           if (entry.models.includes(editingCell.model)) {
@@ -99,11 +108,11 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       }).filter(e => e.models.length > 0);
 
       if (wasAssignedToThis) {
-        // Toggle off: we already removed it in step 2
-        return { ...prev, rosterData: updatedRoster };
+        // Toggle off: we already removed it in step 3
+        return { ...prev, rosterData: updatedRoster, deletedIds: newDeletedIds };
       }
 
-      // 3. Assign to the new operator
+      // 4. Assign to the new operator
       const targetEntryIdx = updatedRoster.findIndex(e => 
         e.shift === editingCell.shift && 
         e.operator === operator && 
@@ -136,7 +145,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         });
       }
 
-      return { ...prev, rosterData: updatedRoster };
+      return { ...prev, rosterData: updatedRoster, deletedIds: newDeletedIds };
     });
     setEditingCell(null);
     setIsTraineeMode(false);
@@ -147,6 +156,15 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     updateState(prev => {
       const currentPeriodId = prev.selectedPeriodId;
       const now = new Date().toISOString();
+      
+      const entriesToDelete = (prev.rosterData || []).filter(entry => 
+        entry.shift === editingCell.shift && 
+        entry.periodId === currentPeriodId && 
+        entry.models.includes(editingCell.model) &&
+        entry.models.length === 1
+      );
+      const newDeletedIds = [...(prev.deletedIds || []), ...entriesToDelete.map(e => e.id)];
+
       const roster = (prev.rosterData || []).map(e => {
         if (e.shift === editingCell.shift && e.models.includes(editingCell.model) && e.periodId === currentPeriodId) {
           return {
@@ -158,7 +176,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         return e;
       }).filter(e => e.models.length > 0);
       
-      return { ...prev, rosterData: roster };
+      return { ...prev, rosterData: roster, deletedIds: newDeletedIds };
     });
     setEditingCell(null);
   };
