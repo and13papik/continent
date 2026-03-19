@@ -18,6 +18,7 @@ const SHIFTS: { type: ShiftType; label: string; time: string; color: string }[] 
 
 const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
   const [editingCell, setEditingCell] = useState<{ model: string; shift: ShiftType } | null>(null);
+  const [isTraineeMode, setIsTraineeMode] = useState(false);
 
   const currentPeriod = state.accountingPeriods.find((p: AccountingPeriod) => p.id === state.selectedPeriodId);
   const allModels = currentPeriod?.models || state.models;
@@ -66,7 +67,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     });
   };
 
-  const handleAssign = (operator: string) => {
+  const handleAssign = (operator: string, isTrainee: boolean = false) => {
     if (!editingCell) return;
 
     updateState(prev => {
@@ -78,6 +79,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       const wasAssignedToThis = roster.some(e => 
         e.shift === editingCell.shift && 
         e.operator === operator && 
+        e.isTrainee === isTrainee &&
         e.models.includes(editingCell.model) &&
         e.periodId === currentPeriodId
       );
@@ -105,13 +107,14 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       const targetEntryIdx = updatedRoster.findIndex(e => 
         e.shift === editingCell.shift && 
         e.operator === operator && 
+        e.isTrainee === isTrainee &&
         e.periodId === currentPeriodId
       );
 
       if (targetEntryIdx > -1) {
         const entry = { ...updatedRoster[targetEntryIdx] };
-        // Limit to 2 models for real operators, but "ДЫРКА" can have more
-        if (operator === 'ДЫРКА' || entry.models.length < 2) {
+        // Limit to 2 models for real operators, but "ДЫРКА" or "СТАЖЕР" can have more
+        if (operator === 'ДЫРКА' || operator === 'СТАЖЕР' || entry.models.length < 2) {
           entry.models = [...entry.models, editingCell.model];
         } else {
           // Replace the second one if already has 2
@@ -126,6 +129,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
           date: 'monthly',
           shift: editingCell.shift,
           operator,
+          isTrainee,
           models: [editingCell.model],
           createdAt: now,
           updatedAt: now
@@ -135,6 +139,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       return { ...prev, rosterData: updatedRoster };
     });
     setEditingCell(null);
+    setIsTraineeMode(false);
   };
 
   const clearCell = () => {
@@ -225,6 +230,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
             {SHIFTS.map(shift => {
               const assignment = getAssignment(model, shift.type);
               const isGap = assignment?.operator === 'ДЫРКА';
+              const isTrainee = assignment?.isTrainee || assignment?.operator === 'СТАЖЕР';
               return (
                 <td 
                   key={shift.type} 
@@ -237,20 +243,24 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                     className={`w-full h-16 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1 relative overflow-hidden group/cell ${
                       isGap
                         ? 'bg-rose-500/20 border-rose-500/50 hover:border-rose-500'
-                        : assignment 
-                          ? 'bg-indigo-500/10 border-indigo-500/30 hover:border-indigo-500/50' 
-                          : 'bg-slate-900/20 border-dashed border-slate-800 hover:border-slate-700 hover:bg-slate-800/30'
+                        : isTrainee
+                          ? 'bg-purple-500/20 border-purple-500/50 hover:border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.2)]'
+                          : assignment 
+                            ? 'bg-indigo-500/10 border-indigo-500/30 hover:border-indigo-500/50' 
+                            : 'bg-slate-900/20 border-dashed border-slate-800 hover:border-slate-700 hover:bg-slate-800/30'
                     }`}
                   >
                     {assignment ? (
                       <>
-                        <span className={`text-xs font-black uppercase tracking-tighter ${isGap ? 'text-rose-400' : 'text-indigo-400'}`}>
+                        <span className={`text-xs font-black uppercase tracking-tighter ${
+                          isGap ? 'text-rose-400' : isTrainee ? 'text-purple-400' : 'text-indigo-400'
+                        }`}>
                           {assignment.operator}
                         </span>
                         {!isGap && (
                           <div className="flex gap-1">
                             {assignment.models.map((m: string, i: number) => (
-                              <div key={i} className="w-1 h-1 rounded-full bg-indigo-500" />
+                              <div key={i} className={`w-1 h-1 rounded-full ${isTrainee ? 'bg-purple-500' : 'bg-indigo-500'}`} />
                             ))}
                           </div>
                         )}
@@ -341,12 +351,23 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                       {editingCell.model} • {SHIFTS.find(s => s.type === editingCell.shift)?.label}
                     </p>
                   </div>
-                  <button 
-                    onClick={() => setEditingCell(null)}
-                    className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-slate-500 hover:text-white transition-colors"
-                  >
-                    <ICONS.Close size={24} />
-                  </button>
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer group/toggle">
+                      <div 
+                        onClick={() => setIsTraineeMode(!isTraineeMode)}
+                        className={`w-12 h-6 rounded-full transition-all relative ${isTraineeMode ? 'bg-purple-500' : 'bg-slate-800'}`}
+                      >
+                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${isTraineeMode ? 'left-7' : 'left-1'}`} />
+                      </div>
+                      <span className={`text-xs font-black uppercase tracking-widest ${isTraineeMode ? 'text-purple-400' : 'text-slate-500'}`}>Стажер</span>
+                    </label>
+                    <button 
+                      onClick={() => setEditingCell(null)}
+                      className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-slate-500 hover:text-white transition-colors"
+                    >
+                      <ICONS.Close size={24} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
@@ -359,23 +380,34 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                     <span className="font-black text-xs uppercase">ДЫРКА</span>
                   </button>
 
+                  {/* TRAINEE GAP BUTTON */}
+                  <button
+                    onClick={() => handleAssign('СТАЖЕР', true)}
+                    className="p-4 rounded-2xl border-2 border-purple-500/30 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-all flex flex-col items-center justify-center gap-1 shadow-[0_0_15px_rgba(168,85,247,0.1)]"
+                  >
+                    <ICONS.Bonus size={20} />
+                    <span className="font-black text-xs uppercase">СТАЖЕР</span>
+                  </button>
+
                   {operators.map((op: string) => {
-                    const isAssignedToThis = rosterEntries.find((e: RosterEntry) => e.shift === editingCell.shift && e.operator === op && e.models.includes(editingCell.model));
+                    const isAssignedToThis = rosterEntries.find((e: RosterEntry) => e.shift === editingCell.shift && e.operator === op && e.models.includes(editingCell.model) && e.isTrainee === isTraineeMode);
                     const otherModels = rosterEntries.find((e: RosterEntry) => e.shift === editingCell.shift && e.operator === op)?.models.filter((m: string) => m !== editingCell.model) || [];
                     
                     return (
                       <button
                         key={op}
-                        onClick={() => handleAssign(op)}
+                        onClick={() => handleAssign(op, isTraineeMode)}
                         className={`p-4 rounded-2xl border-2 transition-all text-left space-y-1 group ${
                           isAssignedToThis
-                            ? 'bg-indigo-600 border-indigo-500 text-white'
+                            ? isTraineeMode ? 'bg-purple-600 border-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.3)]' : 'bg-indigo-600 border-indigo-500 text-white'
                             : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
                         }`}
                       >
                         <div className="font-bold truncate">{op}</div>
                         {otherModels.length > 0 && (
-                          <div className={`text-[9px] uppercase font-black tracking-tighter ${isAssignedToThis ? 'text-indigo-200' : 'text-slate-600'}`}>
+                          <div className={`text-[9px] uppercase font-black tracking-tighter ${
+                            isAssignedToThis ? isTraineeMode ? 'text-purple-200' : 'text-indigo-200' : 'text-slate-600'
+                          }`}>
                             + {otherModels[0]}
                           </div>
                         )}

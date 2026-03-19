@@ -194,6 +194,7 @@ export interface RosterEntry {
   date: string;
   shift: ShiftType;
   operator: string;
+  isTrainee?: boolean;
   models: string[];
   createdAt: string;
   updatedAt?: string;
