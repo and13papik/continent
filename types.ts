@@ -13,6 +13,8 @@ export interface AccountingPeriod {
   modelDefaultGoals?: Record<string, { night: number; morning: number; day: number; evening: number }>;
   modelMonthlyPlans?: Record<string, number>;
   admins?: Admin[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface IncomeRecord {

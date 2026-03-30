@@ -34,7 +34,8 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
       ...p,
       accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { 
         ...ap, 
-        admins: [...(ap.admins || p.admins), { id: String(Date.now()), name: newAdminName, rate }] 
+        admins: [...(ap.admins || p.admins), { id: String(Date.now()), name: newAdminName, rate }],
+        updatedAt: new Date().toISOString()
       } : ap)
     }));
     setNewAdminName('');
@@ -81,6 +82,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
       ...prev,
       accountingPeriods: prev.accountingPeriods.map(p => p.id === activePeriodId ? {
         ...p,
+        updatedAt: new Date().toISOString(),
         modelDefaultGoals: {
           ...(p.modelDefaultGoals || prev.modelDefaultGoals || {}),
           [modelName]: {
@@ -214,7 +216,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
       const updatedPeriods = prev.accountingPeriods.map(p => {
         if (p.id === prev.selectedPeriodId) {
           const ops = p.operators || prev.operators;
-          return { ...p, operators: ops.map(o => o === editOp.old ? editOp.current : o) };
+          return { ...p, operators: ops.map(o => o === editOp.old ? editOp.current : o), updatedAt: new Date().toISOString() };
         }
         return p;
       });
@@ -238,7 +240,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
       const updatedPeriods = prev.accountingPeriods.map(p => {
         if (p.id === prev.selectedPeriodId) {
           const mods = p.models || prev.models;
-          return { ...p, models: mods.map(m => m === editModel.old ? editModel.current : m) };
+          return { ...p, models: mods.map(m => m === editModel.old ? editModel.current : m), updatedAt: new Date().toISOString() };
         }
         return p;
       });
@@ -260,7 +262,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     }
     updateState(prev => ({
       ...prev,
-      accountingPeriods: prev.accountingPeriods.map(p => p.id === editPeriod.id ? { ...p, label: editPeriod.label } : p)
+      accountingPeriods: prev.accountingPeriods.map(p => p.id === editPeriod.id ? { ...p, label: editPeriod.label, updatedAt: new Date().toISOString() } : p)
     }));
     setEditPeriod(null);
   };
@@ -282,7 +284,10 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
     updateState(prev => ({
       ...prev,
       accountingPeriods: prev.accountingPeriods.filter(p => p.id !== id),
-      selectedPeriodId: prev.selectedPeriodId === id ? (prev.accountingPeriods[0]?.id || '') : prev.selectedPeriodId
+      deletedIds: Array.from(new Set([...(prev.deletedIds || []), id])),
+      selectedPeriodId: prev.selectedPeriodId === id ? (prev.accountingPeriods[0]?.id || '') : prev.selectedPeriodId,
+      lastUpdated: Date.now(),
+      version: prev.version + 1
     }));
   };
 
@@ -438,7 +443,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
                if(newOp) { 
                  updateState(p => ({
                    ...p, 
-                   accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, operators: [...(ap.operators || p.operators), newOp] } : ap)
+                   accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, operators: [...(ap.operators || p.operators), newOp], updatedAt: new Date().toISOString() } : ap)
                  })); 
                  setNewOp(''); 
                } 
@@ -459,7 +464,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
                         <button onClick={() => setEditOp({ old: o, current: o })} className="text-slate-500 hover:text-sky-400"><ICONS.Edit size={14}/></button>
                         <button onClick={() => updateState(p => ({
                           ...p, 
-                          accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, operators: (ap.operators || p.operators).filter(x => x !== o) } : ap)
+                          accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, operators: (ap.operators || p.operators).filter(x => x !== o), updatedAt: new Date().toISOString() } : ap)
                         }))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
                      </div>
                    </>
@@ -479,7 +484,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
                if(newModel) { 
                  updateState(p => ({
                    ...p, 
-                   accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, models: [...(ap.models || p.models), newModel] } : ap)
+                   accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, models: [...(ap.models || p.models), newModel], updatedAt: new Date().toISOString() } : ap)
                  })); 
                  setNewModel(''); 
                } 
@@ -500,7 +505,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
                         <button onClick={() => setEditModel({ old: m, current: m })} className="text-slate-500 hover:text-indigo-400"><ICONS.Edit size={14}/></button>
                         <button onClick={() => updateState(p => ({
                           ...p, 
-                          accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, models: (ap.models || p.models).filter(x => x !== m) } : ap)
+                          accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, models: (ap.models || p.models).filter(x => x !== m), updatedAt: new Date().toISOString() } : ap)
                         }))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
                      </div>
                    </>
@@ -535,13 +540,13 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
                         const rate = parseFloat(newRate) || 0;
                         updateState(p => ({
                           ...p,
-                          accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, admins: (ap.admins || p.admins).map(x => x.id === a.id ? { ...x, rate } : x) } : ap)
+                          accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, admins: (ap.admins || p.admins).map(x => x.id === a.id ? { ...x, rate } : x), updatedAt: new Date().toISOString() } : ap)
                         }));
                       }
                     }} className="text-slate-500 hover:text-amber-400"><ICONS.Edit size={14}/></button>
                     <button onClick={() => updateState(p => ({
                       ...p, 
-                      accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, admins: (ap.admins || p.admins).filter(x => x.id !== a.id) } : ap)
+                      accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, admins: (ap.admins || p.admins).filter(x => x.id !== a.id), updatedAt: new Date().toISOString() } : ap)
                     }))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
                  </div>
                </div>
@@ -570,7 +575,8 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
                           ...p,
                           accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? {
                             ...ap,
-                            modelMonthlyPlans: { ...(ap.modelMonthlyPlans || {}), [m]: val }
+                            modelMonthlyPlans: { ...(ap.modelMonthlyPlans || {}), [m]: val },
+                            updatedAt: new Date().toISOString()
                           } : ap)
                         }));
                       }}

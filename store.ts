@@ -55,7 +55,9 @@ export function createInitialState(): AppState {
     models: defaultModels,
     modelRates: { of: 25, pp: 17, cr: 25 },
     modelDefaultGoals: {},
-    admins: defaultAdmins
+    admins: defaultAdmins,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
 
   return {
@@ -160,6 +162,7 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         
         finalState.deletedIds = combinedDeletedIds;
 
+        finalState.accountingPeriods = mergeArraysById(state.accountingPeriods || [], remote.accountingPeriods || [], combinedDeletedIds);
         finalState.incomeData = mergeArraysById(state.incomeData, remote.incomeData, combinedDeletedIds);
         finalState.operationsData = mergeArraysById(state.operationsData, remote.operationsData, combinedDeletedIds);
         finalState.ownerExpenses = mergeArraysById(state.ownerExpenses, remote.ownerExpenses, combinedDeletedIds);

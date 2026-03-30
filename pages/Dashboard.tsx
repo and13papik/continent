@@ -94,7 +94,9 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         label: `Восстановлено ${new Date().toLocaleDateString()}`,
         startAt: new Date().toISOString(),
         endAt: null,
-        status: 'open'
+        status: 'open',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       
       const periodIds = new Set(prev.accountingPeriods.map(p => p.id));
@@ -251,7 +253,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       
       let nextId = nextInList?.id;
       let newPeriods = prev.accountingPeriods.map(p => 
-        p.id === activePeriodId ? { ...p, status: 'closed' as const, endAt: new Date().toISOString() } : p
+        p.id === activePeriodId ? { ...p, status: 'closed' as const, endAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : p
       );
 
       if (!nextId) {
@@ -275,7 +277,9 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
           models: activePeriod?.models || prev.models,
           modelRates: activePeriod?.modelRates || prev.modelRates,
           modelDefaultGoals: activePeriod?.modelDefaultGoals || prev.modelDefaultGoals,
-          admins: activePeriod?.admins || prev.admins
+          admins: activePeriod?.admins || prev.admins,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         };
         newPeriods = [...newPeriods, newP];
       }
@@ -310,7 +314,9 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         models: activePeriod?.models || prev.models,
         modelRates: activePeriod?.modelRates || prev.modelRates,
         modelDefaultGoals: activePeriod?.modelDefaultGoals || prev.modelDefaultGoals,
-        admins: activePeriod?.admins || prev.admins
+        admins: activePeriod?.admins || prev.admins,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       return { 
         ...prev, 
