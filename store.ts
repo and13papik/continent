@@ -278,9 +278,8 @@ export async function testDatabaseConnection(url: string, key: string): Promise<
   }
 }
 
-export function findPeriodIdByDate(dateStr: string, periods: AccountingPeriod[]): string | null {
-  if (!dateStr || !periods.length) return null;
-  
+export function parseYearMonth(dateStr: string): { year: number, month: number } | null {
+  if (!dateStr) return null;
   let year: number, month: number;
 
   // Пытаемся разобрать дату в форматах ГГГГ-ММ-ДД или ДД.ММ.ГГГГ
@@ -308,17 +307,10 @@ export function findPeriodIdByDate(dateStr: string, periods: AccountingPeriod[])
     }
   } else {
     // Резервный вариант через объект Date
-    // Для строк типа "2026-03-30" новые браузеры используют UTC, старые - local.
-    // Чтобы быть уверенными, проверяем оба варианта или используем регулярку.
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return null;
     
-    // Если в строке нет 'T', это скорее всего просто дата. 
-    // В этом случае getMonth() и getUTCMonth() могут отличаться.
-    // Но p.startAt всегда UTC, так что нам нужно понять, какой месяц имел в виду пользователь.
     if (!dateStr.includes('T')) {
-       // Для простых дат типа "2026-03-30" мы доверяем ручному парсингу выше.
-       // Если мы попали сюда, значит формат совсем странный.
        year = d.getFullYear();
        month = d.getMonth();
     } else {
@@ -328,6 +320,14 @@ export function findPeriodIdByDate(dateStr: string, periods: AccountingPeriod[])
   }
   
   if (isNaN(year) || isNaN(month)) return null;
+  return { year, month };
+}
+
+export function findPeriodIdByDate(dateStr: string, periods: AccountingPeriod[]): string | null {
+  const parsed = parseYearMonth(dateStr);
+  if (!parsed) return null;
+  
+  const { year, month } = parsed;
 
   // Ищем период, который соответствует этому году и месяцу
   const match = periods.find(p => {

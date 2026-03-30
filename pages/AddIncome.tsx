@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { AppState, IncomeRecord } from '../types';
 import { ICONS } from '../constants';
-import { findPeriodIdByDate } from '../store';
+import { findPeriodIdByDate, parseYearMonth } from '../store';
 
 interface AddIncomeProps {
   state: AppState;
@@ -40,14 +40,16 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
   const isPeriodMismatch = useMemo(() => {
     if (!date || !activePeriod) return false;
     
-    // Парсим выбранную дату (YYYY-MM-DD)
-    const parts = date.split('-');
-    const inputYear = parseInt(parts[0], 10);
-    const inputMonth = parseInt(parts[1], 10) - 1;
+    const parsedInput = parseYearMonth(date);
+    if (!parsedInput) return false;
 
     // Сначала проверяем, подходит ли текущий активный период (по году и месяцу)
     const pDate = new Date(activePeriod.startAt);
-    if (pDate.getUTCFullYear() === inputYear && pDate.getUTCMonth() === inputMonth) {
+    // Проверяем и UTC и Local на всякий случай, так как startAt может быть разным
+    const matchUTC = pDate.getUTCFullYear() === parsedInput.year && pDate.getUTCMonth() === parsedInput.month;
+    const matchLocal = pDate.getFullYear() === parsedInput.year && pDate.getMonth() === parsedInput.month;
+
+    if (matchUTC || matchLocal) {
       return false; // Это тот же месяц и год, все ок
     }
 
@@ -104,12 +106,12 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
         if (!confirm(`ВНИМАНИЕ: Выбранная дата (${date}) не совпадает с текущим периодом (${activePeriod.label}). Записать доход в ${activePeriod.label}?`)) return;
     }
 
-    const dateParts = date.split('-');
-    const inputYear = parseInt(dateParts[0], 10);
-    const inputMonth = parseInt(dateParts[1], 10) - 1;
-    
-    const activePDate = new Date(activePeriod.startAt);
-    const isActiveMatch = activePDate.getUTCFullYear() === inputYear && activePDate.getUTCMonth() === inputMonth;
+    const parsedInput = parseYearMonth(date);
+    const pDate = new Date(activePeriod.startAt);
+    const isActiveMatch = parsedInput && (
+      (pDate.getUTCFullYear() === parsedInput.year && pDate.getUTCMonth() === parsedInput.month) ||
+      (pDate.getFullYear() === parsedInput.year && pDate.getMonth() === parsedInput.month)
+    );
     
     const targetPeriodId = isActiveMatch ? state.selectedPeriodId : (findPeriodIdByDate(date, state.accountingPeriods) || state.selectedPeriodId);
 
