@@ -278,20 +278,44 @@ export async function testDatabaseConnection(url: string, key: string): Promise<
 export function findPeriodIdByDate(dateStr: string, periods: AccountingPeriod[]): string | null {
   if (!dateStr || !periods.length) return null;
   
-  // Извлекаем год и месяц напрямую из строки (YYYY-MM-DD...), 
-  // чтобы избежать любых смещений из-за часовых поясов при парсинге через new Date()
-  const parts = dateStr.split('-');
-  if (parts.length < 2) return null;
+  let year: number, month: number;
+
+  // Пытаемся разобрать дату в форматах ГГГГ-ММ-ДД или ДД.ММ.ГГГГ
+  if (dateStr.includes('-')) {
+    const parts = dateStr.split('-');
+    if (parts[0].length === 4) {
+      // ГГГГ-ММ-ДД
+      year = parseInt(parts[0]);
+      month = parseInt(parts[1]) - 1;
+    } else {
+      // ДД-ММ-ГГГГ
+      year = parseInt(parts[2]);
+      month = parseInt(parts[1]) - 1;
+    }
+  } else if (dateStr.includes('.')) {
+    const parts = dateStr.split('.');
+    // Предполагаем ДД.ММ.ГГГГ
+    if (parts[2] && parts[2].length === 4) {
+      year = parseInt(parts[2]);
+      month = parseInt(parts[1]) - 1;
+    } else {
+      // ГГГГ.ММ.ДД
+      year = parseInt(parts[0]);
+      month = parseInt(parts[1]) - 1;
+    }
+  } else {
+    // Резервный вариант через объект Date
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    year = d.getUTCFullYear();
+    month = d.getUTCMonth();
+  }
   
-  const year = parseInt(parts[0]);
-  const month = parseInt(parts[1]) - 1; // 0-11
-  
+  if (isNaN(year) || isNaN(month)) return null;
+
   const match = periods.find(p => {
-    const pParts = p.startAt.split('-');
-    if (pParts.length < 2) return false;
-    const pYear = parseInt(pParts[0]);
-    const pMonth = parseInt(pParts[1]) - 1;
-    return pYear === year && pMonth === month;
+    const pDate = new Date(p.startAt);
+    return pDate.getUTCFullYear() === year && pDate.getUTCMonth() === month;
   });
   
   return match ? match.id : null;
