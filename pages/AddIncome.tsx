@@ -33,12 +33,9 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
   // Проверка: соответствует ли дата выбранному месяцу?
   const isPeriodMismatch = useMemo(() => {
     if (!date || !activePeriod) return false;
-    const inputDate = new Date(date);
-    const start = new Date(activePeriod.startAt);
-    
-    // Сравниваем год и месяц. Если они не совпадают - выводим предупреждение.
-    return inputDate.getMonth() !== start.getMonth() || inputDate.getFullYear() !== start.getFullYear();
-  }, [date, activePeriod]);
+    const periodIdForDate = findPeriodIdByDate(date, state.accountingPeriods);
+    return periodIdForDate !== activePeriod.id;
+  }, [date, activePeriod, state.accountingPeriods]);
 
   const toggleModel = (m: string) => {
     setSelectedModels(prev => {
@@ -75,15 +72,9 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
     }
 
     if (isPeriodMismatch) {
-        const inputDate = new Date(date);
-        const targetMonth = inputDate.getMonth();
-        const targetYear = inputDate.getFullYear();
+        const existingPeriodId = findPeriodIdByDate(date, state.accountingPeriods);
+        const existingPeriod = state.accountingPeriods.find(p => p.id === existingPeriodId);
         
-        const existingPeriod = state.accountingPeriods.find(p => {
-          const pDate = new Date(p.startAt);
-          return pDate.getMonth() === targetMonth && pDate.getFullYear() === targetYear;
-        });
-
         if (existingPeriod && existingPeriod.id !== state.selectedPeriodId) {
           if (confirm(`ВНИМАНИЕ: Выбранная дата (${date}) относится к периоду "${existingPeriod.label}", но сейчас выбран "${activePeriod.label}". Переключиться на "${existingPeriod.label}" перед сохранением?`)) {
             updateState(prev => ({ ...prev, selectedPeriodId: existingPeriod.id }));

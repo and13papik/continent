@@ -41,10 +41,14 @@ export function createInitialState(): AppState {
 
   const now = new Date();
   const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+  
+  // Создаем дату начала месяца в UTC, чтобы избежать проблем с часовыми поясами
+  const startOfMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+  
   const firstPeriod: AccountingPeriod = {
     id: String(Date.now()),
     label: `${months[now.getMonth()]} ${now.getFullYear()}`,
-    startAt: now.toISOString(),
+    startAt: startOfMonth.toISOString(),
     endAt: null,
     status: 'open',
     operators: defaultOperators,
@@ -273,13 +277,21 @@ export async function testDatabaseConnection(url: string, key: string): Promise<
 
 export function findPeriodIdByDate(dateStr: string, periods: AccountingPeriod[]): string | null {
   if (!dateStr || !periods.length) return null;
-  const date = new Date(dateStr);
-  const month = date.getMonth();
-  const year = date.getFullYear();
+  
+  // Извлекаем год и месяц напрямую из строки (YYYY-MM-DD...), 
+  // чтобы избежать любых смещений из-за часовых поясов при парсинге через new Date()
+  const parts = dateStr.split('-');
+  if (parts.length < 2) return null;
+  
+  const year = parseInt(parts[0]);
+  const month = parseInt(parts[1]) - 1; // 0-11
   
   const match = periods.find(p => {
-    const pDate = new Date(p.startAt);
-    return pDate.getMonth() === month && pDate.getFullYear() === year;
+    const pParts = p.startAt.split('-');
+    if (pParts.length < 2) return false;
+    const pYear = parseInt(pParts[0]);
+    const pMonth = parseInt(pParts[1]) - 1;
+    return pYear === year && pMonth === month;
   });
   
   return match ? match.id : null;

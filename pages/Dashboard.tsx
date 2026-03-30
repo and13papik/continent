@@ -257,18 +257,18 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       if (!nextId) {
         // Если следующего периода нет в списке, создаем его
         const lastP = prev.accountingPeriods[prev.accountingPeriods.length - 1];
-        let nextMonthIdx = new Date().getMonth(), nextYear = new Date().getFullYear();
+        let nextMonthIdx = new Date().getUTCMonth(), nextYear = new Date().getUTCFullYear();
         if (lastP) {
           const lastDate = new Date(lastP.startAt);
-          nextMonthIdx = lastDate.getMonth() + 1; 
-          nextYear = lastDate.getFullYear();
+          nextMonthIdx = lastDate.getUTCMonth() + 1; 
+          nextYear = lastDate.getUTCFullYear();
           if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
         }
         nextId = String(Date.now());
         const newP: AccountingPeriod = { 
           id: nextId, 
           label: `${months[nextMonthIdx]} ${nextYear}`, 
-          startAt: new Date(nextYear, nextMonthIdx, 1).toISOString(), 
+          startAt: new Date(Date.UTC(nextYear, nextMonthIdx, 1)).toISOString(), 
           endAt: null, 
           status: 'open',
           operators: activePeriod?.operators || prev.operators,
@@ -292,18 +292,18 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     updateState(prev => {
       const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
       const lastP = prev.accountingPeriods[prev.accountingPeriods.length - 1];
-      let nextMonthIdx = new Date().getMonth(), nextYear = new Date().getFullYear();
+      let nextMonthIdx = new Date().getUTCMonth(), nextYear = new Date().getUTCFullYear();
       if (lastP) {
         const lastDate = new Date(lastP.startAt);
-        nextMonthIdx = lastDate.getMonth() + 1; 
-        nextYear = lastDate.getFullYear();
+        nextMonthIdx = lastDate.getUTCMonth() + 1; 
+        nextYear = lastDate.getUTCFullYear();
         if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
       }
       const nextId = String(Date.now());
       const newP: AccountingPeriod = { 
         id: nextId, 
         label: `${months[nextMonthIdx]} ${nextYear}`, 
-        startAt: new Date(nextYear, nextMonthIdx, 1).toISOString(), 
+        startAt: new Date(Date.UTC(nextYear, nextMonthIdx, 1)).toISOString(), 
         endAt: null, 
         status: 'open',
         operators: activePeriod?.operators || prev.operators,

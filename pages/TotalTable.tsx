@@ -49,12 +49,12 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     if (plan === undefined || plan === null) return null;
 
     const date = new Date(dateStr);
-    const year = date.getFullYear();
-    const month = date.getMonth();
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
     
-    // Количество дней в этом месяце
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const currentDay = date.getDate();
+    // Количество дней в этом месяце (UTC)
+    const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    const currentDay = date.getUTCDate();
     const remainingDays = daysInMonth - currentDay + 1;
 
     if (remainingDays <= 0) return null;
@@ -392,7 +392,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       if (!blob) throw new Error('Не удалось создать изображение таблицы');
 
       let message = `<b>📊 ОТЧЕТ: ${shiftInfo.label.toUpperCase()} ${shiftInfo.icon}</b>\n`;
-      message += `📅 Дата: ${new Date(selectedDate).toLocaleDateString('ru-RU')}\n\n`;
+      message += `📅 Дата: ${selectedDate.split('-').reverse().join('.')}\n\n`;
 
       let totalShiftBal = 0;
       let totalShiftGoal = 0;
@@ -669,7 +669,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
          <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500/30"></div>
          <div className="flex items-center gap-4 mb-6">
             <ICONS.Income className="text-indigo-400" />
-            <h2 className="text-xl font-black font-outfit text-white uppercase tracking-widest">Итоговая Сводка за {new Date(selectedDate).toLocaleDateString('ru-RU')}</h2>
+            <h2 className="text-xl font-black font-outfit text-white uppercase tracking-widest">Итоговая Сводка за {selectedDate.split('-').reverse().join('.')}</h2>
          </div>
          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="text-center space-y-1">
