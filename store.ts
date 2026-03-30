@@ -288,36 +288,51 @@ export function findPeriodIdByDate(dateStr: string, periods: AccountingPeriod[])
     const parts = dateStr.split('-');
     if (parts[0].length === 4) {
       // ГГГГ-ММ-ДД
-      year = parseInt(parts[0]);
-      month = parseInt(parts[1]) - 1;
+      year = parseInt(parts[0], 10);
+      month = parseInt(parts[1], 10) - 1;
     } else {
       // ДД-ММ-ГГГГ
-      year = parseInt(parts[2]);
-      month = parseInt(parts[1]) - 1;
+      year = parseInt(parts[2], 10);
+      month = parseInt(parts[1], 10) - 1;
     }
   } else if (dateStr.includes('.')) {
     const parts = dateStr.split('.');
     // Предполагаем ДД.ММ.ГГГГ
     if (parts[2] && parts[2].length === 4) {
-      year = parseInt(parts[2]);
-      month = parseInt(parts[1]) - 1;
+      year = parseInt(parts[2], 10);
+      month = parseInt(parts[1], 10) - 1;
     } else {
       // ГГГГ.ММ.ДД
-      year = parseInt(parts[0]);
-      month = parseInt(parts[1]) - 1;
+      year = parseInt(parts[0], 10);
+      month = parseInt(parts[1], 10) - 1;
     }
   } else {
     // Резервный вариант через объект Date
+    // Для строк типа "2026-03-30" новые браузеры используют UTC, старые - local.
+    // Чтобы быть уверенными, проверяем оба варианта или используем регулярку.
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return null;
-    year = d.getUTCFullYear();
-    month = d.getUTCMonth();
+    
+    // Если в строке нет 'T', это скорее всего просто дата. 
+    // В этом случае getMonth() и getUTCMonth() могут отличаться.
+    // Но p.startAt всегда UTC, так что нам нужно понять, какой месяц имел в виду пользователь.
+    if (!dateStr.includes('T')) {
+       // Для простых дат типа "2026-03-30" мы доверяем ручному парсингу выше.
+       // Если мы попали сюда, значит формат совсем странный.
+       year = d.getFullYear();
+       month = d.getMonth();
+    } else {
+       year = d.getUTCFullYear();
+       month = d.getUTCMonth();
+    }
   }
   
   if (isNaN(year) || isNaN(month)) return null;
 
+  // Ищем период, который соответствует этому году и месяцу
   const match = periods.find(p => {
     const pDate = new Date(p.startAt);
+    // p.startAt всегда ISO UTC
     return pDate.getUTCFullYear() === year && pDate.getUTCMonth() === month;
   });
   

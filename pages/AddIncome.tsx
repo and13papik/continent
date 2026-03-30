@@ -20,7 +20,13 @@ interface ModelEntry {
 
 const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
   const [operator, setOperator] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [modelData, setModelData] = useState<Record<string, ModelEntry>>({});
   
@@ -33,6 +39,19 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
   // Проверка: соответствует ли дата выбранному месяцу?
   const isPeriodMismatch = useMemo(() => {
     if (!date || !activePeriod) return false;
+    
+    // Парсим выбранную дату (YYYY-MM-DD)
+    const parts = date.split('-');
+    const inputYear = parseInt(parts[0], 10);
+    const inputMonth = parseInt(parts[1], 10) - 1;
+
+    // Сначала проверяем, подходит ли текущий активный период (по году и месяцу)
+    const pDate = new Date(activePeriod.startAt);
+    if (pDate.getUTCFullYear() === inputYear && pDate.getUTCMonth() === inputMonth) {
+      return false; // Это тот же месяц и год, все ок
+    }
+
+    // Если не совпало с активным, ищем другой период в списке
     const periodIdForDate = findPeriodIdByDate(date, state.accountingPeriods);
     return periodIdForDate !== activePeriod.id;
   }, [date, activePeriod, state.accountingPeriods]);
@@ -85,7 +104,14 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
         if (!confirm(`ВНИМАНИЕ: Выбранная дата (${date}) не совпадает с текущим периодом (${activePeriod.label}). Записать доход в ${activePeriod.label}?`)) return;
     }
 
-    const targetPeriodId = findPeriodIdByDate(date, state.accountingPeriods) || state.selectedPeriodId;
+    const dateParts = date.split('-');
+    const inputYear = parseInt(dateParts[0], 10);
+    const inputMonth = parseInt(dateParts[1], 10) - 1;
+    
+    const activePDate = new Date(activePeriod.startAt);
+    const isActiveMatch = activePDate.getUTCFullYear() === inputYear && activePDate.getUTCMonth() === inputMonth;
+    
+    const targetPeriodId = isActiveMatch ? state.selectedPeriodId : (findPeriodIdByDate(date, state.accountingPeriods) || state.selectedPeriodId);
 
     const newRecords: IncomeRecord[] = [];
     selectedModels.forEach(m => {
