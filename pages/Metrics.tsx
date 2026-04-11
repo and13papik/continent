@@ -107,17 +107,44 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
 
     // Forecast Calculation
     const getDaysInMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-    const daysInMonth = currentPeriod ? (currentPeriod.endAt ? Math.ceil((new Date(currentPeriod.endAt).getTime() - new Date(currentPeriod.startAt).getTime()) / (1000 * 60 * 60 * 24)) : getDaysInMonth(new Date(currentPeriod.startAt))) : 30;
-    const daysPassed = dailyEntries.length || 1;
+    
+    // Accounting day logic (03:00 AM Kyiv threshold)
+    const getAccountingDate = () => {
+      const now = new Date();
+      const kyivTime = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Kiev" }));
+      if (kyivTime.getHours() < 3) {
+        kyivTime.setDate(kyivTime.getDate() - 1);
+      }
+      kyivTime.setHours(0, 0, 0, 0);
+      return kyivTime;
+    };
+    const accountingDate = getAccountingDate();
+
+    const daysInMonth = currentPeriod 
+      ? (currentPeriod.endAt 
+          ? Math.ceil((new Date(currentPeriod.endAt).getTime() - new Date(currentPeriod.startAt).getTime()) / (1000 * 60 * 60 * 24)) 
+          : getDaysInMonth(new Date(currentPeriod.startAt))) 
+      : 30;
+
+    // Calculate days passed within the period
+    const periodStart = currentPeriod ? new Date(currentPeriod.startAt) : new Date();
+    const periodEnd = currentPeriod?.endAt ? new Date(currentPeriod.endAt) : accountingDate;
+    
+    // Number of days from start to today (accounting date), but not exceeding period end
+    const daysPassed = Math.max(1, Math.ceil((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + (currentPeriod?.endAt ? 0 : 1));
+    
     const runRate = currentTotal / daysPassed;
-    const projectedTotal = runRate * Math.max(daysInMonth, daysPassed);
+    const projectedTotal = runRate * daysInMonth;
 
     // Model Specific Metrics
     const modelMetrics = state.models.map(name => {
       const mRecords = currentRecords.filter(r => r.model === name);
       const mTotal = mRecords.reduce((sum, r) => sum + (r.total || 0), 0);
+      const mOnlyFansTotal = mRecords.reduce((sum, r) => sum + (r.onlyFans || 0), 0);
       const mGoal = currentPeriod?.modelMonthlyPlans?.[name] || state.modelMonthlyPlans?.[name] || 0;
-      const mProgress = mGoal > 0 ? (mTotal / mGoal) * 100 : 0;
+      
+      // Progress is based on OnlyFans gross as per user request in TotalTable
+      const mProgress = mGoal > 0 ? (mOnlyFansTotal / mGoal) * 100 : 0;
       
       const mDaily: Record<string, number> = {};
       mRecords.forEach(r => { mDaily[r.date] = (mDaily[r.date] || 0) + r.total; });
@@ -128,10 +155,9 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
         value: mDaily[d.date] || 0
       }));
 
-      // Forecast for model
-      const mDaysPassed = dailyEntries.length || 1;
-      const mRunRate = mTotal / mDaysPassed;
-      const mForecast = mRunRate * Math.max(daysInMonth, mDaysPassed);
+      // Forecast for model based on OnlyFans gross
+      const mRunRate = mOnlyFansTotal / daysPassed;
+      const mForecast = mRunRate * daysInMonth;
       
       // Status Logic
       let status: 'good' | 'warning' | 'bad' = 'good';
@@ -149,6 +175,7 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
       return {
         name,
         total: mTotal,
+        totalOnlyFans: mOnlyFansTotal,
         goal: mGoal,
         progress: mProgress,
         forecast: mForecast,
@@ -378,9 +405,9 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
                 </div>
               </div>
 
-              <div className="space-y-2">
+                <div className="space-y-2">
                 <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                  <span className="text-slate-500">Выполнено: ${model.total.toLocaleString()}</span>
+                  <span className="text-slate-500">OF Gross: ${model.totalOnlyFans?.toLocaleString() || model.total.toLocaleString()}</span>
                   <span className="text-white">{model.progress.toFixed(1)}%</span>
                 </div>
                 <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
@@ -528,9 +555,9 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <StatBox label="Выполнено" value={`$${selectedModelData.total.toLocaleString()}`} color="indigo" />
+                <StatBox label="OF Gross" value={`$${selectedModelData.totalOnlyFans?.toLocaleString() || selectedModelData.total.toLocaleString()}`} color="indigo" />
                 <StatBox label="Месячный план" value={`$${selectedModelData.goal.toLocaleString()}`} color="emerald" />
-                <StatBox label="Прогноз" value={`$${selectedModelData.forecast.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color="amber" />
+                <StatBox label="Прогноз OF" value={`$${selectedModelData.forecast.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color="amber" />
                 <StatBox label="Лучший день" value={`$${selectedModelData.bestDay.value.toLocaleString()}`} subValue={metrics.formatDate(selectedModelData.bestDay.date)} color="pink" />
               </div>
 
