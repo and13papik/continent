@@ -106,35 +106,43 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
     if (worstDow.value === Infinity) worstDow.value = 0;
 
     // Forecast Calculation
-    const getDaysInMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-    
-    // Accounting day logic (03:00 AM Kyiv threshold)
-    const getAccountingDate = () => {
-      const now = new Date();
-      const kyivTime = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Kiev" }));
-      if (kyivTime.getHours() < 3) {
-        kyivTime.setDate(kyivTime.getDate() - 1);
-      }
-      kyivTime.setHours(0, 0, 0, 0);
-      return kyivTime;
+    const getEndOfMonthUTC = (date: Date) => {
+      return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0));
     };
-    const accountingDate = getAccountingDate();
 
-    const daysInMonth = currentPeriod 
-      ? (currentPeriod.endAt 
-          ? Math.ceil((new Date(currentPeriod.endAt).getTime() - new Date(currentPeriod.startAt).getTime()) / (1000 * 60 * 60 * 24)) 
-          : getDaysInMonth(new Date(currentPeriod.startAt))) 
-      : 30;
+    // Accounting day logic (03:00 AM Kyiv threshold) - returns UTC date at 00:00
+    const getAccountingDateUTC = () => {
+      const now = new Date();
+      const kyivStr = now.toLocaleString("en-US", { timeZone: "Europe/Kiev", hour12: false });
+      const [datePart, timePart] = kyivStr.split(', ');
+      const [m, d, y] = datePart.split('/').map(Number);
+      const [h] = timePart.split(':').map(Number);
+      
+      const date = new Date(Date.UTC(y, m - 1, d));
+      if (h < 3) {
+        date.setUTCDate(date.getUTCDate() - 1);
+      }
+      return date;
+    };
+    const accountingDate = getAccountingDateUTC();
 
-    // Calculate days passed within the period
-    const periodStart = currentPeriod ? new Date(currentPeriod.startAt) : new Date();
-    const periodEnd = currentPeriod?.endAt ? new Date(currentPeriod.endAt) : accountingDate;
+    const periodStartRaw = currentPeriod ? new Date(currentPeriod.startAt) : new Date();
+    const periodStart = new Date(Date.UTC(periodStartRaw.getUTCFullYear(), periodStartRaw.getUTCMonth(), periodStartRaw.getUTCDate()));
     
-    // Number of days from start to today (accounting date), but not exceeding period end
-    const daysPassed = Math.max(1, Math.ceil((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + (currentPeriod?.endAt ? 0 : 1));
+    const periodEnd = currentPeriod?.endAt 
+      ? new Date(currentPeriod.endAt) 
+      : getEndOfMonthUTC(accountingDate);
+    
+    const periodEndUTC = new Date(Date.UTC(periodEnd.getUTCFullYear(), periodEnd.getUTCMonth(), periodEnd.getUTCDate()));
+
+    // Total days in the period (from start to end of current month if open)
+    const totalDaysInPeriod = Math.max(1, Math.round((periodEndUTC.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    
+    // Days passed from start to today (accounting date)
+    const daysPassed = Math.max(1, Math.round((accountingDate.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
     
     const runRate = currentTotal / daysPassed;
-    const projectedTotal = runRate * daysInMonth;
+    const projectedTotal = Math.max(currentTotal, runRate * totalDaysInPeriod);
 
     // Model Specific Metrics
     const modelMetrics = state.models.map(name => {
@@ -157,7 +165,7 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
 
       // Forecast for model based on OnlyFans gross
       const mRunRate = mOnlyFansTotal / daysPassed;
-      const mForecast = mRunRate * daysInMonth;
+      const mForecast = Math.max(mOnlyFansTotal, mRunRate * totalDaysInPeriod);
       
       // Status Logic
       let status: 'good' | 'warning' | 'bad' = 'good';
