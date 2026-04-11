@@ -34,7 +34,21 @@ const getCellStatusClasses = (balance: any, goal: number) => {
 const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppState) => AppState) => void }> = ({ state, updateState }) => {
   const tableRef = useRef<HTMLDivElement>(null);
   const [isSending, setIsSending] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Хелпер для получения учетной даты (смена в 03:00 по Киеву)
+  const getAccountingDate = () => {
+    const now = new Date();
+    const kyivTime = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Kiev" }));
+    if (kyivTime.getHours() < 3) {
+      kyivTime.setDate(kyivTime.getDate() - 1);
+    }
+    const y = kyivTime.getFullYear();
+    const m = String(kyivTime.getMonth() + 1).padStart(2, '0');
+    const d = String(kyivTime.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const [selectedDate, setSelectedDate] = useState(getAccountingDate());
 
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
@@ -59,12 +73,10 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
     if (remainingDays <= 0) return null;
 
-    // Сколько уже заработано в этом периоде ДО этой даты
-    const earnedSoFar = (state.totalTableEntries || [])
-      .filter(e => e.modelName.trim() === modelName.trim() && e.periodId === activePeriodId && e.date < dateStr)
-      .reduce((sum, e) => {
-        return sum + (e.night?.balance || 0) + (e.morning?.balance || 0) + (e.day?.balance || 0) + (e.evening?.balance || 0);
-      }, 0);
+    // Сколько уже заработано в этом периоде (OnlyFans gross) ДО этой даты
+    const earnedSoFar = (state.incomeData || [])
+      .filter(r => r.model.trim() === modelName.trim() && r.periodId === activePeriodId && r.date < dateStr)
+      .reduce((sum, r) => sum + (r.onlyFans || 0), 0);
 
     const remainingToEarn = Math.max(0, plan - earnedSoFar);
     // Цель на одну смену (4 смены в день)
@@ -578,9 +590,9 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                     const rowRemaining = Math.max(0, rowPlan - rowBalance);
 
                     const monthlyPlan = currentPlans[entry.modelName] || 0;
-                    const earnedInPeriod = (state.totalTableEntries || [])
-                      .filter(e => e.modelName === entry.modelName && e.periodId === activePeriodId)
-                      .reduce((sum, e) => sum + (e.night?.balance || 0) + (e.morning?.balance || 0) + (e.day?.balance || 0) + (e.evening?.balance || 0), 0);
+                    const earnedInPeriod = (state.incomeData || [])
+                      .filter(r => r.model.trim() === entry.modelName.trim() && r.periodId === activePeriodId)
+                      .reduce((sum, r) => sum + (r.onlyFans || 0), 0);
                     const monthlyPercent = monthlyPlan > 0 ? Math.round((earnedInPeriod / monthlyPlan) * 100) : 0;
 
                     return (
