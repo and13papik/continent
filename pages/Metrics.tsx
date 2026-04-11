@@ -32,39 +32,70 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
       ? sortedPeriods[currentIndex + 1] 
       : null;
 
-    // Filter data for current and previous periods
-    const currentRecords = incomeData.filter(r => r.periodId === activePeriodId);
+    // Accounting day logic (03:00 AM Kyiv threshold) - returns UTC date at 00:00
+    const getAccountingDateUTC = () => {
+      const now = new Date();
+      const kyivStr = now.toLocaleString("en-US", { timeZone: "Europe/Kiev", hour12: false });
+      const [datePart, timePart] = kyivStr.split(', ');
+      const [m, d, y] = datePart.split('/').map(Number);
+      const [h] = timePart.split(':').map(Number);
+      
+      const date = new Date(Date.UTC(y, m - 1, d));
+      if (h < 3) {
+        date.setUTCDate(date.getUTCDate() - 1);
+      }
+      return date;
+    };
+    const accountingDate = getAccountingDateUTC();
+
+    const isLatestPeriod = state.accountingPeriods[state.accountingPeriods.length - 1]?.id === activePeriodId;
+
+    let targetMonth: number;
+    let targetYear: number;
+
+    if (isLatestPeriod) {
+      targetMonth = accountingDate.getUTCMonth();
+      targetYear = accountingDate.getUTCFullYear();
+    } else if (currentPeriod) {
+      const pStart = new Date(currentPeriod.startAt);
+      targetMonth = pStart.getUTCMonth();
+      targetYear = pStart.getUTCFullYear();
+    } else {
+      targetMonth = accountingDate.getUTCMonth();
+      targetYear = accountingDate.getUTCFullYear();
+    }
+
+    // Filter currentRecords to ONLY the target month and year
+    const currentRecords = incomeData.filter(r => {
+      if (r.periodId !== activePeriodId) return false;
+      const d = new Date(r.date);
+      return d.getUTCMonth() === targetMonth && d.getUTCFullYear() === targetYear;
+    });
+
     const prevRecords = prevPeriod ? incomeData.filter(r => r.periodId === prevPeriod.id) : [];
 
     const prevTotal = prevRecords.reduce((sum, r) => sum + (r.total || 0), 0);
     const currentTotal = currentRecords.reduce((sum, r) => sum + (r.total || 0), 0);
     const growth = prevTotal > 0 ? ((currentTotal - prevTotal) / prevTotal) * 100 : 0;
 
-    // Daily stats for current period - include all days from start to end (or today)
+    // Daily stats for current month
     const dailyRevenue: Record<string, number> = {};
     currentRecords.forEach(r => {
       dailyRevenue[r.date] = (dailyRevenue[r.date] || 0) + r.total;
     });
 
     const dailyEntries: { date: string; value: number }[] = [];
-    if (currentPeriod) {
-      const start = new Date(currentPeriod.startAt);
-      const end = currentPeriod.endAt ? new Date(currentPeriod.endAt) : new Date();
-      const current = new Date(start);
-      
-      while (current <= end) {
-        const dateStr = current.toISOString().split('T')[0];
+    const totalDaysInMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+    
+    for (let d = 1; d <= totalDaysInMonth; d++) {
+      const dateStr = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      // Only add days up to today if it's the current month, or all days if it's a past month
+      if (!isLatestPeriod || d <= accountingDate.getUTCDate()) {
         dailyEntries.push({
           date: dateStr,
           value: dailyRevenue[dateStr] || 0
         });
-        current.setDate(current.getDate() + 1);
       }
-    } else {
-      // Fallback if no period found
-      Object.entries(dailyRevenue).sort((a, b) => a[0].localeCompare(b[0])).forEach(([date, value]) => {
-        dailyEntries.push({ date, value });
-      });
     }
     
     // Best/Worst Day of Month
@@ -106,43 +137,9 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
     if (worstDow.value === Infinity) worstDow.value = 0;
 
     // Forecast Calculation
-    const getEndOfMonthUTC = (date: Date) => {
-      return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0));
-    };
-
-    // Accounting day logic (03:00 AM Kyiv threshold) - returns UTC date at 00:00
-    const getAccountingDateUTC = () => {
-      const now = new Date();
-      const kyivStr = now.toLocaleString("en-US", { timeZone: "Europe/Kiev", hour12: false });
-      const [datePart, timePart] = kyivStr.split(', ');
-      const [m, d, y] = datePart.split('/').map(Number);
-      const [h] = timePart.split(':').map(Number);
-      
-      const date = new Date(Date.UTC(y, m - 1, d));
-      if (h < 3) {
-        date.setUTCDate(date.getUTCDate() - 1);
-      }
-      return date;
-    };
-    const accountingDate = getAccountingDateUTC();
-
-    const periodStartRaw = currentPeriod ? new Date(currentPeriod.startAt) : new Date();
-    const periodStart = new Date(Date.UTC(periodStartRaw.getUTCFullYear(), periodStartRaw.getUTCMonth(), periodStartRaw.getUTCDate()));
-    
-    const periodEnd = currentPeriod?.endAt 
-      ? new Date(currentPeriod.endAt) 
-      : getEndOfMonthUTC(accountingDate);
-    
-    const periodEndUTC = new Date(Date.UTC(periodEnd.getUTCFullYear(), periodEnd.getUTCMonth(), periodEnd.getUTCDate()));
-
-    // Total days in the period (from start to end of current month if open)
-    const totalDaysInPeriod = Math.max(1, Math.round((periodEndUTC.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-    
-    // Days passed from start to today (accounting date)
-    const daysPassed = Math.max(1, Math.round((accountingDate.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-    
+    const daysPassed = isLatestPeriod ? accountingDate.getUTCDate() : totalDaysInMonth;
     const runRate = currentTotal / daysPassed;
-    const projectedTotal = Math.max(currentTotal, runRate * totalDaysInPeriod);
+    const projectedTotal = Math.max(currentTotal, runRate * totalDaysInMonth);
 
     // Model Specific Metrics
     const modelMetrics = state.models.map(name => {
@@ -165,7 +162,7 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
 
       // Forecast for model based on OnlyFans gross
       const mRunRate = mOnlyFansTotal / daysPassed;
-      const mForecast = Math.max(mOnlyFansTotal, mRunRate * totalDaysInPeriod);
+      const mForecast = Math.max(mOnlyFansTotal, mRunRate * totalDaysInMonth);
       
       // Status Logic
       let status: 'good' | 'warning' | 'bad' = 'good';
