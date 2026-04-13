@@ -23,6 +23,22 @@ const App: React.FC = () => {
   const [cloudStatus, setCloudStatus] = useState<'idle' | 'loading' | 'success' | 'error' | 'conflict'>('idle');
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [isCloudReady, setIsCloudReady] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem('continental_auth') === 'true';
+  });
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState(false);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === '6690') {
+      setIsAuthenticated(true);
+      localStorage.setItem('continental_auth', 'true');
+    } else {
+      setError(true);
+      setPassword('');
+    }
+  };
 
   // 1. Первоначальная загрузка
   useEffect(() => {
@@ -127,6 +143,46 @@ const App: React.FC = () => {
       alert('Данные обновлены до последней версии из облака.');
     }
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <div className="w-full max-w-md glass-card p-8 border border-slate-800/50 rounded-3xl shadow-2xl">
+          <div className="flex flex-col items-center gap-6">
+            <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+              <ICONS.Lock className="text-white" size={32} />
+            </div>
+            <div className="text-center">
+              <h1 className="text-2xl font-bold text-white mb-2">Continental Vault</h1>
+              <p className="text-slate-400 text-sm">Введите пароль для доступа к системе</p>
+            </div>
+            <form onSubmit={handleLogin} className="w-full space-y-4">
+              <div className="relative">
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError(false);
+                  }}
+                  placeholder="Пароль"
+                  className={`w-full bg-slate-900/50 border ${error ? 'border-rose-500' : 'border-slate-800'} text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-center text-xl tracking-[0.5em] font-mono`}
+                  autoFocus
+                />
+                {error && <p className="text-rose-500 text-xs mt-2 text-center">Неверный пароль</p>}
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98]"
+              >
+                Войти
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <HashRouter>
