@@ -247,12 +247,10 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     updateState(prev => {
       const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
       
-      // Сортируем периоды по дате начала
       const sortedPeriods = [...prev.accountingPeriods].sort((a, b) => 
         new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
       );
 
-      // Находим текущий индекс активного периода в отсортированном списке
       const activeIdx = sortedPeriods.findIndex(p => p.id === activePeriodId);
       const nextInList = sortedPeriods[activeIdx + 1];
       
@@ -262,14 +260,25 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       );
 
       if (!nextId) {
-        // Если следующего периода нет в списке, создаем его на основе САМОГО ПОСЛЕДНЕГО периода
         const latestP = sortedPeriods[sortedPeriods.length - 1];
-        let nextMonthIdx = new Date().getUTCMonth(), nextYear = new Date().getUTCFullYear();
+        let nextMonthIdx: number;
+        let nextYear: number;
         
         if (latestP) {
-          const lastDate = new Date(latestP.startAt);
-          nextMonthIdx = lastDate.getUTCMonth() + 1; 
-          nextYear = lastDate.getUTCFullYear();
+          const d = new Date(latestP.startAt);
+          // Используем UTC методы для надежности
+          nextMonthIdx = d.getUTCMonth() + 1; 
+          nextYear = d.getUTCFullYear();
+          if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
+        } else {
+          const now = new Date();
+          nextMonthIdx = now.getUTCMonth();
+          nextYear = now.getUTCFullYear();
+        }
+
+        // Защита от дубликатов: если такой месяц уже есть, идем дальше
+        while (prev.accountingPeriods.some(p => p.label === `${months[nextMonthIdx]} ${nextYear}`)) {
+          nextMonthIdx++;
           if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
         }
 
@@ -303,18 +312,28 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     updateState(prev => {
       const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
       
-      // Сортируем периоды по дате начала
       const sortedPeriods = [...prev.accountingPeriods].sort((a, b) => 
         new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
       );
       
       const latestP = sortedPeriods[sortedPeriods.length - 1];
-      let nextMonthIdx = new Date().getUTCMonth(), nextYear = new Date().getUTCFullYear();
+      let nextMonthIdx: number;
+      let nextYear: number;
       
       if (latestP) {
-        const lastDate = new Date(latestP.startAt);
-        nextMonthIdx = lastDate.getUTCMonth() + 1; 
-        nextYear = lastDate.getUTCFullYear();
+        const d = new Date(latestP.startAt);
+        nextMonthIdx = d.getUTCMonth() + 1; 
+        nextYear = d.getUTCFullYear();
+        if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
+      } else {
+        const now = new Date();
+        nextMonthIdx = now.getUTCMonth();
+        nextYear = now.getUTCFullYear();
+      }
+
+      // Защита от дубликатов
+      while (prev.accountingPeriods.some(p => p.label === `${months[nextMonthIdx]} ${nextYear}`)) {
+        nextMonthIdx++;
         if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
       }
 
