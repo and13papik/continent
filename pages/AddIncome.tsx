@@ -45,11 +45,11 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
 
     // Сначала проверяем, подходит ли текущий активный период (по году и месяцу)
     const pDate = new Date(activePeriod.startAt);
-    // Проверяем и UTC и Local на всякий случай, так как startAt может быть разным
+    
+    // Используем UTC для сравнения, так как startAt в ISO (UTC)
     const matchUTC = pDate.getUTCFullYear() === parsedInput.year && pDate.getUTCMonth() === parsedInput.month;
-    const matchLocal = pDate.getFullYear() === parsedInput.year && pDate.getMonth() === parsedInput.month;
-
-    if (matchUTC || matchLocal) {
+    
+    if (matchUTC) {
       return false; // Это тот же месяц и год, все ок
     }
 
@@ -109,8 +109,7 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
     const parsedInput = parseYearMonth(date);
     const pDate = new Date(activePeriod.startAt);
     const isActiveMatch = parsedInput && (
-      (pDate.getUTCFullYear() === parsedInput.year && pDate.getUTCMonth() === parsedInput.month) ||
-      (pDate.getFullYear() === parsedInput.year && pDate.getMonth() === parsedInput.month)
+      pDate.getUTCFullYear() === parsedInput.year && pDate.getUTCMonth() === parsedInput.month
     );
     
     const targetPeriodId = isActiveMatch ? state.selectedPeriodId : (findPeriodIdByDate(date, state.accountingPeriods) || state.selectedPeriodId);
