@@ -26,6 +26,9 @@ const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return localStorage.getItem('continental_auth') === 'true';
   });
+  const [userRole, setUserRole] = useState<'user' | 'owner' | null>(() => {
+    return localStorage.getItem('continental_role') as 'user' | 'owner' | null;
+  });
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
 
@@ -33,7 +36,14 @@ const App: React.FC = () => {
     e.preventDefault();
     if (password === '6690') {
       setIsAuthenticated(true);
+      setUserRole('user');
       localStorage.setItem('continental_auth', 'true');
+      localStorage.setItem('continental_role', 'user');
+    } else if (password === '1123') {
+      setIsAuthenticated(true);
+      setUserRole('owner');
+      localStorage.setItem('continental_auth', 'true');
+      localStorage.setItem('continental_role', 'owner');
     } else {
       setError(true);
       setPassword('');
@@ -205,12 +215,28 @@ const App: React.FC = () => {
             <NavLink to="/roster" icon={<ICONS.Reports size={18} />} label="Состав" />
             <NavLink to="/total-table" icon={<ICONS.Transfer size={18} />} label="Total Table" admin />
             <NavLink to="/admin-table" icon={<ICONS.Internship size={18} />} label="Admin Table" admin />
-            <NavLink to="/owner-table" icon={<ICONS.Calendar size={18} />} label="Core Table" premium />
-            <NavLink to="/owner" icon={<ICONS.Owner size={18} />} label="Core Finance" premium />
+            {userRole === 'owner' && (
+              <>
+                <NavLink to="/owner-table" icon={<ICONS.Calendar size={18} />} label="Core Table" premium />
+                <NavLink to="/owner" icon={<ICONS.Owner size={18} />} label="Core Finance" premium />
+              </>
+            )}
             <NavLink to="/settings" icon={<ICONS.Settings size={18} />} label="Настройки" />
           </div>
 
           <div className="mt-auto pt-6 border-t border-slate-800 space-y-4">
+            <button 
+              onClick={() => {
+                localStorage.removeItem('continental_auth');
+                localStorage.removeItem('continental_role');
+                window.location.reload();
+              }}
+              className="w-full flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all text-xs font-bold group"
+            >
+              <ICONS.Unlock size={14} className="group-hover:scale-110 transition-transform" /> 
+              Выйти из системы
+            </button>
+
             {cloudStatus === 'conflict' && (
               <div className="p-3 bg-rose-500/20 border border-rose-500 rounded-xl animate-pulse cursor-pointer" onClick={forcePull}>
                 <p className="text-[10px] font-black text-rose-500 uppercase mb-1 flex items-center gap-1">
