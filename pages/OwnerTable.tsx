@@ -31,8 +31,6 @@ interface OwnerTableProps {
 }
 
 const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
   const [currentOwner, setCurrentOwner] = useState<'Andrey' | 'Anton' | 'Owners'>('Andrey');
   const [isSendingToTg, setIsSendingToTg] = useState<string | null>(null);
 
@@ -77,12 +75,6 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
 
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === '1123') { setIsAuthenticated(true); }
-    else alert('Доступ запрещен');
-  };
 
   const logAudit = (action: string, actor: string): TaskAuditEntry => ({
     id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -235,21 +227,6 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     });
   }, [state.ownerTasks, activeMode, secondaryFilter, currentOwner]);
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center animate-in fade-in zoom-in duration-300">
-        <div className="glass-card p-12 rounded-[40px] w-full max-w-md border-amber-500/10 shadow-2xl text-center bg-slate-950/50">
-            <ICONS.Crown size={48} className="mx-auto text-amber-500 mb-6" />
-            <h1 className="text-2xl font-bold text-white mb-8 font-outfit uppercase tracking-wider">Контроль Владельца</h1>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <input type="password" autoFocus className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-4 text-center text-2xl tracking-[0.5em] text-white outline-none focus:border-amber-500/50 transition-all" value={password} onChange={(e) => setPassword(e.target.value)} />
-              <button className="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-4 rounded-2xl uppercase tracking-[0.2em] text-xs">Авторизация</button>
-            </form>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-20 max-w-7xl mx-auto">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -265,7 +242,6 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
               {ASSIGNEE_LABELS[id as TaskAssignee]}
             </button>
           ))}
-          <button onClick={() => setIsAuthenticated(false)} className="bg-slate-900 border border-slate-800 p-2 rounded-xl text-slate-500 hover:text-white transition-all"><ICONS.Lock size={18}/></button>
         </div>
       </header>
 

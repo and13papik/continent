@@ -282,8 +282,12 @@ const App: React.FC = () => {
               <Route path="/reports" element={<Reports state={state} updateState={updateState} />} />
               <Route path="/models" element={<Models state={state} updateState={updateState} />} />
               <Route path="/roster" element={<Roster state={state} updateState={updateState} />} />
-              <Route path="/owner" element={<Owner state={state} updateState={updateState} />} />
-              <Route path="/owner-table" element={<OwnerTable state={state} updateState={updateState} />} />
+              {userRole === 'owner' && (
+                <>
+                  <Route path="/owner" element={<Owner state={state} updateState={updateState} />} />
+                  <Route path="/owner-table" element={<OwnerTable state={state} updateState={updateState} />} />
+                </>
+              )}
               <Route path="/admin-table" element={<AdminTable state={state} updateState={updateState} />} />
               <Route path="/total-table" element={<TotalTable state={state} updateState={updateState} />} />
               <Route path="/settings" element={<Settings state={state} updateState={updateState} />} />

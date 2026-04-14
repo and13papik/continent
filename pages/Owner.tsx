@@ -18,9 +18,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     other: { label: 'Прочее', icon: ICONS.Reports, color: 'text-slate-400', bg: 'bg-slate-500/10', border: 'border-slate-500/20' }
   }), []);
 
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  
   const [expenseCategory, setExpenseCategory] = useState<keyof typeof CATEGORIES>('traffic');
   const [expensePlatform, setExpensePlatform] = useState<Platform>('onlyFans');
   const [expenseAmount, setExpenseAmount] = useState('');
@@ -155,12 +152,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     setAdminPaidInputs(prev => ({ ...prev, [adminName]: '' }));
   };
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === '1123') setIsAuthenticated(true);
-    else alert('Неверный код доступа');
-  };
-
   const addBusinessExpense = () => {
     const amt = parseFloat(expenseAmount);
     if (isNaN(amt) || amt <= 0) return;
@@ -217,22 +208,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     setAdvanceComment('');
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center animate-in fade-in zoom-in duration-300">
-        <div className="glass-card p-10 rounded-[32px] w-full max-w-md border-amber-500/20 shadow-2xl text-center">
-            <ICONS.Owner size={48} className="mx-auto text-amber-500 mb-4" />
-            <h1 className="text-2xl font-bold text-white mb-2 font-outfit">Private Dashboard</h1>
-            <p className="text-slate-400 text-sm mb-6">Доступ только для владельцев</p>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <input type="password" autoFocus className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-6 py-4 text-center text-2xl tracking-[0.5em] text-white outline-none" value={password} onChange={(e) => setPassword(e.target.value)} />
-              <button className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-amber-600/20">Войти</button>
-            </form>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -244,7 +219,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
           <h1 className="text-4xl font-bold font-outfit text-white">Панель Владельца</h1>
           <div className="text-slate-400 mt-1">Аудит за {activePeriod.label}</div>
         </div>
-        <button onClick={() => setIsAuthenticated(false)} className="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-slate-500 hover:text-white flex items-center gap-2 text-sm transition-all shadow-lg active:scale-95"><ICONS.Lock size={14} /> Выйти</button>
       </header>
 
       {/* ГЛАВНАЯ СВОДКА ПРИБЫЛИ */}
