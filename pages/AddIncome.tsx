@@ -32,7 +32,16 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
   
   const [baselinePercents, setBaselinePercents] = useState({ of: '20', pp: '17', cr: '20' });
 
-  const activePeriod = state.accountingPeriods.find(p => p.id === state.selectedPeriodId)!;
+  const activePeriod = state.accountingPeriods.find(p => p.id === state.selectedPeriodId);
+  
+  if (!activePeriod) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-slate-400">Период не найден. Пожалуйста, выберите период на главном экране.</p>
+      </div>
+    );
+  }
+
   const currentOperators = activePeriod.operators || state.operators;
   const currentModels = activePeriod.models || state.models;
 

@@ -48,7 +48,10 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
     };
     const accountingDate = getAccountingDateUTC();
 
-    const isLatestPeriod = state.accountingPeriods[state.accountingPeriods.length - 1]?.id === activePeriodId;
+    const sortedPeriodsForLatest = [...state.accountingPeriods].sort((a, b) => 
+      new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+    );
+    const isLatestPeriod = sortedPeriodsForLatest[sortedPeriodsForLatest.length - 1]?.id === activePeriodId;
 
     let targetMonth: number;
     let targetYear: number;
