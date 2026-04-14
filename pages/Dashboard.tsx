@@ -247,9 +247,14 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     updateState(prev => {
       const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
       
-      // Находим текущий индекс активного периода в списке
-      const activeIdx = prev.accountingPeriods.findIndex(p => p.id === activePeriodId);
-      const nextInList = prev.accountingPeriods[activeIdx + 1];
+      // Сортируем периоды по дате начала
+      const sortedPeriods = [...prev.accountingPeriods].sort((a, b) => 
+        new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+      );
+
+      // Находим текущий индекс активного периода в отсортированном списке
+      const activeIdx = sortedPeriods.findIndex(p => p.id === activePeriodId);
+      const nextInList = sortedPeriods[activeIdx + 1];
       
       let nextId = nextInList?.id;
       let newPeriods = prev.accountingPeriods.map(p => 
@@ -257,15 +262,17 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       );
 
       if (!nextId) {
-        // Если следующего периода нет в списке, создаем его
-        const lastP = prev.accountingPeriods[prev.accountingPeriods.length - 1];
+        // Если следующего периода нет в списке, создаем его на основе САМОГО ПОСЛЕДНЕГО периода
+        const latestP = sortedPeriods[sortedPeriods.length - 1];
         let nextMonthIdx = new Date().getUTCMonth(), nextYear = new Date().getUTCFullYear();
-        if (lastP) {
-          const lastDate = new Date(lastP.startAt);
+        
+        if (latestP) {
+          const lastDate = new Date(latestP.startAt);
           nextMonthIdx = lastDate.getUTCMonth() + 1; 
           nextYear = lastDate.getUTCFullYear();
           if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
         }
+
         nextId = String(Date.now());
         const newP: AccountingPeriod = { 
           id: nextId, 
@@ -295,14 +302,22 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   const handleStartNextMonth = () => {
     updateState(prev => {
       const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-      const lastP = prev.accountingPeriods[prev.accountingPeriods.length - 1];
+      
+      // Сортируем периоды по дате начала
+      const sortedPeriods = [...prev.accountingPeriods].sort((a, b) => 
+        new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+      );
+      
+      const latestP = sortedPeriods[sortedPeriods.length - 1];
       let nextMonthIdx = new Date().getUTCMonth(), nextYear = new Date().getUTCFullYear();
-      if (lastP) {
-        const lastDate = new Date(lastP.startAt);
+      
+      if (latestP) {
+        const lastDate = new Date(latestP.startAt);
         nextMonthIdx = lastDate.getUTCMonth() + 1; 
         nextYear = lastDate.getUTCFullYear();
         if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
       }
+
       const nextId = String(Date.now());
       const newP: AccountingPeriod = { 
         id: nextId, 
@@ -318,6 +333,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
+      
       return { 
         ...prev, 
         accountingPeriods: [...prev.accountingPeriods, newP], 
@@ -326,7 +342,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
     });
   };
 
-  const isLatestPeriod = state.accountingPeriods[state.accountingPeriods.length - 1]?.id === activePeriodId;
+  const sortedPeriodsForCheck = [...state.accountingPeriods].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+  const isLatestPeriod = sortedPeriodsForCheck[sortedPeriodsForCheck.length - 1]?.id === activePeriodId;
   const canStartNext = isLatestPeriod; // Можно добавить проверку на текущую дату, если нужно
 
   const DashboardIcon = ICONS.Dashboard || 'span';
@@ -349,7 +366,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
              <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Период:</span>
                 <select className="bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-1.5 text-indigo-400 font-bold outline-none cursor-pointer text-sm" value={state.selectedPeriodId} onChange={(e) => updateState(prev => ({ ...prev, selectedPeriodId: e.target.value }))}>
-                   {state.accountingPeriods.slice().reverse().map(p => <option key={p.id} value={p.id}>{p.label} {p.status === 'closed' ? '🔒' : ''}</option>)}
+                   {[...state.accountingPeriods].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()).reverse().map(p => <option key={p.id} value={p.id}>{p.label} {p.status === 'closed' ? '🔒' : ''}</option>)}
                 </select>
              </div>
              
