@@ -83,38 +83,55 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
     const activeModels = Array.from(new Set(incomes.map(i => i.model)));
 
     const dailyData: Record<string, { 
-      date: string, model: string,
-      gross: number, net: number, 
-      ofG: number, ofN: number, ppG: number, ppN: number, crG: number, crN: number,
-      ratesOF: Set<number>, ratesPP: Set<number>, ratesCR: Set<number> 
+      date: string,
+      totalGross: number,
+      totalNet: number,
+      models: Record<string, {
+        gross: number, net: number, 
+        ofG: number, ofN: number, ppG: number, ppN: number, crG: number, crN: number,
+        ratesOF: Set<number>, ratesPP: Set<number>, ratesCR: Set<number> 
+      }>
     }> = {};
 
     incomes.forEach(i => {
-      const key = `${i.date}|${i.model}`;
-      if (!dailyData[key]) dailyData[key] = { date: i.date, model: i.model, gross: 0, net: 0, ofG: 0, ofN: 0, ppG: 0, ppN: 0, crG: 0, crN: 0, ratesOF: new Set(), ratesPP: new Set(), ratesCR: new Set() };
-      const d = dailyData[key];
-      d.gross += i.total;
-      d.net += (i.nettoOF + i.nettoPP + i.nettoCrypto);
-      d.ofG += i.onlyFans; d.ofN += i.nettoOF;
-      d.ppG += i.paypal; d.ppN += i.nettoPP;
-      d.crG += i.crypto; d.crN += i.nettoCrypto;
-      if (i.onlyFans > 0) d.ratesOF.add(i.percentOF);
-      if (i.paypal > 0) d.ratesPP.add(i.percentPP);
-      if (i.crypto > 0) d.ratesCR.add(i.percentCrypto);
+      if (!dailyData[i.date]) dailyData[i.date] = { date: i.date, totalGross: 0, totalNet: 0, models: {} };
+      const d = dailyData[i.date];
+      if (!d.models[i.model]) d.models[i.model] = { gross: 0, net: 0, ofG: 0, ofN: 0, ppG: 0, ppN: 0, crG: 0, crN: 0, ratesOF: new Set(), ratesPP: new Set(), ratesCR: new Set() };
+      const m = d.models[i.model];
+      
+      d.totalGross += i.total;
+      d.totalNet += (i.nettoOF + i.nettoPP + i.nettoCrypto);
+      
+      m.gross += i.total;
+      m.net += (i.nettoOF + i.nettoPP + i.nettoCrypto);
+      m.ofG += i.onlyFans; m.ofN += i.nettoOF;
+      m.ppG += i.paypal; m.ppN += i.nettoPP;
+      m.crG += i.crypto; m.crN += i.nettoCrypto;
+      if (i.onlyFans > 0) m.ratesOF.add(i.percentOF);
+      if (i.paypal > 0) m.ratesPP.add(i.percentPP);
+      if (i.crypto > 0) m.ratesCR.add(i.percentCrypto);
     });
 
     const dailyHistory = Object.values(dailyData).map((d) => {
       const getRate = (rates: Set<number>) => rates.size > 1 ? 'MIX %' : rates.size === 1 ? `${Array.from(rates)[0]}%` : '—';
+      const modelBreakdown = Object.entries(d.models).map(([name, m]) => ({
+        name,
+        gross: m.gross,
+        net: m.net,
+        ofR: getRate(m.ratesOF),
+        ppR: getRate(m.ratesPP),
+        crR: getRate(m.ratesCR),
+        ofN: m.ofN,
+        ppN: m.ppN,
+        crN: m.crN
+      }));
       return {
-        date: d.date, model: d.model, gross: d.gross, net: d.net,
-        ofR: getRate(d.ratesOF), ppR: getRate(d.ratesPP), crR: getRate(d.ratesCR),
-        ofN: d.ofN, ppN: d.ppN, crN: d.crN
+        date: d.date,
+        totalGross: d.totalGross,
+        totalNet: d.totalNet,
+        modelBreakdown
       };
-    }).sort((a, b) => {
-      const dateComp = b.date.localeCompare(a.date);
-      if (dateComp !== 0) return dateComp;
-      return a.model.localeCompare(b.model);
-    });
+    }).sort((a, b) => b.date.localeCompare(a.date));
 
     const fullHistory = [
       ...incomes.map(i => ({ type: 'income', date: i.date, id: i.id, label: `Earnings: ${i.model}`, amount: (i.nettoOF + i.nettoPP + i.nettoCrypto), raw: i })),
@@ -256,30 +273,36 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                          <thead>
                             <tr className="bg-slate-900/50 text-slate-500 text-[10px] font-black uppercase tracking-widest border-b border-slate-800">
                                <th className="px-8 py-5">Дата</th>
-                               <th className="px-6 py-5">Модель</th>
-                               <th className="px-6 py-5 text-center">Платформы (Rate/Net)</th>
-                               <th className="px-6 py-5 text-right">Gross</th>
-                               <th className="px-8 py-5 text-right">Net</th>
+                               <th className="px-6 py-5">Детализация по моделям</th>
+                               <th className="px-6 py-5 text-right">Общий Gross</th>
+                               <th className="px-8 py-5 text-right">Общий Net</th>
                             </tr>
                          </thead>
                          <tbody className="divide-y divide-slate-800">
-                            {report.dailyHistory.map((d, idx) => (
-                               <tr key={`${d.date}-${d.model}-${idx}`} className="hover:bg-indigo-500/5 transition-colors">
-                                  <td className="px-8 py-5">
+                            {report.dailyHistory.map((d) => (
+                               <tr key={d.date} className="hover:bg-indigo-500/5 transition-colors align-top">
+                                  <td className="px-8 py-6">
                                      <div className="font-mono text-slate-400 text-xs">{d.date}</div>
                                   </td>
-                                  <td className="px-6 py-5">
-                                     <div className="font-bold text-white text-sm">{d.model}</div>
-                                  </td>
-                                  <td className="px-6 py-5">
-                                     <div className="flex justify-center gap-3">
-                                        <DailyMini pill="OF" rate={d.ofR} net={d.ofN} color="blue" />
-                                        <DailyMini pill="PP" rate={d.ppR} net={d.ppN} color="sky" />
-                                        <DailyMini pill="CR" rate={d.crR} net={d.crN} color="emerald" />
+                                  <td className="px-6 py-6">
+                                     <div className="space-y-4">
+                                        {d.modelBreakdown.map((m, mIdx) => (
+                                          <div key={mIdx} className="flex flex-col gap-2 bg-slate-900/40 p-3 rounded-2xl border border-slate-800">
+                                             <div className="flex justify-between items-center px-1">
+                                                <span className="text-white font-bold text-xs">{m.name}</span>
+                                                <span className="text-[10px] font-mono text-slate-500">${m.net.toFixed(2)} Net</span>
+                                             </div>
+                                             <div className="flex gap-2">
+                                                <DailyMini pill="OF" rate={m.ofR} net={m.ofN} color="blue" />
+                                                <DailyMini pill="PP" rate={m.ppR} net={m.ppN} color="sky" />
+                                                <DailyMini pill="CR" rate={m.crR} net={m.crN} color="emerald" />
+                                             </div>
+                                          </div>
+                                        ))}
                                      </div>
                                   </td>
-                                  <td className="px-6 py-5 text-right font-mono text-slate-500">${d.gross.toFixed(0)}</td>
-                                  <td className="px-8 py-5 text-right font-black text-white text-base font-mono">${d.net.toFixed(2)}</td>
+                                  <td className="px-6 py-6 text-right font-mono text-slate-500 whitespace-nowrap pt-8">${d.totalGross.toFixed(0)}</td>
+                                  <td className="px-8 py-6 text-right font-black text-emerald-400 text-lg font-mono whitespace-nowrap pt-7">${d.totalNet.toFixed(2)}</td>
                                </tr>
                             ))}
                          </tbody>
