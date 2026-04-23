@@ -123,7 +123,10 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
         crR: getRate(m.ratesCR),
         ofN: m.ofN,
         ppN: m.ppN,
-        crN: m.crN
+        crN: m.crN,
+        ofG: m.ofG,
+        ppG: m.ppG,
+        crG: m.crG
       }));
       return {
         date: d.date,
@@ -290,12 +293,12 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                                           <div key={mIdx} className="flex flex-col gap-2 bg-slate-900/40 p-3 rounded-2xl border border-slate-800">
                                              <div className="flex justify-between items-center px-1">
                                                 <span className="text-white font-bold text-xs">{m.name}</span>
-                                                <span className="text-[10px] font-mono text-slate-500">${m.net.toFixed(2)} Net</span>
+                                                <span className="text-[10px] font-mono text-slate-500">${m.gross.toFixed(2)} Gross</span>
                                              </div>
                                              <div className="flex gap-2">
-                                                <DailyMini pill="OF" rate={m.ofR} net={m.ofN} color="blue" />
-                                                <DailyMini pill="PP" rate={m.ppR} net={m.ppN} color="sky" />
-                                                <DailyMini pill="CR" rate={m.crR} net={m.crN} color="emerald" />
+                                                <DailyMini pill="OF" rate={m.ofR} val={m.ofG} color="blue" />
+                                                <DailyMini pill="PP" rate={m.ppR} val={m.ppG} color="sky" />
+                                                <DailyMini pill="CR" rate={m.crR} val={m.crG} color="emerald" />
                                              </div>
                                           </div>
                                         ))}
@@ -438,13 +441,13 @@ const InfoBox = ({ title, value, color, highlighted }: { title: string, value: n
   </div>
 );
 
-const DailyMini = ({ pill, rate, net, color }: { pill: string, rate: string, net: number, color: string }) => {
+const DailyMini = ({ pill, rate, val, color }: { pill: string, rate: string, val: number, color: string }) => {
   const cMap: any = { blue: 'text-blue-400 bg-blue-500/10 border-blue-500/10', sky: 'text-sky-400 bg-sky-500/10 border-sky-500/10', emerald: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/10' };
   return (
     <div className={`flex flex-col items-center px-2 py-1.5 rounded-lg border ${cMap[color]}`}>
        <span className="text-[8px] font-black opacity-60 uppercase">{pill}</span>
        <span className="text-[9px] font-black uppercase leading-tight mb-0.5">{rate}</span>
-       <span className="font-mono text-[10px] font-bold">${net.toFixed(1)}</span>
+       <span className="font-mono text-[10px] font-bold">${val.toFixed(1)}</span>
     </div>
   );
 };
