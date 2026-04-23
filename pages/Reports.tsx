@@ -83,17 +83,18 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
     const activeModels = Array.from(new Set(incomes.map(i => i.model)));
 
     const dailyData: Record<string, { 
-      gross: number, net: number, models: Set<string>, 
+      date: string, model: string,
+      gross: number, net: number, 
       ofG: number, ofN: number, ppG: number, ppN: number, crG: number, crN: number,
       ratesOF: Set<number>, ratesPP: Set<number>, ratesCR: Set<number> 
     }> = {};
 
     incomes.forEach(i => {
-      if (!dailyData[i.date]) dailyData[i.date] = { gross: 0, net: 0, models: new Set(), ofG: 0, ofN: 0, ppG: 0, ppN: 0, crG: 0, crN: 0, ratesOF: new Set(), ratesPP: new Set(), ratesCR: new Set() };
-      const d = dailyData[i.date];
+      const key = `${i.date}|${i.model}`;
+      if (!dailyData[key]) dailyData[key] = { date: i.date, model: i.model, gross: 0, net: 0, ofG: 0, ofN: 0, ppG: 0, ppN: 0, crG: 0, crN: 0, ratesOF: new Set(), ratesPP: new Set(), ratesCR: new Set() };
+      const d = dailyData[key];
       d.gross += i.total;
       d.net += (i.nettoOF + i.nettoPP + i.nettoCrypto);
-      d.models.add(i.model);
       d.ofG += i.onlyFans; d.ofN += i.nettoOF;
       d.ppG += i.paypal; d.ppN += i.nettoPP;
       d.crG += i.crypto; d.crN += i.nettoCrypto;
@@ -102,14 +103,18 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
       if (i.crypto > 0) d.ratesCR.add(i.percentCrypto);
     });
 
-    const dailyHistory = Object.entries(dailyData).map(([date, d]) => {
+    const dailyHistory = Object.values(dailyData).map((d) => {
       const getRate = (rates: Set<number>) => rates.size > 1 ? 'MIX %' : rates.size === 1 ? `${Array.from(rates)[0]}%` : '—';
       return {
-        date, gross: d.gross, net: d.net, models: Array.from(d.models),
+        date: d.date, model: d.model, gross: d.gross, net: d.net,
         ofR: getRate(d.ratesOF), ppR: getRate(d.ratesPP), crR: getRate(d.ratesCR),
         ofN: d.ofN, ppN: d.ppN, crN: d.crN
       };
-    }).sort((a, b) => b.date.localeCompare(a.date));
+    }).sort((a, b) => {
+      const dateComp = b.date.localeCompare(a.date);
+      if (dateComp !== 0) return dateComp;
+      return a.model.localeCompare(b.model);
+    });
 
     const fullHistory = [
       ...incomes.map(i => ({ type: 'income', date: i.date, id: i.id, label: `Earnings: ${i.model}`, amount: (i.nettoOF + i.nettoPP + i.nettoCrypto), raw: i })),
@@ -251,16 +256,20 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                          <thead>
                             <tr className="bg-slate-900/50 text-slate-500 text-[10px] font-black uppercase tracking-widest border-b border-slate-800">
                                <th className="px-8 py-5">Дата</th>
+                               <th className="px-6 py-5">Модель</th>
                                <th className="px-6 py-5 text-center">Платформы (Rate/Net)</th>
                                <th className="px-6 py-5 text-right">Gross</th>
-                               <th className="px-8 py-5 text-right">Daily Net</th>
+                               <th className="px-8 py-5 text-right">Net</th>
                             </tr>
                          </thead>
                          <tbody className="divide-y divide-slate-800">
-                            {report.dailyHistory.map(d => (
-                               <tr key={d.date} className="hover:bg-indigo-500/5 transition-colors">
+                            {report.dailyHistory.map((d, idx) => (
+                               <tr key={`${d.date}-${d.model}-${idx}`} className="hover:bg-indigo-500/5 transition-colors">
                                   <td className="px-8 py-5">
-                                     <div className="font-mono text-slate-400 text-xs mb-1">{d.date}</div>
+                                     <div className="font-mono text-slate-400 text-xs">{d.date}</div>
+                                  </td>
+                                  <td className="px-6 py-5">
+                                     <div className="font-bold text-white text-sm">{d.model}</div>
                                   </td>
                                   <td className="px-6 py-5">
                                      <div className="flex justify-center gap-3">
