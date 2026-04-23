@@ -202,11 +202,19 @@ export interface RosterEntry {
   updatedAt?: string;
 }
 
+export interface OperatorWallet {
+  operator: string;
+  address: string;
+  method: 'usdt_trc20' | 'card';
+  updatedAt: string;
+}
+
 export interface AppState {
   lastUpdated: number;
   version: number;
   remoteVersion?: number;
   operators: string[];
+  operatorWallets?: OperatorWallet[];
   models: string[];
   admins: Admin[];
   incomeData: IncomeRecord[];

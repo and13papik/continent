@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { AppState, IncomeRecord, OperationType, OperationRecord, Platform } from '../types';
+import { AppState, IncomeRecord, OperationType, OperationRecord, Platform, OperatorWallet } from '../types';
 import { ICONS, PLATFORM_NAMES, OPERATION_META } from '../constants';
 
 interface ReportsProps {
@@ -141,8 +141,28 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
       ...ops.map(o => ({ type: 'op', date: o.date, id: o.id, label: OPERATION_META[o.type].label, amount: o.amount, opType: o.type, raw: o }))
     ].sort((a, b) => b.date.localeCompare(a.date));
 
-    return { totalBrutto, totalNetto, finalBalance, adjustmentGroups, dailyHistory, fullHistory, platformStats, activeModels };
-  }, [selectedOperator, state.incomeData, state.operationsData, state.selectedPeriodId]);
+    const wallet = state.operatorWallets?.find(w => w.operator === selectedOperator);
+
+    return { totalBrutto, totalNetto, finalBalance, adjustmentGroups, dailyHistory, fullHistory, platformStats, activeModels, wallet };
+  }, [selectedOperator, state.incomeData, state.operationsData, state.selectedPeriodId, state.operatorWallets]);
+
+  const updateWallet = (address: string, method: 'usdt_trc20' | 'card') => {
+    updateState(prev => {
+      const wallets = [...(prev.operatorWallets || [])];
+      const idx = wallets.findIndex(w => w.operator === selectedOperator);
+      const newWallet: OperatorWallet = {
+        operator: selectedOperator,
+        address,
+        method,
+        updatedAt: new Date().toISOString()
+      };
+      
+      if (idx >= 0) wallets[idx] = newWallet;
+      else wallets.push(newWallet);
+      
+      return { ...prev, operatorWallets: wallets };
+    });
+  };
 
   const addQuickOp = () => {
     if (!qAmount || parseFloat(qAmount) <= 0) return;
@@ -337,6 +357,53 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                             <span className="text-indigo-400 font-black text-[12px] uppercase tracking-widest">К выплате на руки</span>
                             <span className="text-2xl font-black font-mono text-indigo-400">${report.finalBalance.toFixed(1)}</span>
                          </div>
+                      </div>
+                   </div>
+                </div>
+
+                <div className="glass-card p-8 rounded-[2.5rem] border-slate-800 bg-slate-900/40 shadow-xl space-y-4 text-left">
+                   <div className="flex justify-between items-center">
+                      <h3 className="text-lg font-bold font-outfit text-white">Реквизиты для оплаты</h3>
+                      <ICONS.Lock className="text-slate-600" size={16} />
+                   </div>
+                   <div className="space-y-4">
+                      <div className="flex gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                         <button 
+                           onClick={() => updateWallet(report.wallet?.address || '', 'usdt_trc20')}
+                           className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase transition-all ${(!report.wallet || report.wallet.method === 'usdt_trc20') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:text-slate-300'}`}
+                         >
+                           USDT TRC20
+                         </button>
+                         <button 
+                           onClick={() => updateWallet(report.wallet?.address || '', 'card')}
+                           className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase transition-all ${report.wallet?.method === 'card' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:text-slate-300'}`}
+                         >
+                           Карта
+                         </button>
+                      </div>
+                      <div className="space-y-1">
+                         <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Адрес / Номер карты</label>
+                         <div className="relative group">
+                           <input 
+                              type="text" 
+                              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white font-mono outline-none focus:border-indigo-500/50 transition-all pr-12"
+                              placeholder={report.wallet?.method === 'card' ? '0000 0000 0000 0000' : 'T...'}
+                              value={report.wallet?.address || ''}
+                              onChange={e => updateWallet(e.target.value, report.wallet?.method || 'usdt_trc20')}
+                           />
+                           {report.wallet?.address && (
+                             <button 
+                               onClick={() => { navigator.clipboard.writeText(report.wallet!.address); alert('Скопировано!'); }}
+                               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-indigo-400 p-1 transition-colors"
+                               title="Скопировать"
+                             >
+                               <ICONS.Plus size={14} className="rotate-45" /> 
+                             </button>
+                           )}
+                         </div>
+                         {report.wallet?.updatedAt && (
+                           <p className="text-[8px] text-slate-600 italic text-right mt-1">Обновлено: {new Date(report.wallet.updatedAt).toLocaleDateString()}</p>
+                         )}
                       </div>
                    </div>
                 </div>
