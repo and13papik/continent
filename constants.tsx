@@ -66,6 +66,7 @@ export const ICONS: Record<string, any> = {
   Close: X,
   Search: Search,
   ClipboardList: ClipboardList,
+  Check: Check,
   List: List,
   ListOrdered: ListOrdered,
   CheckSquare: CheckSquare,
