@@ -151,6 +151,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
       const wallets = [...(prev.operatorWallets || [])];
       const idx = wallets.findIndex(w => w.operator === selectedOperator);
       const newWallet: OperatorWallet = {
+        id: `wallet-${selectedOperator}`,
         operator: selectedOperator,
         address,
         method,

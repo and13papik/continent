@@ -22,7 +22,17 @@ import {
   UserRound,
   Crown,
   X,
-  Search
+  Search,
+  Check,
+  Square,
+  ClipboardList,
+  List,
+  ListOrdered,
+  CheckSquare,
+  Type,
+  Baseline,
+  ChevronDown,
+  Palette
 } from 'lucide-react';
 
 export const ICONS: Record<string, any> = {
@@ -54,7 +64,15 @@ export const ICONS: Record<string, any> = {
   Internship: GraduationCap,
   Crown: Crown,
   Close: X,
-  Search: Search
+  Search: Search,
+  ClipboardList: ClipboardList,
+  List: List,
+  ListOrdered: ListOrdered,
+  CheckSquare: CheckSquare,
+  Type: Type,
+  Baseline: Baseline,
+  ChevronDown: ChevronDown,
+  Palette: Palette
 };
 
 export const PLATFORM_NAMES: Record<string, string> = {

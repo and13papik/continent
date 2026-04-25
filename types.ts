@@ -203,10 +203,22 @@ export interface RosterEntry {
 }
 
 export interface OperatorWallet {
+  id: string;
   operator: string;
   address: string;
   method: 'usdt_trc20' | 'card';
   updatedAt: string;
+}
+
+export interface OwnerNote {
+  id: string;
+  title: string;
+  content: string;
+  items: { id: string; text: string; completed: boolean }[];
+  deadline?: string;
+  createdAt: string;
+  updatedAt: string;
+  periodId: string;
 }
 
 export interface AppState {
@@ -235,6 +247,9 @@ export interface AppState {
   modelBonuses: ModelBonus[];
   paidStatuses: PaidStatus[];
   ownerTasks?: OwnerTask[];
+  ownerNotes?: OwnerNote[];
+  ownerDocument?: string;
+  completedDocument?: string;
   totalTableEntries?: DailyTotalEntry[]; 
   modelDefaultGoals?: Record<string, { night: number; morning: number; day: number; evening: number }>;
   modelMonthlyPlans?: Record<string, number>;

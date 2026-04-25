@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { AppState, OwnerTask, TaskPriority, TaskStatus, OwnerTag, TaskNote, TaskAssignee, TaskType, RecurrenceCycle, TaskAuditEntry } from '../types';
+import { AppState, OwnerTask, TaskPriority, TaskStatus, OwnerTag, TaskNote, TaskAssignee, TaskType, RecurrenceCycle, TaskAuditEntry, OwnerNote } from '../types';
 import { ICONS } from '../constants';
 
 const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
@@ -31,11 +31,78 @@ interface OwnerTableProps {
 }
 
 const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
+  const [activeTab, setActiveTab] = useState<'manager' | 'notebook'>('notebook');
   const [currentOwner, setCurrentOwner] = useState<'Andrey' | 'Anton' | 'Owners'>('Andrey');
+  const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [isSendingToTg, setIsSendingToTg] = useState<string | null>(null);
 
   const [activeMode, setActiveMode] = useState<TaskType>('directive');
   const [secondaryFilter, setSecondaryFilter] = useState<'all' | 'critical' | 'process' | 'review'>('all');
+
+  const editorRef = React.useRef<HTMLDivElement>(null);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+
+  const exec = (cmd: string, val?: string) => {
+    document.execCommand(cmd, false, val);
+    if (editorRef.current) {
+        const html = editorRef.current.innerHTML;
+        updateState(prev => ({ ...prev, ownerDocument: html }));
+    }
+  };
+
+  const handleEditorInput = () => {
+    if (editorRef.current) {
+        const html = editorRef.current.innerHTML;
+        updateState(prev => ({ ...prev, ownerDocument: html }));
+    }
+  };
+
+  const insertNextTask = () => {
+    const separator = `<div class="task-separator" contenteditable="false"></div><div><br></div>`;
+    exec('insertHTML', separator);
+  };
+
+  const completeCurrentTask = () => {
+    if (!editorRef.current) return;
+    const html = editorRef.current.innerHTML;
+    // Split by separator
+    const parts = html.split('<div class="task-separator" contenteditable="false"></div>');
+    
+    if (parts.length > 0) {
+      const completedPart = parts[0].trim();
+      if (!completedPart || completedPart === '<div><br></div>' || completedPart === '<br>') {
+          alert('Нечего завершать!');
+          return;
+      }
+
+      const timestamp = `<div style="font-size: 10px; color: #475569; margin-bottom: 10px; font-weight: bold;">ЗАВЕРШЕНО: ${new Date().toLocaleString()}</div>`;
+      const archivedContent = `<div class="archived-task" style="border-left: 2px solid #10b981; padding-left: 15px; margin-bottom: 30px; opacity: 0.8;">${timestamp}${completedPart}</div>`;
+      
+      const newRemaining = parts.slice(1).join('<div class="task-separator" contenteditable="false"></div>');
+      
+      updateState(prev => ({
+        ...prev,
+        ownerDocument: newRemaining || '<div><br></div>',
+        completedDocument: archivedContent + (prev.completedDocument || '')
+      }));
+      
+      // Update local editor
+      editorRef.current.innerHTML = newRemaining || '<div><br></div>';
+      alert('Задача перенесена в архив!');
+    }
+  };
+
+  // Sync state to editor initially and when remote changes (careful with cursor)
+  React.useEffect(() => {
+    if (editorRef.current && state.ownerDocument !== undefined) {
+        if (editorRef.current.innerHTML !== state.ownerDocument) {
+            // Only update if not currently focused to avoid cursor jumps
+            if (document.activeElement !== editorRef.current) {
+                editorRef.current.innerHTML = state.ownerDocument || '';
+            }
+        }
+    }
+  }, [state.ownerDocument]);
 
   const PRIORITY_META: Record<TaskPriority, { label: string; color: string; bg: string; emoji: string }> = {
     urgent: { label: 'КРИТИЧЕСКИЙ', color: 'text-rose-500', bg: 'bg-rose-500/10', emoji: '☢️' },
@@ -73,8 +140,60 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   const [newTaskCycle, setNewTaskCycle] = useState<RecurrenceCycle>('daily');
   const [newTaskGoal, setNewTaskGoal] = useState('');
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
+  const [newTaskTarget, setNewTaskTarget] = useState<'owner' | 'admin'>('admin');
 
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+
+  // Состояния для Блокнота
+  const [editingNote, setEditingNote] = useState<OwnerNote | null>(null);
+  const [noteTitle, setNoteTitle] = useState('');
+  const [noteContent, setNoteContent] = useState('');
+  const [noteDeadline, setNoteDeadline] = useState('');
+  const [noteItems, setNoteItems] = useState<{ id: string; text: string; completed: boolean }[]>([]);
+  const [newCheckItem, setNewCheckItem] = useState('');
+
+  const saveNote = () => {
+    if (!noteTitle.trim() && !noteContent.trim() && noteItems.length === 0) return;
+
+    if (editingNote) {
+      updateState(prev => ({
+        ...prev,
+        ownerNotes: (prev.ownerNotes || []).map(n => n.id === editingNote.id ? {
+          ...n,
+          title: noteTitle, content: noteContent, items: noteItems, 
+          deadline: noteDeadline || undefined,
+          updatedAt: new Date().toISOString()
+        } : n)
+      }));
+      setEditingNote(null);
+    } else {
+      const note: OwnerNote = {
+        id: `note-${Date.now()}`,
+        title: noteTitle, content: noteContent, items: noteItems,
+        deadline: noteDeadline || undefined,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        periodId: state.selectedPeriodId
+      };
+      updateState(prev => ({ ...prev, ownerNotes: [note, ...(prev.ownerNotes || [])] }));
+    }
+    setNoteTitle(''); setNoteContent(''); setNoteItems([]); setNoteDeadline('');
+  };
+
+  const deleteNote = (id: string) => {
+    if (!confirm('Удалить заметку?')) return;
+    updateState(prev => ({
+      ...prev,
+      deletedIds: [...(prev.deletedIds || []), id],
+      ownerNotes: (prev.ownerNotes || []).filter(n => n.id !== id)
+    }));
+  };
+
+  const startNoteEdit = (n: OwnerNote) => {
+    setEditingNote(n);
+    setNoteTitle(n.title); setNoteContent(n.content);
+    setNoteItems(n.items || []); setNoteDeadline(n.deadline || '');
+    setActiveTab('notebook');
+  };
 
   const logAudit = (action: string, actor: string): TaskAuditEntry => ({
     id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -153,13 +272,15 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   const saveTask = () => {
     if (!newTaskTitle.trim()) return;
 
+    const finalAssigned = newTaskTarget === 'owner' ? currentOwner : newTaskAssigned;
+
     if (editingTask) {
         updateState(prev => ({
             ...prev,
             ownerTasks: (prev.ownerTasks || []).map(t => t.id === editingTask.id ? {
                 ...t,
                 title: newTaskTitle, description: newTaskDesc, priority: newTaskPriority,
-                assignedTo: newTaskAssigned, taskType: newTaskType,
+                assignedTo: finalAssigned as TaskAssignee, taskType: newTaskType,
                 dueDate: newTaskDueDate || undefined,
                 recurrenceCycle: newTaskType === 'recurring' ? newTaskCycle : undefined,
                 strategyData: { goal: newTaskGoal, reason: '', effect: '' },
@@ -172,7 +293,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
         const task: OwnerTask = {
             id: `task-${Date.now()}`,
             title: newTaskTitle, description: newTaskDesc, status: 'idea',
-            priority: newTaskPriority, taskType: newTaskType, assignedTo: newTaskAssigned,
+            priority: newTaskPriority, taskType: newTaskType, assignedTo: finalAssigned as TaskAssignee,
             dueDate: newTaskDueDate || undefined,
             recurrenceCycle: newTaskType === 'recurring' ? newTaskCycle : undefined,
             tags: [], strategyData: { goal: newTaskGoal, reason: '', effect: '' },
@@ -236,16 +357,24 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
           </div>
           <h1 className="text-4xl font-black font-outfit text-white tracking-tight">Ядро управления</h1>
         </div>
-        <div className="flex gap-2">
-          {['Andrey', 'Anton', 'Owners'].map(id => (
-            <button key={id} onClick={() => setCurrentOwner(id as any)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${currentOwner === id ? 'bg-amber-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>
-              {ASSIGNEE_LABELS[id as TaskAssignee]}
-            </button>
-          ))}
+        <div className="flex flex-col gap-3 items-end">
+          <div className="flex bg-slate-900/50 p-1 rounded-xl border border-slate-800">
+            <button onClick={() => setActiveTab('manager')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'manager' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Задачи</button>
+            <button onClick={() => setActiveTab('notebook')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'notebook' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Блокнот</button>
+          </div>
+          <div className="flex gap-2">
+            {['Andrey', 'Anton', 'Owners'].map(id => (
+              <button key={id} onClick={() => setCurrentOwner(id as any)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${currentOwner === id ? 'bg-amber-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>
+                {ASSIGNEE_LABELS[id as TaskAssignee]}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
-      <div className="flex flex-col gap-4 border-b border-slate-900 pb-4">
+      {activeTab === 'manager' ? (
+        <>
+          <div className="flex flex-col gap-4 border-b border-slate-900 pb-4">
         <div className="flex gap-8 items-center px-2">
           {['directive', 'regular', 'recurring'].map((mode) => (
             <button key={mode} onClick={() => { setActiveMode(mode as any); setSecondaryFilter('all'); }} className={`relative py-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all ${activeMode === mode ? `text-${TYPE_META[mode as TaskType].color.split('-')[1]}-400` : 'text-slate-600 hover:text-slate-400'}`}>
@@ -266,7 +395,14 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         <div className="lg:col-span-4 space-y-6">
            <div className="glass-card p-8 rounded-[32px] border border-slate-800 bg-slate-900/20 space-y-6 shadow-2xl">
-              <h2 className="text-xl font-black font-outfit text-white">{editingTask ? 'Изменить инициативу' : 'Запустить задачу'}</h2>
+              <div>
+                 <h2 className="text-xl font-black font-outfit text-white mb-2">{editingTask ? 'Изменить инициативу' : 'Запустить задачу'}</h2>
+                 <div className="flex gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                    <button onClick={() => setNewTaskTarget('admin')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${newTaskTarget === 'admin' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Для Админов</button>
+                    <button onClick={() => setNewTaskTarget('owner')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${newTaskTarget === 'owner' ? 'bg-amber-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Для Себя</button>
+                 </div>
+              </div>
+
               <div className="space-y-4">
                  <input type="text" className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3.5 text-white font-bold outline-none text-sm focus:border-amber-500/50" placeholder="Заголовок..." value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} />
                  <textarea className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-white text-xs outline-none min-h-[70px] focus:border-amber-500/50" placeholder="Контекст..." value={newTaskDesc} onChange={e => setNewTaskDesc(e.target.value)} />
@@ -291,8 +427,15 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                        <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Исполнитель</label>
-                       <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-[10px] text-white font-bold outline-none" value={newTaskAssigned} onChange={e => setNewTaskAssigned(e.target.value as any)}>
-                          {Object.entries(ASSIGNEE_LABELS).map(([val, lab]) => <option key={val} value={val}>{lab}</option>)}
+                       <select 
+                        disabled={newTaskTarget === 'owner'}
+                        className={`w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-[10px] text-white font-bold outline-none ${newTaskTarget === 'owner' ? 'opacity-50 grayscale' : ''}`} 
+                        value={newTaskTarget === 'owner' ? currentOwner : newTaskAssigned} 
+                        onChange={e => setNewTaskAssigned(e.target.value as any)}
+                       >
+                          {Object.entries(ASSIGNEE_LABELS)
+                            .filter(([val]) => newTaskTarget === 'owner' ? (val === 'Andrey' || val === 'Anton' || val === 'Owners') : (val === 'Rector' || val === 'Mentor' || val === 'Admins' || val === 'All'))
+                            .map(([val, lab]) => <option key={val} value={val}>{lab}</option>)}
                        </select>
                     </div>
                     <div className="space-y-1">
@@ -415,6 +558,154 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
            })}
         </div>
       </div>
+        </>
+      ) : (
+        <div className="max-w-5xl mx-auto space-y-4">
+           {/* Navigation Tabs for Notebook */}
+           <div className="flex gap-2 mb-2 p-1 bg-slate-950/50 rounded-2xl border border-slate-800/50 w-fit">
+              <button 
+                onClick={() => setIsArchiveOpen(false)}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${!isArchiveOpen ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                Активный документ
+              </button>
+              <button 
+                onClick={() => setIsArchiveOpen(true)}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${isArchiveOpen ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                Архив выполненных
+              </button>
+           </div>
+
+           {!isArchiveOpen ? (
+              <div className="glass-card rounded-[32px] border border-slate-800 bg-slate-900/30 overflow-hidden shadow-2xl flex flex-col min-h-[850px] relative">
+                 {/* Decorative background elements for Wow effect */}
+                 <div className="absolute inset-0 pointer-events-none opacity-5">
+                    <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,#6366f1,transparent_70%)]"></div>
+                 </div>
+
+                 {/* Word Toolbar */}
+                 <div className="bg-slate-950/95 border-b border-slate-800 p-2 flex flex-wrap items-center gap-1 sticky top-0 z-20 backdrop-blur-3xl shadow-xl">
+                    <div className="flex items-center gap-0.5 border-r border-slate-800 pr-2">
+                       <button onClick={() => exec('bold')} className="w-8 h-8 rounded hover:bg-slate-800 flex items-center justify-center text-slate-300 font-bold" title="Жирный">B</button>
+                       <button onClick={() => exec('italic')} className="w-8 h-8 rounded hover:bg-slate-800 flex items-center justify-center text-slate-300 italic" title="Курсив">I</button>
+                       <button onClick={() => exec('underline')} className="w-8 h-8 rounded hover:bg-slate-800 flex items-center justify-center text-slate-300 underline" title="Подчеркнутый">U</button>
+                    </div>
+
+                    <div className="flex items-center gap-0.5 border-r border-slate-800 px-2">
+                       <button onClick={() => exec('insertUnorderedList')} className="w-8 h-8 rounded hover:bg-slate-800 flex items-center justify-center text-slate-300" title="Маркированный список"><ICONS.List size={16}/></button>
+                       <button onClick={() => exec('insertOrderedList')} className="w-8 h-8 rounded hover:bg-slate-800 flex items-center justify-center text-slate-300" title="Нумерованный список"><ICONS.ListOrdered size={16}/></button>
+                       <button 
+                         onClick={() => {
+                           const checkbox = '<input type="checkbox" style="width: 14px; height: 14px; margin-right: 8px; vertical-align: middle;" />';
+                           exec('insertHTML', checkbox);
+                         }} 
+                         className="w-8 h-8 rounded hover:bg-slate-800 flex items-center justify-center text-slate-300" 
+                         title="Добавить чек-бокс"
+                       >
+                         <ICONS.CheckSquare size={16}/>
+                       </button>
+                    </div>
+
+                    <div className="flex items-center gap-1 border-r border-slate-800 px-2 relative">
+                       <button onClick={() => setShowColorPicker(!showColorPicker)} className="flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 text-slate-300">
+                          <ICONS.Baseline size={16}/>
+                          <ICONS.ChevronDown size={10}/>
+                       </button>
+                       
+                       {showColorPicker && (
+                         <div className="absolute top-full left-0 mt-1 p-2 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-30 grid grid-cols-5 gap-1 animate-in fade-in zoom-in duration-200">
+                           {['#ffffff', '#f87171', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#f472b6', '#94a3b8', '#000000', '#4ade80'].map(c => (
+                             <button 
+                               key={c} 
+                               onClick={() => { exec('foreColor', c); setShowColorPicker(false); }} 
+                               className="w-6 h-6 rounded border border-white/10 hover:scale-125 transition-transform" 
+                               style={{ backgroundColor: c }}
+                             />
+                           ))}
+                           <button onClick={() => { exec('hiliteColor', '#fbbf24'); setShowColorPicker(false); }} className="col-span-5 text-[9px] font-black uppercase text-slate-500 py-1 hover:text-white">Маркер (Желтый)</button>
+                           <button onClick={() => { exec('removeFormat'); setShowColorPicker(false); }} className="col-span-5 text-[9px] font-black uppercase text-rose-500 py-1 hover:text-rose-400">Сброс</button>
+                         </div>
+                       )}
+                    </div>
+
+                    {/* Stage Controls */}
+                    <div className="flex items-center gap-2 px-3 border-r border-slate-800">
+                       <button 
+                         onClick={insertNextTask}
+                         className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-indigo-400 text-[9px] font-black uppercase hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2"
+                       >
+                         <ICONS.Plus size={12}/> Следующая задача
+                       </button>
+                       <button 
+                         onClick={completeCurrentTask}
+                         className="px-3 py-1.5 bg-emerald-600/20 border border-emerald-500/30 rounded-lg text-emerald-400 text-[9px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2"
+                       >
+                         <ICONS.Check size={12}/> Выполнено
+                       </button>
+                    </div>
+
+                    <div className="ml-auto flex items-center gap-3 pr-4">
+                       <div className="flex flex-col items-end">
+                          <span className="text-[9px] font-black text-slate-500 uppercase leading-none">Smart Editor v2</span>
+                          <span className="text-[8px] text-indigo-400/80 font-bold uppercase tracking-tighter">Continental Cloud</span>
+                       </div>
+                       <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse shadow-[0_0_8px_rgba(99,102,241,0.4)]"></div>
+                    </div>
+                 </div>
+
+                 {/* The "Sheet" - Dark Theme with Wow effect */}
+                 <div className="flex-1 bg-slate-950 p-4 md:p-12 overflow-y-auto scroll-smooth">
+                    <div className="max-w-[850px] mx-auto min-h-[1100px] bg-[#1a1d25] rounded-xl shadow-[0_30px_100px_rgba(0,0,0,0.6)] border border-slate-800/40 p-12 md:p-24 text-slate-100 transition-all focus-within:ring-4 ring-indigo-500/5 relative overflow-hidden notebook-editor">
+                       {/* Texture overlay */}
+                       <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+                       
+                       <div 
+                          ref={editorRef}
+                          contentEditable
+                          className="w-full h-full min-h-[900px] outline-none text-[17px] leading-[1.8] font-sans prose prose-invert max-w-none relative z-10"
+                          onInput={handleEditorInput}
+                          onBlur={handleEditorInput}
+                          onClick={(e) => {
+                             const target = e.target as HTMLElement;
+                             if (target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'checkbox') {
+                                 handleEditorInput();
+                             }
+                          }}
+                       />
+                    </div>
+                 </div>
+              </div>
+           ) : (
+              <div className="glass-card rounded-[32px] border border-slate-800 bg-slate-950 overflow-hidden shadow-2xl flex flex-col min-h-[850px] animate-in slide-in-from-bottom-4 duration-500">
+                 <div className="bg-slate-900/50 border-b border-slate-800 p-6 flex items-center justify-between">
+                    <div>
+                       <h3 className="text-xl font-bold font-outfit text-white">Архив выполненных задач</h3>
+                       <p className="text-xs text-slate-500">История ваших достижений и завершенных циклов</p>
+                    </div>
+                    <button onClick={() => updateState(prev => ({ ...prev, completedDocument: '' }))} className="text-rose-500 text-[10px] font-bold uppercase tracking-widest hover:text-rose-400 transition-colors">Очистить историю</button>
+                 </div>
+                 <div className="flex-1 p-12 overflow-y-auto">
+                    <div className="max-w-[850px] mx-auto bg-[#14171d] rounded-lg p-12 md:p-20 text-slate-400 font-sans leading-relaxed border border-slate-800">
+                       {state.completedDocument ? (
+                          <div dangerouslySetInnerHTML={{ __html: state.completedDocument }} className="prose prose-invert max-w-none" />
+                       ) : (
+                          <div className="h-[400px] flex flex-col items-center justify-center text-slate-700">
+                             <ICONS.ClipboardList size={48} className="mb-4 opacity-20"/>
+                             <p className="uppercase tracking-[0.2em] text-[10px] font-black">Архив пуст</p>
+                          </div>
+                       )}
+                    </div>
+                 </div>
+              </div>
+           )}
+           <div className="text-center pb-10">
+              <p className="text-[10px] text-slate-700 font-black uppercase tracking-[0.3em] italic opacity-40 hover:opacity-100 transition-opacity cursor-default">
+                Continental Digital Workspace — Professional Management Suite v2.0
+              </p>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

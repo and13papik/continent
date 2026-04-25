@@ -27,6 +27,10 @@ export function createInitialState(): AppState {
         modelBonuses: parsed.modelBonuses || [],
         paidStatuses: parsed.paidStatuses || [],
         ownerTasks: parsed.ownerTasks || [],
+        ownerNotes: parsed.ownerNotes || [],
+        ownerDocument: parsed.ownerDocument || '',
+        completedDocument: parsed.completedDocument || '',
+        operatorWallets: parsed.operatorWallets || [],
         totalTableEntries: parsed.totalTableEntries || [],
         rosterData: parsed.rosterData || [],
         priorityModels: parsed.priorityModels || [],
@@ -77,6 +81,10 @@ export function createInitialState(): AppState {
     modelBonuses: [],
     paidStatuses: [],
     ownerTasks: [],
+    ownerNotes: [],
+    ownerDocument: '',
+    completedDocument: '',
+    operatorWallets: [],
     totalTableEntries: [],
     rosterData: [],
     priorityModels: [],
@@ -171,6 +179,10 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         finalState.modelBonuses = mergeArraysById(state.modelBonuses || [], remote.modelBonuses || [], combinedDeletedIds);
         finalState.paidStatuses = mergeArraysById(state.paidStatuses, remote.paidStatuses, combinedDeletedIds);
         finalState.ownerTasks = mergeArraysById(state.ownerTasks || [], remote.ownerTasks || [], combinedDeletedIds);
+        finalState.ownerNotes = mergeArraysById(state.ownerNotes || [], remote.ownerNotes || [], combinedDeletedIds);
+        finalState.ownerDocument = (state.lastUpdated > (remote.lastUpdated || 0)) ? (state.ownerDocument || '') : (remote.ownerDocument || '');
+        finalState.completedDocument = (state.lastUpdated > (remote.lastUpdated || 0)) ? (state.completedDocument || '') : (remote.completedDocument || '');
+        finalState.operatorWallets = mergeArraysById(state.operatorWallets || [], remote.operatorWallets || [], combinedDeletedIds);
         finalState.rosterData = mergeArraysById(state.rosterData || [], remote.rosterData || [], combinedDeletedIds);
         finalState.priorityModels = Array.from(new Set([...(state.priorityModels || []), ...(remote.priorityModels || [])]));
         finalState.inactiveModels = Array.from(new Set([...(state.inactiveModels || []), ...(remote.inactiveModels || [])]));
@@ -360,6 +372,7 @@ export function reindexAllDataByDate(state: AppState): AppState {
     totalTableEntries: (state.totalTableEntries || []).map(fix),
     rosterData: (state.rosterData || []).map(fix),
     ownerTasks: (state.ownerTasks || []).map(fix),
+    ownerNotes: (state.ownerNotes || []).map(fix),
     lastUpdated: Date.now(),
     version: (state.version || 0) + 1
   };

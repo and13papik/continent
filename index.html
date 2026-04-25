@@ -37,6 +37,69 @@
             backdrop-filter: blur(12px);
             border: 1px solid rgba(71, 85, 105, 0.3);
         }
+
+        /* Custom Editor Checkbox Styling */
+        .notebook-editor input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            border: 2px solid #6366f1;
+            border-radius: 50% !important;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-right: 12px;
+            vertical-align: middle;
+            background: transparent;
+        }
+
+        .notebook-editor input[type="checkbox"]:checked {
+            background: #6366f1;
+            border-color: #6366f1;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.6);
+        }
+
+        .notebook-editor input[type="checkbox"]:checked::after {
+            content: '✓';
+            position: absolute;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .notebook-editor input[type="checkbox"]:hover {
+            transform: scale(1.15);
+            border-color: #818cf8;
+        }
+
+        /* Section Separator */
+        .task-separator {
+            border: none;
+            height: 2px;
+            background: linear-gradient(to right, transparent, rgba(99, 102, 241, 0.3), transparent);
+            margin: 50px 0;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .task-separator::before {
+            content: "NEXT STAGE";
+            padding: 4px 20px;
+            background: #1e222d;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 50px;
+            color: #6366f1;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.4em;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.1);
+        }
     </style>
 <script type="importmap">
 {
