@@ -7,9 +7,10 @@ import { fetchFromCloud, testDatabaseConnection, listCloudSnapshots, createEmerg
 interface SettingsProps {
   state: AppState;
   updateState: (updater: (prev: AppState) => AppState) => void;
+  userRole?: 'user' | 'owner' | null;
 }
 
-const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
+const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => {
   const [newOp, setNewOp] = useState('');
   const [newModel, setNewModel] = useState('');
   const [newAdminName, setNewAdminName] = useState('');
@@ -299,7 +300,9 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
           <p className="text-slate-400">Конфигурация системы и защита данных</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => { const b = restoreEmergencyBackup(); if(b) updateState(() => b); }} className="bg-rose-600/20 text-rose-400 border border-rose-500/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-rose-600/30 transition-all">Черный ящик</button>
+          {userRole === 'owner' && (
+            <button onClick={() => { const b = restoreEmergencyBackup(); if(b) updateState(() => b); }} className="bg-rose-600/20 text-rose-400 border border-rose-500/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-rose-600/30 transition-all">Черный ящик</button>
+          )}
           <label className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all">
             Импорт
             <input type="file" className="hidden" accept=".json" onChange={importData} />
@@ -343,95 +346,101 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
           <div className="flex flex-col gap-3 pt-4">
             <button onClick={handleApplySettings} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-2xl font-bold text-sm shadow-lg shadow-indigo-600/20 transition-all active:scale-95">Применить</button>
             <button onClick={forcePull} disabled={isManualSyncing} className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50">Загрузить "main"</button>
-            <button onClick={handleWipeData} className="w-full bg-rose-600/20 hover:bg-rose-600/40 text-rose-500 border border-rose-500/30 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">Сбросить доходы</button>
+            {userRole === 'owner' && (
+              <button onClick={handleWipeData} className="w-full bg-rose-600/20 hover:bg-rose-600/40 text-rose-500 border border-rose-500/30 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">Сбросить доходы</button>
+            )}
           </div>
         </div>
 
-        <div className="xl:col-span-2 glass-card p-8 rounded-[32px] border-slate-800 shadow-2xl space-y-6">
-           <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <ICONS.Calendar size={20} className="text-emerald-400" /> Облачные снапшоты (Бекапы)
-              </h2>
-              <button onClick={loadSnapshots} className="text-indigo-400 hover:text-white transition-all"><ICONS.RotateCcw size={18} className={isLoadingSnapshots ? 'animate-spin' : ''}/></button>
-           </div>
+        {userRole === 'owner' && (
+          <div className="xl:col-span-2 glass-card p-8 rounded-[32px] border-slate-800 shadow-2xl space-y-6">
+             <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <ICONS.Calendar size={20} className="text-emerald-400" /> Облачные снапшоты (Бекапы)
+                </h2>
+                <button onClick={loadSnapshots} className="text-indigo-400 hover:text-white transition-all"><ICONS.RotateCcw size={18} className={isLoadingSnapshots ? 'animate-spin' : ''}/></button>
+             </div>
 
-           <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-              {snapshots.length === 0 && !isLoadingSnapshots ? (
-                <div className="p-10 text-center border-2 border-dashed border-slate-800 rounded-3xl text-slate-600">
-                  История изменений пуста или облако не подключено
-                </div>
-              ) : (
-                snapshots.map(snap => (
-                  <div key={snap.id} className="bg-slate-900/40 p-4 rounded-2xl border border-slate-800 flex items-center justify-between group hover:border-indigo-500/30 transition-all">
-                    <div className="flex items-center gap-4">
-                       <div className="w-10 h-10 rounded-xl bg-slate-950 flex items-center justify-center text-emerald-500 font-bold border border-slate-800">
-                         {snap.state.version || '?'}
-                       </div>
-                       <div>
-                          <p className="text-sm font-bold text-white">{new Date(snap.updated_at).toLocaleString()}</p>
-                          <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">
-                            {snap.state.incomeData.length} записей дохода • {snap.state.operationsData.length} операций
-                          </p>
-                       </div>
-                    </div>
-                    <button 
-                      onClick={() => restoreFromSnapshot(snap)}
-                      className="opacity-0 group-hover:opacity-100 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                    >
-                      Восстановить
-                    </button>
+             <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                {snapshots.length === 0 && !isLoadingSnapshots ? (
+                  <div className="p-10 text-center border-2 border-dashed border-slate-800 rounded-3xl text-slate-600">
+                    История изменений пуста или облако не подключено
                   </div>
-                ))
-              )}
-           </div>
-        </div>
+                ) : (
+                  snapshots.map(snap => (
+                    <div key={snap.id} className="bg-slate-900/40 p-4 rounded-2xl border border-slate-800 flex items-center justify-between group hover:border-indigo-500/30 transition-all">
+                      <div className="flex items-center gap-4">
+                         <div className="w-10 h-10 rounded-xl bg-slate-950 flex items-center justify-center text-emerald-500 font-bold border border-slate-800">
+                           {snap.state.version || '?'}
+                         </div>
+                         <div>
+                            <p className="text-sm font-bold text-white">{new Date(snap.updated_at).toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">
+                              {snap.state.incomeData.length} записей дохода • {snap.state.operationsData.length} операций
+                            </p>
+                         </div>
+                      </div>
+                      <button 
+                        onClick={() => restoreFromSnapshot(snap)}
+                        className="opacity-0 group-hover:opacity-100 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                      >
+                        Восстановить
+                      </button>
+                    </div>
+                  ))
+                )}
+             </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <ICONS.Calendar size={18} className="text-indigo-400" /> Управление периодами
-          </h2>
-          <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl space-y-3">
-             <p className="text-[10px] text-slate-400 leading-relaxed">
-               Если данные отображаются не в тех месяцах, используйте этот инструмент для автоматического перераспределения всех записей по датам.
-             </p>
-             <button onClick={repairData} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">
-               Перераспределить данные
-             </button>
-             <button 
-                onClick={forcePush} 
-                disabled={isManualSyncing}
-                className="w-full bg-rose-600/20 hover:bg-rose-600 text-rose-500 hover:text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border border-rose-500/30"
-              >
-                {isManualSyncing ? 'Синхронизация...' : 'Force Push (Заменить облако)'}
-              </button>
-          </div>
-          <div className="space-y-2 max-h-[300px] overflow-y-auto">
-             {state.accountingPeriods.slice().reverse().map(p => (
-               <div key={p.id} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
-                 {editPeriod?.id === p.id ? (
-                   <div className="flex-1 flex gap-2">
-                     <input autoFocus className="flex-1 bg-slate-950 border border-indigo-500 rounded px-2 py-1 text-sm text-white outline-none" value={editPeriod.label} onChange={e => setEditPeriod({ ...editPeriod, label: e.target.value })} onKeyDown={e => e.key === 'Enter' && saveRenamePeriod()}/>
-                     <button onClick={saveRenamePeriod} className="text-emerald-400"><ICONS.Lock size={16}/></button>
-                   </div>
-                 ) : (
-                   <>
-                     <div className="flex flex-col">
-                        <span className="text-sm font-bold text-slate-200">{p.label}</span>
-                        <span className="text-[8px] text-slate-500 uppercase font-black">{p.status === 'closed' ? 'Закрыт 🔒' : 'Открыт 🟢'}</span>
+        {userRole === 'owner' && (
+          <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <ICONS.Calendar size={18} className="text-indigo-400" /> Управление периодами
+            </h2>
+            <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl space-y-3">
+               <p className="text-[10px] text-slate-400 leading-relaxed">
+                 Если данные отображаются не в тех месяцах, используйте этот инструмент для автоматического перераспределения всех записей по датам.
+               </p>
+               <button onClick={repairData} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">
+                 Перераспределить данные
+               </button>
+               <button 
+                  onClick={forcePush} 
+                  disabled={isManualSyncing}
+                  className="w-full bg-rose-600/20 hover:bg-rose-600 text-rose-500 hover:text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border border-rose-500/30"
+                >
+                  {isManualSyncing ? 'Синхронизация...' : 'Force Push (Заменить облако)'}
+                </button>
+            </div>
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+               {state.accountingPeriods.slice().reverse().map(p => (
+                 <div key={p.id} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
+                   {editPeriod?.id === p.id ? (
+                     <div className="flex-1 flex gap-2">
+                       <input autoFocus className="flex-1 bg-slate-950 border border-indigo-500 rounded px-2 py-1 text-sm text-white outline-none" value={editPeriod.label} onChange={e => setEditPeriod({ ...editPeriod, label: e.target.value })} onKeyDown={e => e.key === 'Enter' && saveRenamePeriod()}/>
+                       <button onClick={saveRenamePeriod} className="text-emerald-400"><ICONS.Lock size={16}/></button>
                      </div>
-                     <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => setEditPeriod({ id: p.id, label: p.label })} className="text-slate-500 hover:text-indigo-400"><ICONS.Edit size={14}/></button>
-                        <button onClick={() => deletePeriod(p.id)} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
-                     </div>
-                   </>
-                 )}
-               </div>
-             ))}
+                   ) : (
+                     <>
+                       <div className="flex flex-col">
+                          <span className="text-sm font-bold text-slate-200">{p.label}</span>
+                          <span className="text-[8px] text-slate-500 uppercase font-black">{p.status === 'closed' ? 'Закрыт 🔒' : 'Открыт 🟢'}</span>
+                       </div>
+                       <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => setEditPeriod({ id: p.id, label: p.label })} className="text-slate-500 hover:text-indigo-400"><ICONS.Edit size={14}/></button>
+                          <button onClick={() => deletePeriod(p.id)} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
+                       </div>
+                     </>
+                   )}
+                 </div>
+               ))}
+            </div>
+            <p className="text-[9px] text-slate-500 italic">Здесь вы можете переименовать "Восстановленные" периоды в нормальные названия месяцев.</p>
           </div>
-          <p className="text-[9px] text-slate-500 italic">Здесь вы можете переименовать "Восстановленные" периоды в нормальные названия месяцев.</p>
-        </div>
+        )}
 
         <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -514,45 +523,47 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState }) => {
              ))}
           </div>
         </div>
-        <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <ICONS.Crown size={18} className="text-amber-400" /> Состав админов ({activePeriod?.label})
-          </h2>
-          <div className="space-y-4">
-            <div className="flex gap-2">
-               <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Имя..." value={newAdminName} onChange={e => setNewAdminName(e.target.value)}/>
-               <input className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="%" type="number" value={newAdminRate} onChange={e => setNewAdminRate(e.target.value)}/>
-               <button onClick={handleAddAdmin} className="bg-amber-600 px-3 rounded-lg"><ICONS.Plus size={18}/></button>
+        {userRole === 'owner' && (
+          <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <ICONS.Crown size={18} className="text-amber-400" /> Состав админов ({activePeriod?.label})
+            </h2>
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                 <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Имя..." value={newAdminName} onChange={e => setNewAdminName(e.target.value)}/>
+                 <input className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="%" type="number" value={newAdminRate} onChange={e => setNewAdminRate(e.target.value)}/>
+                 <button onClick={handleAddAdmin} className="bg-amber-600 px-3 rounded-lg"><ICONS.Plus size={18}/></button>
+              </div>
+              <p className="text-[9px] text-slate-500 italic">Админы получают процент от общего оборота (Gross) за месяц.</p>
             </div>
-            <p className="text-[9px] text-slate-500 italic">Админы получают процент от общего оборота (Gross) за месяц.</p>
-          </div>
-          <div className="space-y-2 max-h-[300px] overflow-y-auto">
-             {currentAdmins.map(a => (
-               <div key={a.id} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
-                 <div className="flex flex-col">
-                    <span className="text-sm font-bold text-slate-200">{a.name}</span>
-                    <span className="text-[10px] text-amber-500 font-bold">{a.rate}% от оборота</span>
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+               {currentAdmins.map(a => (
+                 <div key={a.id} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
+                   <div className="flex flex-col">
+                      <span className="text-sm font-bold text-slate-200">{a.name}</span>
+                      <span className="text-[10px] text-amber-500 font-bold">{a.rate}% от оборота</span>
+                   </div>
+                   <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => {
+                        const newRate = prompt(`Новая ставка для ${a.name} (%):`, String(a.rate));
+                        if (newRate !== null) {
+                          const rate = parseFloat(newRate) || 0;
+                          updateState(p => ({
+                            ...p,
+                            accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, admins: (ap.admins || p.admins).map(x => x.id === a.id ? { ...x, rate } : x), updatedAt: new Date().toISOString() } : ap)
+                          }));
+                        }
+                      }} className="text-slate-500 hover:text-amber-400"><ICONS.Edit size={14}/></button>
+                      <button onClick={() => updateState(p => ({
+                        ...p, 
+                        accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, admins: (ap.admins || p.admins).filter(x => x.id !== a.id), updatedAt: new Date().toISOString() } : ap)
+                      }))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
+                   </div>
                  </div>
-                 <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => {
-                      const newRate = prompt(`Новая ставка для ${a.name} (%):`, String(a.rate));
-                      if (newRate !== null) {
-                        const rate = parseFloat(newRate) || 0;
-                        updateState(p => ({
-                          ...p,
-                          accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, admins: (ap.admins || p.admins).map(x => x.id === a.id ? { ...x, rate } : x), updatedAt: new Date().toISOString() } : ap)
-                        }));
-                      }
-                    }} className="text-slate-500 hover:text-amber-400"><ICONS.Edit size={14}/></button>
-                    <button onClick={() => updateState(p => ({
-                      ...p, 
-                      accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, admins: (ap.admins || p.admins).filter(x => x.id !== a.id), updatedAt: new Date().toISOString() } : ap)
-                    }))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
-                 </div>
-               </div>
-             ))}
+               ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">

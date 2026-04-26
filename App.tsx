@@ -290,7 +290,7 @@ const App: React.FC = () => {
               )}
               <Route path="/admin-table" element={<AdminTable state={state} updateState={updateState} />} />
               <Route path="/total-table" element={<TotalTable state={state} updateState={updateState} />} />
-              <Route path="/settings" element={<Settings state={state} updateState={updateState} />} />
+              <Route path="/settings" element={<Settings state={state} updateState={updateState} userRole={userRole} />} />
             </Routes>
           </div>
         </main>
