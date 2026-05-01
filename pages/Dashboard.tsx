@@ -29,76 +29,69 @@ function StatCard({
   highlighted?: boolean;
 }) {
   const colorClasses: Record<string, string> = {
-    indigo: 'from-indigo-500/20 to-indigo-500/5 border-indigo-500/30 text-indigo-400 shadow-indigo-500/10 group-hover:border-indigo-500/50',
-    sky: 'from-sky-500/20 to-sky-500/5 border-sky-500/30 text-sky-400 shadow-sky-500/10 group-hover:border-sky-500/50',
-    emerald: 'from-emerald-500/20 to-emerald-500/5 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10 group-hover:border-emerald-500/50',
-    rose: 'from-rose-500/20 to-rose-500/5 border-rose-500/30 text-rose-400 shadow-rose-500/10 group-hover:border-rose-500/50',
-    amber: 'from-amber-400/25 to-amber-600/10 border-amber-500/40 text-amber-400 shadow-amber-500/30 group-hover:border-amber-400/70',
-    blue: 'from-blue-500/20 to-blue-500/5 border-blue-500/30 text-blue-400 shadow-blue-500/10 group-hover:border-blue-500/50'
+    indigo: 'from-indigo-500/[0.08] to-indigo-500/[0.02] border-indigo-500/20 text-indigo-400 group-hover:border-indigo-500/40',
+    sky: 'from-sky-500/[0.08] to-sky-500/[0.02] border-sky-500/20 text-sky-400 group-hover:border-sky-500/40',
+    emerald: 'from-emerald-500/[0.08] to-emerald-500/[0.02] border-emerald-500/20 text-emerald-400 group-hover:border-emerald-500/40',
+    rose: 'from-rose-500/[0.08] to-rose-500/[0.02] border-rose-500/20 text-rose-400 group-hover:border-rose-500/40',
+    amber: 'from-amber-400/[0.12] to-amber-600/[0.04] border-amber-500/30 text-amber-400 group-hover:border-amber-400/50',
+    blue: 'from-blue-500/[0.08] to-blue-500/[0.02] border-blue-500/20 text-blue-400 group-hover:border-blue-500/40'
   };
 
-  const currentClass = colorClasses[color] || 'from-slate-800/20 to-slate-900/10 border-slate-700/30';
+  const currentClass = colorClasses[color] || 'from-slate-800/10 to-slate-900/5 border-slate-700/20';
   const isGold = color === 'amber' && highlighted;
 
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ scale: 1.05, y: -6 }}
-      transition={{ duration: 0.4, type: 'spring', stiffness: 300 }}
-      className={`relative group bg-gradient-to-br ${currentClass} ${highlighted ? 'p-6' : 'p-5'} rounded-2xl border backdrop-blur-md transition-all duration-300 shadow-2xl overflow-hidden min-w-0 ${isGold ? 'ring-2 ring-amber-500/50 ring-offset-4 ring-offset-slate-950 border-amber-400/60 shadow-[0_0_30px_rgba(245,158,11,0.2)]' : highlighted ? 'ring-1 ring-white/10 ring-offset-2 ring-offset-slate-950' : ''}`}
+      whileHover={{ scale: 1.015, y: -2 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className={`relative group bg-gradient-to-b ${currentClass} ${highlighted ? 'p-6' : 'p-5'} rounded-2xl border backdrop-blur-xl transition-all duration-300 shadow-sm overflow-hidden min-w-0 ${isGold ? 'border-amber-500/40 shadow-[0_8px_30px_rgb(0,0,0,0.12)]' : highlighted ? 'border-white/10' : ''}`}
     >
+      {/* Subtle inner highlight */}
+      <div className="absolute inset-0 border border-white/[0.03] rounded-2xl pointer-events-none" />
+      
       {/* Decorative gradient overlay */}
-      <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${isGold ? 'bg-[radial-gradient(500px_at_50%_50%,rgba(245,158,11,0.15),transparent)]' : 'bg-[radial-gradient(400px_at_50%_50%,rgba(255,255,255,0.03),transparent)]'}`} />
+      <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 ${isGold ? 'bg-[radial-gradient(circle_at_50%_0%,rgba(245,158,11,0.08),transparent)]' : 'bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.03),transparent)]'}`} />
       
       {isGold && (
         <>
-          <div className="absolute -right-8 -top-8 w-32 h-32 bg-amber-500/20 blur-3xl pointer-events-none" />
-          <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-amber-600/10 blur-3xl pointer-events-none" />
+          <div className="absolute -right-12 -top-12 w-40 h-40 bg-amber-500/10 blur-[80px] pointer-events-none" />
           
-          {/* Animated beam effect for gold card */}
           <motion.div 
             animate={{ 
-              x: ['-100%', '200%'],
-              opacity: [0, 0.5, 0]
+              x: ['-200%', '200%'],
             }}
             transition={{ 
-              duration: 3, 
+              duration: 4, 
               repeat: Infinity, 
               ease: "linear",
-              repeatDelay: 1
+              repeatDelay: 5
             }}
-            className="absolute top-0 bottom-0 w-1/2 bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-12 pointer-events-none"
+            className="absolute top-0 bottom-0 w-32 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent skew-x-[-20deg] pointer-events-none"
           />
         </>
       )}
       
-      <div className="relative flex items-center gap-4 overflow-visible">
-        <div className={`relative w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shrink-0 transition-transform duration-500 group-hover:rotate-6 ${isGold ? 'bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 text-white shadow-amber-500/40 border border-amber-300/30' : highlighted ? 'bg-white/10 text-white border border-white/20' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
-          {isGold && (
-             <motion.div 
-               animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.8, 0.4] }}
-               transition={{ duration: 2, repeat: Infinity }}
-               className="absolute inset-0 bg-white rounded-2xl blur-md"
-             />
-          )}
-          <div className={`relative z-10 transition-transform duration-300 group-hover:scale-125 ${isGold ? 'drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]' : ''}`}>
+      <div className="relative flex items-center gap-5 overflow-visible">
+        <div className={`relative w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 ${isGold ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : highlighted ? 'bg-white/5 text-white border border-white/10' : 'bg-slate-800/30 text-slate-400 border border-slate-700/20'}`}>
+          <div className="relative z-10 scale-110">
             {icon}
           </div>
         </div>
         <div className="min-w-0 flex-1 overflow-visible">
-          <p className={`text-[10px] uppercase font-black tracking-[0.25em] mb-1.5 opacity-70 group-hover:opacity-100 transition-opacity ${isGold ? 'text-amber-400' : 'text-slate-400'}`}>{title}</p>
+          <p className={`text-[10px] uppercase font-bold tracking-[0.2em] mb-1.5 opacity-60 group-hover:opacity-100 transition-opacity ${isGold ? 'text-amber-400/90' : 'text-slate-400'}`}>{title}</p>
           <div className="flex items-baseline gap-2">
-            <p className={`font-black text-white font-outfit leading-none whitespace-nowrap overflow-visible transition-all duration-300 ${highlighted ? 'text-4xl tracking-tighter' : 'text-xl'}`}>
+            <p className={`font-black text-white font-outfit leading-none whitespace-nowrap overflow-visible ${highlighted ? 'text-3xl tracking-tight' : 'text-2xl tracking-tight'}`}>
               {value}
             </p>
           </div>
           {subValue && (
-            <div className="flex items-center gap-1.5 mt-2">
-              <span className="text-[9px] font-black py-0.5 px-1.5 rounded bg-slate-800/50 text-slate-500 font-mono tracking-tighter uppercase whitespace-nowrap">
+            <div className="flex items-center gap-2 mt-2.5">
+              <span className="text-[9px] font-bold py-0.5 px-2 rounded-full bg-white/[0.03] border border-white/[0.05] text-slate-500 font-mono tracking-wider uppercase whitespace-nowrap">
                 {subLabel}
               </span>
-              <p className="text-[10px] font-bold text-slate-400 font-mono whitespace-nowrap">
+              <p className="text-[11px] font-bold text-slate-500 font-mono whitespace-nowrap">
                 {subValue}
               </p>
             </div>
@@ -425,15 +418,22 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
   const LockIcon = ICONS.Lock || 'span';
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+    <div className="relative min-h-screen bg-[#0a0c10] text-slate-200">
+      {/* Subtle background glow */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/5 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-500/5 rounded-full blur-[120px]" />
+      </div>
+
+      <div className="relative space-y-10 animate-in fade-in duration-700 pb-20 max-w-[1600px] mx-auto px-4 sm:px-6">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white font-outfit">Main Dashboard</h1>
           <div className="flex flex-wrap items-center gap-4 mt-1">
              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Период:</span>
-                <select className="bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-1.5 text-indigo-400 font-bold outline-none cursor-pointer text-sm" value={state.selectedPeriodId} onChange={(e) => updateState(prev => ({ ...prev, selectedPeriodId: e.target.value }))}>
-                   {[...state.accountingPeriods].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()).reverse().map(p => <option key={p.id} value={p.id}>{p.label} {p.status === 'closed' ? '🔒' : ''}</option>)}
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest opacity-60">Период:</span>
+                <select className="bg-white/[0.03] border border-white/[0.08] hover:border-white/20 rounded-xl px-4 py-1.5 text-indigo-400 font-bold outline-none cursor-pointer text-sm transition-colors" value={state.selectedPeriodId} onChange={(e) => updateState(prev => ({ ...prev, selectedPeriodId: e.target.value }))}>
+                   {[...state.accountingPeriods].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()).reverse().map(p => <option key={p.id} value={p.id} className="bg-slate-900">{p.label} {p.status === 'closed' ? '🔒' : ''}</option>)}
                 </select>
              </div>
              
@@ -441,12 +441,12 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
                 {activePeriod?.status === 'open' ? (
                    <button 
                      onClick={handleCloseMonth} 
-                     className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-rose-600/20 to-rose-600/10 hover:from-rose-600 hover:to-rose-500 text-rose-500 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all border border-rose-500/30 active:scale-95 shadow-lg shadow-rose-500/10 group"
+                     className="flex items-center gap-2 px-4 py-2 bg-rose-500/[0.08] hover:bg-rose-500 text-rose-500 hover:text-white text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all border border-rose-500/20 hover:border-rose-500 active:scale-95 shadow-sm group"
                    >
-                     <LockIcon size={14} className="group-hover:rotate-12 transition-transform" /> Закрыть месяц
+                     <LockIcon size={14} className="group-hover:rotate-12 transition-transform duration-300" /> Закрыть месяц
                    </button>
                 ) : (
-                   <div className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 text-slate-500 text-[10px] font-black uppercase tracking-widest rounded-xl border border-slate-700/50">
+                   <div className="flex items-center gap-2 px-4 py-2 bg-white/[0.03] text-slate-500 text-[10px] font-bold uppercase tracking-widest rounded-xl border border-white/[0.05]">
                      <LockIcon size={14} /> Месяц закрыт
                    </div>
                 )}
@@ -454,9 +454,9 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
                 {isLatestPeriod && (
                    <button 
                      onClick={handleStartNextMonth} 
-                     className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(79,70,229,0.3)] active:scale-95 group"
+                     className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all shadow-[0_4px_15px_rgba(79,70,229,0.2)] hover:shadow-[0_4px_25px_rgba(79,70,229,0.3)] active:scale-95 group"
                    >
-                     <ICONS.Plus size={14} className="group-hover:scale-125 transition-transform" /> Открыть следующий
+                     <ICONS.Plus size={14} className="group-hover:scale-125 transition-transform duration-300" /> Открыть следующий
                    </button>
                 )}
               </div>
@@ -484,8 +484,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
         <div className="space-y-6">
           <div className="flex items-center gap-3 ml-1">
-             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]"></div>
-             <h2 className="text-[10px] uppercase font-black tracking-[0.25em] text-slate-400 opacity-80">Доходы и Платформы</h2>
+             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
+             <h2 className="text-[10px] uppercase font-bold tracking-[0.25em] text-slate-400 opacity-60">Доходы и Платформы</h2>
           </div>
           <div className="flex flex-col gap-4">
             <StatCard title="ОБЩИЙ ТОТАЛ (Грязными)" value={`$${stats.totalGross.toLocaleString()}`} color="amber" icon={<span className="text-2xl">💰</span>} highlighted />
@@ -498,8 +498,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         </div>
         <div className="space-y-6">
           <div className="flex items-center gap-3 ml-1">
-             <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]"></div>
-             <h2 className="text-[10px] uppercase font-black tracking-[0.25em] text-slate-400 opacity-80">Корректировки</h2>
+             <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]"></div>
+             <h2 className="text-[10px] uppercase font-bold tracking-[0.25em] text-slate-400 opacity-60">Корректировки</h2>
           </div>
           <div className="flex flex-col gap-3">
             <StatCard title="ШТРАФОВ" value={`$${stats.penalties.toLocaleString()}`} color="rose" icon={<PenaltyIcon size={16}/>} />
@@ -510,8 +510,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         </div>
         <div className="space-y-6">
           <div className="flex items-center gap-3 ml-1">
-             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
-             <h2 className="text-[10px] uppercase font-black tracking-[0.25em] text-slate-400 opacity-80">Операционная ЗП</h2>
+             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+             <h2 className="text-[10px] uppercase font-bold tracking-[0.25em] text-slate-400 opacity-60">Операционная ЗП</h2>
           </div>
           <div className="flex flex-col gap-3">
             <StatCard title="ОБЩАЯ ЗП ОПЕРАТОРОВ" value={`$${stats.netEarned.toLocaleString()}`} color="emerald" icon={<SalaryIcon size={16}/>} />
@@ -521,8 +521,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         </div>
         <div className="space-y-6">
           <div className="flex items-center gap-3 ml-1">
-             <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]"></div>
-             <h2 className="text-[10px] uppercase font-black tracking-[0.25em] text-slate-400 opacity-80">Администраторы</h2>
+             <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]"></div>
+             <h2 className="text-[10px] uppercase font-bold tracking-[0.25em] text-slate-400 opacity-60">Администраторы</h2>
           </div>
           <div className="flex flex-col gap-3">
             {stats.adminDetails.map((ad) => (
@@ -530,14 +530,16 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
                 key={ad.name}
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
-                whileHover={{ scale: 1.02 }}
-                className="relative group glass-card p-5 rounded-2xl bg-slate-900/40 border-slate-800/80 transition-all duration-300 flex flex-col justify-center min-w-0 shadow-lg hover:shadow-indigo-500/5 hover:border-slate-700 overflow-hidden"
+                whileHover={{ scale: 1.015 }}
+                className="relative group glass-card p-5 rounded-2xl bg-slate-900/40 border border-white/[0.05] transition-all duration-300 flex flex-col justify-center min-w-0 shadow-sm hover:shadow-indigo-500/[0.05] hover:border-white/10 overflow-hidden"
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-2 truncate opacity-80 group-hover:opacity-100 transition-opacity">{ad.name}</p>
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="flex justify-between items-start mb-2.5">
+                  <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest truncate opacity-70 group-hover:opacity-100 transition-opacity">{ad.name}</p>
+                  <span className="text-[10px] text-indigo-400 font-bold bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20 shadow-sm">{ad.rate}%</span>
+                </div>
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <p className="text-xl font-black text-white font-outfit leading-tight">${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                  <span className="text-[10px] text-indigo-400 font-bold bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">{ad.rate}%</span>
+                  <p className="text-2xl font-black text-white font-outfit leading-none">${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                 </div>
               </motion.div>
             ))}
@@ -590,6 +592,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
             </tbody>
           </table>
         </div>
+      </div>
       </div>
     </div>
   );
