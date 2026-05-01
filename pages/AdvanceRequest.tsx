@@ -89,8 +89,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
           reply_markup: {
             inline_keyboard: [
               [
-                { text: "✅ Аванс выдан", callback_data: `advance_paid_${requestId}` },
-                { text: "🏠 Dashboard", url: "https://ais-dev-7xz7xwj4qktl4ynp4sez7n-38906691745.europe-west2.run.app/#/advance-request" }
+                { text: "🔗 Открыть в Dashboard", url: "https://ais-dev-7xz7xwj4qktl4ynp4sez7n-38906691745.europe-west2.run.app/#/advance-request" }
               ]
             ]
           }
@@ -101,23 +100,35 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
       if (res.ok) {
         const data = await res.json();
         tgMessageId = data.result?.message_id;
+      } else {
+        console.warn("TG API returned non-OK status:", await res.text());
       }
 
-      // Сохраняем запрос в локальное состояние
+      // Сохраняем запрос в глобальное состояние
+      const newRequest: AdvanceRequestItem = {
+        id: requestId,
+        operator: selectedOperator,
+        amount: amountValue,
+        remainderAtTime: remainderValue,
+        method: paymentMethod,
+        address: walletAddress,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        tgMessageId
+      };
+
+      console.log("Saving new advance request:", newRequest);
+
       updateState(prev => {
-        const newRequest: AdvanceRequestItem = {
-          id: requestId,
-          operator: selectedOperator,
-          amount: amountValue,
-          remainderAtTime: remainderValue,
-          method: paymentMethod,
-          address: walletAddress,
-          status: 'pending',
-          createdAt: new Date().toISOString(),
-          tgMessageId
+        const existingRequests = prev.advanceRequests || [];
+        // Проверяем, нет ли уже такого ID (на всякий случай)
+        if (existingRequests.some(r => r.id === requestId)) return prev;
+
+        let nextState = { 
+          ...prev, 
+          advanceRequests: [newRequest, ...existingRequests],
+          lastUpdated: Date.now() 
         };
-        
-        let nextState = { ...prev, advanceRequests: [newRequest, ...(prev.advanceRequests || [])] };
 
         // Сохраняем/обновляем реквизиты в базе, если они изменились
         if (!existingWallet || existingWallet.address !== walletAddress || existingWallet.method !== paymentMethod) {
@@ -136,7 +147,9 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
         return nextState;
       });
 
-      alert('✅ Запрос на аванс успешно отправлен в Telegram и сохранен в системе!');
+      alert('✅ Запрос на аванс успешно отправлен в Telegram и сохранен!');
+      
+      // Очищаем поля ТОЛЬКО после успешного обновления состояния
       setSelectedOperator('');
       setAmount('');
       setWalletAddress('');
