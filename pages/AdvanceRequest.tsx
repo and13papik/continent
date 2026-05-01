@@ -60,45 +60,71 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     
     setIsSending(true);
     
-    // Simulate Telegram message
-    const message = `
-🚀 *ЗАПРОС НА АВАНС*
---------------------------
-👤 Оператор: @${selectedOperator}
-💰 Размер аванса: $${amount}
-📊 Текущий остаток ЗП: $${operatorStats?.remainder.toFixed(1)}
-💳 Реквизиты (${paymentMethod === 'usdt_trc20' ? 'USDT TRC20 balance' : 'Карта'}):
-\`${walletAddress}\`
---------------------------
-⚠️ *Статус: Ожидает подтверждения*
-    `.trim();
+    const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
+    const DEFAULT_CHAT_ID = '-1003748692600';
 
-    console.log("Sending to TG:", message);
+    // Формируем текст сообщения согласно запросу
+    let message = `🚀 <b>ЗАПРОС НА АВАНС</b>\n`;
+    message += `--------------------------\n`;
+    message += `👤 Оператору <b>@${selectedOperator}</b> запрошен аванс\n`;
+    message += `💰 <b>Размер аванса:</b> $${amount}\n`;
+    message += `📊 <b>Текущий остаток ЗП:</b> $${operatorStats?.remainder.toFixed(1)}\n`;
+    message += `💳 <b>${paymentMethod === 'usdt_trc20' ? 'Кошелек USDT TRC20' : 'Карта'} для выплаты:</b>\n`;
+    message += `<code>${walletAddress}</code>\n`;
+    message += `--------------------------\n`;
+    message += `⚠️ <i>Статус: Ожидает подтверждения</i>`;
 
-    // If there is an existing wallet, maybe update it if it's different?
-    // User requested "confirm current wallet".
-    if (!existingWallet || existingWallet.address !== walletAddress || existingWallet.method !== paymentMethod) {
-       updateState(prev => {
-         const wallets = prev.operatorWallets || [];
-         const filtered = wallets.filter(w => w.operator !== selectedOperator);
-         const newWallet: OperatorWallet = {
-           id: `wallet-${selectedOperator}-${Date.now()}`,
-           operator: selectedOperator,
-           address: walletAddress,
-           method: paymentMethod,
-           updatedAt: new Date().toISOString()
-         };
-         return { ...prev, operatorWallets: [...filtered, newWallet] };
-       });
-    }
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: DEFAULT_CHAT_ID,
+          text: message,
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: "✅ Аванс выдан", callback_data: `advance_paid_${selectedOperator}` },
+                { text: "🏠 Перейти в Dashboard", url: "https://ais-dev-7xz7xwj4qktl4ynp4sez7n-38906691745.europe-west2.run.app/#/advance-request" }
+              ]
+            ]
+          }
+        })
+      });
 
-    setTimeout(() => {
-      setIsSending(false);
-      alert('Запрос на аванс успешно отправлен в Telegram!');
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.description || 'Ошибка Telegram API');
+      }
+
+      // Сохраняем/обновляем реквизиты в базе, если они изменились
+      if (!existingWallet || existingWallet.address !== walletAddress || existingWallet.method !== paymentMethod) {
+        updateState(prev => {
+          const wallets = prev.operatorWallets || [];
+          const filtered = wallets.filter(w => w.operator !== selectedOperator);
+          const newWallet: OperatorWallet = {
+            id: `wallet-${selectedOperator}-${Date.now()}`,
+            operator: selectedOperator,
+            address: walletAddress,
+            method: paymentMethod,
+            updatedAt: new Date().toISOString()
+          };
+          return { ...prev, operatorWallets: [...filtered, newWallet] };
+        });
+      }
+
+      alert('✅ Запрос на аванс успешно отправлен в Telegram!');
       setStep(1);
       setSelectedOperator('');
       setAmount('');
-    }, 1500);
+      setWalletAddress('');
+    } catch (error) {
+      console.error("TG Send Error:", error);
+      alert('❌ Ошибка при отправке в Telegram: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
