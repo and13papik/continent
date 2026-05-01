@@ -32,7 +32,12 @@ import {
   Type,
   Baseline,
   ChevronDown,
-  Palette
+  Palette,
+  HandCoins,
+  Wallet,
+  Send,
+  User,
+  History
 } from 'lucide-react';
 
 export const ICONS: Record<string, any> = {
@@ -73,7 +78,12 @@ export const ICONS: Record<string, any> = {
   Type: Type,
   Baseline: Baseline,
   ChevronDown: ChevronDown,
-  Palette: Palette
+  Palette: Palette,
+  HandCoins: HandCoins,
+  Wallet: Wallet,
+  Send: Send,
+  User: User,
+  History: History
 };
 
 export const PLATFORM_NAMES: Record<string, string> = {
