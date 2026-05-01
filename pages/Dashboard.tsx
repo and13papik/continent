@@ -29,35 +29,83 @@ function StatCard({
   highlighted?: boolean;
 }) {
   const colorClasses: Record<string, string> = {
-    indigo: 'border-indigo-500/40 bg-indigo-500/10 text-indigo-400 shadow-indigo-500/5',
-    sky: 'border-sky-500/40 bg-sky-500/10 text-sky-400 shadow-sky-500/5',
-    emerald: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-emerald-500/5',
-    rose: 'border-rose-500/40 bg-rose-500/10 text-rose-400 shadow-rose-500/5',
-    amber: 'border-amber-500/40 bg-amber-500/10 text-amber-400 shadow-amber-500/5',
-    blue: 'border-blue-500/40 bg-blue-500/10 text-blue-400 shadow-blue-500/5'
+    indigo: 'from-indigo-500/20 to-indigo-500/5 border-indigo-500/30 text-indigo-400 shadow-indigo-500/10 group-hover:border-indigo-500/50',
+    sky: 'from-sky-500/20 to-sky-500/5 border-sky-500/30 text-sky-400 shadow-sky-500/10 group-hover:border-sky-500/50',
+    emerald: 'from-emerald-500/20 to-emerald-500/5 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10 group-hover:border-emerald-500/50',
+    rose: 'from-rose-500/20 to-rose-500/5 border-rose-500/30 text-rose-400 shadow-rose-500/10 group-hover:border-rose-500/50',
+    amber: 'from-amber-400/25 to-amber-600/10 border-amber-500/40 text-amber-400 shadow-amber-500/30 group-hover:border-amber-400/70',
+    blue: 'from-blue-500/20 to-blue-500/5 border-blue-500/30 text-blue-400 shadow-blue-500/10 group-hover:border-blue-500/50'
   };
 
-  const currentClass = colorClasses[color] || 'border-slate-800';
+  const currentClass = colorClasses[color] || 'from-slate-800/20 to-slate-900/10 border-slate-700/30';
+  const isGold = color === 'amber' && highlighted;
 
   return (
-    <div className={`glass-card p-4 rounded-2xl flex flex-col justify-center transition-transform hover:scale-[1.02] min-w-0 ${highlighted ? currentClass : 'border-slate-800'}`}>
-      <div className="flex items-center gap-3 overflow-visible">
-        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shadow-inner shrink-0 ${highlighted ? '' : 'bg-slate-800 text-slate-400'}`}>
-          {icon}
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ scale: 1.05, y: -6 }}
+      transition={{ duration: 0.4, type: 'spring', stiffness: 300 }}
+      className={`relative group bg-gradient-to-br ${currentClass} ${highlighted ? 'p-6' : 'p-5'} rounded-2xl border backdrop-blur-md transition-all duration-300 shadow-2xl overflow-hidden min-w-0 ${isGold ? 'ring-2 ring-amber-500/50 ring-offset-4 ring-offset-slate-950 border-amber-400/60 shadow-[0_0_30px_rgba(245,158,11,0.2)]' : highlighted ? 'ring-1 ring-white/10 ring-offset-2 ring-offset-slate-950' : ''}`}
+    >
+      {/* Decorative gradient overlay */}
+      <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${isGold ? 'bg-[radial-gradient(500px_at_50%_50%,rgba(245,158,11,0.15),transparent)]' : 'bg-[radial-gradient(400px_at_50%_50%,rgba(255,255,255,0.03),transparent)]'}`} />
+      
+      {isGold && (
+        <>
+          <div className="absolute -right-8 -top-8 w-32 h-32 bg-amber-500/20 blur-3xl pointer-events-none" />
+          <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-amber-600/10 blur-3xl pointer-events-none" />
+          
+          {/* Animated beam effect for gold card */}
+          <motion.div 
+            animate={{ 
+              x: ['-100%', '200%'],
+              opacity: [0, 0.5, 0]
+            }}
+            transition={{ 
+              duration: 3, 
+              repeat: Infinity, 
+              ease: "linear",
+              repeatDelay: 1
+            }}
+            className="absolute top-0 bottom-0 w-1/2 bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-12 pointer-events-none"
+          />
+        </>
+      )}
+      
+      <div className="relative flex items-center gap-4 overflow-visible">
+        <div className={`relative w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shrink-0 transition-transform duration-500 group-hover:rotate-6 ${isGold ? 'bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 text-white shadow-amber-500/40 border border-amber-300/30' : highlighted ? 'bg-white/10 text-white border border-white/20' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+          {isGold && (
+             <motion.div 
+               animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.8, 0.4] }}
+               transition={{ duration: 2, repeat: Infinity }}
+               className="absolute inset-0 bg-white rounded-2xl blur-md"
+             />
+          )}
+          <div className={`relative z-10 transition-transform duration-300 group-hover:scale-125 ${isGold ? 'drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]' : ''}`}>
+            {icon}
+          </div>
         </div>
         <div className="min-w-0 flex-1 overflow-visible">
-          <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-0.5 truncate">{title}</p>
-          <p className="text-lg font-black text-white font-outfit leading-tight whitespace-nowrap overflow-visible">
-            {value}
-          </p>
-          {subValue && (
-            <p className="text-[8px] font-bold mt-1 text-slate-500 font-mono whitespace-nowrap">
-              {subLabel}: {subValue}
+          <p className={`text-[10px] uppercase font-black tracking-[0.25em] mb-1.5 opacity-70 group-hover:opacity-100 transition-opacity ${isGold ? 'text-amber-400' : 'text-slate-400'}`}>{title}</p>
+          <div className="flex items-baseline gap-2">
+            <p className={`font-black text-white font-outfit leading-none whitespace-nowrap overflow-visible transition-all duration-300 ${highlighted ? 'text-4xl tracking-tighter' : 'text-xl'}`}>
+              {value}
             </p>
+          </div>
+          {subValue && (
+            <div className="flex items-center gap-1.5 mt-2">
+              <span className="text-[9px] font-black py-0.5 px-1.5 rounded bg-slate-800/50 text-slate-500 font-mono tracking-tighter uppercase whitespace-nowrap">
+                {subLabel}
+              </span>
+              <p className="text-[10px] font-bold text-slate-400 font-mono whitespace-nowrap">
+                {subValue}
+              </p>
+            </div>
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -389,23 +437,29 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
                 </select>
              </div>
              
-             <div className="flex items-center gap-2">
-               {activePeriod?.status === 'open' ? (
-                  <button onClick={handleCloseMonth} className="flex items-center gap-2 px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-500 hover:text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all border border-rose-500/30 active:scale-95 shadow-lg shadow-rose-500/5">
-                    <LockIcon size={12} /> Закрыть месяц
-                  </button>
-               ) : (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 text-slate-500 text-[9px] font-black uppercase tracking-widest rounded-xl border border-slate-700/50">
-                    <LockIcon size={12} /> Месяц закрыт
-                  </div>
-               )}
-               
-               {isLatestPeriod && (
-                  <button onClick={handleStartNextMonth} className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-95">
-                    <ICONS.Plus size={12} /> Открыть следующий
-                  </button>
-               )}
-             </div>
+              <div className="flex items-center gap-3">
+                {activePeriod?.status === 'open' ? (
+                   <button 
+                     onClick={handleCloseMonth} 
+                     className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-rose-600/20 to-rose-600/10 hover:from-rose-600 hover:to-rose-500 text-rose-500 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all border border-rose-500/30 active:scale-95 shadow-lg shadow-rose-500/10 group"
+                   >
+                     <LockIcon size={14} className="group-hover:rotate-12 transition-transform" /> Закрыть месяц
+                   </button>
+                ) : (
+                   <div className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 text-slate-500 text-[10px] font-black uppercase tracking-widest rounded-xl border border-slate-700/50">
+                     <LockIcon size={14} /> Месяц закрыт
+                   </div>
+                )}
+                
+                {isLatestPeriod && (
+                   <button 
+                     onClick={handleStartNextMonth} 
+                     className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(79,70,229,0.3)] active:scale-95 group"
+                   >
+                     <ICONS.Plus size={14} className="group-hover:scale-125 transition-transform" /> Открыть следующий
+                   </button>
+                )}
+              </div>
           </div>
         </div>
       </header>
@@ -427,18 +481,26 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <div className="space-y-4">
-          <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Доходы и Платформы</h2>
-          <div className="flex flex-col gap-3">
-            <StatCard title="ОБЩИЙ ТОТАЛ (Грязными)" value={`$${stats.totalGross.toLocaleString()}`} color="indigo" icon={<DashboardIcon size={16}/>} />
-            <StatCard title="ONLYFANS" value={`$${stats.of.gross.toLocaleString()}`} subValue={`$${stats.of.net.toLocaleString()}`} subLabel="Net" color="indigo" icon={<IncomeIcon size={16}/>} />
-            <StatCard title="PAYPAL" value={`$${stats.pp.gross.toLocaleString()}`} subValue={`$${stats.pp.net.toLocaleString()}`} subLabel="Net" color="sky" icon={<TransferIcon size={16}/>} />
-            <StatCard title="CRYPTO" value={`$${stats.cr.gross.toLocaleString()}`} subValue={`$${stats.cr.net.toLocaleString()}`} subLabel="Net" color="emerald" icon={<IncomeIcon size={16}/>} />
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
+        <div className="space-y-6">
+          <div className="flex items-center gap-3 ml-1">
+             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]"></div>
+             <h2 className="text-[10px] uppercase font-black tracking-[0.25em] text-slate-400 opacity-80">Доходы и Платформы</h2>
+          </div>
+          <div className="flex flex-col gap-4">
+            <StatCard title="ОБЩИЙ ТОТАЛ (Грязными)" value={`$${stats.totalGross.toLocaleString()}`} color="amber" icon={<span className="text-2xl">💰</span>} highlighted />
+            <div className="grid grid-cols-1 gap-3 pt-2 border-t border-slate-800/50">
+              <StatCard title="ONLYFANS" value={`$${stats.of.gross.toLocaleString()}`} subValue={`$${stats.of.net.toLocaleString()}`} subLabel="Net" color="indigo" icon={<IncomeIcon size={16}/>} />
+              <StatCard title="PAYPAL" value={`$${stats.pp.gross.toLocaleString()}`} subValue={`$${stats.pp.net.toLocaleString()}`} subLabel="Net" color="sky" icon={<TransferIcon size={16}/>} />
+              <StatCard title="CRYPTO" value={`$${stats.cr.gross.toLocaleString()}`} subValue={`$${stats.cr.net.toLocaleString()}`} subLabel="Net" color="emerald" icon={<IncomeIcon size={16}/>} />
+            </div>
           </div>
         </div>
-        <div className="space-y-4">
-          <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Корректировки</h2>
+        <div className="space-y-6">
+          <div className="flex items-center gap-3 ml-1">
+             <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]"></div>
+             <h2 className="text-[10px] uppercase font-black tracking-[0.25em] text-slate-400 opacity-80">Корректировки</h2>
+          </div>
           <div className="flex flex-col gap-3">
             <StatCard title="ШТРАФОВ" value={`$${stats.penalties.toLocaleString()}`} color="rose" icon={<PenaltyIcon size={16}/>} />
             <StatCard title="БОНУСОВ" value={`$${stats.bonuses.toLocaleString()}`} color="emerald" icon={<BonusIcon size={16}/>} />
@@ -446,25 +508,38 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
             <StatCard title="АВАНСОВ (Staff)" value={`$${stats.advances.toLocaleString()}`} color="amber" icon={<AdvanceIcon size={16}/>} />
           </div>
         </div>
-        <div className="space-y-4">
-          <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Операционная ЗП</h2>
+        <div className="space-y-6">
+          <div className="flex items-center gap-3 ml-1">
+             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+             <h2 className="text-[10px] uppercase font-black tracking-[0.25em] text-slate-400 opacity-80">Операционная ЗП</h2>
+          </div>
           <div className="flex flex-col gap-3">
             <StatCard title="ОБЩАЯ ЗП ОПЕРАТОРОВ" value={`$${stats.netEarned.toLocaleString()}`} color="emerald" icon={<SalaryIcon size={16}/>} />
             <StatCard title="ВЫПЛАЧЕНО ОПЕРАТОРАМ" value={`$${stats.paidOut.toLocaleString()}`} color="sky" icon={<TransferIcon size={16}/>} />
-            <StatCard title="ОСТАТОК ОПЕРАТОРАМ" value={`$${stats.remainder.toLocaleString()}`} color="indigo" icon={<RemainderIcon size={16}/>} highlighted />
+            <StatCard title="ОСТАТОК ОПЕРАТОРАМ" value={`$${stats.remainder.toLocaleString()}`} color="emerald" icon={<RemainderIcon size={16}/>} highlighted />
           </div>
         </div>
-        <div className="space-y-4">
-          <h2 className="text-[9px] uppercase font-black tracking-[0.2em] text-slate-500 ml-1">Администраторы</h2>
+        <div className="space-y-6">
+          <div className="flex items-center gap-3 ml-1">
+             <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]"></div>
+             <h2 className="text-[10px] uppercase font-black tracking-[0.25em] text-slate-400 opacity-80">Администраторы</h2>
+          </div>
           <div className="flex flex-col gap-3">
             {stats.adminDetails.map((ad) => (
-              <div key={ad.name} className="glass-card p-4 rounded-2xl bg-slate-900/40 border-slate-800 transition-transform hover:scale-[1.02] flex flex-col justify-center min-w-0">
-                <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-1 truncate">{ad.name}</p>
+              <motion.div 
+                key={ad.name}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                whileHover={{ scale: 1.02 }}
+                className="relative group glass-card p-5 rounded-2xl bg-slate-900/40 border-slate-800/80 transition-all duration-300 flex flex-col justify-center min-w-0 shadow-lg hover:shadow-indigo-500/5 hover:border-slate-700 overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-2 truncate opacity-80 group-hover:opacity-100 transition-opacity">{ad.name}</p>
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <p className="text-lg font-black text-white font-outfit leading-tight">${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                  <span className="text-[8px] text-slate-500 font-bold">({ad.rate}%)</span>
+                  <p className="text-xl font-black text-white font-outfit leading-tight">${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                  <span className="text-[10px] text-indigo-400 font-bold bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">{ad.rate}%</span>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
