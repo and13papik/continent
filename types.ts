@@ -219,6 +219,7 @@ export interface AdvanceRequestItem {
   address: string;
   status: 'pending' | 'paid';
   createdAt: string;
+  updatedAt: string;
   paidAt?: string;
   tgMessageId?: number;
 }

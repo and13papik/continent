@@ -114,6 +114,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
         address: walletAddress,
         status: 'pending',
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         tgMessageId
       };
 
@@ -121,7 +122,6 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
 
       updateState(prev => {
         const existingRequests = prev.advanceRequests || [];
-        // Проверяем, нет ли уже такого ID (на всякий случай)
         if (existingRequests.some(r => r.id === requestId)) return prev;
 
         let nextState = { 
@@ -169,7 +169,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     updateState(prev => ({
       ...prev,
       advanceRequests: (prev.advanceRequests || []).map(r => 
-        r.id === reqId ? { ...r, status: 'paid', paidAt: new Date().toISOString() } : r
+        r.id === reqId ? { ...r, status: 'paid', paidAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : r
       )
     }));
 
@@ -205,8 +205,13 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     }
   };
 
-  const activeRequests = (state.advanceRequests || []).filter(r => r.status === 'pending');
-  const historyRequests = (state.advanceRequests || []).filter(r => r.status === 'paid');
+  const activeRequests = (state.advanceRequests || [])
+    .filter(r => r.status === 'pending')
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    
+  const historyRequests = (state.advanceRequests || [])
+    .filter(r => r.status === 'paid')
+    .sort((a, b) => new Date(b.paidAt || b.createdAt).getTime() - new Date(a.paidAt || a.createdAt).getTime());
 
   return (
     <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in zoom-in duration-500 pb-20">

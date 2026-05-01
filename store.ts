@@ -118,6 +118,13 @@ function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?:
   const map = new Map<string, T>();
   const deletedSet = new Set(deletedIds.map(id => String(id)));
   
+  const getTime = (item: T) => {
+    if (!item) return 0;
+    const d = new Date(item.updatedAt || item.createdAt || 0);
+    const t = d.getTime();
+    return isNaN(t) ? 0 : t;
+  };
+
   remote.forEach(item => {
     const itemId = String(item.id);
     if (!deletedSet.has(itemId)) {
@@ -133,8 +140,8 @@ function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?:
     if (!existing) {
       map.set(itemId, item);
     } else {
-      const itemTime = new Date(item.updatedAt || item.createdAt || 0).getTime();
-      const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+      const itemTime = getTime(item);
+      const existingTime = getTime(existing);
       
       if (itemTime >= existingTime) {
         map.set(itemId, item);
@@ -376,6 +383,7 @@ export function reindexAllDataByDate(state: AppState): AppState {
     rosterData: (state.rosterData || []).map(fix),
     ownerTasks: (state.ownerTasks || []).map(fix),
     ownerNotes: (state.ownerNotes || []).map(fix),
+    advanceRequests: (state.advanceRequests || []).map(fix),
     lastUpdated: Date.now(),
     version: (state.version || 0) + 1
   };
