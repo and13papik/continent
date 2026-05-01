@@ -210,6 +210,19 @@ export interface OperatorWallet {
   updatedAt: string;
 }
 
+export interface AdvanceRequestItem {
+  id: string;
+  operator: string;
+  amount: number;
+  remainderAtTime: number;
+  method: 'usdt_trc20' | 'card';
+  address: string;
+  status: 'pending' | 'paid';
+  createdAt: string;
+  paidAt?: string;
+  tgMessageId?: number;
+}
+
 export interface OwnerNote {
   id: string;
   title: string;
@@ -250,6 +263,7 @@ export interface AppState {
   ownerNotes?: OwnerNote[];
   ownerDocument?: string;
   completedDocument?: string;
+  advanceRequests?: AdvanceRequestItem[];
   totalTableEntries?: DailyTotalEntry[]; 
   modelDefaultGoals?: Record<string, { night: number; morning: number; day: number; evening: number }>;
   modelMonthlyPlans?: Record<string, number>;

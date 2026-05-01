@@ -30,6 +30,7 @@ export function createInitialState(): AppState {
         ownerNotes: parsed.ownerNotes || [],
         ownerDocument: parsed.ownerDocument || '',
         completedDocument: parsed.completedDocument || '',
+        advanceRequests: parsed.advanceRequests || [],
         operatorWallets: parsed.operatorWallets || [],
         totalTableEntries: parsed.totalTableEntries || [],
         rosterData: parsed.rosterData || [],
@@ -84,6 +85,7 @@ export function createInitialState(): AppState {
     ownerNotes: [],
     ownerDocument: '',
     completedDocument: '',
+    advanceRequests: [],
     operatorWallets: [],
     totalTableEntries: [],
     rosterData: [],
@@ -182,6 +184,7 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         finalState.ownerNotes = mergeArraysById(state.ownerNotes || [], remote.ownerNotes || [], combinedDeletedIds);
         finalState.ownerDocument = (state.lastUpdated > (remote.lastUpdated || 0)) ? (state.ownerDocument || '') : (remote.ownerDocument || '');
         finalState.completedDocument = (state.lastUpdated > (remote.lastUpdated || 0)) ? (state.completedDocument || '') : (remote.completedDocument || '');
+        finalState.advanceRequests = mergeArraysById(state.advanceRequests || [], remote.advanceRequests || [], combinedDeletedIds);
         finalState.operatorWallets = mergeArraysById(state.operatorWallets || [], remote.operatorWallets || [], combinedDeletedIds);
         finalState.rosterData = mergeArraysById(state.rosterData || [], remote.rosterData || [], combinedDeletedIds);
         finalState.priorityModels = Array.from(new Set([...(state.priorityModels || []), ...(remote.priorityModels || [])]));
