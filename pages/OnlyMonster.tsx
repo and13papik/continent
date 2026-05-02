@@ -12,21 +12,36 @@ interface MetricData {
 }
 
 const OnlyMonster: React.FC = () => {
-  const [metrics, setMetrics] = useState<MetricData | null>(null);
+  const [metricsList, setMetricsList] = useState<MetricData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   const TOKEN = "om_token_56b9c18f3db28e5700ea4d52a69a67bb6c7d699700cd7dc188b9150224a437d3";
   const CREATOR_ID = "49307";
-  const BASE_URL = "https://api.onlymonster.ai"; // Assuming the base URL
+  const BASE_URL = "https://omapi.onlymonster.ai";
 
   const fetchMetrics = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${BASE_URL}/api/v0/users/metrics?creator_ids=${CREATOR_ID}`, {
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+      
+      const from = startOfDay.toISOString();
+      const to = endOfDay.toISOString();
+
+      const queryParams = new URLSearchParams({
+        from,
+        to,
+        creator_ids: CREATOR_ID,
+        offset: '0',
+        limit: '100'
+      });
+
+      const response = await fetch(`${BASE_URL}/api/v0/users/metrics?${queryParams.toString()}`, {
         headers: {
-          'Authorization': `Bearer ${TOKEN}`,
+          'x-om-auth-token': TOKEN,
           'accept': 'application/json'
         }
       });
@@ -36,15 +51,16 @@ const OnlyMonster: React.FC = () => {
       }
 
       const data = await response.json();
-      // The API usually returns an array for multiple IDs
-      const creatorData = Array.isArray(data) ? data.find(m => m.user_id === Number(CREATOR_ID)) : data;
+      const items = data.items || [];
       
-      if (creatorData) {
-        setMetrics(creatorData);
+      if (items.length > 0) {
+        setMetricsList(items);
         setLastUpdate(new Date());
         setError(null);
+        console.log(`[OnlyMonster] Successful connection to Nola Lust (ID: ${CREATOR_ID}) at ${new Date().toLocaleTimeString()}`);
       } else {
-        throw new Error("Data not found for creator");
+        setMetricsList([]);
+        setError("No data found for the selected period");
       }
     } catch (err) {
       console.error("OnlyMonster API Error:", err);
@@ -59,8 +75,6 @@ const OnlyMonster: React.FC = () => {
     const interval = setInterval(fetchMetrics, 15 * 60 * 1000); // 15 minutes
     return () => clearInterval(interval);
   }, []);
-
-  const isReplyTimeHigh = metrics ? metrics.reply_time_avg > 90 : false;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
@@ -96,65 +110,82 @@ const OnlyMonster: React.FC = () => {
           <TriangleAlert className="text-rose-500 shrink-0" size={20} />
           <div>
             <p className="text-rose-500 font-bold text-sm">Connection Error</p>
-            <p className="text-rose-300 text-xs mt-1">{error}. Please verify the API token and base URL.</p>
+            <p className="text-rose-300 text-xs mt-1">{error}. Please verify the API token and parameters.</p>
           </div>
         </motion.div>
       )}
 
-      {isReplyTimeHigh && (
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="p-6 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-6 shadow-[0_0_50px_rgba(245,158,11,0.1)]"
-        >
-          <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center animate-pulse">
-            <TriangleAlert className="text-amber-500" size={24} />
-          </div>
-          <div>
-            <p className="text-amber-500 font-black text-lg uppercase tracking-tight">Warning: High Response Time</p>
-            <p className="text-amber-200/70 text-sm">Average reply time is {metrics?.reply_time_avg}s, exceeding the 90s limit.</p>
-          </div>
-        </motion.div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* User ID */}
-        <MetricCard 
-          title="User ID" 
-          value={metrics?.user_id || CREATOR_ID} 
-          icon={<User size={18} />} 
-          loading={loading}
-          color="indigo"
-        />
+      {metricsList.map((metrics, index) => {
+        const isReplyTimeHigh = metrics.reply_time_avg > 90;
         
-        {/* Reply Time */}
-        <MetricCard 
-          title="Avg Reply Time" 
-          value={metrics ? `${metrics.reply_time_avg}s` : '--'} 
-          icon={<Clock size={18} />} 
-          loading={loading}
-          color={isReplyTimeHigh ? "amber" : "emerald"}
-          warning={isReplyTimeHigh}
-        />
+        return (
+          <div key={metrics.user_id || index} className="space-y-6">
+            <div className="flex items-center gap-3 ml-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
+              <h2 className="text-[10px] uppercase font-bold tracking-[0.25em] text-slate-400 opacity-60">
+                Data for User: {metrics.user_id} {metricsList.length > 1 ? `(Operator ${index + 1})` : ''}
+              </h2>
+            </div>
 
-        {/* Paid Messages */}
-        <MetricCard 
-          title="Paid Messages" 
-          value={metrics?.paid_messages_count || 0} 
-          icon={<MessageSquare size={18} />} 
-          loading={loading}
-          color="sky"
-        />
+            {isReplyTimeHigh && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="p-6 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-center gap-6 shadow-[0_0_50px_rgba(244,63,94,0.1)]"
+              >
+                <div className="w-12 h-12 rounded-full bg-rose-500/20 flex items-center justify-center animate-pulse">
+                  <TriangleAlert className="text-rose-500" size={24} />
+                </div>
+                <div>
+                  <p className="text-rose-500 font-black text-lg uppercase tracking-tight">Warning: CRITICAL Response Time</p>
+                  <p className="text-rose-200/70 text-sm">Average reply time for user {metrics.user_id} is {metrics.reply_time_avg}s, exceeding the 90s limit.</p>
+                </div>
+              </motion.div>
+            )}
 
-        {/* Total Earned */}
-        <MetricCard 
-          title="Total Sold Messages" 
-          value={metrics ? `$${metrics.total_sold_messages_price_sum.toLocaleString()}` : '$0'} 
-          icon={<DollarSign size={18} />} 
-          loading={loading}
-          color="emerald"
-        />
-      </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <MetricCard 
+                title="User ID" 
+                value={metrics.user_id} 
+                icon={<User size={18} />} 
+                loading={loading}
+                color="indigo"
+              />
+              
+              <MetricCard 
+                title="Avg Reply Time" 
+                value={`${metrics.reply_time_avg}s`} 
+                icon={<Clock size={18} />} 
+                loading={loading}
+                color={isReplyTimeHigh ? "rose" : "emerald"}
+                warning={isReplyTimeHigh}
+              />
+
+              <MetricCard 
+                title="Paid Messages" 
+                value={metrics.paid_messages_count} 
+                icon={<MessageSquare size={18} />} 
+                loading={loading}
+                color="sky"
+              />
+
+              <MetricCard 
+                title="Total Sold Messages" 
+                value={`$${metrics.total_sold_messages_price_sum.toLocaleString()}`} 
+                icon={<DollarSign size={18} />} 
+                loading={loading}
+                color="emerald"
+              />
+            </div>
+          </div>
+        );
+      })}
+
+      {!loading && metricsList.length === 0 && !error && (
+        <div className="p-12 text-center bg-white/[0.02] border border-white/[0.05] rounded-3xl">
+          <p className="text-slate-400 font-medium">No activity recorded for today yet.</p>
+        </div>
+      )}
 
       <div className="glass-card p-8 rounded-3xl border-white/[0.05] relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[100px] -mr-32 -mt-32 rounded-full"></div>
@@ -200,12 +231,22 @@ const MetricCard = ({ title, value, icon, loading, color, warning }: {
     emerald: 'from-emerald-500/[0.08] to-emerald-500/[0.02] border-emerald-500/20 text-emerald-400',
     amber: 'from-amber-400/[0.12] to-amber-600/[0.04] border-amber-500/30 text-amber-400',
     sky: 'from-sky-500/[0.08] to-sky-500/[0.02] border-sky-500/20 text-sky-400',
+    rose: 'from-rose-500/[0.12] to-rose-600/[0.04] border-rose-500/30 text-rose-400',
   };
 
   return (
     <motion.div 
       whileHover={{ scale: 1.02, y: -2 }}
-      className={`relative group bg-gradient-to-b ${colors[color] || colors.indigo} p-6 rounded-3xl border backdrop-blur-xl transition-all duration-300 shadow-sm overflow-hidden ${warning ? 'ring-2 ring-amber-500/20 ring-offset-4 ring-offset-slate-950' : ''}`}
+      animate={warning ? { 
+        borderColor: ['rgba(244, 63, 94, 0.3)', 'rgba(244, 63, 94, 0.8)', 'rgba(244, 63, 94, 0.3)'],
+        boxShadow: [
+          '0 0 10px rgba(244, 63, 94, 0.1)', 
+          '0 0 25px rgba(244, 63, 94, 0.3)', 
+          '0 0 10px rgba(244, 63, 94, 0.1)'
+        ]
+      } : {}}
+      transition={warning ? { duration: 2, repeat: Infinity, ease: "easeInOut" } : {}}
+      className={`relative group bg-gradient-to-b ${colors[color] || colors.indigo} p-6 rounded-3xl border backdrop-blur-xl transition-all duration-300 shadow-sm overflow-hidden ${warning ? 'ring-1 ring-rose-500/20' : ''}`}
     >
       <div className="absolute inset-0 border border-white/[0.03] rounded-3xl pointer-events-none" />
       <div className="flex flex-col gap-4">
