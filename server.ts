@@ -15,7 +15,7 @@ async function startServer() {
   app.use(express.json());
 
   // OnlyMonster Configuration
-  const OM_API_TOKEN = process.env.OM_API_TOKEN || "om_token_56b9c18f3db28e5700ea4d52a69a67bb6c7d699700cd7dc188b9150224a437d3";
+  const OM_API_TOKEN = process.env.OM_API_TOKEN || "om_token_afcb309585034d799a891a4d8a7d2827529c2873f59ac69b292b155e5442442d";
   const OM_WEBHOOK_SECRET = process.env.OM_WEBHOOK_SECRET || "om_webhook_c568b3c21bf51b2ff3c66b9204786c72d9a9729628373a5db042a473770fb69e";
   const ONLYMONSTER_API_BASE = "https://omapi.onlymonster.ai";
 
@@ -152,20 +152,32 @@ async function startServer() {
     }
   });
 
-  // 1.2 List Members
+  // 1.2 List Members (Operators)
   app.get("/api/members", async (req, res) => {
     try {
       const { limit = "50", offset = "0" } = req.query;
       const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
 
+      console.log(`[OnlyMonster] [DEBUG] Fetching members from: ${ONLYMONSTER_API_BASE}/api/v0/members?${params.toString()}`);
+
       const response = await fetchWithRetry(`${ONLYMONSTER_API_BASE}/api/v0/members?${params.toString()}`, {
-        headers: { 'x-om-auth-token': OM_API_TOKEN, 'accept': 'application/json' }
+        headers: { 
+          'x-om-auth-token': OM_API_TOKEN, 
+          'accept': 'application/json' 
+        }
       });
 
-      if (!response.ok) return res.status(response.status).json({ error: "Failed to fetch members" });
+      if (!response.ok) {
+        const errTxt = await response.text();
+        console.error(`[OnlyMonster] [DEBUG] Members Error: ${errTxt}`);
+        return res.status(response.status).json({ error: "Failed to fetch members" });
+      }
+      
       const data = await response.json();
+      console.log(`[OnlyMonster] [DEBUG] Members Count: ${data.users?.length || 0}`);
       res.json(data);
     } catch (err: any) {
+      console.error("[OnlyMonster] [MEMBERS_ERROR]", err);
       res.status(500).json({ error: err.message });
     }
   });

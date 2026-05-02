@@ -387,18 +387,27 @@ const OverviewTab = ({ metrics, summary, avgReply }: { metrics: MetricData[]; su
 const OperatorsTab = ({ metrics, members, query }: { metrics: MetricData[]; members: Member[]; query: string }) => {
   const filtered = members.filter(m => 
     m.name.toLowerCase().includes(query.toLowerCase()) || 
-    String(m.id).includes(query)
+    String(m.id).includes(query) ||
+    (m.customName && m.customName.toLowerCase().includes(query.toLowerCase()))
   );
 
   return (
     <div className="glass-card rounded-[3rem] border-white/5 shadow-2xl overflow-hidden bg-slate-900/10">
        <div className="p-10 border-b border-white/5 flex items-center justify-between bg-white/[0.01]">
-          <div>
-             <h3 className="text-2xl font-black text-white tracking-tighter uppercase font-outfit">Organisation Members</h3>
-             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Personnel metrics & performance ledger</p>
+          <div className="flex items-center gap-4">
+             <div className="p-3 bg-indigo-600/10 border border-indigo-500/20 rounded-2xl text-indigo-400">
+                <Users size={24} />
+             </div>
+             <div>
+                <h3 className="text-2xl font-black text-white tracking-tighter uppercase font-outfit">Organisation Operators</h3>
+                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Real-time performance ledger for active personnel</p>
+             </div>
           </div>
-          <div className="px-6 py-2 bg-indigo-500/10 rounded-full border border-indigo-500/20">
-             <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{members.length} Total Users</span>
+          <div className="flex flex-col items-end gap-1">
+             <div className="px-6 py-2 bg-indigo-500/10 rounded-full border border-indigo-500/20">
+                <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{members.length} Active Members</span>
+             </div>
+             <p className="text-[9px] text-slate-600 font-bold uppercase tracking-tight mr-2">Synchronizing with OnlyMonster API</p>
           </div>
        </div>
 
@@ -406,11 +415,11 @@ const OperatorsTab = ({ metrics, members, query }: { metrics: MetricData[]; memb
           <table className="w-full text-left border-collapse">
              <thead>
                 <tr className="bg-white/[0.02]">
-                   <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">User Profile</th>
-                   <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Metrics</th>
-                   <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Revenue Index</th>
-                   <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Efficiency</th>
-                   <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] text-right">Action</th>
+                   <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Operator Profile</th>
+                   <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Message Metrics</th>
+                   <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Revenue Index ($)</th>
+                   <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Response Perf</th>
+                   <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] text-right">Ledger</th>
                 </tr>
              </thead>
              <tbody className="divide-y divide-white/[0.03]">
@@ -419,63 +428,89 @@ const OperatorsTab = ({ metrics, members, query }: { metrics: MetricData[]; memb
                   const rev = m ? (m.total_sold_messages_price_sum + (m.total_tips_amount_sum || 0)) : 0;
                   const msgs = m ? m.messages_count : 0;
                   const resp = m ? m.reply_time_avg : 0;
+                  const paidCount = m ? m.paid_messages_count : 0;
                   
                   return (
-                    <tr key={member.id} className="group hover:bg-white/[0.04] transition-all">
+                    <tr key={member.id} className="group hover:bg-indigo-500/[0.02] transition-all">
                        <td className="p-8">
-                          <div className="flex items-center gap-4">
-                             <div className="relative">
+                          <div className="flex items-center gap-5">
+                             <div className="relative group-hover:scale-105 transition-transform">
                                 {member.avatar ? (
-                                  <img src={member.avatar} className="w-12 h-12 rounded-2xl object-cover ring-1 ring-white/10" alt="" />
+                                  <img src={member.avatar} className="w-14 h-14 rounded-2xl object-cover ring-1 ring-white/10 shadow-lg" alt="" referrerPolicy="no-referrer" />
                                 ) : (
-                                  <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-indigo-400 text-lg font-black">
+                                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center text-indigo-400 text-xl font-black">
                                      {member.name[0]}
                                   </div>
                                 )}
-                                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-[#050810] rounded-full"></div>
+                                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-[#050810] rounded-full shadow-lg"></div>
                              </div>
                              <div>
-                                <p className="text-sm font-black text-white hover:text-indigo-400 transition-colors cursor-pointer">{member.name}</p>
-                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2">
-                                   ID: {member.id} <span className="opacity-20">|</span> {member.email}
+                                <p className="text-base font-black text-white hover:text-indigo-400 transition-colors cursor-pointer font-outfit uppercase tracking-tight">
+                                   {member.customName || member.name}
                                 </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                   <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-lg border border-white/5">
+                                      ID: {member.id}
+                                   </span>
+                                   <span className="text-[10px] text-slate-600 font-bold tracking-tight truncate max-w-[150px]">
+                                      {member.email}
+                                   </span>
+                                </div>
                              </div>
                           </div>
                        </td>
                        <td className="p-8">
-                          <div className="flex items-center gap-6">
-                             <div className="text-center">
-                                <p className="text-xs font-black text-white">{msgs.toLocaleString()}</p>
-                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Messages</p>
+                          <div className="flex items-center gap-8">
+                             <div className="space-y-1">
+                                <p className="text-xs font-black text-white font-mono">{msgs.toLocaleString()}</p>
+                                <p className="text-[9px] text-slate-500 font-black uppercase tracking-wider">Total Msgs</p>
                              </div>
-                             <div className="text-center">
-                                <p className="text-xs font-black text-white">{m?.fans_count || 0}</p>
-                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Fans</p>
+                             <div className="space-y-1">
+                                <p className="text-xs font-black text-amber-500 font-mono">{paidCount.toLocaleString()}</p>
+                                <p className="text-[9px] text-slate-500 font-black uppercase tracking-wider">Paid Sales</p>
                              </div>
                           </div>
                        </td>
                        <td className="p-8">
                           <div className="flex flex-col">
-                             <span className="text-base font-black text-white font-outfit tracking-tight">${rev.toLocaleString()}</span>
-                             <div className="w-24 bg-white/5 h-1 rounded-full mt-2 overflow-hidden">
-                                <div className="bg-emerald-500 h-full" style={{ width: `${Math.min(100, (rev / 5000) * 100)}%` }}></div>
+                             <div className="flex items-end gap-1">
+                                <span className="text-sm text-indigo-400 font-black">$</span>
+                                <span className="text-xl font-black text-white font-outfit tracking-tighter leading-none">{rev.toLocaleString()}</span>
+                             </div>
+                             <div className="w-32 bg-white/5 h-1.5 rounded-full mt-3 overflow-hidden border border-white/5">
+                                <motion.div 
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${Math.min(100, (rev / 5000) * 100)}%` }}
+                                  className="bg-gradient-to-r from-indigo-500 to-indigo-400 h-full shadow-[0_0_10px_rgba(99,102,241,0.4)]" 
+                                />
                              </div>
                           </div>
                        </td>
                        <td className="p-8">
                           <div className="flex items-center gap-3">
-                             <div className={`w-2.5 h-2.5 rounded-full ${resp < 90 ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-amber-500'}`}></div>
-                             <span className={`text-sm font-black font-mono ${resp > 180 ? 'text-rose-500' : 'text-white'}`}>{resp}s</span>
+                             <div className={`w-3 h-3 rounded-full ${resp < 60 ? 'bg-emerald-500' : resp < 150 ? 'bg-amber-500' : 'bg-rose-500'} shadow-lg ring-4 ${resp < 60 ? 'ring-emerald-500/10' : resp < 150 ? 'ring-amber-500/10' : 'ring-rose-500/10'}`}></div>
+                             <div>
+                                <p className={`text-base font-black font-mono leading-none ${resp > 150 ? 'text-rose-500' : 'text-white'}`}>{resp}<span className="text-[10px] ml-0.5 opacity-40">s</span></p>
+                                <p className="text-[9px] text-slate-600 font-black uppercase tracking-widest mt-1">Avg Response</p>
+                             </div>
                           </div>
                        </td>
                        <td className="p-8 text-right">
-                          <button className="p-3 hover:bg-indigo-600 rounded-xl transition-all text-slate-500 hover:text-white group-hover:scale-110 active:scale-95">
-                             <ExternalLink size={18} />
+                          <button className="inline-flex items-center justify-center p-3 hover:bg-indigo-600 border border-white/5 rounded-2xl transition-all text-slate-500 hover:text-white group/btn active:scale-95">
+                             <ArrowUpRight size={20} className="group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
                           </button>
                        </td>
                     </tr>
                   );
                 })}
+                {filtered.length === 0 && (
+                   <tr>
+                      <td colSpan={5} className="p-20 text-center opacity-30">
+                         <Search size={40} className="mx-auto mb-4" />
+                         <p className="text-sm font-black uppercase tracking-[0.4em]">No operators matching your criteria</p>
+                      </td>
+                   </tr>
+                )}
              </tbody>
           </table>
        </div>
