@@ -16,7 +16,7 @@ async function startServer() {
 
   // OnlyMonster Configuration
   const OM_API_TOKEN = process.env.OM_API_TOKEN || "om_token_afcb309585034d799a891a4d8a7d2827529c2873f59ac69b292b155e5442442d";
-  const OM_WEBHOOK_SECRET = process.env.OM_WEBHOOK_SECRET || "om_webhook_c568b3c21bf51b2ff3c66b9204786c72d9a9729628373a5db042a473770fb69e";
+  const OM_WEBHOOK_SECRET = process.env.OM_WEBHOOK_SECRET || "om_webhook_99ff5707ade5e23dae520a663a8f9ac88272c761e4f2a130939c30160cd33222";
   const ONLYMONSTER_API_BASE = "https://omapi.onlymonster.ai";
 
   // --- State & Cache ---
