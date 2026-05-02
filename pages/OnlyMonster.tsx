@@ -126,20 +126,30 @@ const OnlyMonster: React.FC = () => {
       ]);
 
       console.log(`[OnlyMonster] [DEBUG] Statuses - Metrics: ${metricsRes.status}, Accounts: ${accountsRes.status}, Members: ${membersRes.status}`);
+      
+      const safeJson = async (res: Response) => {
+        const text = await res.text();
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          console.error(`[OnlyMonster] [FATAL] Failed to parse JSON from ${res.url}. Body start: ${text.slice(0, 100)}`);
+          throw new Error(`Invalid JSON response from ${res.url.split('?')[0]}`);
+        }
+      };
 
       // Metrics is required for the dashboard core
       if (!metricsRes.ok) {
-        const errData = await metricsRes.json().catch(() => ({}));
-        throw new Error(`Metrics sync failed: ${errData.error || metricsRes.statusText}`);
+        const errData = await safeJson(metricsRes).catch(() => ({}));
+        throw new Error(`Metrics sync failed (${metricsRes.status}): ${errData.error || metricsRes.statusText}`);
       }
 
-      const metricsData = await metricsRes.json();
+      const metricsData = await safeJson(metricsRes);
       console.log(`[OnlyMonster] [DEBUG] Metrics Data Items: ${metricsData.items?.length || 0}`);
       setMetrics(metricsData.items || []);
 
       // Enhanced account data fetching
       if (accountsRes.ok) {
-        const accountsData = await accountsRes.json();
+        const accountsData = await safeJson(accountsRes);
         const activeAccounts = accountsData.accounts || [];
         setAccounts(activeAccounts);
         console.log(`[OnlyMonster] [DEBUG] Accounts Loaded: ${activeAccounts.length}`);
@@ -157,19 +167,19 @@ const OnlyMonster: React.FC = () => {
           ]);
 
           if (txRes.ok) {
-            const data = await txRes.json();
+            const data = await safeJson(txRes);
             setTransactions(data.items || []);
           }
           if (trackRes.ok) {
-            const data = await trackRes.json();
+            const data = await safeJson(trackRes);
             setTrackingLinks(data.items || []);
           }
           if (trialRes.ok) {
-            const data = await trialRes.json();
+            const data = await safeJson(trialRes);
             setTrialLinks(data.items || []);
           }
           if (vaultRes.ok) {
-            const data = await vaultRes.json();
+            const data = await safeJson(vaultRes);
             setVaultFolders(data.items || []);
           }
         }
@@ -178,7 +188,7 @@ const OnlyMonster: React.FC = () => {
       }
 
       if (membersRes.ok) {
-        const membersData = await membersRes.json();
+        const membersData = await safeJson(membersRes);
         setMembers(membersData.users || []);
         console.log(`[OnlyMonster] [DEBUG] Members Loaded: ${membersData.users?.length || 0}`);
       } else {

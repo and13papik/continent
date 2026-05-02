@@ -298,6 +298,12 @@ async function startServer() {
     res.json({ received: true });
   });
 
+  // Final API 404 handler - MUST come before static/vite
+  app.use("/api/*", (req, res) => {
+    console.warn(`[OnlyMonster] [404] API route not found: ${req.method} ${req.originalUrl}`);
+    res.status(404).json({ error: "API Route not found", method: req.method, url: req.originalUrl });
+  });
+
   // --- Vite / Static Assets ---
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
