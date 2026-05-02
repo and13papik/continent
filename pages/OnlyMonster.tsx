@@ -81,6 +81,8 @@ const OnlyMonster: React.FC = () => {
       fromDate.setDate(fromDate.getDate() - parseInt(dateRange));
       const from = fromDate.toISOString();
 
+      console.log(`[OnlyMonster] [DEBUG] Syncing data from ${from} to ${to}`);
+
       // Parallel fetch for core data
       const [metricsRes, accountsRes, membersRes] = await Promise.all([
         fetch(`/api/metrics?from=${from}&to=${to}&limit=100`),
@@ -88,28 +90,44 @@ const OnlyMonster: React.FC = () => {
         fetch(`/api/members?limit=50`)
       ]);
 
-      if (!metricsRes.ok || !accountsRes.ok || !membersRes.ok) {
-        throw new Error("One or more data sources failed to sync.");
+      console.log(`[OnlyMonster] [DEBUG] Statuses - Metrics: ${metricsRes.status}, Accounts: ${accountsRes.status}, Members: ${membersRes.status}`);
+
+      // Metrics is required for the dashboard core
+      if (!metricsRes.ok) {
+        const errData = await metricsRes.json().catch(() => ({}));
+        throw new Error(`Metrics sync failed: ${errData.error || metricsRes.statusText}`);
       }
 
-      const [metricsData, accountsData, membersData] = await Promise.all([
-        metricsRes.json(),
-        accountsRes.json(),
-        membersRes.json()
-      ]);
-
+      const metricsData = await metricsRes.json();
+      console.log(`[OnlyMonster] [DEBUG] Metrics Data Items: ${metricsData.items?.length || 0}`);
       setMetrics(metricsData.items || []);
-      setAccounts(accountsData.accounts || []);
-      setMembers(membersData.users || []);
 
-      // If we have accounts, fetch transactions for the first one for the live feed
-      if (accountsData.accounts?.length > 0) {
-        const firstAccountId = accountsData.accounts[0].platform_account_id;
-        const txRes = await fetch(`/api/transactions/${firstAccountId}?start=${from}&end=${to}&limit=15`);
-        if (txRes.ok) {
-          const txData = await txRes.json();
-          setTransactions(txData.items || []);
+      // Others are auxiliary
+      if (accountsRes.ok) {
+        const accountsData = await accountsRes.json();
+        setAccounts(accountsData.accounts || []);
+        console.log(`[OnlyMonster] [DEBUG] Accounts Loaded: ${accountsData.accounts?.length || 0}`);
+
+        // If we have accounts, fetch transactions for the first one for the live feed
+        if (accountsData.accounts?.length > 0) {
+          const firstAccountId = accountsData.accounts[0].platform_account_id;
+          const txRes = await fetch(`/api/transactions/${firstAccountId}?start=${from}&end=${to}&limit=15`);
+          if (txRes.ok) {
+            const txData = await txRes.json();
+            setTransactions(txData.items || []);
+            console.log(`[OnlyMonster] [DEBUG] Transactions Loaded: ${txData.items?.length || 0}`);
+          }
         }
+      } else {
+        console.warn(`[OnlyMonster] [DEBUG] Accounts sync skip: ${accountsRes.status}`);
+      }
+
+      if (membersRes.ok) {
+        const membersData = await membersRes.json();
+        setMembers(membersData.users || []);
+        console.log(`[OnlyMonster] [DEBUG] Members Loaded: ${membersData.users?.length || 0}`);
+      } else {
+        console.warn(`[OnlyMonster] [DEBUG] Members sync skip: ${membersRes.status}`);
       }
 
       setLastUpdate(new Date());
@@ -151,6 +169,8 @@ const OnlyMonster: React.FC = () => {
       default: return null;
     }
   };
+
+  console.log(`[OnlyMonster] [DEBUG] Rendering dashboard - Metrics: ${metrics.length}, Accounts: ${accounts.length}, Members: ${members.length}, ActiveTab: ${activeTab}`);
 
   return (
     <div className="min-h-screen bg-[#050810] text-slate-300 font-sans selection:bg-indigo-500/30">
@@ -267,6 +287,20 @@ const NavBtn = ({ active, onClick, label, icon }: { active: boolean; onClick: ()
 );
 
 const OverviewTab = ({ metrics, summary, avgReply }: { metrics: MetricData[]; summary: any; avgReply: number }) => {
+  if (metrics.length === 0) {
+    return (
+      <div className="glass-card p-20 rounded-[3rem] border-white/5 flex flex-col items-center justify-center gap-6 text-center shadow-2xl">
+         <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-4">
+            <Search size={40} className="text-slate-600" />
+         </div>
+         <h3 className="text-2xl font-black text-white tracking-tighter uppercase font-outfit">No Activity Found</h3>
+         <p className="text-slate-500 text-sm max-w-md mx-auto">
+            We successfully synchronized with OnlyMonster, but no metrics were found for the selected {metrics.length === 0 ? "time period" : ""}. Try adjusting your date range or check back later.
+         </p>
+      </div>
+    );
+  }
+
   const chartData = useMemo(() => {
     return metrics.slice(0, 15).map(m => ({
       name: `ID ${String(m.user_id).slice(-4)}`,

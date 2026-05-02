@@ -103,12 +103,18 @@ async function startServer() {
         }
       });
 
+      console.log(`[OnlyMonster] [DEBUG] Metrics Request: ${ONLYMONSTER_API_BASE}/api/v0/users/metrics?${params.toString()}`);
+      console.log(`[OnlyMonster] [DEBUG] Metrics Status: ${response.status}`);
+
       if (!response.ok) {
         const errorText = await response.text();
+        console.error(`[OnlyMonster] [DEBUG] Metrics Error Body: ${errorText}`);
         return res.status(response.status).json({ error: "OnlyMonster API (Metrics) error.", details: errorText });
       }
 
       const data = await response.json();
+      console.log(`[OnlyMonster] [DEBUG] Metrics Raw Response Summary: ${JSON.stringify(data).slice(0, 500)}...`);
+      console.log(`[OnlyMonster] [DEBUG] Metrics Items Count: ${data.items?.length || 0}`);
       metricsCache.set(cacheKey, {
         data,
         expiry: Date.now() + CACHE_TTL
@@ -132,7 +138,13 @@ async function startServer() {
         headers: { 'x-om-auth-token': OM_API_TOKEN, 'accept': 'application/json' }
       });
 
-      if (!response.ok) return res.status(response.status).json({ error: "Failed to fetch accounts" });
+      console.log(`[OnlyMonster] [DEBUG] Accounts Status: ${response.status}`);
+
+      if (!response.ok) {
+        const errTxt = await response.text();
+        console.error(`[OnlyMonster] [DEBUG] Accounts Error: ${errTxt}`);
+        return res.status(response.status).json({ error: "Failed to fetch accounts" });
+      }
       const data = await response.json();
       res.json(data);
     } catch (err: any) {
