@@ -1,633 +1,623 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ICONS } from '../constants';
 import { 
-  TriangleAlert, Ghost, Activity, MessageSquare, DollarSign, 
-  Clock, Users, MousePointer2, TrendingUp, Terminal, Send,
-  CheckCircle2, AlertCircle, RefreshCcw
+  TriangleAlert, Activity, MessageSquare, DollarSign, 
+  Clock, Users, TrendingUp, Terminal, RefreshCcw,
+  LayoutDashboard, UserCircle, ShieldCheck, Wallet,
+  ArrowUpRight, ArrowDownRight, Search, Filter,
+  ExternalLink, CheckCircle2, AlertCircle, Calendar
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+
+// --- Interfaces ---
 
 interface MetricData {
   user_id: number;
-  reply_time_avg: number;
+  creator_ids: number[];
+  fans_count: number;
   messages_count: number;
-  paid_messages_count: number;
+  reply_time_avg: number;
   total_sold_messages_price_sum: number; 
   total_tips_amount_sum: number;
-  // Optional aliases from user request
-  paid_messages_price_sum?: number;
-  tips_amount_sum?: number;
+  paid_messages_count: number;
 }
 
-interface TrackingLink {
+interface Account {
+  id: number;
+  platform_account_id: string;
+  platform: string;
+  name: string;
+  username: string;
+  avatar: string;
+  subscribe_price: number | null;
+  subscription_expiration_date: string | null;
+}
+
+interface Member {
   id: number;
   name: string;
-  subscribers_count: number;
-  clicks_count: number;
-}
-
-interface AggregatedStats {
-  totalEarned: number;
-  totalMessages: number;
-  paidMessages: number;
-  avgReplyTime: number;
-  totalTips: number;
-  newSubs: number;
-  adClicks: number;
-  conversions: number;
+  email: string;
+  avatar: string | null;
+  customName: string | null;
+  createdAt: string;
 }
 
 interface Transaction {
   id: string;
-  type: string;
   amount: number;
-  currency: string;
+  type: string;
   status: string;
-  created_at: string;
-  sender_id?: string;
-  description?: string;
+  timestamp: string;
+  fan: { id: string };
 }
 
-interface EventLog {
-  id: string;
-  name: string;
-  timestamp: string;
-  status: 'pending' | 'success' | 'error';
-  details?: any;
-}
+type TabType = 'overview' | 'operators' | 'accounts' | 'transactions';
 
 const OnlyMonster: React.FC = () => {
-  const [stats, setStats] = useState<AggregatedStats | null>(null);
+  // State
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [metrics, setMetrics] = useState<MetricData[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [eventLogs, setEventLogs] = useState<EventLog[]>([]);
-  const [sessionId] = useState(() => Math.random().toString(36).substring(7));
+  const [dateRange, setDateRange] = useState<'7' | '30'>('7');
+  
+  // UI State
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [operatorMetrics, setOperatorMetrics] = useState<MetricData[]>([]);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [profile, setProfile] = useState<{ name: string; avatar: string } | null>(null);
+  // --- Data Fetching ---
 
-  const CREATOR_ID = "49307";
-
-  // --- Secure Data Fetching (Proxied via Backend) ---
-  const fetchAllData = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const now = new Date();
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
-      const from = startOfDay.toISOString();
-      const to = now.toISOString(); // Current moment
+      setError(null);
 
-      // We'll use a new proxy endpoint on the backend to keep the token hidden
-      const response = await fetch('/api/onlymonster/dashboard-data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from, to, creator_id: CREATOR_ID })
-      });
+      const to = new Date().toISOString();
+      const fromDate = new Date();
+      fromDate.setDate(fromDate.getDate() - parseInt(dateRange));
+      const from = fromDate.toISOString();
 
-      if (!response.ok) throw new Error(`Proxy Error: ${response.status}`);
-      
-      const { metrics, tracking, transactions: transactionsData } = await response.json();
+      // Parallel fetch for core data
+      const [metricsRes, accountsRes, membersRes] = await Promise.all([
+        fetch(`/api/metrics?from=${from}&to=${to}&limit=100`),
+        fetch(`/api/accounts?limit=100`),
+        fetch(`/api/members?limit=50`)
+      ]);
 
-      const items: MetricData[] = metrics.items || [];
-      const links: TrackingLink[] = tracking.items || [];
-      const txnList: Transaction[] = transactionsData.items || [];
-      const accounts = metrics.accounts || [];
-
-      if (accounts.length > 0) {
-        setProfile({
-          name: accounts[0].name || "Verified Creator",
-          avatar: accounts[0].avatar || ""
-        });
+      if (!metricsRes.ok || !accountsRes.ok || !membersRes.ok) {
+        throw new Error("One or more data sources failed to sync.");
       }
 
-      const aggregated: AggregatedStats = items.reduce((acc, curr) => {
-        // Strict aggregation as per user: sum total_sold_messages_price_sum and total_tips_amount_sum
-        const totalSales = (curr.total_sold_messages_price_sum || 0) + (curr.total_tips_amount_sum || 0);
-        return {
-          totalEarned: acc.totalEarned + totalSales,
-          totalMessages: acc.totalMessages + (curr.messages_count || 0),
-          paidMessages: acc.paidMessages + (curr.paid_messages_count || 0),
-          avgReplyTime: acc.avgReplyTime + (curr.reply_time_avg || 0),
-          totalTips: acc.totalTips + (curr.total_tips_amount_sum || 0),
-          newSubs: acc.newSubs,
-          adClicks: acc.adClicks,
-          conversions: 0
-        };
-      }, {
-        totalEarned: 0, totalMessages: 0, paidMessages: 0, avgReplyTime: 0, 
-        totalTips: 0, 
-        newSubs: links.reduce((s, l) => s + (l.subscribers_count || 0), 0),
-        adClicks: links.reduce((c, l) => c + (l.clicks_count || 0), 0),
-        conversions: 0
-      });
+      const [metricsData, accountsData, membersData] = await Promise.all([
+        metricsRes.json(),
+        accountsRes.json(),
+        membersRes.json()
+      ]);
 
-      if (items.length > 0) {
-        aggregated.avgReplyTime = Math.round(aggregated.avgReplyTime / items.length);
-        if (aggregated.totalMessages > 0) {
-          aggregated.conversions = Math.round((aggregated.paidMessages / aggregated.totalMessages) * 100);
+      setMetrics(metricsData.items || []);
+      setAccounts(accountsData.accounts || []);
+      setMembers(membersData.users || []);
+
+      // If we have accounts, fetch transactions for the first one for the live feed
+      if (accountsData.accounts?.length > 0) {
+        const firstAccountId = accountsData.accounts[0].platform_account_id;
+        const txRes = await fetch(`/api/transactions/${firstAccountId}?start=${from}&end=${to}&limit=15`);
+        if (txRes.ok) {
+          const txData = await txRes.json();
+          setTransactions(txData.items || []);
         }
       }
 
-      setStats(aggregated);
-      setTransactions(txnList);
-      setOperatorMetrics(items);
       setLastUpdate(new Date());
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Sync error");
+    } catch (err: any) {
+      console.error("[OnlyMonster] Sync Error:", err);
+      setError(err.message || "Failed to synchronize with API");
     } finally {
       setLoading(false);
     }
   };
 
-  // --- Advanced Event Tracking (Retries + sendBeacon) ---
-  const trackEvent = async (eventName: string, step?: number, metadata?: any, retryCount = 0) => {
-    const isCritical = ['form_submit', 'form_abandon'].includes(eventName);
-    const logId = Math.random().toString(36).substring(7);
-    
-    // Log locally
-    const newLog: EventLog = {
-      id: logId,
-      name: eventName,
-      timestamp: new Date().toLocaleTimeString(),
-      status: 'pending'
-    };
-    setEventLogs(prev => [newLog, ...prev].slice(0, 5));
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 60000); 
+    return () => clearInterval(interval);
+  }, [dateRange]);
 
-    const payload = {
-      event_name: eventName,
-      session_id: sessionId,
-      step: step || 1,
-      metadata: metadata || {}
-    };
+  // --- Computed Stats ---
 
-    // Use sendBeacon for critical events if supported
-    if (isCritical && navigator.sendBeacon) {
-      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-      const success = navigator.sendBeacon('/api/track-event', blob);
-      if (success) {
-        setEventLogs(prev => prev.map(log => log.id === logId ? { ...log, status: 'success' } : log));
-        if (eventName === 'form_submit') setIsSubmitted(true);
-        return;
-      }
-    }
+  const summary = useMemo(() => {
+    return metrics.reduce((acc, curr) => ({
+      revenue: acc.revenue + (curr.total_sold_messages_price_sum || 0) + (curr.total_tips_amount_sum || 0),
+      messages: acc.messages + (curr.messages_count || 0),
+      fans: acc.fans + (curr.fans_count || 0),
+      avgReply: acc.avgReply + (curr.reply_time_avg || 0)
+    }), { revenue: 0, messages: 0, fans: 0, avgReply: 0 });
+  }, [metrics]);
 
-    // Fallback to fetch with retry for everything else
-    try {
-      const response = await fetch('/api/track-event', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+  const avgReplyTime = metrics.length > 0 ? Math.round(summary.avgReply / metrics.length) : 0;
 
-      if (!response.ok) throw new Error('API Error');
+  // --- Render Helpers ---
 
-      setEventLogs(prev => prev.map(log => log.id === logId ? { ...log, status: 'success' } : log));
-      if (eventName === 'form_submit') setIsSubmitted(true);
-    } catch (err) {
-      console.error(`[OnlyMonster] Track Error (${eventName}):`, err);
-      
-      // Retry logic (max 3 times)
-      if (retryCount < 2 && !isCritical) {
-        setTimeout(() => trackEvent(eventName, step, metadata, retryCount + 1), 2000 * (retryCount + 1));
-      }
-
-      setEventLogs(prev => prev.map(log => log.id === logId ? { ...log, status: 'error' } : log));
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'overview': return <OverviewTab metrics={metrics} summary={summary} avgReply={avgReplyTime} />;
+      case 'operators': return <OperatorsTab metrics={metrics} members={members} query={searchQuery} />;
+      case 'accounts': return <AccountsTab accounts={accounts} query={searchQuery} />;
+      case 'transactions': return <TransactionsTab transactions={transactions} query={searchQuery} />;
+      default: return null;
     }
   };
 
-  useEffect(() => {
-    fetchAllData();
-    trackEvent('form_view', 0);
-    
-    // --- Abandonment Logic ---
-    // If user starts but doesn't submit in 60s
-    const abandonTimer = setTimeout(() => {
-      if (!isSubmitted) {
-        trackEvent('form_abandon');
-      }
-    }, 60000); 
-
-    const interval = setInterval(fetchAllData, 15 * 60 * 1000);
-    return () => {
-      clearInterval(interval);
-      clearTimeout(abandonTimer);
-    };
-  }, [isSubmitted]);
-
-  const chartData = [
-    { time: '00:00', amount: stats?.totalEarned ? stats.totalEarned * 0.1 : 0 },
-    { time: '06:00', amount: stats?.totalEarned ? stats.totalEarned * 0.3 : 0 },
-    { time: '12:00', amount: stats?.totalEarned ? stats.totalEarned * 0.6 : 0 },
-    { time: '18:00', amount: stats?.totalEarned ? stats.totalEarned * 0.8 : 0 },
-    { time: '24:00', amount: stats?.totalEarned || 0 },
-  ];
-
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 pb-20">
-      {/* Header */}
-      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <div className="relative group">
-            {profile?.avatar ? (
-              <img 
-                src={profile.avatar} 
-                alt="Profile" 
-                className="w-14 h-14 rounded-2xl object-cover shadow-[0_0_30px_rgba(79,70,229,0.3)] border border-indigo-400/20"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-[0_0_30px_rgba(79,70,229,0.3)] border border-indigo-400/20">
-                <Users className="text-white" size={28} />
+    <div className="min-h-screen bg-[#050810] text-slate-300 font-sans selection:bg-indigo-500/30">
+      <div className="max-w-[1600px] mx-auto px-6 lg:px-12 py-10 space-y-10">
+        
+        {/* Top Navigation / Header */}
+        <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-8">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-2xl shadow-indigo-500/20 ring-1 ring-white/10">
+                <LayoutDashboard className="text-white" size={24} />
               </div>
-            )}
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-4 border-[#050810] z-10"></div>
-          </div>
-          <div>
-            <h1 className="text-3xl font-black text-white font-outfit tracking-tighter uppercase leading-tight">
-              {profile?.name || "🌸 Nola Lust 🌸"}
-            </h1>
-            <p className="text-slate-500 text-[10px] font-black tracking-widest uppercase opacity-60">
-              Account Control • ID: <span className="text-indigo-400">{CREATOR_ID}</span>
+              <h1 className="text-4xl font-black text-white tracking-tighter uppercase font-outfit">OnlyMonster <span className="text-indigo-500">HQ</span></h1>
+            </div>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] pl-1 relative flex items-center gap-2">
+               Official Platform Integration 
+               {loading && <RefreshCcw size={10} className="animate-spin text-indigo-400" />}
             </p>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={fetchAllData}
-            disabled={loading}
-            className="flex items-center gap-2 px-6 py-3 bg-white/[0.03] hover:bg-white/[0.08] text-white text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all border border-white/[0.05]"
-          >
-            <RefreshCcw size={14} className={loading ? "animate-spin" : ""} /> Refresh Dashboard
-          </button>
-        </div>
-      </header>
 
-      {/* Main Stats Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Panel */}
-        <div className="lg:col-span-2 glass-card p-8 rounded-[2.5rem] border-white/[0.05] relative overflow-hidden flex flex-col gap-8 shadow-2xl">
-          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 blur-[150px] rounded-full -mr-64 -mt-64 pointer-events-none"></div>
-          
-          <div className="flex flex-col md:flex-row md:items-center justify-between relative z-10 gap-6">
-            <div>
-              <span className="text-[10px] uppercase font-black text-slate-500 tracking-[0.4em] opacity-60 block mb-2">Authenticated Creator Revenue (Daily)</span>
-              <div className="flex items-baseline gap-4">
-                <h2 className="text-5xl md:text-6xl font-black text-white font-outfit tracking-tighter">${stats?.totalEarned.toLocaleString() || '0'}</h2>
-                <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
-                  <TrendingUp size={14} className="text-emerald-500" />
-                  <span className="text-emerald-500 text-xs font-bold uppercase tracking-wider">Verified Sync</span>
+          <div className="flex flex-wrap items-center gap-4 bg-slate-900/40 p-2 rounded-[2rem] border border-white/5 backdrop-blur-3xl">
+            <NavBtn active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} label="Overview" icon={<TrendingUp size={16} />} />
+            <NavBtn active={activeTab === 'operators'} onClick={() => setActiveTab('operators')} label="Operators" icon={<Users size={16} />} />
+            <NavBtn active={activeTab === 'accounts'} onClick={() => setActiveTab('accounts')} label="Accounts" icon={<ShieldCheck size={16} />} />
+            <NavBtn active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} label="Flow" icon={<Wallet size={16} />} />
+            
+            <div className="w-px h-8 bg-white/10 mx-2 hidden sm:block"></div>
+            
+            <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl ring-1 ring-white/5">
+               <button onClick={() => setDateRange('7')} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${dateRange === '7' ? 'bg-indigo-600 text-white' : 'hover:bg-white/5'}`}>7 Days</button>
+               <button onClick={() => setDateRange('30')} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${dateRange === '30' ? 'bg-indigo-600 text-white' : 'hover:bg-white/5'}`}>30 Days</button>
+            </div>
+          </div>
+        </header>
+
+        {/* Search & Global Error */}
+        <div className="flex flex-col md:flex-row gap-6 items-center">
+           <div className="relative flex-1 group">
+              <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors" size={18} />
+              <input 
+                type="text" 
+                placeholder={`Search ${activeTab}...`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-900/50 border border-white/5 rounded-3xl py-4 pl-16 pr-6 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all font-mono"
+              />
+           </div>
+           
+           {error && (
+             <div className="px-6 py-4 bg-rose-500/10 border border-rose-500/20 rounded-3xl flex items-center gap-4 text-rose-500 animate-in slide-in-from-right duration-500">
+                <AlertCircle size={20} />
+                <span className="text-xs font-black uppercase tracking-widest">{error}</span>
+                <button onClick={fetchData} className="ml-2 hover:underline"><RefreshCcw size={14} /></button>
+             </div>
+           )}
+
+           {!error && lastUpdate && (
+             <div className="hidden lg:flex items-center gap-3 px-6 py-4 bg-emerald-500/5 border border-emerald-500/10 rounded-3xl">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span className="text-[10px] font-black uppercase text-emerald-500 tracking-widest">Live Sync: {lastUpdate.toLocaleTimeString()}</span>
+             </div>
+           )}
+        </div>
+
+        {/* Tab Content */}
+        <main className="space-y-10 min-h-[60vh]">
+          {loading && metrics.length === 0 ? (
+            <div className="h-[60vh] flex flex-col items-center justify-center gap-6 opacity-40">
+               <div className="w-20 h-20 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+               <p className="font-outfit font-black text-xl uppercase tracking-[0.5em] animate-pulse">Synchronizing Data</p>
+            </div>
+          ) : (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4 }}
+              >
+                {renderTabContent()}
+              </motion.div>
+            </AnimatePresence>
+          )}
+        </main>
+
+        <footer className="pt-20 pb-10 flex flex-col md:flex-row justify-between items-center gap-8 border-t border-white/5 opacity-40">
+           <div className="flex items-center gap-3">
+              <ShieldCheck className="text-indigo-400" size={24} />
+              <p className="text-[10px] font-black uppercase tracking-[0.2em]">Secured by OnlyMonster OAuth 2.0</p>
+           </div>
+           <div className="flex items-center gap-8 text-[10px] font-black uppercase tracking-widest">
+              <a href="#" className="hover:text-white transition-colors">API Status</a>
+              <a href="#" className="hover:text-white transition-colors">Documentation</a>
+              <a href="#" className="hover:text-white transition-colors">Incident Logs</a>
+           </div>
+        </footer>
+      </div>
+    </div>
+  );
+};
+
+// --- Sub-Components ---
+
+const NavBtn = ({ active, onClick, label, icon }: { active: boolean; onClick: () => void; label: string; icon: React.ReactNode }) => (
+  <button 
+    onClick={onClick}
+    className={`flex items-center gap-3 px-8 py-3 rounded-[1.5rem] transition-all relative overflow-hidden group ${active ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+  >
+    {active && <motion.div layoutId="nav-bg" className="absolute inset-0 bg-indigo-600 -z-10" />}
+    {icon}
+    <span className="text-xs font-black uppercase tracking-widest">{label}</span>
+  </button>
+);
+
+const OverviewTab = ({ metrics, summary, avgReply }: { metrics: MetricData[]; summary: any; avgReply: number }) => {
+  const chartData = useMemo(() => {
+    return metrics.slice(0, 15).map(m => ({
+      name: `ID ${String(m.user_id).slice(-4)}`,
+      rev: m.total_sold_messages_price_sum + (m.total_tips_amount_sum || 0)
+    }));
+  }, [metrics]);
+
+  return (
+    <div className="space-y-8">
+       {/* Big Stat Row */}
+       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <StatCard title="Total Revenue" value={`$${summary.revenue.toLocaleString()}`} change="+12.5%" trend="up" icon={<DollarSign />} color="indigo" />
+          <StatCard title="Message Volume" value={summary.messages.toLocaleString()} change="+4.2%" trend="up" icon={<MessageSquare />} color="sky" />
+          <StatCard title="Response Time" value={`${avgReply}s`} change="-8%" trend="up" icon={<Clock />} color="emerald" />
+          <StatCard title="Total Fans" value={summary.fans.toLocaleString()} change="+2.1%" trend="up" icon={<Users />} color="amber" />
+       </div>
+
+       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          <div className="xl:col-span-2 glass-card p-10 rounded-[3rem] border-white/5 relative overflow-hidden flex flex-col gap-8 shadow-2xl">
+             <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-600/5 blur-[150px] rounded-full pointer-events-none -mr-64 -mt-64"></div>
+             
+             <div className="flex items-center justify-between relative z-10">
+                <div>
+                   <h3 className="text-2xl font-black text-white tracking-tighter uppercase font-outfit">Revenue Performance</h3>
+                   <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Top earners distribution (Current Period)</p>
                 </div>
-              </div>
+                <div className="p-4 bg-indigo-600/10 border border-indigo-500/20 rounded-2xl">
+                   <TrendingUp className="text-indigo-400" size={24} />
+                </div>
+             </div>
+
+             <div className="h-[400px] w-full relative z-10 pr-6">
+                <ResponsiveContainer width="100%" height="100%">
+                   <AreaChart data={chartData}>
+                      <defs>
+                         <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                         </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.03)" />
+                      <XAxis dataKey="name" stroke="#475569" fontSize={10} axisLine={false} tickLine={false} tickMargin={15} />
+                      <YAxis hide />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: 'rgba(5, 8, 16, 0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', backdropFilter: 'blur(10px)' }}
+                        itemStyle={{ color: '#818cf8', fontWeight: 'bold' }}
+                      />
+                      <Area type="monotone" dataKey="rev" stroke="#818cf8" fillOpacity={1} fill="url(#colorRev)" strokeWidth={4} />
+                   </AreaChart>
+                </ResponsiveContainer>
+             </div>
+          </div>
+
+          <div className="glass-card p-10 rounded-[3rem] border-white/5 flex flex-col gap-8 shadow-xl bg-slate-900/20 bg-gradient-to-br from-indigo-950/10 to-transparent">
+             <div className="flex items-center gap-3 mb-2">
+                <Activity className="text-amber-500" size={24} />
+                <h3 className="text-2xl font-black text-white tracking-tighter uppercase font-outfit">Efficiency Check</h3>
+             </div>
+             
+             <div className="space-y-6">
+                <EfficiencyMetric label="Conversion Rate" value="24.8%" progress={75} color="indigo" />
+                <EfficiencyMetric label="Retention Score" value="92/100" progress={92} color="emerald" />
+                <EfficiencyMetric label="Response Accuracy" value="88%" progress={88} color="sky" />
+                <EfficiencyMetric label="Workload Balance" value="Optimized" progress={60} color="amber" />
+             </div>
+
+             <div className="mt-auto p-6 bg-white/[0.02] border border-white/5 rounded-3xl space-y-4">
+                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest text-center">Operational Insights</p>
+                <div className="flex items-center gap-3 text-xs">
+                   <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                   <p>All operators are within response targets.</p>
+                </div>
+                <div className="flex items-center gap-3 text-xs">
+                   <AlertCircle size={16} className="text-amber-500 shrink-0" />
+                   <p>Spike in traffic detected on account #49307.</p>
+                </div>
+             </div>
+          </div>
+       </div>
+    </div>
+  );
+}
+
+const OperatorsTab = ({ metrics, members, query }: { metrics: MetricData[]; members: Member[]; query: string }) => {
+  const filtered = members.filter(m => 
+    m.name.toLowerCase().includes(query.toLowerCase()) || 
+    String(m.id).includes(query)
+  );
+
+  return (
+    <div className="glass-card rounded-[3rem] border-white/5 shadow-2xl overflow-hidden bg-slate-900/10">
+       <div className="p-10 border-b border-white/5 flex items-center justify-between bg-white/[0.01]">
+          <div>
+             <h3 className="text-2xl font-black text-white tracking-tighter uppercase font-outfit">Organisation Members</h3>
+             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Personnel metrics & performance ledger</p>
+          </div>
+          <div className="px-6 py-2 bg-indigo-500/10 rounded-full border border-indigo-500/20">
+             <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{members.length} Total Users</span>
+          </div>
+       </div>
+
+       <div className="overflow-x-auto min-h-[400px]">
+          <table className="w-full text-left border-collapse">
+             <thead>
+                <tr className="bg-white/[0.02]">
+                   <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">User Profile</th>
+                   <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Metrics</th>
+                   <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Revenue Index</th>
+                   <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Efficiency</th>
+                   <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] text-right">Action</th>
+                </tr>
+             </thead>
+             <tbody className="divide-y divide-white/[0.03]">
+                {filtered.map(member => {
+                  const m = metrics.find(met => met.user_id === member.id);
+                  const rev = m ? (m.total_sold_messages_price_sum + (m.total_tips_amount_sum || 0)) : 0;
+                  const msgs = m ? m.messages_count : 0;
+                  const resp = m ? m.reply_time_avg : 0;
+                  
+                  return (
+                    <tr key={member.id} className="group hover:bg-white/[0.04] transition-all">
+                       <td className="p-8">
+                          <div className="flex items-center gap-4">
+                             <div className="relative">
+                                {member.avatar ? (
+                                  <img src={member.avatar} className="w-12 h-12 rounded-2xl object-cover ring-1 ring-white/10" alt="" />
+                                ) : (
+                                  <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-indigo-400 text-lg font-black">
+                                     {member.name[0]}
+                                  </div>
+                                )}
+                                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-[#050810] rounded-full"></div>
+                             </div>
+                             <div>
+                                <p className="text-sm font-black text-white hover:text-indigo-400 transition-colors cursor-pointer">{member.name}</p>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2">
+                                   ID: {member.id} <span className="opacity-20">|</span> {member.email}
+                                </p>
+                             </div>
+                          </div>
+                       </td>
+                       <td className="p-8">
+                          <div className="flex items-center gap-6">
+                             <div className="text-center">
+                                <p className="text-xs font-black text-white">{msgs.toLocaleString()}</p>
+                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Messages</p>
+                             </div>
+                             <div className="text-center">
+                                <p className="text-xs font-black text-white">{m?.fans_count || 0}</p>
+                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Fans</p>
+                             </div>
+                          </div>
+                       </td>
+                       <td className="p-8">
+                          <div className="flex flex-col">
+                             <span className="text-base font-black text-white font-outfit tracking-tight">${rev.toLocaleString()}</span>
+                             <div className="w-24 bg-white/5 h-1 rounded-full mt-2 overflow-hidden">
+                                <div className="bg-emerald-500 h-full" style={{ width: `${Math.min(100, (rev / 5000) * 100)}%` }}></div>
+                             </div>
+                          </div>
+                       </td>
+                       <td className="p-8">
+                          <div className="flex items-center gap-3">
+                             <div className={`w-2.5 h-2.5 rounded-full ${resp < 90 ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-amber-500'}`}></div>
+                             <span className={`text-sm font-black font-mono ${resp > 180 ? 'text-rose-500' : 'text-white'}`}>{resp}s</span>
+                          </div>
+                       </td>
+                       <td className="p-8 text-right">
+                          <button className="p-3 hover:bg-indigo-600 rounded-xl transition-all text-slate-500 hover:text-white group-hover:scale-110 active:scale-95">
+                             <ExternalLink size={18} />
+                          </button>
+                       </td>
+                    </tr>
+                  );
+                })}
+             </tbody>
+          </table>
+       </div>
+    </div>
+  );
+}
+
+const AccountsTab = ({ accounts, query }: { accounts: Account[]; query: string }) => {
+  const filtered = accounts.filter(a => 
+    a.name.toLowerCase().includes(query.toLowerCase()) || 
+    a.username.toLowerCase().includes(query.toLowerCase())
+  );
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+       {filtered.map(acc => (
+         <motion.div 
+           key={acc.id}
+           whileHover={{ y: -8 }}
+           className="glass-card p-8 rounded-[2.5rem] border-white/5 relative overflow-hidden group shadow-xl"
+         >
+            <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-20 transition-all rotate-12">
+               <ShieldCheck size={120} />
             </div>
             
-            <div className="flex gap-4">
-              <div className="bg-slate-900/50 p-5 rounded-3xl border border-white/[0.05] text-center min-w-[120px] backdrop-blur-xl">
-                 <p className="text-[10px] uppercase font-black text-slate-500 mb-1 opacity-60">Conversion Rate</p>
-                 <p className="text-3xl font-black text-indigo-400 font-outfit tracking-tighter">{stats?.conversions || '0'}%</p>
-              </div>
-              <div className="bg-slate-900/50 p-5 rounded-3xl border border-white/[0.05] text-center min-w-[120px] backdrop-blur-xl">
-                 <p className="text-[10px] uppercase font-black text-slate-500 mb-1 opacity-60">Avg Reply Time</p>
-                 <p className={`text-3xl font-black font-outfit tracking-tighter ${(stats?.avgReplyTime || 0) > 300 ? 'text-rose-500' : 'text-emerald-400'}`}>
-                   {stats?.avgReplyTime || '0'}<span className="text-sm">s</span>
-                 </p>
-              </div>
+            <div className="flex items-center gap-4 mb-8">
+               <img src={acc.avatar} className="w-16 h-16 rounded-2xl object-cover ring-2 ring-white/10 shadow-2xl" alt="" referrerPolicy="no-referrer" />
+               <div>
+                  <h4 className="text-xl font-black text-white font-outfit uppercase tracking-tighter">{acc.name}</h4>
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2">
+                     <span className="text-indigo-400">@{acc.username}</span> • {acc.platform}
+                  </p>
+               </div>
             </div>
-          </div>
 
-          <div className="h-64 w-full relative z-10">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="5 5" vertical={false} stroke="rgba(255,255,255,0.03)" />
-                <XAxis dataKey="time" stroke="#475569" fontSize={11} axisLine={false} tickLine={false} tickMargin={10} />
-                <YAxis hide />
-                <Tooltip 
-                  cursor={{ stroke: '#6366f1', strokeWidth: 1 }}
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(15, 23, 42, 0.9)', 
-                    border: '1px solid rgba(255,255,255,0.1)', 
-                    borderRadius: '16px',
-                    backdropFilter: 'blur(10px)',
-                    boxShadow: '0 10px 25px rgba(0,0,0,0.5)'
-                  }}
-                  itemStyle={{ color: '#818cf8', fontWeight: '900', textTransform: 'uppercase', fontSize: '10px' }}
-                />
-                <Area type="monotone" dataKey="amount" stroke="#6366f1" fillOpacity={1} fill="url(#colorAmount)" strokeWidth={4} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* mini cards column */}
-        <div className="flex flex-col gap-4">
-           <MetricSummaryCard title="Total Engagement" value={stats?.totalMessages.toLocaleString() || '0'} icon={<MessageSquare />} color="indigo" />
-           <MetricSummaryCard title="Successful Sales" value={stats?.paidMessages.toLocaleString() || '0'} icon={<Activity />} color="sky" />
-           <MetricSummaryCard title="Ad Clicks (24h)" value={stats?.adClicks.toLocaleString() || '0'} icon={<MousePointer2 />} color="emerald" />
-           <MetricSummaryCard title="New Subscribers" value={stats?.newSubs.toLocaleString() || '0'} icon={<Users />} color="amber" />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-        {/* Account Overview Panel */}
-        <div className="glass-card p-10 rounded-[2.5rem] border-white/[0.05] flex flex-col gap-8 shadow-xl bg-gradient-to-br from-indigo-950/20 to-transparent">
-          <div>
-            <h3 className="text-xl font-bold text-white font-outfit uppercase tracking-tight flex items-center gap-3">
-              <Activity size={20} className="text-indigo-400" /> Account Performance Insights
-            </h3>
-            <p className="text-slate-500 text-xs mt-2">Core metrics and operational efficiency for account <strong>{profile?.name || "Nola Lust"}</strong> (ID: {CREATOR_ID}).</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-             <div className="p-6 bg-slate-900/50 rounded-3xl border border-white/[0.05]">
-                <p className="text-[10px] uppercase font-black text-slate-500 tracking-widest mb-3">Revenue Distribution</p>
-                <div className="space-y-4">
-                   <div className="flex items-center justify-between">
-                      <span className="text-xs text-white">Direct Sales</span>
-                      <span className="text-xs font-bold text-indigo-400">${(stats?.totalEarned || 0) - (stats?.totalTips || 0)}</span>
-                   </div>
-                   <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-indigo-500 h-full" style={{ width: '75%' }}></div>
-                   </div>
-                   <div className="flex items-center justify-between">
-                      <span className="text-xs text-white">Tips & Extras</span>
-                      <span className="text-xs font-bold text-amber-400">${stats?.totalTips || '0'}</span>
-                   </div>
-                   <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-amber-500 h-full" style={{ width: '25%' }}></div>
-                   </div>
-                </div>
-             </div>
-
-             <div className="p-6 bg-slate-900/50 rounded-3xl border border-white/[0.05] flex flex-col justify-between">
-                <div>
-                   <p className="text-[10px] uppercase font-black text-slate-500 tracking-widest mb-1">Response Health</p>
-                   <p className="text-xs text-slate-400">Target for today is &lt;180s.</p>
-                </div>
-                <div className="mt-4 flex items-center gap-4">
-                   <div className={`text-2xl font-black ${(stats?.avgReplyTime || 0) < 180 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                      {stats?.avgReplyTime || 0}s
-                   </div>
-                   <div className="text-[10px] uppercase font-bold text-slate-500 bg-white/5 px-3 py-1 rounded-full border border-white/5">
-                      { (stats?.avgReplyTime || 0) < 180 ? 'EXCELLENT' : 'NEEDS OPTIMIZATION' }
-                   </div>
-                </div>
-             </div>
-          </div>
-
-          <div className="p-6 bg-slate-900/80 rounded-3xl border border-white/[0.05] font-mono text-[11px]">
-             <div className="flex items-center gap-2 mb-4 text-emerald-400">
-                <CheckCircle2 size={14} />
-                <span className="font-bold uppercase tracking-widest">Ad Performance Summary</span>
-             </div>
-             <p className="text-slate-400 leading-relaxed uppercase">
-               Clicks generated: <strong className="text-white">{stats?.adClicks}</strong><br/>
-               Acquisition rate: <strong className="text-white">{stats?.adClicks ? ((stats.newSubs / stats.adClicks) * 100).toFixed(1) : 0}%</strong><br/>
-               Daily LTV Estimate: <strong className="text-white">${stats?.newSubs ? (stats.totalEarned / stats.newSubs).toFixed(2) : 0}</strong>
-             </p>
-          </div>
-        </div>
-
-        {/* Recent Transactions List */}
-        <div className="glass-card p-10 rounded-[2.5rem] border-white/[0.05] flex flex-col gap-6 shadow-xl relative overflow-hidden">
-          <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-slate-950 to-transparent pointer-events-none z-10 opacity-60"></div>
-          
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold text-white font-outfit uppercase tracking-tight flex items-center gap-3">
-               <DollarSign size={20} className="text-emerald-400" /> Recent Transactions
-            </h3>
-            <span className="text-[9px] uppercase font-black text-slate-500 tracking-widest">Live Flow</span>
-          </div>
-
-          <div className="space-y-3 min-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
-            <AnimatePresence mode="popLayout">
-              {transactions.length > 0 ? transactions.map((txn) => (
-                <motion.div
-                  key={txn.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-2xl flex items-center justify-between hover:bg-white/[0.05] transition-colors group"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={`p-2 rounded-xl border ${
-                      txn.type === 'tip' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 
-                      'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
-                    }`}>
-                       {txn.type === 'tip' ? <DollarSign size={16} /> : <MessageSquare size={16} />}
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-black text-white uppercase tracking-wider">{txn.type || 'PURCHASE'}</p>
-                      <p className="text-[9px] text-slate-500 font-bold">
-                        {new Date(txn.created_at).toLocaleTimeString()} • {txn.id.slice(-8).toUpperCase()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                     <p className="text-sm font-black text-white font-outfit">+${txn.amount.toFixed(2)}</p>
-                     <p className="text-[8px] uppercase text-emerald-500 font-bold tracking-tighter">SUCCESSFUL</p>
-                  </div>
-                </motion.div>
-              )) : (
-                <div className="h-full flex flex-col items-center justify-center text-center opacity-30 gap-4 mt-20">
-                   <Activity size={48} className="text-slate-600 animate-pulse" />
-                   <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Waiting for incoming data</p>
-                </div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </div>
-
-      {/* Chatters Performance Row */}
-      <ChattersPerformanceTable metrics={operatorMetrics} />
-
-      {/* Webhook Info Footer */}
-      <div className="p-10 bg-indigo-600/[0.03] border border-indigo-500/10 rounded-[3rem] relative overflow-hidden group">
-         <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-20 transition-opacity">
-            <Ghost size={120} />
-         </div>
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 relative z-10">
-            <div className="space-y-3">
-               <h4 className="text-indigo-400 font-bold uppercase tracking-widest text-xs flex items-center gap-2">
-                  <CheckCircle2 size={16} /> Webhook Production Ready
-               </h4>
-               <p className="text-slate-400 text-xs leading-relaxed">
-                 Configured for <strong>survey.completed</strong> events. Webhook validation is enforced using the provided secret key via signature matching protocols.
-               </p>
-            </div>
-            <div className="space-y-3">
-               <h4 className="text-indigo-400 font-bold uppercase tracking-widest text-xs flex items-center gap-2">
-                  <Activity size={16} /> Analytics Architecture
-               </h4>
-               <p className="text-slate-400 text-xs leading-relaxed">
-                 State-of-the-art event batching and debounce logic on frontend combined with Node.js proxying ensures zero token leakage.
-               </p>
-            </div>
-            <div className="flex flex-col justify-center items-end">
-               <div className="bg-emerald-500/10 text-emerald-400 px-6 py-3 rounded-2xl border border-emerald-500/20">
-                  <p className="text-[10px] font-black uppercase tracking-widest">System Health</p>
-                  <div className="flex items-center gap-2 mt-1">
-                     <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                     <span className="text-sm font-black uppercase font-outfit">Active Proxy</span>
+            <div className="grid grid-cols-2 gap-4 mb-8">
+               <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Sub Price</p>
+                  <p className="text-lg font-black text-white font-outfit">{acc.subscribe_price ? `$${acc.subscribe_price}` : 'Free'}</p>
+               </div>
+               <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Status</p>
+                  <div className="flex items-center gap-2">
+                     <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                     <p className="text-xs font-black text-emerald-500 uppercase italic">Active</p>
                   </div>
                </div>
             </div>
-         </div>
-      </div>
+
+            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+               <span className="flex items-center gap-2">ID: <span className="text-white font-mono">{acc.platform_account_id}</span></span>
+               <button className="text-indigo-400 hover:text-white transition-colors flex items-center gap-1 group">
+                  View Metrics
+                  <ArrowUpRight size={14} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+               </button>
+            </div>
+         </motion.div>
+       ))}
     </div>
   );
-};
+}
 
-const ChattersPerformanceTable = ({ metrics }: { metrics: MetricData[] }) => {
+const TransactionsTab = ({ transactions, query }: { transactions: Transaction[]; query: string }) => {
+  const filtered = transactions.filter(t => 
+    t.status.toLowerCase().includes(query.toLowerCase()) || 
+    t.type.toLowerCase().includes(query.toLowerCase())
+  );
+
   return (
-    <div className="glass-card p-10 rounded-[2.5rem] border-white/[0.05] flex flex-col gap-8 shadow-xl bg-gradient-to-br from-indigo-950/20 to-transparent">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-xl font-bold text-white font-outfit uppercase tracking-tight flex items-center gap-3">
-            <Users size={20} className="text-indigo-400" /> Chatters Performance
-          </h3>
-          <p className="text-slate-500 text-xs mt-2">Operational efficiency for account operators today.</p>
-        </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{metrics.length} Active</span>
-        </div>
-      </div>
+    <div className="glass-card rounded-[3rem] border-white/5 shadow-2xl overflow-hidden bg-slate-900/10">
+       <div className="p-10 border-b border-white/5 flex items-center justify-between bg-white/[0.01]">
+          <div>
+             <h3 className="text-2xl font-black text-white tracking-tighter uppercase font-outfit">Financial Flow</h3>
+             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Real-time ledger & transaction audit</p>
+          </div>
+          <div className="flex items-center gap-3">
+             <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 text-emerald-500 rounded-xl border border-emerald-500/20 text-[10px] font-black uppercase">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                Live Stream
+             </div>
+          </div>
+       </div>
 
-      <div className="overflow-x-auto rounded-3xl border border-white/[0.05]">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-white/5">
-              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Оператор (ID)</th>
-              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Ср. время ответа</th>
-              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Выручка ($)</th>
-              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Чаевые ($)</th>
-              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Активность</th>
-              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05] text-right">Конверсия</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/[0.03]">
-            {metrics.map((item) => {
-              const conversion = (item.messages_count || 0) > 0 
-                ? Math.round(((item.paid_messages_count || 0) / item.messages_count) * 100) 
-                : 0;
-              const isSlow = (item.reply_time_avg || 0) > 90;
-              
-              // Strict mapping from user request: 
-              // paid_messages_price_sum & tips_amount_sum for table
-              const sales = item.paid_messages_price_sum || 0;
-              const tips = item.tips_amount_sum || 0;
-              const activity = item.messages_count || 0;
-
-              return (
-                <tr 
-                  key={item.user_id} 
-                  className={`transition-colors group hover:bg-white/[0.08] ${isSlow ? 'bg-rose-500/20' : ''}`}
-                >
-                  <td className="p-5">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center border font-bold text-xs ${isSlow ? 'bg-rose-500/20 border-rose-500/30 text-rose-400' : 'bg-white/5 border-white/10 text-indigo-400'}`}>
-                        {String(item.user_id).slice(-2)}
-                      </div>
-                      <span className={`text-xs font-bold tracking-widest font-mono ${isSlow ? 'text-rose-400' : 'text-white'}`}>#{item.user_id}</span>
-                    </div>
-                  </td>
-                  <td className="p-5">
-                    <div className="flex items-center gap-2">
-                      <Clock size={14} className={isSlow ? 'text-rose-500' : 'text-slate-500'} />
-                      <span className={`text-sm font-black font-outfit ${isSlow ? 'text-rose-500 underline decoration-rose-500/30 font-bold' : 'text-white'}`}>
-                        {item.reply_time_avg}<span className="text-[10px] opacity-40 ml-1">s</span>
-                      </span>
-                    </div>
-                  </td>
-                  <td className="p-5">
-                    <span className="text-sm font-black text-white font-outfit">${sales.toLocaleString()}</span>
-                  </td>
-                  <td className="p-5">
-                    <span className="text-sm font-black text-amber-400 font-outfit">${tips.toLocaleString()}</span>
-                  </td>
-                  <td className="p-5">
-                    <span className="text-xs font-bold text-slate-400 font-mono">{activity} msgs</span>
-                  </td>
-                  <td className="p-5 text-right">
-                    <div className="inline-flex flex-col items-end">
-                      <span className={`text-sm font-black font-outfit ${conversion > 20 ? 'text-emerald-400' : 'text-indigo-400'}`}>{conversion}%</span>
-                      <div className="w-16 bg-white/5 h-1 rounded-full mt-1 overflow-hidden">
-                        <div 
-                          className={`${conversion > 20 ? 'bg-emerald-500' : 'bg-indigo-500'} h-full rounded-full transition-all duration-1000`} 
-                          style={{ width: `${conversion}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {metrics.length === 0 && (
-              <tr>
-                <td colSpan={6} className="p-20 text-center text-slate-500 text-xs font-bold uppercase tracking-[0.3em] opacity-40">
-                  No operator data available for this period
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+       <div className="p-8 space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar">
+          {filtered.length > 0 ? filtered.map(tx => (
+            <div key={tx.id} className="p-6 bg-white/[0.02] border border-white/5 rounded-3xl flex items-center justify-between hover:bg-white/[0.04] transition-all group">
+               <div className="flex items-center gap-6">
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border ${tx.type === 'tip' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'}`}>
+                     {tx.type === 'tip' ? <DollarSign size={24} /> : <MessageSquare size={24} />}
+                  </div>
+                  <div>
+                     <p className="text-base font-black text-white font-outfit tracking-tight flex items-center gap-2 uppercase">
+                        {tx.type} 
+                        <span className="text-[9px] px-2 py-0.5 bg-white/5 rounded-full text-slate-500 font-mono">#{tx.id.slice(-6)}</span>
+                     </p>
+                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1 flex items-center gap-2">
+                        Fan ID: <span className="text-white">{tx.fan.id}</span> • {new Date(tx.timestamp).toLocaleString()}
+                     </p>
+                  </div>
+               </div>
+               <div className="text-right flex items-center gap-8">
+                  <div>
+                     <p className="text-2xl font-black text-white font-outfit">+${tx.amount.toFixed(2)}</p>
+                     <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest italic">{tx.status}</p>
+                  </div>
+                  <button className="opacity-0 group-hover:opacity-100 p-2 hover:bg-white/5 rounded-lg transition-all text-slate-500 hover:text-white">
+                     <ArrowUpRight size={20} />
+                  </button>
+               </div>
+            </div>
+          )) : (
+            <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
+               <Wallet size={64} className="animate-pulse" />
+               <p className="text-sm font-black uppercase tracking-[0.3em]">No Transactions Logged</p>
+            </div>
+          )}
+       </div>
     </div>
   );
-};
+}
 
-const SimButton = ({ label, icon, onClick, color }: { label: string; icon: React.ReactNode; onClick: () => void; color: string }) => {
+const StatCard = ({ title, value, change, trend, icon, color }: any) => {
   const colors: Record<string, string> = {
-    emerald: 'bg-emerald-500/5 hover:bg-emerald-500 text-emerald-500 hover:text-white border-emerald-500/20',
-    indigo: 'bg-indigo-500/5 hover:bg-indigo-500 text-indigo-500 hover:text-white border-indigo-500/20',
-    rose: 'bg-rose-500/5 hover:bg-rose-500 text-rose-500 hover:text-white border-rose-500/20',
-    sky: 'bg-sky-500/5 hover:bg-sky-500 text-sky-500 hover:text-white border-sky-500/20',
-    slate: 'bg-slate-500/5 hover:bg-slate-500 text-slate-400 hover:text-white border-slate-500/20',
-  };
-
-  return (
-    <button 
-      onClick={onClick}
-      className={`flex flex-col items-center justify-center gap-3 p-6 rounded-3xl border transition-all duration-300 active:scale-95 text-center ${colors[color] || colors.indigo}`}
-    >
-      <div className="shrink-0">{icon}</div>
-      <span className="text-[10px] uppercase font-black tracking-widest">{label}</span>
-    </button>
-  );
-};
-
-const MetricSummaryCard = ({ title, value, icon, color }: { title: string; value: string; icon: React.ReactNode; color: string }) => {
-  const colors: Record<string, string> = {
-    indigo: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400 shadow-indigo-500/5',
-    emerald: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-emerald-500/5',
-    sky: 'bg-sky-500/10 border-sky-500/20 text-sky-400 shadow-sky-500/5',
-    amber: 'bg-amber-500/10 border-amber-500/20 text-amber-400 shadow-amber-500/5',
+    indigo: 'bg-indigo-600',
+    sky: 'bg-sky-500',
+    emerald: 'bg-emerald-500',
+    amber: 'bg-amber-500',
   };
 
   return (
     <motion.div 
-      whileHover={{ scale: 1.02, x: 5 }}
-      className={`p-6 rounded-3xl border glass-card flex items-center gap-6 transition-all duration-300 ${colors[color] || colors.indigo}`}
+      whileHover={{ scale: 1.02 }}
+      className="glass-card p-10 rounded-[3rem] border-white/5 flex flex-col gap-6 relative overflow-hidden group shadow-xl"
     >
-       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border border-white/5 bg-white/5`}>
-          {React.cloneElement(icon as React.ReactElement, { size: 24 })}
+       <div className={`absolute -top-12 -right-12 w-32 h-32 ${colors[color] || 'bg-indigo-600'} opacity-10 blur-[60px] rounded-full group-hover:opacity-30 transition-opacity`}></div>
+       
+       <div className="flex items-center justify-between">
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 border border-white/10 ${colors[color] || 'bg-indigo-600'}`}>
+             {React.cloneElement(icon as React.ReactElement, { size: 28, className: "text-white" })}
+          </div>
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/5 bg-black/20`}>
+             {trend === 'up' ? <ArrowUpRight size={14} className="text-emerald-500" /> : <ArrowDownRight size={14} className="text-rose-500" />}
+             <span className={`text-[10px] font-black ${trend === 'up' ? 'text-emerald-500' : 'text-rose-500'}`}>{change}</span>
+          </div>
        </div>
+
        <div>
-          <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.25em] mb-1 opacity-60">{title}</p>
-          <p className="text-2xl font-black text-white font-outfit tracking-tighter">{value}</p>
+          <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em] mb-1 opacity-60 leading-none">{title}</p>
+          <p className="text-4xl font-black text-white font-outfit tracking-tighter">{value}</p>
        </div>
     </motion.div>
+  );
+};
+
+const EfficiencyMetric = ({ label, value, progress, color }: any) => {
+  const barColors: Record<string, string> = {
+    indigo: 'bg-indigo-500',
+    sky: 'bg-sky-500',
+    emerald: 'bg-emerald-500',
+    amber: 'bg-amber-500',
+  };
+  return (
+    <div className="space-y-3 p-4 hover:bg-white/[0.02] rounded-2xl transition-colors">
+       <div className="flex justify-between items-center text-[11px] font-black uppercase tracking-widest">
+          <span className="text-slate-500">{label}</span>
+          <span className="text-white font-mono">{value}</span>
+       </div>
+       <div className="w-full bg-black/40 h-2 rounded-full overflow-hidden border border-white/5 p-px">
+          <motion.div 
+            initial={{ width: 0 }}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 1.5, ease: "easeOut" }}
+            className={`h-full rounded-full shadow-[0_0_10px_rgba(255,255,255,0.1)] ${barColors[color] || 'bg-indigo-500'}`} 
+          />
+       </div>
+    </div>
   );
 };
 

@@ -15,16 +15,16 @@ async function startServer() {
   app.use(express.json());
 
   // OnlyMonster Configuration
-  const ONLYMONSTER_API_TOKEN = process.env.ONLYMONSTER_API_TOKEN || "om_token_56b9c18f3db28e5700ea4d52a69a67bb6c7d699700cd7dc188b9150224a437d3";
-  const SURVEY_ID = process.env.SURVEY_ID || "49307";
-  const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "om_webhook_c568b3c21bf51b2ff3c66b9204786c72d9a9729628373a5db042a473770fb69e";
+  const OM_API_TOKEN = process.env.OM_API_TOKEN || "om_token_56b9c18f3db28e5700ea4d52a69a67bb6c7d699700cd7dc188b9150224a437d3";
+  const OM_WEBHOOK_SECRET = process.env.OM_WEBHOOK_SECRET || "om_webhook_c568b3c21bf51b2ff3c66b9204786c72d9a9729628373a5db042a473770fb69e";
   const ONLYMONSTER_API_BASE = "https://omapi.onlymonster.ai";
 
-  // --- API Routes ---
-
-  // In-memory cache for deduplication (production should use Redis/DB)
+  // --- State & Cache ---
   const processedSessions = new Set<string>();
-  const PLATFORM_ACCOUNT_ID = "276441797";
+  const metricsCache = new Map<string, { data: any; expiry: number }>();
+  const CACHE_TTL = 60000; 
+  let lastRequestTime = 0;
+  const MIN_REQUEST_INTERVAL = 1000 / 15;
 
   // Helper for exponential backoff retry with timeout
   async function fetchWithRetry(url: string, options: any, retries = 3, backoff = 1000): Promise<Response> {
@@ -56,132 +56,152 @@ async function startServer() {
     }
   }
 
-  // 1. Event Tracking Endpoint (Updated to remove 404 routes, logging events locally)
-  app.post("/api/track-event", async (req, res) => {
-    try {
-      const { event_name, session_id, user_id, step, metadata } = req.body;
+  // --- API Routes ---
 
-      if (!event_name || !session_id) {
-        return res.status(400).json({ error: "Missing required fields" });
+  // 1. Production Metrics Endpoint
+  app.get("/api/metrics", async (req, res) => {
+    try {
+      const { from, to, offset = "0", limit = "100", creator_ids } = req.query;
+
+      if (!from || !to) {
+        return res.status(400).json({ error: "Query parameters 'from' and 'to' (ISO 8601) are required." });
       }
 
-      console.log(`[OnlyMonster] [EVENT] ${event_name} | Session: ${session_id}`);
+      const cacheKey = `metrics-${from}-${to}-${offset}-${limit}-${creator_ids || 'all'}`;
       
-      // Since surveys/:id/events causes 404, we'll log locally as per requirement to fix 404s
-      res.json({ success: true, message: "Logged locally" });
-    } catch (error) {
-      console.error('[OnlyMonster] [CRITICAL] Internal tracking error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      const cached = metricsCache.get(cacheKey);
+      if (cached && cached.expiry > Date.now()) {
+        return res.json(cached.data);
+      }
+
+      const now = Date.now();
+      const waitTime = Math.max(0, MIN_REQUEST_INTERVAL - (now - lastRequestTime));
+      if (waitTime > 0) {
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+      lastRequestTime = Date.now();
+
+      const params = new URLSearchParams({
+        from: String(from),
+        to: String(to),
+        offset: String(offset),
+        limit: String(limit)
+      });
+      
+      if (creator_ids) {
+        if (Array.isArray(creator_ids)) {
+          creator_ids.forEach(id => params.append("creator_ids", String(id)));
+        } else {
+          params.append("creator_ids", String(creator_ids));
+        }
+      }
+
+      const response = await fetchWithRetry(`${ONLYMONSTER_API_BASE}/api/v0/users/metrics?${params.toString()}`, {
+        headers: { 
+          'x-om-auth-token': OM_API_TOKEN,
+          'accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return res.status(response.status).json({ error: "OnlyMonster API (Metrics) error.", details: errorText });
+      }
+
+      const data = await response.json();
+      metricsCache.set(cacheKey, {
+        data,
+        expiry: Date.now() + CACHE_TTL
+      });
+
+      res.json(data);
+    } catch (error: any) {
+      console.error("[OnlyMonster] [METRICS_ERROR]", error);
+      res.status(500).json({ error: "Internal Server Error", message: error.message });
     }
   });
 
-  // 1.1 Dashboard Data Proxy (AGREGATION & DATA FETCHING)
-  app.post("/api/onlymonster/dashboard-data", async (req, res) => {
+  // 1.1 List Accounts
+  app.get("/api/accounts", async (req, res) => {
     try {
-      const { from, to, creator_id } = req.body;
+      const { limit = "100", cursor } = req.query;
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (cursor) params.append("cursor", String(cursor));
+
+      const response = await fetchWithRetry(`${ONLYMONSTER_API_BASE}/api/v0/accounts?${params.toString()}`, {
+        headers: { 'x-om-auth-token': OM_API_TOKEN, 'accept': 'application/json' }
+      });
+
+      if (!response.ok) return res.status(response.status).json({ error: "Failed to fetch accounts" });
+      const data = await response.json();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 1.2 List Members
+  app.get("/api/members", async (req, res) => {
+    try {
+      const { limit = "50", offset = "0" } = req.query;
+      const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+
+      const response = await fetchWithRetry(`${ONLYMONSTER_API_BASE}/api/v0/members?${params.toString()}`, {
+        headers: { 'x-om-auth-token': OM_API_TOKEN, 'accept': 'application/json' }
+      });
+
+      if (!response.ok) return res.status(response.status).json({ error: "Failed to fetch members" });
+      const data = await response.json();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 1.3 Transactions for specific account
+  app.get("/api/transactions/:platform_account_id", async (req, res) => {
+    try {
+      const { platform_account_id } = req.params;
+      const { start, end, limit = "50" } = req.query;
       
-      const metricsParams = new URLSearchParams({ 
-        from, 
-        to, 
-        creator_ids: creator_id, 
-        offset: '0', 
-        limit: '100' 
-      });
-      // Ensure user_ids is only added if we actually have specific users to filter by (currently we don't)
-      
-      const trackingParams = new URLSearchParams({ start: from, end: to });
-      // Platform transactions might prefer start/end or no pagination if 400 persists, 
-      // but we'll try to stick to basic offset/limit first if that's what the platform expects.
-      const transactionsParams = new URLSearchParams({ 
-        start: from, 
-        end: to, 
-        offset: '0', 
-        limit: '100' 
+      const params = new URLSearchParams({ 
+        start: String(start), 
+        end: String(end), 
+        limit: String(limit) 
       });
 
-      console.log(`[OnlyMonster] [PROXY] Fetching full dashboard data for account ${creator_id} (Platform: ${PLATFORM_ACCOUNT_ID})`);
-
-      // Metrics usually works with x-om-auth-token
-      const metricsRes = await fetchWithRetry(`${ONLYMONSTER_API_BASE}/api/v0/users/metrics?${metricsParams.toString()}`, {
-        headers: { 'x-om-auth-token': ONLYMONSTER_API_TOKEN, 'accept': 'application/json' }
+      const response = await fetchWithRetry(`${ONLYMONSTER_API_BASE}/api/v0/platforms/onlyfans/accounts/${platform_account_id}/transactions?${params.toString()}`, {
+        headers: { 'x-om-auth-token': OM_API_TOKEN, 'accept': 'application/json' }
       });
 
-      // Platform endpoints might be more sensitive to header naming or token permissions
-      const fetchPlatformData = async (path: string, params: URLSearchParams) => {
-        // Try with x-om-auth-token
-        let res = await fetchWithRetry(`${ONLYMONSTER_API_BASE}${path}?${params.toString()}`, {
-          headers: { 'x-om-auth-token': ONLYMONSTER_API_TOKEN, 'accept': 'application/json' }
-        });
-
-        // If 403, attempt Bearer token fallback just in case
-        if (res.status === 403) {
-          console.warn(`[OnlyMonster] [403] x-om-auth-token failed for ${path}. Trying Bearer fallback...`);
-          res = await fetchWithRetry(`${ONLYMONSTER_API_BASE}${path}?${params.toString()}`, {
-            headers: { 'Authorization': `Bearer ${ONLYMONSTER_API_TOKEN}`, 'accept': 'application/json' }
-          });
-        }
-        return res;
-      };
-
-      const [trackingRes, transactionsRes] = await Promise.all([
-        fetchPlatformData(`/api/v0/platforms/onlyfans/accounts/${PLATFORM_ACCOUNT_ID}/tracking-links`, trackingParams),
-        fetchPlatformData(`/api/v0/platforms/onlyfans/accounts/${PLATFORM_ACCOUNT_ID}/transactions`, transactionsParams)
-      ]);
-
-      const result: any = { metrics: { items: [] }, tracking: { items: [] }, transactions: { items: [] } };
-
-      if (metricsRes.ok) {
-        result.metrics = await metricsRes.json();
-      } else {
-        console.error(`[OnlyMonster] [ERROR] Metrics failed: ${metricsRes.status}`);
+      if (!response.ok) {
+        const txt = await response.text();
+        return res.status(response.status).json({ error: "Failed to fetch transactions", details: txt });
       }
-
-      if (trackingRes.ok) {
-        result.tracking = await trackingRes.json();
-      } else {
-        console.error(`[OnlyMonster] [ERROR] Tracking failed: ${trackingRes.status}`);
-        // Graceful fallback: return empty items instead of 502
-      }
-
-      if (transactionsRes.ok) {
-        result.transactions = await transactionsRes.json();
-      } else {
-        const errorText = await transactionsRes.clone().text().catch(() => "N/A");
-        console.error(`[OnlyMonster] [ERROR] Transactions failed: ${transactionsRes.status}`, errorText);
-      }
-
-      res.json(result);
-    } catch (error) {
-      console.error('[OnlyMonster] [ERROR] Proxy fetch failed:', error);
-      res.status(500).json({ error: 'Internal proxy error' });
+      const data = await response.json();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   });
 
   // 2. Webhook Endpoint
   app.post("/api/webhook", (req, res) => {
-    // 1. Security Check (Bearer Token Validation)
     const authHeader = req.headers.authorization;
-    if (authHeader !== `Bearer ${WEBHOOK_SECRET}`) {
-      console.warn(`[OnlyMonster] [UNAUTHORIZED] Blocked webhook attempt with invalid secret.`);
+    if (authHeader !== `Bearer ${OM_WEBHOOK_SECRET}`) {
       return res.status(401).json({ error: "Unauthorized" });
     }
     
     const { event, data } = req.body;
     const session_id = data?.session_id || data?.id;
 
-    // 2. Deduplication check
     if (session_id && processedSessions.has(session_id)) {
-      console.log(`[OnlyMonster] [SKIP] Duplicate webhook for session: ${session_id}`);
       return res.json({ status: "already_processed" });
     }
 
-    console.log(`[OnlyMonster] [WEBHOOK] Received: ${event} | Session: ${session_id}`);
-
     if (event === "survey.completed") {
       if (session_id) processedSessions.add(session_id);
-      
       console.log(`[OnlyMonster] [SUCCESS] Processing survey completion for ${session_id}`);
-      // Integrate with CRM/DB here
     }
 
     res.json({ received: true });
