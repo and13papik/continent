@@ -13,8 +13,11 @@ interface MetricData {
   reply_time_avg: number;
   messages_count: number;
   paid_messages_count: number;
-  total_sold_messages_price_sum: number;
+  total_sold_messages_price_sum: number; 
   total_tips_amount_sum: number;
+  // Optional aliases from user request
+  paid_messages_price_sum?: number;
+  tips_amount_sum?: number;
 }
 
 interface TrackingLink {
@@ -63,6 +66,7 @@ const OnlyMonster: React.FC = () => {
   const [sessionId] = useState(() => Math.random().toString(36).substring(7));
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [operatorMetrics, setOperatorMetrics] = useState<MetricData[]>([]);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [profile, setProfile] = useState<{ name: string; avatar: string } | null>(null);
 
@@ -130,6 +134,7 @@ const OnlyMonster: React.FC = () => {
 
       setStats(aggregated);
       setTransactions(txnList);
+      setOperatorMetrics(items);
       setLastUpdate(new Date());
       setError(null);
     } catch (err) {
@@ -442,6 +447,9 @@ const OnlyMonster: React.FC = () => {
         </div>
       </div>
 
+      {/* Chatters Performance Row */}
+      <ChattersPerformanceTable metrics={operatorMetrics} />
+
       {/* Webhook Info Footer */}
       <div className="p-10 bg-indigo-600/[0.03] border border-indigo-500/10 rounded-[3rem] relative overflow-hidden group">
          <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-20 transition-opacity">
@@ -474,6 +482,97 @@ const OnlyMonster: React.FC = () => {
                </div>
             </div>
          </div>
+      </div>
+    </div>
+  );
+};
+
+const ChattersPerformanceTable = ({ metrics }: { metrics: MetricData[] }) => {
+  return (
+    <div className="glass-card p-10 rounded-[2.5rem] border-white/[0.05] flex flex-col gap-8 shadow-xl bg-gradient-to-br from-indigo-950/20 to-transparent">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-xl font-bold text-white font-outfit uppercase tracking-tight flex items-center gap-3">
+            <Users size={20} className="text-indigo-400" /> Chatters Performance
+          </h3>
+          <p className="text-slate-500 text-xs mt-2">Real-time efficiency metrics for all active operators.</p>
+        </div>
+        <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{metrics.length} Active</span>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-3xl border border-white/[0.05]">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-white/5">
+              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Operator (ID)</th>
+              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Avg Reply Time</th>
+              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Sales</th>
+              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Tips</th>
+              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05] text-right">Conversion</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/[0.03]">
+            {metrics.map((item) => {
+              const conversion = item.messages_count > 0 
+                ? Math.round((item.paid_messages_count / item.messages_count) * 100) 
+                : 0;
+              const isSlow = item.reply_time_avg > 90;
+              const sales = item.paid_messages_price_sum || item.total_sold_messages_price_sum || 0;
+              const tips = item.tips_amount_sum || item.total_tips_amount_sum || 0;
+
+              return (
+                <tr 
+                  key={item.user_id} 
+                  className={`transition-colors group hover:bg-white/[0.04] ${isSlow ? 'bg-rose-500/5' : ''}`}
+                >
+                  <td className="p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/10 text-indigo-400 font-bold text-xs">
+                        {String(item.user_id).slice(-2)}
+                      </div>
+                      <span className="text-xs font-bold text-white tracking-widest font-mono">#{item.user_id}</span>
+                    </div>
+                  </td>
+                  <td className="p-5">
+                    <div className="flex items-center gap-2">
+                      <Clock size={14} className={isSlow ? 'text-rose-500' : 'text-slate-500'} />
+                      <span className={`text-sm font-black font-outfit ${isSlow ? 'text-rose-500 underline decoration-rose-500/30' : 'text-white'}`}>
+                        {item.reply_time_avg}<span className="text-[10px] opacity-40 ml-1">s</span>
+                      </span>
+                    </div>
+                  </td>
+                  <td className="p-5">
+                    <span className="text-sm font-black text-white font-outfit">${sales.toLocaleString()}</span>
+                  </td>
+                  <td className="p-5">
+                    <span className="text-sm font-black text-amber-400 font-outfit">${tips.toLocaleString()}</span>
+                  </td>
+                  <td className="p-5 text-right">
+                    <div className="inline-flex flex-col items-end">
+                      <span className="text-sm font-black text-indigo-400 font-outfit">{conversion}%</span>
+                      <div className="w-16 bg-white/5 h-1 rounded-full mt-1 overflow-hidden">
+                        <div 
+                          className="bg-indigo-500 h-full rounded-full transition-all duration-1000" 
+                          style={{ width: `${conversion}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {metrics.length === 0 && (
+              <tr>
+                <td colSpan={5} className="p-20 text-center text-slate-500 text-xs font-bold uppercase tracking-[0.3em] opacity-40">
+                  No operator data available for this period
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
