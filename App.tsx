@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import { ICONS } from './constants';
 import { createInitialState, saveLocal, syncToCloud, fetchFromCloud } from './store';
 import { AppState } from './types';
@@ -240,37 +241,107 @@ const App: React.FC = () => {
             </button>
 
             {cloudStatus === 'conflict' && (
-              <div className="p-3 bg-rose-500/20 border border-rose-500 rounded-xl animate-pulse cursor-pointer" onClick={forcePull}>
-                <p className="text-[10px] font-black text-rose-500 uppercase mb-1 flex items-center gap-1">
-                  <ICONS.AlertTriangle size={10} /> Конфликт версий!
-                </p>
-                <p className="text-[9px] text-slate-300">Напарник внес изменения. Нажми сюда, чтобы загрузить их.</p>
-              </div>
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ scale: 1.02 }}
+                onClick={forcePull}
+                className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl cursor-pointer shadow-[0_0_15px_rgba(244,63,94,0.1)] group transition-all"
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></div>
+                  <p className="text-[10px] font-black text-rose-500 uppercase tracking-wider">КОНФЛИКТ ДАННЫХ</p>
+                </div>
+                <p className="text-[10px] leading-relaxed text-slate-300 transition-colors group-hover:text-white">Напарник внес изменения. <span className="text-rose-400 font-bold underline underline-offset-2">Загрузить сейчас</span></p>
+              </motion.div>
             )}
 
-            <div className="p-3 bg-slate-900/40 rounded-2xl border border-slate-800/50">
-              <div className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-2 flex items-center justify-between">
-                Cloud Sync (v.{state.version})
-                <div className={`w-2 h-2 rounded-full shadow-sm ${cloudStatus === 'success' ? 'bg-emerald-500 shadow-emerald-500/20' : cloudStatus === 'loading' ? 'bg-amber-500 animate-pulse' : cloudStatus === 'conflict' ? 'bg-rose-500' : 'bg-slate-700'}`}></div>
-              </div>
-              <div className="flex items-center gap-2">
-                 {cloudStatus === 'loading' ? (
-                   <div className="animate-spin text-indigo-400"><ICONS.RotateCcw size={12} /></div>
-                 ) : cloudStatus === 'success' ? (
-                   <div className="text-emerald-500"><ICONS.Lock size={12} /></div>
-                 ) : cloudStatus === 'conflict' ? (
-                   <div className="text-rose-500"><ICONS.AlertTriangle size={12} /></div>
-                 ) : (
-                   <div className="text-slate-500"><ICONS.Unlock size={12} /></div>
-                 )}
-                 <div className="flex flex-col">
-                    <span className="text-[11px] font-bold text-slate-300">
-                      {cloudStatus === 'conflict' ? 'В облаке новее!' : !state.syncUrl ? 'Локальный режим' : 'Облако активно'}
+            <motion.div 
+               layout
+               className={`relative p-4 rounded-2xl border transition-all duration-500 overflow-hidden ${
+                 cloudStatus === 'success' ? 'bg-emerald-500/[0.03] border-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : 
+                 cloudStatus === 'loading' ? 'bg-amber-500/[0.03] border-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.05)]' :
+                 cloudStatus === 'conflict' ? 'bg-rose-500/[0.03] border-rose-500/20' : 
+                 'bg-slate-900/40 border-white/[0.05]'
+               }`}
+            >
+              {/* Background Glow */}
+              <AnimatePresence mode="wait">
+                <motion.div 
+                  key={cloudStatus}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className={`absolute -right-4 -bottom-4 w-16 h-16 blur-2xl rounded-full opacity-20 pointer-events-none ${
+                    cloudStatus === 'success' ? 'bg-emerald-500' :
+                    cloudStatus === 'loading' ? 'bg-amber-500' :
+                    cloudStatus === 'conflict' ? 'bg-rose-500' :
+                    'bg-slate-500'
+                  }`}
+                />
+              </AnimatePresence>
+
+              <div className="relative flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] text-slate-500 uppercase font-black tracking-[0.2em] opacity-60">System Cloud</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[8px] font-mono text-slate-600 bg-white/[0.03] px-1.5 py-0.5 rounded border border-white/[0.05]">v.{state.version}</span>
+                    <motion.div 
+                      animate={cloudStatus === 'loading' ? { scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] } : {}}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                      className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)] ${
+                        cloudStatus === 'success' ? 'bg-emerald-500 shadow-emerald-500/40' : 
+                        cloudStatus === 'loading' ? 'bg-amber-500 shadow-amber-500/40' : 
+                        cloudStatus === 'conflict' ? 'bg-rose-500 shadow-rose-500/40' : 
+                        'bg-slate-700'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-colors duration-500 ${
+                    cloudStatus === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                    cloudStatus === 'loading' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                    cloudStatus === 'conflict' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                    'bg-slate-800/50 border-white/[0.05] text-slate-500'
+                  }`}>
+                    {cloudStatus === 'loading' ? (
+                      <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}>
+                        <ICONS.RotateCcw size={16} />
+                      </motion.div>
+                    ) : cloudStatus === 'success' ? (
+                      <ICONS.Check size={18} />
+                    ) : cloudStatus === 'conflict' ? (
+                      <ICONS.AlertTriangle size={18} />
+                    ) : (
+                      <ICONS.Unlock size={16} />
+                    )}
+                  </div>
+                  
+                  <div className="flex flex-col min-w-0">
+                    <span className={`text-[11px] font-black tracking-tight transition-colors duration-500 whitespace-nowrap overflow-hidden text-ellipsis ${
+                      cloudStatus === 'success' ? 'text-emerald-400' :
+                      cloudStatus === 'loading' ? 'text-amber-400' :
+                      cloudStatus === 'conflict' ? 'text-rose-400' :
+                      'text-slate-400'
+                    }`}>
+                      {cloudStatus === 'conflict' ? 'В ОБЛАКЕ НОВЕЕ!' : 
+                       !state.syncUrl ? 'ЛОКАЛЬНЫЙ РЕЖИМ' : 
+                       cloudStatus === 'success' ? 'СИНХРОНИЗИРОВАНО' :
+                       cloudStatus === 'loading' ? 'ОБНОВЛЕНИЕ...' :
+                       'ОЖИДАНИЕ...'}
                     </span>
-                    {lastSyncTime && <span className="text-[9px] text-slate-500">{lastSyncTime}</span>}
-                 </div>
+                    <div className="flex items-center gap-1 opacity-50">
+                       <ICONS.History size={8} className="text-slate-500" />
+                       <span className="text-[9px] font-bold text-slate-500 uppercase">
+                         {lastSyncTime || 'No history'}
+                       </span>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            </motion.div>
           </div>
         </nav>
 
