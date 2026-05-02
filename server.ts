@@ -80,11 +80,26 @@ async function startServer() {
     try {
       const { from, to, creator_id } = req.body;
       
-      const metricsParams = new URLSearchParams({ from, to, creator_ids: creator_id, offset: '0', limit: '100' });
+      const metricsParams = new URLSearchParams({ 
+        from, 
+        to, 
+        creator_ids: creator_id, 
+        offset: '0', 
+        limit: '100' 
+      });
+      // Ensure user_ids is only added if we actually have specific users to filter by (currently we don't)
+      
       const trackingParams = new URLSearchParams({ start: from, end: to });
-      const transactionsParams = new URLSearchParams({ offset: '0', limit: '15' }); // Last 15 transactions
+      // Platform transactions might prefer start/end or no pagination if 400 persists, 
+      // but we'll try to stick to basic offset/limit first if that's what the platform expects.
+      const transactionsParams = new URLSearchParams({ 
+        start: from, 
+        end: to, 
+        offset: '0', 
+        limit: '100' 
+      });
 
-      console.log(`[OnlyMonster] [PROXY] Fetching full dashboard data for account ${creator_id}`);
+      console.log(`[OnlyMonster] [PROXY] Fetching full dashboard data for account ${creator_id} (Platform: ${PLATFORM_ACCOUNT_ID})`);
 
       // Metrics usually works with x-om-auth-token
       const metricsRes = await fetchWithRetry(`${ONLYMONSTER_API_BASE}/api/v0/users/metrics?${metricsParams.toString()}`, {
@@ -131,8 +146,8 @@ async function startServer() {
       if (transactionsRes.ok) {
         result.transactions = await transactionsRes.json();
       } else {
-        console.error(`[OnlyMonster] [ERROR] Transactions failed: ${transactionsRes.status}`);
-        // Graceful fallback: return empty items index instead of 502
+        const errorText = await transactionsRes.clone().text().catch(() => "N/A");
+        console.error(`[OnlyMonster] [ERROR] Transactions failed: ${transactionsRes.status}`, errorText);
       }
 
       res.json(result);

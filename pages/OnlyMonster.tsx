@@ -106,13 +106,14 @@ const OnlyMonster: React.FC = () => {
       }
 
       const aggregated: AggregatedStats = items.reduce((acc, curr) => {
-        const totalSales = curr.total_sold_messages_price_sum + curr.total_tips_amount_sum;
+        // Strict aggregation as per user: sum total_sold_messages_price_sum and total_tips_amount_sum
+        const totalSales = (curr.total_sold_messages_price_sum || 0) + (curr.total_tips_amount_sum || 0);
         return {
           totalEarned: acc.totalEarned + totalSales,
-          totalMessages: acc.totalMessages + curr.messages_count,
-          paidMessages: acc.paidMessages + curr.paid_messages_count,
-          avgReplyTime: acc.avgReplyTime + curr.reply_time_avg,
-          totalTips: acc.totalTips + curr.total_tips_amount_sum,
+          totalMessages: acc.totalMessages + (curr.messages_count || 0),
+          paidMessages: acc.paidMessages + (curr.paid_messages_count || 0),
+          avgReplyTime: acc.avgReplyTime + (curr.reply_time_avg || 0),
+          totalTips: acc.totalTips + (curr.total_tips_amount_sum || 0),
           newSubs: acc.newSubs,
           adClicks: acc.adClicks,
           conversions: 0
@@ -495,7 +496,7 @@ const ChattersPerformanceTable = ({ metrics }: { metrics: MetricData[] }) => {
           <h3 className="text-xl font-bold text-white font-outfit uppercase tracking-tight flex items-center gap-3">
             <Users size={20} className="text-indigo-400" /> Chatters Performance
           </h3>
-          <p className="text-slate-500 text-xs mt-2">Real-time efficiency metrics for all active operators.</p>
+          <p className="text-slate-500 text-xs mt-2">Operational efficiency for account operators today.</p>
         </div>
         <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
@@ -507,39 +508,44 @@ const ChattersPerformanceTable = ({ metrics }: { metrics: MetricData[] }) => {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-white/5">
-              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Operator (ID)</th>
-              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Avg Reply Time</th>
-              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Sales</th>
-              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Tips</th>
-              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05] text-right">Conversion</th>
+              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Оператор (ID)</th>
+              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Ср. время ответа</th>
+              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Выручка ($)</th>
+              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Чаевые ($)</th>
+              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05]">Активность</th>
+              <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/[0.05] text-right">Конверсия</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/[0.03]">
             {metrics.map((item) => {
-              const conversion = item.messages_count > 0 
-                ? Math.round((item.paid_messages_count / item.messages_count) * 100) 
+              const conversion = (item.messages_count || 0) > 0 
+                ? Math.round(((item.paid_messages_count || 0) / item.messages_count) * 100) 
                 : 0;
-              const isSlow = item.reply_time_avg > 90;
-              const sales = item.paid_messages_price_sum || item.total_sold_messages_price_sum || 0;
-              const tips = item.tips_amount_sum || item.total_tips_amount_sum || 0;
+              const isSlow = (item.reply_time_avg || 0) > 90;
+              
+              // Strict mapping from user request: 
+              // paid_messages_price_sum & tips_amount_sum for table
+              const sales = item.paid_messages_price_sum || 0;
+              const tips = item.tips_amount_sum || 0;
+              const activity = item.messages_count || 0;
 
               return (
                 <tr 
                   key={item.user_id} 
-                  className={`transition-colors group hover:bg-white/[0.04] ${isSlow ? 'bg-rose-500/5' : ''}`}
+                  className={`transition-colors group hover:bg-white/[0.08] ${isSlow ? 'bg-rose-500/20' : ''}`}
                 >
                   <td className="p-5">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/10 text-indigo-400 font-bold text-xs">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center border font-bold text-xs ${isSlow ? 'bg-rose-500/20 border-rose-500/30 text-rose-400' : 'bg-white/5 border-white/10 text-indigo-400'}`}>
                         {String(item.user_id).slice(-2)}
                       </div>
-                      <span className="text-xs font-bold text-white tracking-widest font-mono">#{item.user_id}</span>
+                      <span className={`text-xs font-bold tracking-widest font-mono ${isSlow ? 'text-rose-400' : 'text-white'}`}>#{item.user_id}</span>
                     </div>
                   </td>
                   <td className="p-5">
                     <div className="flex items-center gap-2">
                       <Clock size={14} className={isSlow ? 'text-rose-500' : 'text-slate-500'} />
-                      <span className={`text-sm font-black font-outfit ${isSlow ? 'text-rose-500 underline decoration-rose-500/30' : 'text-white'}`}>
+                      <span className={`text-sm font-black font-outfit ${isSlow ? 'text-rose-500 underline decoration-rose-500/30 font-bold' : 'text-white'}`}>
                         {item.reply_time_avg}<span className="text-[10px] opacity-40 ml-1">s</span>
                       </span>
                     </div>
@@ -550,12 +556,15 @@ const ChattersPerformanceTable = ({ metrics }: { metrics: MetricData[] }) => {
                   <td className="p-5">
                     <span className="text-sm font-black text-amber-400 font-outfit">${tips.toLocaleString()}</span>
                   </td>
+                  <td className="p-5">
+                    <span className="text-xs font-bold text-slate-400 font-mono">{activity} msgs</span>
+                  </td>
                   <td className="p-5 text-right">
                     <div className="inline-flex flex-col items-end">
-                      <span className="text-sm font-black text-indigo-400 font-outfit">{conversion}%</span>
+                      <span className={`text-sm font-black font-outfit ${conversion > 20 ? 'text-emerald-400' : 'text-indigo-400'}`}>{conversion}%</span>
                       <div className="w-16 bg-white/5 h-1 rounded-full mt-1 overflow-hidden">
                         <div 
-                          className="bg-indigo-500 h-full rounded-full transition-all duration-1000" 
+                          className={`${conversion > 20 ? 'bg-emerald-500' : 'bg-indigo-500'} h-full rounded-full transition-all duration-1000`} 
                           style={{ width: `${conversion}%` }}
                         ></div>
                       </div>
@@ -566,7 +575,7 @@ const ChattersPerformanceTable = ({ metrics }: { metrics: MetricData[] }) => {
             })}
             {metrics.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-20 text-center text-slate-500 text-xs font-bold uppercase tracking-[0.3em] opacity-40">
+                <td colSpan={6} className="p-20 text-center text-slate-500 text-xs font-bold uppercase tracking-[0.3em] opacity-40">
                   No operator data available for this period
                 </td>
               </tr>
