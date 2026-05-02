@@ -106,10 +106,11 @@ function StatCard({
 
 interface DashboardProps {
   state: AppState;
+  userRole: 'user' | 'owner' | null;
   updateState: (updater: (prev: AppState) => AppState) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
+const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) => {
   const navigate = useNavigate();
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
@@ -437,29 +438,31 @@ const Dashboard: React.FC<DashboardProps> = ({ state, updateState }) => {
                 </select>
              </div>
              
-              <div className="flex items-center gap-3">
-                {activePeriod?.status === 'open' ? (
-                   <button 
-                     onClick={handleCloseMonth} 
-                     className="flex items-center gap-2 px-4 py-2 bg-rose-500/[0.08] hover:bg-rose-500 text-rose-500 hover:text-white text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all border border-rose-500/20 hover:border-rose-500 active:scale-95 shadow-sm group"
-                   >
-                     <LockIcon size={14} className="group-hover:rotate-12 transition-transform duration-300" /> Закрыть месяц
-                   </button>
-                ) : (
-                   <div className="flex items-center gap-2 px-4 py-2 bg-white/[0.03] text-slate-500 text-[10px] font-bold uppercase tracking-widest rounded-xl border border-white/[0.05]">
-                     <LockIcon size={14} /> Месяц закрыт
-                   </div>
-                )}
-                
-                {isLatestPeriod && (
-                   <button 
-                     onClick={handleStartNextMonth} 
-                     className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all shadow-[0_4px_15px_rgba(79,70,229,0.2)] hover:shadow-[0_4px_25px_rgba(79,70,229,0.3)] active:scale-95 group"
-                   >
-                     <ICONS.Plus size={14} className="group-hover:scale-125 transition-transform duration-300" /> Открыть следующий
-                   </button>
-                )}
-              </div>
+              {userRole === 'owner' && (
+                <div className="flex items-center gap-3">
+                  {activePeriod?.status === 'open' ? (
+                     <button 
+                       onClick={handleCloseMonth} 
+                       className="flex items-center gap-2 px-4 py-2 bg-rose-500/[0.08] hover:bg-rose-500 text-rose-500 hover:text-white text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all border border-rose-500/20 hover:border-rose-500 active:scale-95 shadow-sm group"
+                     >
+                       <LockIcon size={14} className="group-hover:rotate-12 transition-transform duration-300" /> Закрыть месяц
+                     </button>
+                  ) : (
+                     <div className="flex items-center gap-2 px-4 py-2 bg-white/[0.03] text-slate-500 text-[10px] font-bold uppercase tracking-widest rounded-xl border border-white/[0.05]">
+                       <LockIcon size={14} /> Месяц закрыт
+                     </div>
+                  )}
+                  
+                  {isLatestPeriod && (
+                     <button 
+                       onClick={handleStartNextMonth} 
+                       className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all shadow-[0_4px_15px_rgba(79,70,229,0.2)] hover:shadow-[0_4px_25px_rgba(79,70,229,0.3)] active:scale-95 group"
+                     >
+                       <ICONS.Plus size={14} className="group-hover:scale-125 transition-transform duration-300" /> Открыть следующий
+                     </button>
+                  )}
+                </div>
+              )}
           </div>
         </div>
       </header>

@@ -209,7 +209,7 @@ const App: React.FC = () => {
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
               <span className="text-white font-outfit text-xl font-bold">C</span>
             </div>
-            <span className="font-outfit text-xl font-bold tracking-tight text-white leading-none">Continental<br/><span className="text-xs text-indigo-400 font-normal text-[10px]">Cloud Vault</span></span>
+            <span className="font-outfit text-xl font-bold tracking-tight text-white leading-none">Continental</span>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -288,11 +288,10 @@ const App: React.FC = () => {
 
               <div className="relative flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[9px] text-slate-500 uppercase font-black tracking-[0.2em] opacity-60">System Cloud</span>
+                  <span className="text-[9px] text-slate-500 uppercase font-black tracking-[0.2em] opacity-60">База</span>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[8px] font-mono text-slate-600 bg-white/[0.03] px-1.5 py-0.5 rounded border border-white/[0.05]">v.{state.version}</span>
                     <motion.div 
-                      animate={cloudStatus === 'loading' ? { scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] } : {}}
+                      animate={isSyncing || cloudStatus === 'loading' ? { scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] } : {}}
                       transition={{ duration: 1.5, repeat: Infinity }}
                       className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)] ${
                         cloudStatus === 'success' ? 'bg-emerald-500 shadow-emerald-500/40' : 
@@ -325,7 +324,7 @@ const App: React.FC = () => {
                   </div>
                   
                   <div className="flex flex-col min-w-0">
-                    <span className={`text-[11px] font-black tracking-tight transition-colors duration-500 whitespace-nowrap overflow-hidden text-ellipsis ${
+                    <span className={`text-[10px] font-black tracking-tight transition-colors duration-500 whitespace-nowrap overflow-hidden text-ellipsis ${
                       cloudStatus === 'success' ? 'text-emerald-400' :
                       cloudStatus === 'loading' ? 'text-amber-400' :
                       cloudStatus === 'conflict' ? 'text-rose-400' :
@@ -334,7 +333,7 @@ const App: React.FC = () => {
                       {cloudStatus === 'conflict' ? 'В ОБЛАКЕ НОВЕЕ!' : 
                        !state.syncUrl ? 'ЛОКАЛЬНЫЙ РЕЖИМ' : 
                        cloudStatus === 'success' ? 'СИНХРОНИЗИРОВАНО' :
-                       cloudStatus === 'loading' ? 'ОБНОВЛЕНИЕ...' :
+                       isSyncing || cloudStatus === 'loading' ? 'ОБНОВЛЕНИЕ...' :
                        'ОЖИДАНИЕ...'}
                     </span>
                     <div className="flex items-center gap-1 opacity-50">
@@ -353,7 +352,7 @@ const App: React.FC = () => {
         <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950">
           <div className="max-w-7xl mx-auto">
             <Routes>
-              <Route path="/" element={<Dashboard state={state} updateState={updateState} />} />
+              <Route path="/" element={<Dashboard state={state} updateState={updateState} userRole={userRole} />} />
               <Route path="/metrics" element={<Metrics state={state} updateState={updateState} />} />
               <Route path="/add-income" element={<AddIncome state={state} updateState={updateState} />} />
               <Route path="/advance-request" element={<AdvanceRequest state={state} updateState={updateState} />} />
