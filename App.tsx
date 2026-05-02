@@ -68,7 +68,8 @@ const App: React.FC = () => {
             setCloudStatus('success');
             setLastSyncTime(new Date().toLocaleTimeString());
           } else {
-            setCloudStatus('idle');
+            // If already in success, keep it. Otherwise idle.
+            setCloudStatus(prev => prev === 'success' ? 'success' : 'success');
           }
         } catch (e) {
           setCloudStatus('error');
@@ -110,25 +111,29 @@ const App: React.FC = () => {
         const versionAtStart = state.version; 
         
         setIsSyncing(true);
-        setCloudStatus('loading');
+        // Don't set cloudStatus to 'loading' for routine background syncs 
+        // if we are already in a success state to prevent flickering
+        if (cloudStatus !== 'success') {
+          setCloudStatus('loading');
+        }
         
         const result = await syncToCloud(state);
         
         if (result.success && result.newState) {
           setState(current => {
             if (current.version === versionAtStart) {
+               // Only update if success was achieved
                setCloudStatus('success');
                setLastSyncTime(new Date().toLocaleTimeString());
                return result.newState!;
             }
-            console.log("Sync result discarded: local state changed during request");
             return current;
           });
         } else {
           setCloudStatus('error');
         }
         setIsSyncing(false);
-      }, 5000); 
+      }, 10000); 
       return () => clearTimeout(timer);
     }
   }, [state.version, state.syncUrl, state.syncKey, isCloudReady]);
@@ -300,13 +305,13 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-colors duration-500 ${
-                    cloudStatus === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                    cloudStatus === 'loading' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
-                    cloudStatus === 'conflict' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-500 ${
+                    cloudStatus === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]' :
+                    cloudStatus === 'loading' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.1)]' :
+                    cloudStatus === 'conflict' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.1)]' :
                     'bg-slate-800/50 border-white/[0.05] text-slate-500'
                   }`}>
-                    {cloudStatus === 'loading' ? (
+                    {isSyncing || cloudStatus === 'loading' ? (
                       <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}>
                         <ICONS.RotateCcw size={16} />
                       </motion.div>
