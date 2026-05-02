@@ -51,7 +51,37 @@ interface Transaction {
   fan: { id: string };
 }
 
-type TabType = 'overview' | 'operators' | 'accounts' | 'transactions';
+interface TrackingLink {
+  id: string;
+  name: string;
+  subscribers: number;
+  clicks: number;
+  url: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+interface TrialLink {
+  id: string;
+  name: string;
+  claims: number;
+  claims_limit: number;
+  url: string;
+  duration_days: number;
+  is_active: boolean;
+  clicks: number;
+}
+
+interface VaultFolder {
+  id: number;
+  name: string;
+  type: string;
+  photos_count: number;
+  videos_count: number;
+  gifs_count: number;
+}
+
+type TabType = 'overview' | 'operators' | 'accounts' | 'marketing' | 'vault' | 'transactions';
 
 const OnlyMonster: React.FC = () => {
   // State
@@ -60,11 +90,16 @@ const OnlyMonster: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [trackingLinks, setTrackingLinks] = useState<TrackingLink[]>([]);
+  const [trialLinks, setTrialLinks] = useState<TrialLink[]>([]);
+  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [dateRange, setDateRange] = useState<'7' | '30'>('7');
+  
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   
   // UI State
   const [searchQuery, setSearchQuery] = useState('');
@@ -102,20 +137,40 @@ const OnlyMonster: React.FC = () => {
       console.log(`[OnlyMonster] [DEBUG] Metrics Data Items: ${metricsData.items?.length || 0}`);
       setMetrics(metricsData.items || []);
 
-      // Others are auxiliary
+      // Enhanced account data fetching
       if (accountsRes.ok) {
         const accountsData = await accountsRes.json();
-        setAccounts(accountsData.accounts || []);
-        console.log(`[OnlyMonster] [DEBUG] Accounts Loaded: ${accountsData.accounts?.length || 0}`);
+        const activeAccounts = accountsData.accounts || [];
+        setAccounts(activeAccounts);
+        console.log(`[OnlyMonster] [DEBUG] Accounts Loaded: ${activeAccounts.length}`);
 
-        // If we have accounts, fetch transactions for the first one for the live feed
-        if (accountsData.accounts?.length > 0) {
-          const firstAccountId = accountsData.accounts[0].platform_account_id;
-          const txRes = await fetch(`/api/transactions/${firstAccountId}?start=${from}&end=${to}&limit=15`);
+        const currentAccountId = selectedAccountId || (activeAccounts.length > 0 ? activeAccounts[0].platform_account_id : null);
+        
+        if (currentAccountId) {
+          if (!selectedAccountId) setSelectedAccountId(currentAccountId);
+
+          const [txRes, trackRes, trialRes, vaultRes] = await Promise.all([
+            fetch(`/api/transactions/${currentAccountId}?start=${from}&end=${to}&limit=15`),
+            fetch(`/api/platforms/onlyfans/accounts/${currentAccountId}/tracking-links?start=${from}&end=${to}&limit=100`),
+            fetch(`/api/platforms/onlyfans/accounts/${currentAccountId}/trial-links?start=${from}&end=${to}&limit=100`),
+            fetch(`/api/accounts/${currentAccountId}/vault/folders?limit=20`)
+          ]);
+
           if (txRes.ok) {
-            const txData = await txRes.json();
-            setTransactions(txData.items || []);
-            console.log(`[OnlyMonster] [DEBUG] Transactions Loaded: ${txData.items?.length || 0}`);
+            const data = await txRes.json();
+            setTransactions(data.items || []);
+          }
+          if (trackRes.ok) {
+            const data = await trackRes.json();
+            setTrackingLinks(data.items || []);
+          }
+          if (trialRes.ok) {
+            const data = await trialRes.json();
+            setTrialLinks(data.items || []);
+          }
+          if (vaultRes.ok) {
+            const data = await vaultRes.json();
+            setVaultFolders(data.items || []);
           }
         }
       } else {
@@ -143,7 +198,7 @@ const OnlyMonster: React.FC = () => {
     fetchData();
     const interval = setInterval(fetchData, 60000); 
     return () => clearInterval(interval);
-  }, [dateRange]);
+  }, [dateRange, selectedAccountId]);
 
   // --- Computed Stats ---
 
@@ -164,8 +219,10 @@ const OnlyMonster: React.FC = () => {
     switch (activeTab) {
       case 'overview': return <OverviewTab metrics={metrics} summary={summary} avgReply={avgReplyTime} />;
       case 'operators': return <OperatorsTab metrics={metrics} members={members} query={searchQuery} />;
-      case 'accounts': return <AccountsTab accounts={accounts} query={searchQuery} />;
+      case 'accounts': return <AccountsTab accounts={accounts} query={searchQuery} onSelect={setSelectedAccountId} selectedId={selectedAccountId} />;
       case 'transactions': return <TransactionsTab transactions={transactions} query={searchQuery} />;
+      case 'marketing': return <MarketingTab trackingLinks={trackingLinks} trialLinks={trialLinks} query={searchQuery} />;
+      case 'vault': return <VaultTab folders={vaultFolders} query={searchQuery} />;
       default: return null;
     }
   };
@@ -195,6 +252,8 @@ const OnlyMonster: React.FC = () => {
             <NavBtn active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} label="Overview" icon={<TrendingUp size={16} />} />
             <NavBtn active={activeTab === 'operators'} onClick={() => setActiveTab('operators')} label="Operators" icon={<Users size={16} />} />
             <NavBtn active={activeTab === 'accounts'} onClick={() => setActiveTab('accounts')} label="Accounts" icon={<ShieldCheck size={16} />} />
+            <NavBtn active={activeTab === 'marketing'} onClick={() => setActiveTab('marketing')} label="Marketing" icon={<ArrowUpRight size={16} />} />
+            <NavBtn active={activeTab === 'vault'} onClick={() => setActiveTab('vault')} label="Content" icon={<Activity size={16} />} />
             <NavBtn active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} label="Flow" icon={<Wallet size={16} />} />
             
             <div className="w-px h-8 bg-white/10 mx-2 hidden sm:block"></div>
@@ -518,7 +577,7 @@ const OperatorsTab = ({ metrics, members, query }: { metrics: MetricData[]; memb
   );
 }
 
-const AccountsTab = ({ accounts, query }: { accounts: Account[]; query: string }) => {
+const AccountsTab = ({ accounts, query, onSelect, selectedId }: { accounts: Account[]; query: string; onSelect: (id: string) => void; selectedId: string | null }) => {
   const filtered = accounts.filter(a => 
     a.name.toLowerCase().includes(query.toLowerCase()) || 
     a.username.toLowerCase().includes(query.toLowerCase())
@@ -530,7 +589,8 @@ const AccountsTab = ({ accounts, query }: { accounts: Account[]; query: string }
          <motion.div 
            key={acc.id}
            whileHover={{ y: -8 }}
-           className="glass-card p-8 rounded-[2.5rem] border-white/5 relative overflow-hidden group shadow-xl"
+           onClick={() => onSelect(acc.platform_account_id)}
+           className={`glass-card p-8 rounded-[2.5rem] border-white/5 relative overflow-hidden group shadow-xl cursor-pointer transition-all ${selectedId === acc.platform_account_id ? 'ring-2 ring-indigo-500 bg-indigo-500/5' : ''}`}
          >
             <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-20 transition-all rotate-12">
                <ShieldCheck size={120} />
@@ -562,8 +622,8 @@ const AccountsTab = ({ accounts, query }: { accounts: Account[]; query: string }
 
             <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
                <span className="flex items-center gap-2">ID: <span className="text-white font-mono">{acc.platform_account_id}</span></span>
-               <button className="text-indigo-400 hover:text-white transition-colors flex items-center gap-1 group">
-                  View Metrics
+               <button className={`text-indigo-400 hover:text-white transition-colors flex items-center gap-1 group font-black uppercase`}>
+                  {selectedId === acc.platform_account_id ? 'Selected' : 'Select Account'}
                   <ArrowUpRight size={14} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
                </button>
             </div>
@@ -628,6 +688,102 @@ const TransactionsTab = ({ transactions, query }: { transactions: Transaction[];
             </div>
           )}
        </div>
+    </div>
+  );
+}
+
+const MarketingTab = ({ trackingLinks, trialLinks, query }: { trackingLinks: TrackingLink[]; trialLinks: TrialLink[]; query: string }) => {
+  const filteredTracking = trackingLinks.filter(l => l.name.toLowerCase().includes(query.toLowerCase()));
+  const filteredTrial = trialLinks.filter(l => l.name.toLowerCase().includes(query.toLowerCase()));
+
+  return (
+    <div className="space-y-10">
+       <div className="glass-card rounded-[3rem] border-white/5 shadow-2xl overflow-hidden bg-slate-900/10">
+          <div className="p-10 border-b border-white/5 flex items-center justify-between bg-white/[0.01]">
+             <div>
+                <h3 className="text-2xl font-black text-white tracking-tighter uppercase font-outfit">Tracking Links</h3>
+                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Growth & acquisition metrics</p>
+             </div>
+          </div>
+          <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+             {filteredTracking.map(link => (
+                <div key={link.id} className="p-6 bg-white/[0.02] border border-white/5 rounded-3xl flex justify-between items-center group">
+                   <div>
+                      <h4 className="text-lg font-black text-white uppercase font-outfit truncate max-w-[200px]">{link.name}</h4>
+                      <div className="flex gap-4 mt-2">
+                         <div className="flex flex-col">
+                            <span className="text-xs font-black text-indigo-400 font-mono">{link.subscribers}</span>
+                            <span className="text-[9px] text-slate-600 uppercase font-black">Subs</span>
+                         </div>
+                         <div className="flex flex-col">
+                            <span className="text-xs font-black text-white font-mono">{link.clicks}</span>
+                            <span className="text-[9px] text-slate-600 uppercase font-black">Clicks</span>
+                         </div>
+                      </div>
+                   </div>
+                   <button onClick={() => window.open(link.url, '_blank')} className="p-4 bg-indigo-500/10 rounded-2xl text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                      <ExternalLink size={20} />
+                   </button>
+                </div>
+             ))}
+          </div>
+       </div>
+
+       <div className="glass-card rounded-[3rem] border-white/5 shadow-2xl overflow-hidden bg-slate-900/10">
+          <div className="p-10 border-b border-white/5 flex items-center justify-between bg-white/[0.01]">
+             <div>
+                <h3 className="text-2xl font-black text-white tracking-tighter uppercase font-outfit">Trial Campaigns</h3>
+                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Limited accessibility promotions</p>
+             </div>
+          </div>
+          <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+             {filteredTrial.map(link => (
+                <div key={link.id} className="p-6 bg-rose-500/[0.02] border border-rose-500/5 rounded-3xl flex justify-between items-center group">
+                   <div>
+                      <h4 className="text-lg font-black text-white uppercase font-outfit">{link.name || 'Flash Trial'}</h4>
+                      <p className="text-[10px] text-rose-400 font-bold uppercase mt-1">{link.duration_days} Days Access</p>
+                      <div className="flex gap-4 mt-2">
+                         <div className="flex flex-col">
+                            <span className="text-xs font-black text-white font-mono">{link.claims}/{link.claims_limit}</span>
+                            <span className="text-[9px] text-slate-600 uppercase font-black">Claims</span>
+                         </div>
+                      </div>
+                   </div>
+                   <button onClick={() => window.open(link.url, '_blank')} className="p-4 bg-rose-500/10 rounded-2xl text-rose-400 group-hover:bg-rose-600 group-hover:text-white transition-all">
+                      <ExternalLink size={20} />
+                   </button>
+                </div>
+             ))}
+          </div>
+       </div>
+    </div>
+  );
+}
+
+const VaultTab = ({ folders, query }: { folders: VaultFolder[]; query: string }) => {
+  const filtered = folders.filter(f => f.name.toLowerCase().includes(query.toLowerCase()));
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+       {filtered.map(folder => (
+         <motion.div 
+           key={folder.id}
+           whileHover={{ y: -5 }}
+           className="glass-card p-6 rounded-3xl border-white/5 bg-slate-900/20 group cursor-pointer relative overflow-hidden"
+         >
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-all">
+               <Activity size={50} />
+            </div>
+            <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-indigo-600 transition-colors">
+               <Activity size={24} className="text-indigo-400 group-hover:text-white" />
+            </div>
+            <h4 className="text-base font-black text-white uppercase font-outfit truncate">{folder.name}</h4>
+            <div className="flex items-center gap-3 mt-4">
+               {folder.photos_count > 0 && <span className="text-[9px] font-black uppercase text-slate-500 bg-white/5 px-2 py-1 rounded-lg">{folder.photos_count} Photos</span>}
+               {folder.videos_count > 0 && <span className="text-[9px] font-black uppercase text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-lg border border-indigo-500/10">{folder.videos_count} Videos</span>}
+            </div>
+         </motion.div>
+       ))}
     </div>
   );
 }

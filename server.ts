@@ -22,9 +22,19 @@ async function startServer() {
   // --- State & Cache ---
   const processedSessions = new Set<string>();
   const metricsCache = new Map<string, { data: any; expiry: number }>();
+  const genericCache = new Map<string, { data: any; expiry: number }>();
   const CACHE_TTL = 60000; 
   let lastRequestTime = 0;
   const MIN_REQUEST_INTERVAL = 1000 / 15;
+
+  // Helper for generic caching
+  const getCachedOrFetch = async (key: string, fetchFn: () => Promise<any>, ttl = CACHE_TTL) => {
+    const cached = genericCache.get(key);
+    if (cached && cached.expiry > Date.now()) return cached.data;
+    const data = await fetchFn();
+    genericCache.set(key, { data, expiry: Date.now() + ttl });
+    return data;
+  };
 
   // Helper for exponential backoff retry with timeout
   async function fetchWithRetry(url: string, options: any, retries = 3, backoff = 1000): Promise<Response> {
@@ -202,6 +212,63 @@ async function startServer() {
         const txt = await response.text();
         return res.status(response.status).json({ error: "Failed to fetch transactions", details: txt });
       }
+      const data = await response.json();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 1.4 Tracking Links
+  app.get("/api/platforms/onlyfans/accounts/:platform_account_id/tracking-links", async (req, res) => {
+    try {
+      const { platform_account_id } = req.params;
+      const { start, end, limit = "100" } = req.query;
+      const params = new URLSearchParams({ start: String(start), end: String(end), limit: String(limit) });
+      
+      const response = await fetchWithRetry(`${ONLYMONSTER_API_BASE}/api/v0/platforms/onlyfans/accounts/${platform_account_id}/tracking-links?${params.toString()}`, {
+        headers: { 'x-om-auth-token': OM_API_TOKEN, 'accept': 'application/json' }
+      });
+
+      if (!response.ok) return res.status(response.status).json({ error: "Failed to fetch tracking links" });
+      const data = await response.json();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 1.5 Trial Links
+  app.get("/api/platforms/onlyfans/accounts/:platform_account_id/trial-links", async (req, res) => {
+    try {
+      const { platform_account_id } = req.params;
+      const { start, end, limit = "100" } = req.query;
+      const params = new URLSearchParams({ start: String(start), end: String(end), limit: String(limit) });
+      
+      const response = await fetchWithRetry(`${ONLYMONSTER_API_BASE}/api/v0/platforms/onlyfans/accounts/${platform_account_id}/trial-links?${params.toString()}`, {
+        headers: { 'x-om-auth-token': OM_API_TOKEN, 'accept': 'application/json' }
+      });
+
+      if (!response.ok) return res.status(response.status).json({ error: "Failed to fetch trial links" });
+      const data = await response.json();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 1.6 Vault Folders
+  app.get("/api/accounts/:account_id/vault/folders", async (req, res) => {
+    try {
+      const { account_id } = req.params;
+      const { limit = "20", offset = "0" } = req.query;
+      const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+      
+      const response = await fetchWithRetry(`${ONLYMONSTER_API_BASE}/api/v0/accounts/${account_id}/vault/folders?${params.toString()}`, {
+        headers: { 'x-om-auth-token': OM_API_TOKEN, 'accept': 'application/json' }
+      });
+
+      if (!response.ok) return res.status(response.status).json({ error: "Failed to fetch vault folders" });
       const data = await response.json();
       res.json(data);
     } catch (err: any) {
