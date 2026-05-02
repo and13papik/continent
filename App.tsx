@@ -18,6 +18,7 @@ import TotalTable from './pages/TotalTable';
 import Settings from './pages/Settings';
 import Metrics from './pages/Metrics';
 import AdvanceRequest from './pages/AdvanceRequest';
+import OnlyMonster from './pages/OnlyMonster';
 
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>(createInitialState());
@@ -230,6 +231,7 @@ const App: React.FC = () => {
               </>
             )}
             <NavLink to="/settings" icon={<ICONS.Settings size={18} />} label="Настройки" />
+            <NavLink to="/onlymonster" icon={<ICONS.OnlyMonster size={18} />} label="OnlyMonster" />
           </div>
 
           <div className="mt-auto pt-6 border-t border-slate-800 space-y-4">
@@ -369,6 +371,7 @@ const App: React.FC = () => {
               <Route path="/admin-table" element={<AdminTable state={state} updateState={updateState} />} />
               <Route path="/total-table" element={<TotalTable state={state} updateState={updateState} />} />
               <Route path="/settings" element={<Settings state={state} updateState={updateState} userRole={userRole} />} />
+              <Route path="/onlymonster" element={<OnlyMonster />} />
             </Routes>
           </div>
         </main>
