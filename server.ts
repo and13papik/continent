@@ -278,24 +278,14 @@ async function startServer() {
 
   // 2. Webhook Endpoint
   app.post("/api/webhook", (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (authHeader !== `Bearer ${OM_WEBHOOK_SECRET}`) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    
-    const { event, data } = req.body;
-    const session_id = data?.session_id || data?.id;
+    console.log('Webhook:', req.body);
+    return res.status(200).json({ received: true });
+  });
 
-    if (session_id && processedSessions.has(session_id)) {
-      return res.json({ status: "already_processed" });
+  app.all("/api/webhook", (req, res) => {
+    if (req.method !== 'POST') {
+      return res.status(405).send('Method Not Allowed');
     }
-
-    if (event === "survey.completed") {
-      if (session_id) processedSessions.add(session_id);
-      console.log(`[OnlyMonster] [SUCCESS] Processing survey completion for ${session_id}`);
-    }
-
-    res.json({ received: true });
   });
 
   // Final API 404 handler - MUST come before static/vite
