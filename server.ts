@@ -277,14 +277,13 @@ async function startServer() {
   });
 
   // 2. Webhook Endpoint
-  app.post("/api/webhook", (req, res) => {
-    console.log('Webhook:', req.body);
-    return res.status(200).json({ received: true });
-  });
-
-  app.all("/api/webhook", (req, res) => {
-    if (req.method !== 'POST') {
-      return res.status(405).send('Method Not Allowed');
+  app.all("/api/webhook", async (req, res) => {
+    try {
+      const webhookHandler = await import("./api/onlymonster-webhook.js");
+      return webhookHandler.default(req, res);
+    } catch (err) {
+      console.error("Webhook route error:", err);
+      res.status(500).json({ error: "Webhook handler failed" });
     }
   });
 
