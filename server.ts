@@ -31,7 +31,7 @@ async function startServer() {
   const processedTxs = new Set<string>(); 
   let monitoredWallets: any[] = [];
 
-  const TG_BOT_TOKEN = "8620136598:AAFBdcVr9xoRjUWFQ3DtG5ka4zM_Jh4Rg08";
+  const TG_BOT_TOKEN = "8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4";
   const TG_CHAT_ID = "-1003748692600";
 
   // Helper for generic caching

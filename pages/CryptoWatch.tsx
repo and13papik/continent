@@ -103,7 +103,7 @@ const CryptoWatch: React.FC<CryptoWatchProps> = ({ state, updateState }) => {
           <div>
             <h3 className="text-lg font-black text-white uppercase font-outfit">Telegram Bot Integration</h3>
             <p className="text-slate-400 text-xs mt-1 max-w-lg">
-              Bot <span className="text-sky-400 font-mono">@CryptoContinental_bot</span> is active. 
+              Bot <span className="text-sky-400 font-mono">@Continental_table_bot</span> is active. 
               Notifications are sent to group <span className="text-sky-400 font-mono">-1003748692600</span>.
             </p>
             <div className="flex items-center gap-2 mt-4">
