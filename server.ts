@@ -8,6 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function startServer() {
+  console.log("[Server] Initializing startServer...");
   const app = express();
   const PORT = 3000;
 
@@ -168,8 +169,8 @@ async function startServer() {
     res.json({ status: "ok", time: new Date().toISOString() });
   });
 
-  // Test endpoint to verify Telegram setup
-  app.get("/api/test-telegram", async (req, res) => {
+  app.all("/api/test-telegram", async (req, res) => {
+    console.log(`[Server] Handling /api/test-telegram request...`);
     const result = await sendTelegramMessage("🔔 <b>Тестовое сообщение</b>\nБот успешно подключен к серверу!");
     if (result.success) {
       res.json({ status: "sent", message: "Check your Telegram group" });

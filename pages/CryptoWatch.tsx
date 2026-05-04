@@ -114,11 +114,18 @@ const CryptoWatch: React.FC<CryptoWatchProps> = ({ state, updateState }) => {
               <button
                 onClick={async () => {
                   try {
+                    console.log('Calling /api/test-telegram...');
                     const resp = await fetch('/api/test-telegram');
+                    if (!resp.ok) {
+                      const errorData = await resp.json().catch(() => ({ error: 'Unknown server error' }));
+                      alert(`Server returned ${resp.status}: ${errorData.error || 'No error message'}`);
+                      return;
+                    }
                     const data = await resp.json();
                     alert(data.status === 'sent' ? 'Test message sent!' : 'Error: ' + data.error);
-                  } catch (err) {
-                    alert('Network error calling test endpoint');
+                  } catch (err: any) {
+                    console.error('Fetch error:', err);
+                    alert('Network error: ' + (err.message || 'Check console for details'));
                   }
                 }}
                 className="text-[10px] font-black text-sky-400 hover:text-sky-300 uppercase tracking-widest flex items-center gap-1 transition-colors"
