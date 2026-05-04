@@ -87,7 +87,8 @@ export const ICONS: Record<string, any> = {
   User: User,
   History: History,
   OnlyMonster: Ghost,
-  CryptoWatch: Activity
+  CryptoWatch: Activity,
+  Activity: Activity
 };
 
 export const PLATFORM_NAMES: Record<string, string> = {
