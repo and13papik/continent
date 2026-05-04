@@ -76,14 +76,17 @@ async function startServer() {
         body: JSON.stringify({ chat_id: TG_CHAT_ID, text, parse_mode: 'HTML' })
       });
       
-      const data = await resp.json();
+      const data: any = await resp.json();
       if (!resp.ok) {
         console.error(`[Telegram] API Error Response:`, JSON.stringify(data));
+        return { success: false, error: data.description || "Unknown Telegram error" };
       } else {
         console.log(`[Telegram] Message sent successfully. ID: ${data.result?.message_id}`);
+        return { success: true };
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(`[Telegram] Network Error:`, err);
+      return { success: false, error: err.message };
     }
   };
 
@@ -167,11 +170,25 @@ async function startServer() {
 
   // Test endpoint to verify Telegram setup
   app.get("/api/test-telegram", async (req, res) => {
-    await sendTelegramMessage("🔔 <b>Тестовое сообщение</b>\nБот успешно подключен к серверу!");
-    res.json({ status: "sent", message: "Check your Telegram group" });
+    const result = await sendTelegramMessage("🔔 <b>Тестовое сообщение</b>\nБот успешно подключен к серверу!");
+    if (result.success) {
+      res.json({ status: "sent", message: "Check your Telegram group" });
+    } else {
+      res.status(500).json({ status: "error", error: result.error });
+    }
   });
 
-  app.post("/api/crypto/monitor", (req, res) => {
+  app.all("/api/crypto/monitor", (req, res) => {
+    console.log(`[CryptoWatch] Received ${req.method} request to /api/crypto/monitor`);
+    
+    if (req.method === 'GET') {
+      return res.json({ status: "alive", count: monitoredWallets.length });
+    }
+
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
     const { wallets } = req.body;
     if (!Array.isArray(wallets)) return res.status(400).json({ error: "Invalid wallets list" });
     

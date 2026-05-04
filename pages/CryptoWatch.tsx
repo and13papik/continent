@@ -106,9 +106,26 @@ const CryptoWatch: React.FC<CryptoWatchProps> = ({ state, updateState }) => {
               Bot <span className="text-sky-400 font-mono">@Continental_table_bot</span> is active. 
               Notifications are sent to group <span className="text-sky-400 font-mono">-1003748692600</span>.
             </p>
-            <div className="flex items-center gap-2 mt-4">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-              <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Bot Online</span>
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Bot Online</span>
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    const resp = await fetch('/api/test-telegram');
+                    const data = await resp.json();
+                    alert(data.status === 'sent' ? 'Test message sent!' : 'Error: ' + data.error);
+                  } catch (err) {
+                    alert('Network error calling test endpoint');
+                  }
+                }}
+                className="text-[10px] font-black text-sky-400 hover:text-sky-300 uppercase tracking-widest flex items-center gap-1 transition-colors"
+              >
+                <ICONS.Activity size={12} />
+                Send Test
+              </button>
             </div>
           </div>
         </div>
