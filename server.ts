@@ -69,13 +69,21 @@ async function startServer() {
 
   const sendTelegramMessage = async (text: string) => {
     try {
-      await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+      console.log(`[Telegram] Sending message to ${TG_CHAT_ID}...`);
+      const resp = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chat_id: TG_CHAT_ID, text, parse_mode: 'HTML' })
       });
+      
+      const data = await resp.json();
+      if (!resp.ok) {
+        console.error(`[Telegram] API Error Response:`, JSON.stringify(data));
+      } else {
+        console.log(`[Telegram] Message sent successfully. ID: ${data.result?.message_id}`);
+      }
     } catch (err) {
-      console.error(`[Telegram] Error:`, err);
+      console.error(`[Telegram] Network Error:`, err);
     }
   };
 
@@ -152,6 +160,12 @@ async function startServer() {
   // Start the background monitoring
   setInterval(checkBlockchain, 60000); // Check every minute
 
+  // Test endpoint to verify Telegram setup
+  app.get("/api/test-telegram", async (req, res) => {
+    await sendTelegramMessage("🔔 <b>Тестовое сообщение</b>\nБот успешно подключен к серверу!");
+    res.json({ status: "sent", message: "Check your Telegram group" });
+  });
+
   app.post("/api/crypto/monitor", (req, res) => {
     const { wallets } = req.body;
     if (!Array.isArray(wallets)) return res.status(400).json({ error: "Invalid wallets list" });
@@ -161,8 +175,9 @@ async function startServer() {
     const newWallets = wallets.filter(w => !currentIds.has(w.id));
 
     if (newWallets.length > 0) {
-      console.log(`[CryptoWatch] New wallets added: ${newWallets.length}`);
+      console.log(`[CryptoWatch] New wallets detected: ${newWallets.map(w => w.label).join(', ')}`);
       newWallets.forEach(async wallet => {
+        console.log(`[CryptoWatch] Triggering Telegram notification for wallet: ${wallet.label}`);
         await sendTelegramMessage(
           `🔔 <b>Новый кошелек добавлен на мониторинг</b>\n\n` +
           `🏷 Метка: <b>${wallet.label}</b>\n` +
