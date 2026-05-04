@@ -38,7 +38,6 @@ import {
   Send,
   User,
   History,
-  Ghost,
   Activity
 } from 'lucide-react';
 
@@ -86,7 +85,6 @@ export const ICONS: Record<string, any> = {
   Send: Send,
   User: User,
   History: History,
-  OnlyMonster: Ghost,
   CryptoWatch: Activity,
   Activity: Activity
 };

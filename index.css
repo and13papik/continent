@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-outfit: 'Outfit', sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-[#0a0c10] text-[#f8fafc] m-0 p-0 overflow-x-hidden;
+    font-family: var(--font-sans);
+  }
+}
+
+.glass-card {
+  @apply bg-slate-900/40 backdrop-blur-md border border-white/5 shadow-2xl;
+}
+
+/* Noise Overlay */
+body::before {
+  content: "";
+  @apply fixed inset-0 opacity-[0.02] z-[9999] pointer-events-none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3%3Cfilter id='noiseFilter'%3%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Custom Checkbox */
+.notebook-editor input[type="checkbox"] {
+  @apply appearance-none w-6 h-6 border-2 border-indigo-500 rounded-full cursor-pointer relative transition-all duration-300 mr-3 align-middle bg-transparent;
+}
+
+.notebook-editor input[type="checkbox"]:checked {
+  @apply bg-indigo-500 border-indigo-500;
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.6);
+}
+
+.notebook-editor input[type="checkbox"]:checked::after {
+  content: '✓';
+  @apply absolute text-white text-base font-bold top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2;
+}
+
+/* Separator */
+.task-separator {
+  @apply border-none h-[2px] my-12 relative flex items-center justify-center;
+  background: linear-gradient(to right, transparent, rgba(99, 102, 241, 0.3), transparent);
+}
+
+.task-separator::before {
+  content: "NEXT STAGE";
+  @apply px-5 py-1 bg-[#1e222d] border border-indigo-500/20 rounded-full text-indigo-500 text-[10px] font-extrabold tracking-[0.4em];
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.1);
+}
