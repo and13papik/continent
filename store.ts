@@ -37,7 +37,8 @@ export function createInitialState(): AppState {
         priorityModels: parsed.priorityModels || [],
         inactiveModels: parsed.inactiveModels || [],
         modelDefaultGoals: parsed.modelDefaultGoals || {},
-        modelMonthlyPlans: parsed.modelMonthlyPlans || {}
+        modelMonthlyPlans: parsed.modelMonthlyPlans || {},
+        cryptoWallets: parsed.cryptoWallets || []
       };
     } catch (e) {
       console.error("Failed to parse storage", e);
@@ -93,6 +94,7 @@ export function createInitialState(): AppState {
     inactiveModels: [],
     modelDefaultGoals: {},
     modelMonthlyPlans: {},
+    cryptoWallets: [],
     deletedIds: []
   };
 }
@@ -197,6 +199,7 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         finalState.priorityModels = Array.from(new Set([...(state.priorityModels || []), ...(remote.priorityModels || [])]));
         finalState.inactiveModels = Array.from(new Set([...(state.inactiveModels || []), ...(remote.inactiveModels || [])]));
         finalState.modelDefaultGoals = { ...(remote.modelDefaultGoals || {}), ...(state.modelDefaultGoals || {}) };
+        finalState.cryptoWallets = mergeArraysById(state.cryptoWallets || [], remote.cryptoWallets || [], combinedDeletedIds);
         
         if (state.totalTableEntries || remote.totalTableEntries) {
             finalState.totalTableEntries = mergeArraysById(

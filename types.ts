@@ -235,6 +235,15 @@ export interface OwnerNote {
   periodId: string;
 }
 
+export interface CryptoWallet {
+  id: string;
+  label: string;
+  address: string;
+  network: 'TRC20' | 'BEP20' | 'ERC20' | 'BTC' | 'ETH';
+  coin: 'USDT' | 'ETH' | 'USDC' | 'BTC';
+  createdAt: string;
+}
+
 export interface AppState {
   lastUpdated: number;
   version: number;
@@ -274,6 +283,7 @@ export interface AppState {
   syncKey?: string;
   dbUrl?: string;
   lastSyncedAt?: string;
+  cryptoWallets?: CryptoWallet[];
 }
 
 export interface CloudSnapshot {
