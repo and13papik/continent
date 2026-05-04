@@ -80,30 +80,52 @@ async function startServer() {
   };
 
   const checkBlockchain = async () => {
-    if (monitoredWallets.length === 0) return;
+    if (monitoredWallets.length === 0) {
+      return;
+    }
+
+    console.log(`[CryptoWatch] Checking ${monitoredWallets.length} wallets...`);
 
     for (const wallet of monitoredWallets) {
       try {
+        const addr = wallet.address?.trim();
+        if (!addr) continue;
+
         let txs: any[] = [];
         if (wallet.network === 'TRC20') {
           // TronGrid USDT TRC20
-          const res = await fetch(`https://api.trongrid.io/v1/accounts/${wallet.address}/transactions/trc20?limit=5&contract_address=TR7NHqjew46xyUm2D9L6mzM16rxw9jhnVN`);
+          const url = `https://api.trongrid.io/v1/accounts/${addr}/transactions/trc20?limit=5&contract_address=TR7NHqjew46xyUm2D9L6mzM16rxw9jhnVN`;
+          const res = await fetch(url);
           if (res.ok) {
             const json = await res.json();
             txs = json.data || [];
+            if (json.success === false) {
+              console.error(`[CryptoWatch] TronGrid API returned success:false for ${addr}`);
+            }
+          } else {
+            console.error(`[CryptoWatch] TronGrid API error ${res.status} for ${addr}`);
           }
         } 
-        // Note: For ETH/BSC/BTC we'd need more complex handlers or API keys. 
-        // I'll implement TRC20 as the primary one since it's most common for USDT.
+        
+        if (txs.length > 0) {
+          console.log(`[CryptoWatch] Found ${txs.length} recent TXs for ${wallet.label} (${addr})`);
+        }
         
         for (const tx of txs) {
           const txId = tx.transaction_id || tx.hash;
-          if (processedTxs.has(txId)) continue;
+          if (!txId || processedTxs.has(txId)) continue;
           
           // Check if it's a deposit (to this wallet)
-          if (tx.to?.toLowerCase() === wallet.address?.toLowerCase()) {
+          const toAddress = tx.to;
+          const isMatch = toAddress && toAddress.toLowerCase() === addr.toLowerCase();
+          
+          if (isMatch) {
+            const rawValue = tx.value || "0";
+            const decimals = tx.token_info?.decimals || 6;
+            const amount = (parseFloat(rawValue) / Math.pow(10, decimals)).toFixed(2);
+            
+            console.log(`[CryptoWatch] [MATCH] New transaction detected: ${txId} for ${amount} ${wallet.coin}`);
             processedTxs.add(txId);
-            const amount = (parseFloat(tx.value) / Math.pow(10, tx.token_info?.decimals || 6)).toFixed(2);
             
             // Initial Notification
             await sendTelegramMessage(
@@ -115,7 +137,7 @@ async function startServer() {
               `⏳ Ожидайте подтверждения...`
             );
 
-            // Simulate "Successful" notification after a short delay (or real confirmation check if needed)
+            // Simulate "Successful" notification after a short delay
             setTimeout(async () => {
               await sendTelegramMessage(
                 `✅ <b>Платеж успешно зачислен!</b>\n\n` +
@@ -124,11 +146,11 @@ async function startServer() {
                 `📥 На кошелек: <code>${wallet.label}</code>\n\n` +
                 `💳 Баланс обновлен.`
               );
-            }, 60000);
+            }, 30000); // 30s instead of 60s
           }
         }
       } catch (err) {
-        console.error(`[CryptoWatch] Error checking ${wallet.network}:`, err);
+        console.error(`[CryptoWatch] Error checking ${wallet.network} for ${wallet.label}:`, err);
       }
     }
   };
