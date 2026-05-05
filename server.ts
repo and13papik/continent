@@ -28,10 +28,6 @@ async function startServer() {
   let lastRequestTime = 0;
   const MIN_REQUEST_INTERVAL = 1000 / 15;
 
-  const cryptoCarts = new Map<string, { lastTx: string; lastUpdate: number }>();
-  const processedTxs = new Set<string>(); 
-  let monitoredWallets: any[] = [];
-
   const TG_BOT_TOKEN = "8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4";
   const TG_CHAT_ID = "-1003748692600";
 
@@ -113,79 +109,6 @@ async function startServer() {
     }
   });
 
-  const checkBlockchain = async () => {
-    if (monitoredWallets.length === 0) return;
-
-    // We only care about transactions in the last ~20 minutes to avoid spamming old ones on server start
-    const recentThreshold = Date.now() - (20 * 60 * 1000);
-
-    for (const wallet of monitoredWallets) {
-      try {
-        const addr = wallet.address?.trim();
-        if (!addr) continue;
-
-        let txs: any[] = [];
-        if (wallet.network === 'TRC20') {
-          // TronGrid USDT TRC20 
-          // We add min_timestamp to filters
-          const url = `https://api.trongrid.io/v1/accounts/${addr}/transactions/trc20?limit=10&contract_address=TR7NHqjew46xyUm2D9L6mzM16rxw9jhnVN&min_timestamp=${recentThreshold}`;
-          const res = await fetch(url);
-          if (res.ok) {
-            const json = await res.json();
-            txs = json.data || [];
-          } else {
-            console.error(`[CryptoWatch] TronGrid error ${res.status} for ${addr}`);
-          }
-        } 
-        
-        for (const tx of txs) {
-          const txId = tx.transaction_id || tx.hash;
-          if (!txId || processedTxs.has(txId)) continue;
-          
-          const toAddress = tx.to;
-          if (toAddress && toAddress.toLowerCase() === addr.toLowerCase()) {
-            const rawValue = tx.value || "0";
-            const decimals = tx.token_info?.decimals || 6;
-            const amount = (parseFloat(rawValue) / Math.pow(10, decimals)).toFixed(2);
-            
-            // Re-verify timestamp in case API didn't filter strictly
-            const blockTime = tx.block_timestamp || Date.now();
-            if (blockTime < recentThreshold) continue;
-
-            console.log(`[CryptoWatch] [MATCH] New deposit: ${amount} ${wallet.coin} on ${wallet.label}`);
-            processedTxs.add(txId);
-            
-            // Step 1: Processing notification
-            await sendTelegramMessage(
-              `💎 <b>Входящий платеж в процессе</b>\n\n` +
-              `💰 Сумма: <b>${amount} ${wallet.coin}</b>\n` +
-              `🌐 Сеть: <b>${wallet.network}</b>\n` +
-              `📥 Кошелек: <code>${wallet.label}</code>\n` +
-              `🔗 TX: <a href="https://tronscan.org/#/transaction/${txId}">${txId.slice(0, 8)}...</a>\n\n` +
-              `⏳ Ожидайте подтверждения...`
-            );
-
-            // Step 2: Success notification
-            setTimeout(async () => {
-              await sendTelegramMessage(
-                `✅ <b>Платеж успешно зачислен!</b>\n\n` +
-                `💰 Сумма: <b>${amount} ${wallet.coin}</b>\n` +
-                `👤 Отправитель: <code>${tx.from ? tx.from.slice(0, 6) + '...' + tx.from.slice(-4) : 'Unknown'}</code>\n` +
-                `📥 На кошелек: <code>${wallet.label}</code>\n\n` +
-                `💳 Баланс обновлен.`
-              );
-            }, 15000); 
-          }
-        }
-      } catch (err) {
-        console.error(`[CryptoWatch] Monitoring error for ${wallet.label}:`, err);
-      }
-    }
-  };
-
-  // Start the background monitoring
-  setInterval(checkBlockchain, 60000); // Check every minute
-
   // Health Check
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", time: new Date().toISOString() });
@@ -199,44 +122,6 @@ async function startServer() {
     } else {
       res.status(500).json({ status: "error", error: result.error });
     }
-  });
-
-  app.all("/api/crypto/monitor", (req, res) => {
-    console.log(`[CryptoWatch] Received ${req.method} request to /api/crypto/monitor`);
-    
-    if (req.method === 'GET') {
-      return res.json({ status: "alive", count: monitoredWallets.length });
-    }
-
-    if (req.method !== 'POST') {
-      return res.status(405).json({ error: "Method not allowed" });
-    }
-
-    const { wallets } = req.body;
-    if (!Array.isArray(wallets)) return res.status(400).json({ error: "Invalid wallets list" });
-    
-    // Check for NEW wallets
-    const currentIds = new Set(monitoredWallets.map(w => w.id));
-    const newWallets = wallets.filter(w => !currentIds.has(w.id));
-
-    if (newWallets.length > 0) {
-      console.log(`[CryptoWatch] New wallets detected: ${newWallets.map(w => w.label).join(', ')}`);
-      newWallets.forEach(async wallet => {
-        console.log(`[CryptoWatch] Triggering Telegram notification for wallet: ${wallet.label}`);
-        await sendTelegramMessage(
-          `🔔 <b>Новый кошелек добавлен на мониторинг</b>\n\n` +
-          `🏷 Метка: <b>${wallet.label}</b>\n` +
-          `🌐 Сеть: <b>${wallet.network}</b>\n` +
-          `💰 Валюта: <b>${wallet.coin}</b>\n` +
-          `📂 Адрес: <code>${wallet.address}</code>\n\n` +
-          `🚀 Бот начал отслеживание транзакций.`
-        );
-      });
-    }
-
-    monitoredWallets = wallets;
-    console.log(`[CryptoWatch] Updated monitoring list: ${wallets.length} wallets`);
-    res.json({ status: "ok", monitoring: true });
   });
 
   // Final API 404 handler - MUST come before static/vite

@@ -12,17 +12,6 @@ const defaultAdmins: Admin[] = [
 ];
 
 export function createInitialState(): AppState {
-  const defaultWallets = [
-    {
-      id: 'default-usdt-trc20',
-      label: 'Main USDT TRC20',
-      address: 'TMM4EC2HxNmHkq8Py2WZm4RDNqYQJEP3Ku',
-      network: 'TRC20' as const,
-      coin: 'USDT' as const,
-      createdAt: new Date().toISOString()
-    }
-  ];
-
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
@@ -48,8 +37,7 @@ export function createInitialState(): AppState {
         priorityModels: parsed.priorityModels || [],
         inactiveModels: parsed.inactiveModels || [],
         modelDefaultGoals: parsed.modelDefaultGoals || {},
-        modelMonthlyPlans: parsed.modelMonthlyPlans || {},
-        cryptoWallets: parsed.cryptoWallets && parsed.cryptoWallets.length > 0 ? parsed.cryptoWallets : defaultWallets
+        modelMonthlyPlans: parsed.modelMonthlyPlans || {}
       };
     } catch (e) {
       console.error("Failed to parse storage", e);
@@ -105,7 +93,6 @@ export function createInitialState(): AppState {
     inactiveModels: [],
     modelDefaultGoals: {},
     modelMonthlyPlans: {},
-    cryptoWallets: defaultWallets,
     deletedIds: []
   };
 }
@@ -210,7 +197,6 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         finalState.priorityModels = Array.from(new Set([...(state.priorityModels || []), ...(remote.priorityModels || [])]));
         finalState.inactiveModels = Array.from(new Set([...(state.inactiveModels || []), ...(remote.inactiveModels || [])]));
         finalState.modelDefaultGoals = { ...(remote.modelDefaultGoals || {}), ...(state.modelDefaultGoals || {}) };
-        finalState.cryptoWallets = mergeArraysById(state.cryptoWallets || [], remote.cryptoWallets || [], combinedDeletedIds);
         
         if (state.totalTableEntries || remote.totalTableEntries) {
             finalState.totalTableEntries = mergeArraysById(

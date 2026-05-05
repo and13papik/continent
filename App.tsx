@@ -18,7 +18,6 @@ import TotalTable from './pages/TotalTable';
 import Settings from './pages/Settings';
 import Metrics from './pages/Metrics';
 import AdvanceRequest from './pages/AdvanceRequest';
-import CryptoWatch from './pages/CryptoWatch';
 
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>(createInitialState());
@@ -231,7 +230,6 @@ const App: React.FC = () => {
               </>
             )}
             <NavLink to="/settings" icon={<ICONS.Settings size={18} />} label="Настройки" />
-            <NavLink to="/cryptowatch" icon={<ICONS.CryptoWatch size={18} />} label="Crypto Watch" premium />
           </div>
 
           <div className="mt-auto pt-6 border-t border-slate-800 space-y-4">
@@ -371,7 +369,6 @@ const App: React.FC = () => {
               <Route path="/admin-table" element={<AdminTable state={state} updateState={updateState} />} />
               <Route path="/total-table" element={<TotalTable state={state} updateState={updateState} />} />
               <Route path="/settings" element={<Settings state={state} updateState={updateState} userRole={userRole} />} />
-              <Route path="/cryptowatch" element={<CryptoWatch state={state} updateState={updateState} />} />
             </Routes>
           </div>
         </main>
