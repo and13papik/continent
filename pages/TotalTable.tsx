@@ -363,35 +363,40 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         scrollX: 0,
         scrollY: 0,
         onclone: (clonedDoc: Document) => {
-          // FIX for oklab/oklch in Tailwind 4
+          // Aggressive FIX for oklab/oklch in Tailwind 4
+          // html2canvas fails on oklch() and oklab() color functions
+          
           const style = clonedDoc.createElement('style');
           style.innerHTML = `
             * { 
               background-clip: padding-box !important;
+              /* Force fallback colors for common classes */
+              --tw-ring-color: rgba(59, 130, 246, 0.5) !important;
+              --tw-ring-offset-shadow: 0 0 transparent !important;
+              --tw-ring-shadow: 0 0 transparent !important;
+              --tw-shadow: 0 0 transparent !important;
             }
-            /* Override potential oklab/oklch with standard hex for the capture */
             .bg-slate-950 { background-color: #020617 !important; }
             .bg-slate-900 { background-color: #0f172a !important; }
-            .bg-slate-900\\/50 { background-color: rgba(15, 23, 42, 0.5) !important; }
-            .bg-indigo-950\\/80 { background-color: rgba(30, 27, 75, 0.8) !important; }
-            .bg-amber-700\\/80 { background-color: rgba(180, 83, 9, 0.8) !important; }
-            .bg-emerald-700\\/80 { background-color: rgba(5, 150, 105, 0.8) !important; }
-            .bg-rose-800\\/80 { background-color: rgba(159, 18, 57, 0.8) !important; }
-            .bg-indigo-600 { background-color: #4f46e5 !important; }
-            .text-indigo-400 { color: #818cf8 !important; }
-            .text-emerald-400 { color: #34d399 !important; }
-            .text-rose-400 { color: #fb7185 !important; }
-            .text-amber-400 { color: #fbbf24 !important; }
-            .border-slate-800 { border-color: #1e293b !important; }
+            .bg-indigo-950\\/80 { background-color: #1e1b4b !important; }
+            .bg-amber-700\\/80 { background-color: #b45309 !important; }
+            .bg-emerald-700\\/80 { background-color: #047857 !important; }
+            .bg-rose-800\\/80 { background-color: #9f1239 !important; }
           `;
           clonedDoc.head.appendChild(style);
 
-          // Strip problematic styles that might contain oklab() from the cloned document's heads
-          const allStyles = clonedDoc.querySelectorAll('style');
-          allStyles.forEach(s => {
-            if (s.textContent?.includes('oklab') || s.textContent?.includes('oklch')) {
-              // Replace oklab/oklch functions with generic colors to prevent parser crash
-              s.textContent = s.textContent.replace(/(oklab|oklch)\([^)]+\)/g, '#000');
+          // Strip oklab/oklch from all style tags
+          clonedDoc.querySelectorAll('style').forEach(s => {
+            if (s.textContent && (s.textContent.includes('oklab') || s.textContent.includes('oklch'))) {
+              s.textContent = s.textContent.replace(/(oklab|oklch)\([^)]+\)/g, '#000000');
+            }
+          });
+
+          // Strip from inline styles
+          clonedDoc.querySelectorAll('[style]').forEach(el => {
+            const s = el.getAttribute('style');
+            if (s && (s.includes('oklab') || s.includes('oklch'))) {
+              el.setAttribute('style', s.replace(/(oklab|oklch)\([^)]+\)/g, '#000000'));
             }
           });
 
