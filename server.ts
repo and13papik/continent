@@ -13,7 +13,7 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(cors());
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
 
   // Request logging middleware
   app.use((req, res, next) => {
@@ -90,21 +90,37 @@ async function startServer() {
   // Endpoint for sending reports from the frontend (with images)
   app.post("/api/send-report", async (req, res) => {
     try {
-      // We'll use express.json() but reports might be large.
-      // However, usually we can just proxy the request to Telegram.
-      // For simplicity, let's just forward the body if it's already a multipart form
-      // or handle it as a JSON if the frontend sends base64 (not recommended for large files)
+      const { image, caption, chatId } = req.body;
       
-      // Let's use express-fileupload or similar if needed, but we can also just
-      // receive base64 if it's not too big. 
-      // Actually, let's just proxy the multipart request.
+      if (!image) return res.status(400).json({ error: "Image data is required" });
       
-      // Since we don't have a multipart parser easily available without installing, 
-      // let's just have the frontend call Telegram directly for now BUT fix the html2canvas issue.
-      // Wait, if I want to keep it secure, I SHOULD move the token.
+      console.log(`[Telegram] Sending report image to ${chatId || TG_CHAT_ID}...`);
       
-      res.status(501).json({ error: "Use client-side sending for now; logic check pending." });
+      // The image is base64 data URL from html-to-image
+      const base64Data = image.replace(/^data:image\/png;base64,/, "");
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      const formData = new FormData();
+      formData.append('chat_id', chatId || TG_CHAT_ID);
+      const blob = new Blob([buffer], { type: 'image/png' });
+      formData.append('photo', blob, 'report.png');
+      formData.append('caption', caption || "");
+      formData.append('parse_mode', 'HTML');
+      
+      const resp = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendPhoto`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      const data: any = await resp.json();
+      if (!resp.ok) {
+        console.error(`[Telegram] API Error:`, data);
+        return res.status(resp.status).json({ error: data.description || "Telegram API error" });
+      }
+      
+      res.json({ success: true, messageId: data.result?.message_id });
     } catch (err: any) {
+      console.error(`[Server] Report error:`, err);
       res.status(500).json({ error: err.message });
     }
   });

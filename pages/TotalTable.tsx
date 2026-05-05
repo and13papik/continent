@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AppState, DailyTotalEntry, ShiftData } from '../types';
 import { ICONS } from '../constants';
 import { findPeriodIdByDate } from '../store';
+import * as htmlToImage from 'html-to-image';
 
 const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
 const DEFAULT_CHAT_ID = '-1003748692600';
@@ -354,92 +355,24 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     try {
       if (!tableRef.current) throw new Error("Table ref is missing");
       
-      const canvas = await (window as any).html2canvas(tableRef.current, {
+      // html-to-image is much better than html2canvas for Tailwind 4/modern CSS
+      const dataUrl = await htmlToImage.toPng(tableRef.current, {
         backgroundColor: '#020617',
-        scale: 2, // Reducing scale slightly to prevent memory issues
-        logging: false,
-        useCORS: true,
-        allowTaint: true,
-        scrollX: 0,
-        scrollY: 0,
-        onclone: (clonedDoc: Document) => {
-          // Aggressive FIX for oklab/oklch in Tailwind 4
-          // html2canvas fails on oklch() and oklab() color functions
-          
-          const style = clonedDoc.createElement('style');
-          style.innerHTML = `
-            * { 
-              background-clip: padding-box !important;
-              /* Force fallback colors for common classes */
-              --tw-ring-color: rgba(59, 130, 246, 0.5) !important;
-              --tw-ring-offset-shadow: 0 0 transparent !important;
-              --tw-ring-shadow: 0 0 transparent !important;
-              --tw-shadow: 0 0 transparent !important;
-            }
-            .bg-slate-950 { background-color: #020617 !important; }
-            .bg-slate-900 { background-color: #0f172a !important; }
-            .bg-indigo-950\\/80 { background-color: #1e1b4b !important; }
-            .bg-amber-700\\/80 { background-color: #b45309 !important; }
-            .bg-emerald-700\\/80 { background-color: #047857 !important; }
-            .bg-rose-800\\/80 { background-color: #9f1239 !important; }
-          `;
-          clonedDoc.head.appendChild(style);
-
-          // Strip oklab/oklch from all style tags
-          clonedDoc.querySelectorAll('style').forEach(s => {
-            if (s.textContent && (s.textContent.includes('oklab') || s.textContent.includes('oklch'))) {
-              s.textContent = s.textContent.replace(/(oklab|oklch)\([^)]+\)/g, '#000000');
-            }
-          });
-
-          // Strip from inline styles
-          clonedDoc.querySelectorAll('[style]').forEach(el => {
-            const s = el.getAttribute('style');
-            if (s && (s.includes('oklab') || s.includes('oklch'))) {
-              el.setAttribute('style', s.replace(/(oklab|oklch)\([^)]+\)/g, '#000000'));
-            }
-          });
-
-          const clonedContainer = clonedDoc.querySelector('.glass-card') as HTMLElement;
-          const clonedScrollable = clonedDoc.querySelector('.overflow-x-auto') as HTMLElement;
-          const clonedTable = clonedDoc.querySelector('table') as HTMLElement;
-
-          if (clonedContainer && clonedScrollable && clonedTable) {
-            clonedDoc.body.style.overflow = 'visible';
-            clonedScrollable.style.overflow = 'visible';
-            clonedScrollable.style.width = 'auto';
-            clonedScrollable.style.height = 'auto';
-            
-            clonedContainer.style.width = 'fit-content';
-            clonedContainer.style.maxWidth = 'none';
-            clonedContainer.style.height = 'auto';
-            clonedContainer.style.overflow = 'visible';
-            
-            const inputs = clonedDoc.querySelectorAll('input');
-            inputs.forEach((input) => {
-              const val = (input as HTMLInputElement).value || (input as HTMLInputElement).placeholder || '';
-              const span = clonedDoc.createElement('span');
-              span.textContent = val;
-              span.style.display = 'block';
-              span.style.width = '100%';
-              span.style.textAlign = 'center';
-              span.style.lineHeight = '1.2';
-              span.style.fontSize = window.getComputedStyle(input).fontSize;
-              span.style.fontWeight = window.getComputedStyle(input).fontWeight;
-              span.style.color = window.getComputedStyle(input).color;
-              span.style.fontFamily = window.getComputedStyle(input).fontFamily;
-              
-              if (input.parentElement) {
-                input.parentElement.replaceChild(span, input);
-              }
-            });
+        quality: 1.0,
+        pixelRatio: 2,
+        style: {
+          transform: 'none',
+          opacity: '1',
+          visibility: 'visible',
+        },
+        filter: (node) => {
+          if (node instanceof HTMLElement && node.hasAttribute('data-html2canvas-ignore')) {
+            return false;
           }
+          return true;
         }
       });
       
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
-      if (!blob) throw new Error('Не удалось создать изображение таблицы');
-
       let message = `<b>📊 ОТЧЕТ: ${shiftInfo.label.toUpperCase()} ${shiftInfo.icon}</b>\n`;
       message += `📅 Дата: ${selectedDate.split('-').reverse().join('.')}\n\n`;
 
@@ -492,22 +425,21 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
       message += `\n\n🔔 @continental_agency <a href="tg://user?id=7475447497">Admin Mentor</a> <a href="tg://user?id=6537516111">Admin Rector</a>`;
 
-      const formData = new FormData();
-      formData.append('chat_id', chatId);
-      formData.append('photo', blob, 'report.png');
-      formData.append('caption', message);
-      formData.append('parse_mode', 'HTML');
-
-      const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
+      const response = await fetch('/api/send-report', {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: dataUrl,
+          caption: message,
+          chatId: chatId
+        })
       });
 
-      if (res.ok) {
+      if (response.ok) {
         alert('Отчет успешно доставлен в Telegram!');
       } else {
-        const resultData = await res.json();
-        alert(`Ошибка Telegram: ${resultData.description || 'Неизвестная ошибка'}`);
+        const resultData = await response.json();
+        alert(`Ошибка сервера: ${resultData.error || 'Неизвестная ошибка'}`);
       }
     } catch (e: any) {
       alert(`Сбой при отправке: ${e.message}`);
