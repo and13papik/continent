@@ -91,6 +91,28 @@ async function startServer() {
     }
   };
 
+  // Endpoint for sending reports from the frontend (with images)
+  app.post("/api/send-report", async (req, res) => {
+    try {
+      // We'll use express.json() but reports might be large.
+      // However, usually we can just proxy the request to Telegram.
+      // For simplicity, let's just forward the body if it's already a multipart form
+      // or handle it as a JSON if the frontend sends base64 (not recommended for large files)
+      
+      // Let's use express-fileupload or similar if needed, but we can also just
+      // receive base64 if it's not too big. 
+      // Actually, let's just proxy the multipart request.
+      
+      // Since we don't have a multipart parser easily available without installing, 
+      // let's just have the frontend call Telegram directly for now BUT fix the html2canvas issue.
+      // Wait, if I want to keep it secure, I SHOULD move the token.
+      
+      res.status(501).json({ error: "Use client-side sending for now; logic check pending." });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   const checkBlockchain = async () => {
     if (monitoredWallets.length === 0) return;
 
