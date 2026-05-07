@@ -79,13 +79,11 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     message += `⚠️ <i>Статус: Ожидает подтверждения</i>`;
 
     try {
-      const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      const res = await fetch('/api/send-advance-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: DEFAULT_CHAT_ID,
-          text: message,
-          parse_mode: 'HTML',
+          message: message,
           reply_markup: {
             inline_keyboard: [
               [
@@ -101,7 +99,8 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
         const data = await res.json();
         tgMessageId = data.result?.message_id;
       } else {
-        console.warn("TG API returned non-OK status:", await res.text());
+        const errData = await res.json();
+        console.warn("Server returned non-OK status:", errData);
       }
 
       // Сохраняем запрос в глобальное состояние
@@ -189,14 +188,12 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
       message += `✅ <b>СТАТУС: ВЫПЛАЧЕНО ${new Date().toLocaleString()}</b>`;
 
       try {
-        await fetch(`https://api.telegram.org/bot${TG_TOKEN}/editMessageText`, {
+        await fetch('/api/edit-telegram-message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            chat_id: DEFAULT_CHAT_ID,
-            message_id: request.tgMessageId,
-            text: message,
-            parse_mode: 'HTML'
+            messageId: request.tgMessageId,
+            text: message
           })
         });
       } catch (e) {

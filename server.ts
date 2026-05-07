@@ -3,6 +3,8 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
+import FormData from 'form-data';
+import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,12 +43,12 @@ async function startServer() {
   };
 
   // Helper for exponential backoff retry with timeout
-  async function fetchWithRetry(url: string, options: any, retries = 3, backoff = 1000): Promise<Response> {
+  async function fetchWithRetry(url: string, options: any, retries = 3, backoff = 1000): Promise<any> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); 
 
     try {
-      const response = await fetch(url, { ...options, signal: controller.signal });
+      const response = await fetch(url, { ...options, signal: controller.signal as any });
       clearTimeout(timeoutId);
       if (response.ok) return response;
       if (retries > 0 && (response.status >= 500 || response.status === 429)) {
@@ -94,22 +96,22 @@ async function startServer() {
       
       if (!image) return res.status(400).json({ error: "Image data is required" });
       
-      console.log(`[Telegram] Sending report image to ${chatId || TG_CHAT_ID}...`);
+      const targetChatId = chatId || TG_CHAT_ID;
+      console.log(`[Telegram] Sending report image to ${targetChatId}...`);
       
       // The image is base64 data URL from html-to-image
       const base64Data = image.replace(/^data:image\/png;base64,/, "");
       const buffer = Buffer.from(base64Data, 'base64');
       
-      const formData = new FormData();
-      formData.append('chat_id', chatId || TG_CHAT_ID);
-      const blob = new Blob([buffer], { type: 'image/png' });
-      formData.append('photo', blob, 'report.png');
-      formData.append('caption', caption || "");
-      formData.append('parse_mode', 'HTML');
+      const form = new FormData();
+      form.append('chat_id', targetChatId);
+      form.append('photo', buffer, { filename: 'report.png', contentType: 'image/png' });
+      form.append('caption', caption || "");
+      form.append('parse_mode', 'HTML');
       
       const resp = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendPhoto`, {
         method: 'POST',
-        body: formData
+        body: form as any
       });
       
       const data: any = await resp.json();
@@ -118,9 +120,68 @@ async function startServer() {
         return res.status(resp.status).json({ error: data.description || "Telegram API error" });
       }
       
+      console.log(`[Telegram] Report sent successfully. ID: ${data.result?.message_id}`);
       res.json({ success: true, messageId: data.result?.message_id });
     } catch (err: any) {
       console.error(`[Server] Report error:`, err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Endpoint for advance requests
+  app.post("/api/send-advance-request", async (req, res) => {
+    try {
+      const { message, reply_markup } = req.body;
+      
+      console.log(`[Telegram] Sending advance request...`);
+      
+      const resp = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          chat_id: TG_CHAT_ID, 
+          text: message, 
+          parse_mode: 'HTML',
+          reply_markup
+        })
+      });
+      
+      const data: any = await resp.json();
+      if (!resp.ok) {
+        console.error(`[Telegram] API Error:`, data);
+        return res.status(resp.status).json({ error: data.description || "Telegram API error" });
+      }
+      
+      res.json({ success: true, result: data.result });
+    } catch (err: any) {
+      console.error(`[Server] Advance request error:`, err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Endpoint for marking as paid (editing message)
+  app.post("/api/edit-telegram-message", async (req, res) => {
+    try {
+      const { messageId, text } = req.body;
+      
+      const resp = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/editMessageText`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          chat_id: TG_CHAT_ID, 
+          message_id: messageId,
+          text, 
+          parse_mode: 'HTML'
+        })
+      });
+      
+      const data: any = await resp.json();
+      if (!resp.ok) {
+        return res.status(resp.status).json({ error: data.description || "Telegram API error" });
+      }
+      
+      res.json({ success: true });
+    } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
