@@ -111,7 +111,8 @@ async function startServer() {
       
       const resp = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendPhoto`, {
         method: 'POST',
-        body: form as any
+        body: form,
+        headers: form.getHeaders()
       });
       
       const data: any = await resp.json();

@@ -360,6 +360,23 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         backgroundColor: '#020617',
         quality: 1.0,
         pixelRatio: 2,
+        fontEmbedCSS: `
+          * { 
+            background-clip: padding-box !important;
+            --tw-ring-color: rgba(59, 130, 246, 0.5) !important;
+            --tw-ring-offset-shadow: 0 0 transparent !important;
+            --tw-ring-shadow: 0 0 transparent !important;
+            --tw-shadow: 0 0 transparent !important;
+          }
+          .bg-slate-950 { background-color: #020617 !important; }
+          .bg-slate-900 { background-color: #0f172a !important; }
+          .bg-indigo-950\/80 { background-color: #1e1b4b !important; }
+          .bg-amber-700\/80 { background-color: #b45309 !important; }
+          .bg-emerald-700\/80 { background-color: #047857 !important; }
+          .bg-rose-800\/80 { background-color: #9f1239 !important; }
+          /* Replace oklch/oklab with standard hex */
+          [class*="oklch"], [class*="oklab"] { color: #ffffff !important; }
+        `,
         style: {
           transform: 'none',
           opacity: '1',
