@@ -441,26 +441,24 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
       message += `\n\n🔔 @continental_agency <a href="tg://user?id=7475447497">Admin Mentor</a> <a href="tg://user?id=6537516111">Admin Rector</a>`;
 
-      const response = await fetch('/api/send-report', {
+      const formData = new FormData();
+      formData.append('chat_id', chatId);
+      
+      const blob = await (await fetch(dataUrl)).blob();
+      formData.append('photo', blob, 'report.jpg');
+      formData.append('caption', message);
+      formData.append('parse_mode', 'HTML');
+
+      const response = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image: dataUrl,
-          caption: message,
-          chatId: chatId
-        })
+        body: formData
       });
 
       if (response.ok) {
         alert('Отчет успешно доставлен в Telegram!');
       } else {
-        const text = await response.text();
-        try {
-          const resultData = JSON.parse(text);
-          alert(`Ошибка сервера: ${resultData.error || 'Неизвестная ошибка'}`);
-        } catch (parseError) {
-          alert(`Ошибка сервера (${response.status}): ${text.substring(0, 100)}...`);
-        }
+        const resultData = await response.json();
+        alert(`Ошибка Telegram: ${resultData.description || 'Неизвестная ошибка'}`);
       }
     } catch (e: any) {
       alert(`Сбой при отправке: ${e.message}`);

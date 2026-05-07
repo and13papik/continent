@@ -79,11 +79,13 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     message += `⚠️ <i>Статус: Ожидает подтверждения</i>`;
 
     try {
-      const res = await fetch('/api/send-advance-request', {
+      const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: message,
+          chat_id: DEFAULT_CHAT_ID,
+          text: message,
+          parse_mode: 'HTML',
           reply_markup: {
             inline_keyboard: [
               [
@@ -99,15 +101,8 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
         const data = await res.json();
         tgMessageId = data.result?.message_id;
       } else {
-        const text = await res.text();
-        try {
-          const errData = JSON.parse(text);
-          console.warn("Server returned error:", errData);
-          alert(`Ошибка сервера: ${errData.error || 'Неизвестная ошибка'}`);
-        } catch (e) {
-          console.warn("Server returned non-JSON error:", text);
-          alert(`Ошибка сервера (${res.status})`);
-        }
+        const errData = await res.json();
+        console.warn("TG API returned non-OK status:", errData);
       }
 
       // Сохраняем запрос в глобальное состояние
@@ -195,12 +190,14 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
       message += `✅ <b>СТАТУС: ВЫПЛАЧЕНО ${new Date().toLocaleString()}</b>`;
 
       try {
-        await fetch('/api/edit-telegram-message', {
+        await fetch(`https://api.telegram.org/bot${TG_TOKEN}/editMessageText`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            messageId: request.tgMessageId,
-            text: message
+            chat_id: DEFAULT_CHAT_ID,
+            message_id: request.tgMessageId,
+            text: message,
+            parse_mode: 'HTML'
           })
         });
       } catch (e) {
