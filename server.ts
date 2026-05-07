@@ -93,6 +93,8 @@ async function startServer() {
   app.post("/api/send-report", async (req, res) => {
     try {
       const { image, caption, chatId } = req.body;
+      const payloadSize = JSON.stringify(req.body).length;
+      console.log(`[Server] Received /api/send-report (Size: ${(payloadSize / 1024).toFixed(1)} KB)`);
       
       if (!image) return res.status(400).json({ error: "Image data is required" });
       
@@ -100,12 +102,19 @@ async function startServer() {
       console.log(`[Telegram] Sending report image to ${targetChatId}...`);
       
       // The image is base64 data URL from html-to-image
-      const base64Data = image.replace(/^data:image\/png;base64,/, "");
+      const matches = image.match(/^data:([^;]+);base64,(.+)$/);
+      if (!matches) return res.status(400).json({ error: "Invalid image format" });
+      
+      const mimeType = matches[1];
+      const base64Data = matches[2];
       const buffer = Buffer.from(base64Data, 'base64');
       
       const form = new FormData();
       form.append('chat_id', targetChatId);
-      form.append('photo', buffer, { filename: 'report.png', contentType: 'image/png' });
+      form.append('photo', buffer, { 
+        filename: `report.${mimeType.split('/')[1] || 'jpg'}`, 
+        contentType: mimeType 
+      });
       form.append('caption', caption || "");
       form.append('parse_mode', 'HTML');
       

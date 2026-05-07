@@ -99,8 +99,15 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
         const data = await res.json();
         tgMessageId = data.result?.message_id;
       } else {
-        const errData = await res.json();
-        console.warn("Server returned non-OK status:", errData);
+        const text = await res.text();
+        try {
+          const errData = JSON.parse(text);
+          console.warn("Server returned error:", errData);
+          alert(`Ошибка сервера: ${errData.error || 'Неизвестная ошибка'}`);
+        } catch (e) {
+          console.warn("Server returned non-JSON error:", text);
+          alert(`Ошибка сервера (${res.status})`);
+        }
       }
 
       // Сохраняем запрос в глобальное состояние

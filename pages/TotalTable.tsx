@@ -355,11 +355,11 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     try {
       if (!tableRef.current) throw new Error("Table ref is missing");
       
-      // html-to-image is much better than html2canvas for Tailwind 4/modern CSS
-      const dataUrl = await htmlToImage.toPng(tableRef.current, {
+      // Use html-to-image to generate a JPEG instead of PNG for smaller payload
+      const dataUrl = await htmlToImage.toJpeg(tableRef.current, {
         backgroundColor: '#020617',
-        quality: 1.0,
-        pixelRatio: 2,
+        quality: 0.8,
+        pixelRatio: 1.5, // Reduced from 2 to save bandwidth/memory
         fontEmbedCSS: `
           * { 
             background-clip: padding-box !important;
@@ -374,7 +374,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
           .bg-amber-700\/80 { background-color: #b45309 !important; }
           .bg-emerald-700\/80 { background-color: #047857 !important; }
           .bg-rose-800\/80 { background-color: #9f1239 !important; }
-          /* Replace oklch/oklab with standard hex */
           [class*="oklch"], [class*="oklab"] { color: #ffffff !important; }
         `,
         style: {
@@ -455,8 +454,13 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       if (response.ok) {
         alert('Отчет успешно доставлен в Telegram!');
       } else {
-        const resultData = await response.json();
-        alert(`Ошибка сервера: ${resultData.error || 'Неизвестная ошибка'}`);
+        const text = await response.text();
+        try {
+          const resultData = JSON.parse(text);
+          alert(`Ошибка сервера: ${resultData.error || 'Неизвестная ошибка'}`);
+        } catch (parseError) {
+          alert(`Ошибка сервера (${response.status}): ${text.substring(0, 100)}...`);
+        }
       }
     } catch (e: any) {
       alert(`Сбой при отправке: ${e.message}`);
