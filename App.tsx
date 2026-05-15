@@ -205,10 +205,10 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-200">
-        <nav className="w-full md:w-64 glass-card border-r border-slate-800/50 p-6 flex flex-col gap-8 sticky top-0 h-auto md:h-screen z-50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-              <span className="text-white font-outfit text-xl font-bold">C</span>
+        <nav className="w-full md:w-64 glass-card border-r border-slate-800/50 p-4 flex flex-col gap-4 sticky top-0 h-auto md:h-screen overflow-y-auto custom-scrollbar z-50">
+          <div className="flex items-center gap-3 px-2 py-2">
+            <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+              <span className="text-white font-outfit text-lg font-bold">C</span>
             </div>
             <span className="font-outfit text-xl font-bold tracking-tight text-white leading-none">Continental</span>
           </div>
@@ -233,7 +233,7 @@ const App: React.FC = () => {
 
           <motion.div 
              layout
-             className={`relative p-4 rounded-2xl border transition-all duration-500 overflow-hidden ${
+             className={`relative p-3 rounded-2xl border transition-all duration-500 overflow-hidden ${
                cloudStatus === 'success' ? 'bg-emerald-500/[0.03] border-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : 
                cloudStatus === 'loading' ? 'bg-amber-500/[0.03] border-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.05)]' :
                cloudStatus === 'conflict' ? 'bg-rose-500/[0.03] border-rose-500/20' : 
@@ -317,7 +317,7 @@ const App: React.FC = () => {
             </div>
           </motion.div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <NavLink to="/" icon={<ICONS.Dashboard size={18} />} label="Dashboard" />
             <NavLink to="/metrics" icon={<ICONS.Reports size={18} />} label="Метрика" />
             <NavLink to="/add-income" icon={<ICONS.Income size={18} />} label="Добавить доход" />
@@ -337,7 +337,7 @@ const App: React.FC = () => {
             <NavLink to="/settings" icon={<ICONS.Settings size={18} />} label="Настройки" />
           </div>
 
-          <div className="mt-auto pt-6 border-t border-slate-800 space-y-4">
+          <div className="pt-4 border-t border-slate-800 space-y-3">
             <button 
               onClick={() => {
                 localStorage.removeItem('continental_auth');
