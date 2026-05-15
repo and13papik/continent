@@ -206,76 +206,116 @@ const App: React.FC = () => {
     <HashRouter>
       <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-200">
         <nav className="w-full md:w-64 glass-card border-r border-slate-800/50 p-6 flex flex-col gap-8 sticky top-0 h-auto md:h-screen z-50">
-          <div className="flex flex-col gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                <span className="text-white font-outfit text-xl font-bold">C</span>
-              </div>
-              <span className="font-outfit text-xl font-black tracking-tight text-white leading-none">Continental</span>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+              <span className="text-white font-outfit text-xl font-bold">C</span>
             </div>
+            <span className="font-outfit text-xl font-bold tracking-tight text-white leading-none">Continental</span>
+          </div>
 
-            {/* SYNC STATUS CELL */}
+          <PeriodSelector state={state} updateState={updateState} />
+
+          {cloudStatus === 'conflict' && (
             <motion.div 
-              layout
-              onClick={cloudStatus === 'conflict' ? forcePull : undefined}
-              className={`p-3.5 rounded-2xl border transition-all duration-500 group relative overflow-hidden ${
-                cloudStatus === 'success' ? 'bg-emerald-500/[0.03] border-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : 
-                cloudStatus === 'loading' || isSyncing ? 'bg-amber-500/[0.03] border-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.05)]' :
-                cloudStatus === 'conflict' ? 'bg-rose-500/[0.05] border-rose-500/30 shadow-[0_0_25px_rgba(244,63,94,0.1)]' : 
-                'bg-slate-900/40 border-white/[0.05]'
-              } ${cloudStatus === 'conflict' ? 'cursor-pointer hover:bg-rose-500/10' : 'cursor-default'}`}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              whileHover={{ scale: 1.02 }}
+              onClick={forcePull}
+              className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl cursor-pointer shadow-[0_0_15px_rgba(244,63,94,0.1)] group transition-all"
             >
-              <div className={`absolute -right-4 -bottom-4 w-16 h-16 blur-2xl rounded-full transition-colors duration-700 opacity-20 pointer-events-none ${
-                cloudStatus === 'success' ? 'bg-emerald-500' :
-                cloudStatus === 'loading' || isSyncing ? 'bg-amber-500' :
-                cloudStatus === 'conflict' ? 'bg-rose-500' :
-                'bg-slate-500'
-              }`} />
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></div>
+                <p className="text-[10px] font-black text-rose-500 uppercase tracking-wider">КОНФЛИКТ ДАННЫХ</p>
+              </div>
+              <p className="text-[10px] leading-relaxed text-slate-300 transition-colors group-hover:text-white">Напарник внес изменения. <span className="text-rose-400 font-bold underline underline-offset-2">Загрузить сейчас</span></p>
+            </motion.div>
+          )}
 
-              <div className="relative flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all duration-500 shrink-0 ${
-                  cloudStatus === 'success' ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] border-emerald-400/50 text-white' :
-                  cloudStatus === 'loading' || isSyncing ? 'bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)] border-amber-400/50 text-white' :
-                  cloudStatus === 'conflict' ? 'bg-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.5)] border-rose-400/50 text-white animate-pulse' :
-                  'bg-slate-800 border-white/10 text-slate-500'
+          <motion.div 
+             layout
+             className={`relative p-4 rounded-2xl border transition-all duration-500 overflow-hidden ${
+               cloudStatus === 'success' ? 'bg-emerald-500/[0.03] border-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : 
+               cloudStatus === 'loading' ? 'bg-amber-500/[0.03] border-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.05)]' :
+               cloudStatus === 'conflict' ? 'bg-rose-500/[0.03] border-rose-500/20' : 
+               'bg-slate-900/40 border-white/[0.05]'
+             }`}
+          >
+            {/* Background Glow */}
+            <AnimatePresence mode="wait">
+              <motion.div 
+                key={cloudStatus}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className={`absolute -right-4 -bottom-4 w-16 h-16 blur-2xl rounded-full opacity-20 pointer-events-none ${
+                  cloudStatus === 'success' ? 'bg-emerald-500' :
+                  cloudStatus === 'loading' ? 'bg-amber-500' :
+                  cloudStatus === 'conflict' ? 'bg-rose-500' :
+                  'bg-slate-500'
+                }`}
+              />
+            </AnimatePresence>
+
+            <div className="relative flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] text-slate-500 uppercase font-black tracking-[0.2em] opacity-60">База</span>
+                <div className="flex items-center gap-1.5">
+                  <motion.div 
+                    animate={isSyncing || cloudStatus === 'loading' ? { scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] } : {}}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)] ${
+                      cloudStatus === 'success' ? 'bg-emerald-500 shadow-emerald-500/40' : 
+                      cloudStatus === 'loading' ? 'bg-amber-500 shadow-amber-500/40' : 
+                      cloudStatus === 'conflict' ? 'bg-rose-500 shadow-rose-500/40' : 
+                      'bg-slate-700'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-500 ${
+                  cloudStatus === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]' :
+                  cloudStatus === 'loading' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.1)]' :
+                  cloudStatus === 'conflict' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.1)]' :
+                  'bg-slate-800/50 border-white/[0.05] text-slate-500'
                 }`}>
                   {isSyncing || cloudStatus === 'loading' ? (
                     <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}>
-                      <ICONS.RotateCcw size={18} />
+                      <ICONS.RotateCcw size={16} />
                     </motion.div>
                   ) : cloudStatus === 'success' ? (
-                    <ICONS.Check size={20} />
+                    <ICONS.Check size={18} />
                   ) : cloudStatus === 'conflict' ? (
-                    <ICONS.AlertTriangle size={20} />
+                    <ICONS.AlertTriangle size={18} />
                   ) : (
-                    <ICONS.CloudOff size={18} />
+                    <ICONS.Unlock size={16} />
                   )}
                 </div>
                 
                 <div className="flex flex-col min-w-0">
-                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 mb-0.5">Database Sync</span>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-black tracking-tight whitespace-nowrap ${
-                      cloudStatus === 'conflict' ? 'text-rose-400 underline decoration-rose-500/50' : 
-                      cloudStatus === 'success' ? 'text-emerald-400' :
-                      cloudStatus === 'loading' || isSyncing ? 'text-amber-400' :
-                      'text-slate-400'
-                    }`}>
-                      {cloudStatus === 'conflict' ? 'UPDATE REQUIRED' : 
-                       cloudStatus === 'success' ? 'CONNECTED' :
-                       isSyncing || cloudStatus === 'loading' ? 'SYNCING...' :
-                       'LOCAL MODE'}
-                    </span>
+                  <span className={`text-[10px] font-black tracking-tight transition-colors duration-500 whitespace-nowrap overflow-hidden text-ellipsis ${
+                    cloudStatus === 'success' ? 'text-emerald-400' :
+                    cloudStatus === 'loading' ? 'text-amber-400' :
+                    cloudStatus === 'conflict' ? 'text-rose-400' :
+                    'text-slate-400'
+                  }`}>
+                    {cloudStatus === 'conflict' ? 'В ОБЛАКЕ НОВЕЕ!' : 
+                     !state.syncUrl ? 'ЛОКАЛЬНЫЙ РЕЖИМ' : 
+                     cloudStatus === 'success' ? 'СИНХРОНИЗИРОВАНО' :
+                     isSyncing || cloudStatus === 'loading' ? 'ОБНОВЛЕНИЕ...' :
+                     'ОЖИДАНИЕ...'}
+                  </span>
+                  <div className="flex items-center gap-1 opacity-50">
+                     <ICONS.History size={8} className="text-slate-500" />
+                     <span className="text-[9px] font-bold text-slate-500 uppercase">
+                       {lastSyncTime || 'No history'}
+                     </span>
                   </div>
-                  {cloudStatus === 'success' && lastSyncTime && (
-                    <span className="text-[7px] text-slate-600 font-bold uppercase mt-0.5">Last: {lastSyncTime}</span>
-                  )}
                 </div>
               </div>
-            </motion.div>
-          </div>
-
-          <PeriodSelector state={state} updateState={updateState} />
+            </div>
+          </motion.div>
 
           <div className="flex flex-col gap-2">
             <NavLink to="/" icon={<ICONS.Dashboard size={18} />} label="Dashboard" />
@@ -297,7 +337,7 @@ const App: React.FC = () => {
             <NavLink to="/settings" icon={<ICONS.Settings size={18} />} label="Настройки" />
           </div>
 
-          <div className="mt-auto pt-6 border-t border-slate-800">
+          <div className="mt-auto pt-6 border-t border-slate-800 space-y-4">
             <button 
               onClick={() => {
                 localStorage.removeItem('continental_auth');

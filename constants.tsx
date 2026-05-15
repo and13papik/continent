@@ -38,8 +38,7 @@ import {
   Wallet,
   Send,
   User,
-  History,
-  CloudOff
+  History
 } from 'lucide-react';
 
 export const ICONS: Record<string, any> = {
@@ -87,8 +86,7 @@ export const ICONS: Record<string, any> = {
   Wallet: Wallet,
   Send: Send,
   User: User,
-  History: History,
-  CloudOff: CloudOff
+  History: History
 };
 
 export const PLATFORM_NAMES: Record<string, string> = {
