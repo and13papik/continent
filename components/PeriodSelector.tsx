@@ -26,7 +26,7 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({ state, updateState, cla
       </div>
       <div className="relative group">
         <select 
-          className="w-full bg-slate-900/50 border border-slate-800 hover:border-indigo-500/50 rounded-xl px-4 py-2.5 text-indigo-400 font-bold outline-none cursor-pointer text-sm transition-all appearance-none"
+          className="w-full bg-slate-900/50 border border-slate-800 hover:border-indigo-500/50 rounded-lg px-3 py-1.5 text-indigo-400 font-bold outline-none cursor-pointer text-xs transition-all appearance-none"
           value={state.selectedPeriodId} 
           onChange={(e) => updateState(prev => ({ ...prev, selectedPeriodId: e.target.value }))}
         >

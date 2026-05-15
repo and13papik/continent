@@ -205,12 +205,12 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-200">
-        <nav className="w-full md:w-64 glass-card border-r border-slate-800/50 p-4 flex flex-col gap-4 sticky top-0 h-auto md:h-screen overflow-y-auto custom-scrollbar z-50">
-          <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-              <span className="text-white font-outfit text-lg font-bold">C</span>
+        <nav className="w-full md:w-60 glass-card border-r border-slate-800/50 p-2.5 flex flex-col gap-1 sticky top-0 h-auto md:h-screen overflow-y-auto custom-scrollbar z-50">
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0">
+              <span className="text-white font-outfit text-base font-bold">C</span>
             </div>
-            <span className="font-outfit text-xl font-bold tracking-tight text-white leading-none">Continental</span>
+            <span className="font-outfit text-xl font-bold tracking-tight text-white leading-none truncate">Continental</span>
           </div>
 
           <PeriodSelector state={state} updateState={updateState} />
@@ -233,87 +233,66 @@ const App: React.FC = () => {
 
           <motion.div 
              layout
-             className={`relative p-3 rounded-2xl border transition-all duration-500 overflow-hidden ${
-               cloudStatus === 'success' ? 'bg-emerald-500/[0.03] border-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : 
-               cloudStatus === 'loading' ? 'bg-amber-500/[0.03] border-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.05)]' :
+             className={`relative p-2 rounded-xl border transition-all duration-500 overflow-hidden ${
+               cloudStatus === 'success' ? 'bg-emerald-500/[0.03] border-emerald-500/20' : 
+               cloudStatus === 'loading' ? 'bg-amber-500/[0.03] border-amber-500/20' :
                cloudStatus === 'conflict' ? 'bg-rose-500/[0.03] border-rose-500/20' : 
                'bg-slate-900/40 border-white/[0.05]'
              }`}
           >
-            {/* Background Glow */}
-            <AnimatePresence mode="wait">
-              <motion.div 
-                key={cloudStatus}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className={`absolute -right-4 -bottom-4 w-16 h-16 blur-2xl rounded-full opacity-20 pointer-events-none ${
-                  cloudStatus === 'success' ? 'bg-emerald-500' :
-                  cloudStatus === 'loading' ? 'bg-amber-500' :
-                  cloudStatus === 'conflict' ? 'bg-rose-500' :
-                  'bg-slate-500'
-                }`}
-              />
-            </AnimatePresence>
-
-            <div className="relative flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] text-slate-500 uppercase font-black tracking-[0.2em] opacity-60">База</span>
+            <div className="relative flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border transition-all duration-500 ${
+                cloudStatus === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                cloudStatus === 'loading' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                cloudStatus === 'conflict' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                'bg-slate-800/50 border-white/[0.05] text-slate-500'
+              }`}>
+                {isSyncing || cloudStatus === 'loading' ? (
+                  <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}>
+                    <ICONS.RotateCcw size={14} />
+                  </motion.div>
+                ) : cloudStatus === 'success' ? (
+                  <ICONS.Check size={16} />
+                ) : cloudStatus === 'conflict' ? (
+                  <ICONS.AlertTriangle size={16} />
+                ) : (
+                  <ICONS.Unlock size={14} />
+                )}
+              </div>
+              
+              <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-1.5">
+                  <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest opacity-60">База</span>
                   <motion.div 
-                    animate={isSyncing || cloudStatus === 'loading' ? { scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] } : {}}
+                    animate={isSyncing || cloudStatus === 'loading' ? { scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] } : {}}
                     transition={{ duration: 1.5, repeat: Infinity }}
-                    className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)] ${
-                      cloudStatus === 'success' ? 'bg-emerald-500 shadow-emerald-500/40' : 
-                      cloudStatus === 'loading' ? 'bg-amber-500 shadow-amber-500/40' : 
-                      cloudStatus === 'conflict' ? 'bg-rose-500 shadow-rose-500/40' : 
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      cloudStatus === 'success' ? 'bg-emerald-500' : 
+                      cloudStatus === 'loading' ? 'bg-amber-500' : 
+                      cloudStatus === 'conflict' ? 'bg-rose-500' : 
                       'bg-slate-700'
                     }`}
                   />
                 </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-500 ${
-                  cloudStatus === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]' :
-                  cloudStatus === 'loading' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.1)]' :
-                  cloudStatus === 'conflict' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.1)]' :
-                  'bg-slate-800/50 border-white/[0.05] text-slate-500'
+                <span className={`text-[9px] font-black tracking-tight transition-colors duration-500 truncate ${
+                  cloudStatus === 'success' ? 'text-emerald-400' :
+                  cloudStatus === 'loading' ? 'text-amber-400' :
+                  cloudStatus === 'conflict' ? 'text-rose-400' :
+                  'text-slate-400'
                 }`}>
-                  {isSyncing || cloudStatus === 'loading' ? (
-                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}>
-                      <ICONS.RotateCcw size={16} />
-                    </motion.div>
-                  ) : cloudStatus === 'success' ? (
-                    <ICONS.Check size={18} />
-                  ) : cloudStatus === 'conflict' ? (
-                    <ICONS.AlertTriangle size={18} />
-                  ) : (
-                    <ICONS.Unlock size={16} />
-                  )}
-                </div>
-                
-                <div className="flex flex-col min-w-0">
-                  <span className={`text-[10px] font-black tracking-tight transition-colors duration-500 whitespace-nowrap overflow-hidden text-ellipsis ${
-                    cloudStatus === 'success' ? 'text-emerald-400' :
-                    cloudStatus === 'loading' ? 'text-amber-400' :
-                    cloudStatus === 'conflict' ? 'text-rose-400' :
-                    'text-slate-400'
-                  }`}>
-                    {cloudStatus === 'conflict' ? 'В ОБЛАКЕ НОВЕЕ!' : 
-                     !state.syncUrl ? 'ЛОКАЛЬНЫЙ РЕЖИМ' : 
-                     cloudStatus === 'success' ? 'СИНХРОНИЗИРОВАНО' :
-                     isSyncing || cloudStatus === 'loading' ? 'ОБНОВЛЕНИЕ...' :
-                     'ОЖИДАНИЕ...'}
-                  </span>
-                  <div className="flex items-center gap-1 opacity-50">
-                     <ICONS.History size={8} className="text-slate-500" />
-                     <span className="text-[9px] font-bold text-slate-500 uppercase">
-                       {lastSyncTime || 'No history'}
-                     </span>
-                  </div>
-                </div>
+                  {cloudStatus === 'conflict' ? 'В ОБЛАКЕ НОВЕЕ!' : 
+                   !state.syncUrl ? 'ЛОКАЛЬНЫЙ' : 
+                   cloudStatus === 'success' ? 'OK' :
+                   isSyncing || cloudStatus === 'loading' ? 'SYNC...' :
+                   'WAIT...'}
+                </span>
               </div>
+              
+              {lastSyncTime && (
+                <div className="ml-auto opacity-30 text-[7px] font-mono font-bold text-slate-500 hidden xl:block">
+                  {lastSyncTime}
+                </div>
+              )}
             </div>
           </motion.div>
 
@@ -337,17 +316,17 @@ const App: React.FC = () => {
             <NavLink to="/settings" icon={<ICONS.Settings size={18} />} label="Настройки" />
           </div>
 
-          <div className="pt-4 border-t border-slate-800 space-y-3">
+          <div className="pt-2 border-t border-slate-800 space-y-2">
             <button 
               onClick={() => {
                 localStorage.removeItem('continental_auth');
                 localStorage.removeItem('continental_role');
                 window.location.reload();
               }}
-              className="w-full flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all text-xs font-bold group"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all text-[10px] font-black uppercase tracking-wider group"
             >
-              <ICONS.Unlock size={14} className="group-hover:scale-110 transition-transform" /> 
-              Выйти из системы
+              <ICONS.Unlock size={12} className="group-hover:scale-110 transition-transform" /> 
+              Выйти
             </button>
           </div>
         </nav>
@@ -403,14 +382,14 @@ const NavLink: React.FC<{ to: string; icon: React.ReactNode; label: string; prem
   return (
     <Link
       to={to}
-      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all duration-300 group ${
         isActive ? activeClass : hoverClass
       }`}
     >
-      <span className={`transition-all duration-300 ${isActive ? 'text-white scale-110' : iconClass + ' group-hover:scale-110'}`}>
-        {icon}
+      <span className={`transition-all duration-300 shrink-0 ${isActive ? 'text-white scale-110' : iconClass + ' group-hover:scale-110'}`}>
+        {icon || icon}
       </span>
-      <span className={`font-semibold text-sm tracking-tight ${isActive ? 'text-white' : ''}`}>{label}</span>
+      <span className={`font-black text-[11px] uppercase tracking-wide truncate ${isActive ? 'text-white' : ''}`}>{label}</span>
     </Link>
   );
 };
