@@ -288,10 +288,33 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex flex-col gap-1.5 flex-1">
+            <div className="my-2 px-3 py-1">
+               <div className="text-[7px] font-black uppercase tracking-[0.2em] text-slate-600 mb-3 ml-1">Главные действия</div>
+               <div className="space-y-3">
+                  <NavLink 
+                    to="/add-income" 
+                    icon={<ICONS.Plus size={16} />} 
+                    label="Добавить доход" 
+                    action 
+                  />
+                  <NavLink 
+                    to="/advance-request" 
+                    icon={<ICONS.HandCoins size={16} />} 
+                    label="Запрос аванса" 
+                    action
+                    variant="amber"
+                  />
+               </div>
+            </div>
+
+            <div className="mt-4 mb-2 px-3 flex items-center gap-2 opacity-30">
+               <div className="h-[1px] flex-1 bg-slate-800" />
+               <span className="text-[7px] font-bold uppercase tracking-widest text-slate-400">Навигация</span>
+               <div className="h-[1px] flex-1 bg-slate-800" />
+            </div>
+
             <NavLink to="/" icon={<ICONS.Dashboard size={14} />} label="Dashboard" />
             <NavLink to="/metrics" icon={<ICONS.Reports size={14} />} label="Метрика" />
-            <NavLink to="/add-income" icon={<ICONS.Income size={14} />} label="Добавить доход" />
-            <NavLink to="/advance-request" icon={<ICONS.HandCoins size={14} />} label="Запрос аванса" />
             <NavLink to="/operations" icon={<ICONS.Operations size={14} />} label="Операции" />
             <NavLink to="/reports" icon={<ICONS.Reports size={14} />} label="Отчеты" />
             <NavLink to="/models" icon={<ICONS.Models size={14} />} label="Модели" />
@@ -358,9 +381,87 @@ const App: React.FC = () => {
   );
 };
 
-const NavLink: React.FC<{ to: string; icon: React.ReactNode; label: string; premium?: boolean; admin?: boolean }> = ({ to, icon, label, premium, admin }) => {
+const NavLink: React.FC<{ 
+  to: string; 
+  icon: React.ReactNode; 
+  label: string; 
+  premium?: boolean; 
+  admin?: boolean;
+  action?: boolean;
+  variant?: 'indigo' | 'amber' | 'emerald';
+}> = ({ to, icon, label, premium, admin, action, variant = 'indigo' }) => {
   const location = useLocation();
   const isActive = location.pathname === to;
+
+  if (action) {
+    const isAmber = variant === 'amber';
+    
+    // Premium color palettes
+    const shadowColor = isAmber ? 'rgba(245, 158, 11, 0.4)' : 'rgba(99, 102, 241, 0.4)';
+    const accentColor = isAmber ? 'from-amber-400 via-amber-500 to-orange-600' : 'from-indigo-400 via-indigo-500 to-blue-600';
+    const borderActive = isAmber ? 'border-amber-400/50' : 'border-indigo-400/50';
+    const borderHover = isAmber ? 'border-white/10' : 'border-white/10';
+    const lightText = isAmber ? 'text-amber-400' : 'text-indigo-400';
+
+    return (
+      <Link
+        to={to}
+        className="relative group block"
+      >
+        <motion.div
+          whileHover={{ y: -1, scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
+          className={`relative flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-500 backdrop-blur-xl overflow-hidden
+            ${isActive 
+              ? `bg-gradient-to-br ${accentColor} ${borderActive} shadow-[0_10px_25px_-5px_${shadowColor}]` 
+              : `bg-slate-950/40 border-white/5 ${borderHover} hover:bg-white/5`
+            }`}
+        >
+          {/* Subtle Shine */}
+          <motion.div 
+            animate={isActive ? { x: ['-100%', '200%'] } : {}}
+            transition={{ duration: 2.5, repeat: Infinity, ease: 'linear', repeatDelay: 2 }}
+            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -rotate-45 pointer-events-none"
+          />
+
+          {/* Icon Container - Smaller and more refined */}
+          <div className={`relative z-10 w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-500 shadow-inner
+            ${isActive 
+              ? 'bg-white/20 text-white shadow-xl' 
+              : `bg-slate-900 ${lightText} group-hover:scale-105 group-hover:rotate-3`
+            }`}
+          >
+            {React.cloneElement(icon as React.ReactElement, { size: 14 })}
+          </div>
+
+          {/* Text - Compact spacing */}
+          <div className="relative z-10 flex flex-col -space-y-0.5">
+            <span className={`font-black text-[9px] uppercase tracking-[0.15em] transition-colors duration-300
+              ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}
+            >
+              {label}
+            </span>
+            <span className={`text-[6px] font-bold uppercase tracking-widest
+              ${isActive ? 'text-white/50' : 'text-slate-600'}`}
+            >
+              {isAmber ? 'Fast Transfer' : 'Instant Protocol'}
+            </span>
+          </div>
+
+          {/* Minimal Arrow indicator */}
+          {!isActive && (
+            <div className={`ml-auto opacity-0 group-hover:opacity-100 transition-all duration-500 translate-x-2 group-hover:translate-x-0 text-white/40`}>
+               <ICONS.ChevronRight size={10} />
+            </div>
+          )}
+          
+          {isActive && (
+             <div className="ml-auto w-1 h-1 rounded-full bg-white shadow-[0_0_8px_white] animate-pulse" />
+          )}
+        </motion.div>
+      </Link>
+    );
+  }
 
   let activeBg = 'bg-indigo-500 shadow-[0_0_20px_-5px_rgba(99,102,241,0.5)]';
   let activeText = 'text-white';

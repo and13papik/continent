@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { AppState, OperatorWallet, AdvanceRequestItem } from '../types';
 import { ICONS } from '../constants';
 import PeriodBadge from '../components/PeriodBadge';
@@ -15,7 +16,6 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
   const [walletAddress, setWalletAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'usdt_trc20' | 'card'>('usdt_trc20');
   const [isSending, setIsSending] = useState(false);
-  const [step, setStep] = useState(1);
 
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
@@ -53,14 +53,12 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     } else {
       setWalletAddress('');
     }
-    setStep(1);
   };
 
   const sendToTelegram = async () => {
     if (!selectedOperator || !amount || !walletAddress) return;
     
     setIsSending(true);
-    
     const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
     const DEFAULT_CHAT_ID = '-1003748692600';
 
@@ -68,7 +66,6 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     const remainderValue = operatorStats?.remainder || 0;
     const amountValue = parseFloat(amount);
 
-    // Формируем текст сообщения согласно запросу
     let message = `🚀 <b>ЗАПРОС НА АВАНС</b>\n`;
     message += `--------------------------\n`;
     message += `👤 Оператору <b>@${selectedOperator}</b> запрошен аванс\n`;
@@ -101,11 +98,8 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
       if (res.ok) {
         const data = await res.json();
         tgMessageId = data.result?.message_id;
-      } else {
-        console.warn("TG API returned non-OK status:", await res.text());
       }
 
-      // Сохраняем запрос в глобальное состояние
       const newRequest: AdvanceRequestItem = {
         id: requestId,
         operator: selectedOperator,
@@ -119,19 +113,14 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
         tgMessageId
       };
 
-      console.log("Saving new advance request:", newRequest);
-
       updateState(prev => {
         const existingRequests = prev.advanceRequests || [];
-        if (existingRequests.some(r => r.id === requestId)) return prev;
-
         let nextState = { 
           ...prev, 
           advanceRequests: [newRequest, ...existingRequests],
           lastUpdated: Date.now() 
         };
 
-        // Сохраняем/обновляем реквизиты в базе, если они изменились
         if (!existingWallet || existingWallet.address !== walletAddress || existingWallet.method !== paymentMethod) {
           const wallets = prev.operatorWallets || [];
           const filtered = wallets.filter(w => w.operator !== selectedOperator);
@@ -148,15 +137,12 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
         return nextState;
       });
 
-      alert('✅ Запрос на аванс успешно отправлен в Telegram и сохранен!');
-      
-      // Очищаем поля ТОЛЬКО после успешного обновления состояния
+      alert('✅ Запрос на аванс успешно отправлен!');
       setSelectedOperator('');
       setAmount('');
       setWalletAddress('');
     } catch (error) {
-      console.error("TG Send Error:", error);
-      alert('❌ Ошибка при отправке в Telegram: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
+      alert('❌ Ошибка отправки: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setIsSending(false);
     }
@@ -166,7 +152,6 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     const request = (state.advanceRequests || []).find(r => r.id === reqId);
     if (!request) return;
 
-    // Update local state first
     updateState(prev => ({
       ...prev,
       advanceRequests: (prev.advanceRequests || []).map(r => 
@@ -174,7 +159,6 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
       )
     }));
 
-    // If we have a telegram message ID, try to edit it to show "Paid"
     if (request.tgMessageId) {
       const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
       const DEFAULT_CHAT_ID = '-1003748692600';
@@ -200,9 +184,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
             parse_mode: 'HTML'
           })
         });
-      } catch (e) {
-        console.error("Failed to edit TG message", e);
-      }
+      } catch (e) {}
     }
   };
 
@@ -215,216 +197,272 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     .sort((a, b) => new Date(b.paidAt || b.createdAt).getTime() - new Date(a.paidAt || a.createdAt).getTime());
 
   return (
-    <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in zoom-in duration-500 pb-20">
-      <header className="text-center space-y-3">
-        <div className="w-16 h-16 bg-amber-600/20 text-amber-500 rounded-3xl flex items-center justify-center mx-auto shadow-xl shadow-amber-900/10 border border-amber-500/20">
-          <ICONS.HandCoins size={32} />
-        </div>
-        <div>
-          <h1 className="text-3xl font-black text-white font-outfit uppercase tracking-tight">Запрос аванса</h1>
-          <div className="flex items-center justify-center gap-3 mt-2">
-            <PeriodBadge state={state} />
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest leading-none">Центр управления платежами</p>
+    <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div className="space-y-2">
+          <h1 className="text-4xl font-black font-outfit text-white uppercase tracking-tighter flex items-center gap-4">
+             <div className="w-12 h-12 bg-amber-600 rounded-[1.25rem] flex items-center justify-center shadow-2xl shadow-amber-500/20">
+                <ICONS.HandCoins size={24} />
+             </div>
+             Запрос аванса
+          </h1>
+          <div className="flex items-center gap-3">
+             <PeriodBadge state={state} />
+             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">Financial Transaction Center</p>
           </div>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        <div className="glass-card p-8 rounded-[2.5rem] border-slate-800 shadow-2xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity">
-            <ICONS.HandCoins size={120} />
-          </div>
-
-          <div className="space-y-6 relative z-10">
-            {/* Step 1: Select Operator */}
-            <div className="space-y-3">
-               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Выбор оператора</label>
-               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {operators.map(op => (
-                     <button 
-                       key={op}
-                       onClick={() => handleSelectOperator(op)}
-                       className={`px-4 py-3 rounded-2xl text-xs font-bold transition-all border ${selectedOperator === op ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:border-slate-700'}`}
-                     >
-                       {op}
-                     </button>
-                  ))}
-               </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* LEFT COLUMN: REQUEST FORM */}
+        <div className="lg:col-span-7">
+          <section className="glass-card p-10 rounded-[2.5rem] border-white/5 space-y-10 shadow-2xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-8 opacity-[0.02] pointer-events-none group-hover:opacity-[0.08] transition-opacity duration-1000">
+               <ICONS.HandCoins size={240} />
             </div>
 
-            {selectedOperator && (
-              <div className="animate-in slide-in-from-top-4 duration-300 space-y-6">
-                {/* Stats Preview */}
-                <div className="p-5 bg-indigo-500/5 border border-indigo-500/20 rounded-[2rem] flex items-center justify-between">
-                   <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
-                         <ICONS.Income size={18} />
-                      </div>
-                      <div>
-                         <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Текущий остаток ЗП</p>
-                         <p className="text-xl font-black text-white font-mono">${operatorStats?.remainder.toFixed(1)}</p>
-                      </div>
-                   </div>
-                </div>
+            <div className="relative z-10 space-y-8">
+               <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">1. Выберите оператора</label>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                     {operators.map(op => (
+                        <button 
+                          key={op}
+                          onClick={() => handleSelectOperator(op)}
+                          className={`px-4 py-4 rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all border ${selectedOperator === op ? 'bg-amber-600 border-amber-500 text-white shadow-xl shadow-amber-600/20 scale-[1.05]' : 'bg-slate-900/50 border-slate-800 text-slate-500 hover:border-slate-700'}`}
+                        >
+                          {op}
+                        </button>
+                     ))}
+                  </div>
+               </div>
 
-                {/* Amount Input */}
-                <div className="space-y-3">
-                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Сумма запроса</label>
-                   <div className="relative">
-                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 font-bold">$</div>
-                      <input 
-                        type="number"
-                        value={amount}
-                        onChange={e => setAmount(e.target.value)}
-                        placeholder="0.00"
-                        className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl py-4 pl-10 pr-4 text-xl font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
-                      />
-                   </div>
-                </div>
-
-                {/* Payment Details */}
-                <div className="space-y-4 pt-2">
-                   <div className="flex items-center justify-between px-1">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Способ выплаты</label>
-                      <div className="flex gap-1">
-                         <button 
-                           onClick={() => setPaymentMethod('usdt_trc20')}
-                           className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all ${paymentMethod === 'usdt_trc20' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-slate-600 border border-transparent'}`}
-                         >
-                           USDT TRC20
-                         </button>
-                         <button 
-                           onClick={() => setPaymentMethod('card')}
-                           className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all ${paymentMethod === 'card' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' : 'text-slate-600 border border-transparent'}`}
-                         >
-                           Карта
-                         </button>
-                      </div>
-                   </div>
-
-                   <div className="relative">
-                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600">
-                         {paymentMethod === 'usdt_trc20' ? <ICONS.Wallet size={16}/> : <ICONS.History size={16}/>}
-                      </div>
-                      <input 
-                        value={walletAddress}
-                        onChange={e => setWalletAddress(e.target.value)}
-                        placeholder={paymentMethod === 'usdt_trc20' ? "Адрес USDT TRC20..." : "Номер карты..."}
-                        className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-sm font-mono text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all placeholder:text-slate-700"
-                      />
-                   </div>
-                </div>
-
-                {/* Submit Button */}
-                <button 
-                  onClick={sendToTelegram}
-                  disabled={!amount || !walletAddress || isSending}
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 disabled:hover:bg-indigo-600 text-white py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] transition-all shadow-xl shadow-indigo-600/20 active:scale-[0.98] flex items-center justify-center gap-3"
-                >
-                  {isSending ? (
-                    <><ICONS.RotateCcw size={16} className="animate-spin" /> Отправка...</>
-                  ) : (
-                    <><ICONS.Send size={16} /> Отправить запрос в TG</>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Active Requests List */}
-        <div className="space-y-6">
-           <div className="flex items-center justify-between px-2">
-              <h2 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-                 <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
-                 Активные запросы
-              </h2>
-              <span className="bg-slate-900 border border-slate-800 text-slate-500 px-3 py-1 rounded-full text-[10px] font-black uppercase">
-                {activeRequests.length}
-              </span>
-           </div>
-
-           <div className="space-y-3">
-              {activeRequests.length === 0 ? (
-                <div className="p-12 border-2 border-dashed border-slate-800 rounded-[2rem] text-center text-slate-700">
-                   <ICONS.CheckSquare size={32} className="mx-auto mb-2 opacity-20"/>
-                   <p className="text-[10px] font-black uppercase tracking-widest">Нет активных запросов</p>
-                </div>
-              ) : (
-                activeRequests.map(req => (
-                  <div key={req.id} className="bg-slate-900/50 border border-slate-800 p-6 rounded-[2rem] space-y-4 hover:border-indigo-500/30 transition-all group">
-                     <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-3">
-                           <div className="w-10 h-10 rounded-2xl bg-indigo-600/20 flex items-center justify-center text-indigo-400">
-                              <ICONS.User size={18}/>
+               <AnimatePresence mode="wait">
+                 {selectedOperator && (
+                   <motion.div 
+                     key={selectedOperator}
+                     initial={{ opacity: 0, y: 20 }}
+                     animate={{ opacity: 1, y: 0 }}
+                     exit={{ opacity: 0, y: -20 }}
+                     className="space-y-8"
+                   >
+                     {/* Stats Preview Card */}
+                     <div className="p-8 bg-gradient-to-br from-amber-500/10 to-transparent border border-amber-500/20 rounded-[2rem] flex items-center justify-between shadow-inner">
+                        <div className="flex items-center gap-5">
+                           <div className="w-14 h-14 rounded-2xl bg-slate-950 flex items-center justify-center text-amber-500 border border-white/5 shadow-2xl">
+                              <ICONS.Income size={24} />
                            </div>
                            <div>
-                              <p className="text-sm font-bold text-white">@{req.operator}</p>
-                              <p className="text-[10px] text-slate-500 font-bold tracking-tight">{new Date(req.createdAt).toLocaleString()}</p>
+                              <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Доступно к выплате</p>
+                              <div className="flex items-baseline gap-2">
+                                 <p className="text-3xl font-black text-white font-mono tracking-tighter">${operatorStats?.remainder.toFixed(1)}</p>
+                                 <span className="text-[10px] font-bold text-amber-500 font-mono">NET</span>
+                              </div>
                            </div>
                         </div>
-                        <div className="text-right">
-                           <p className="text-lg font-black text-amber-500 font-mono">${req.amount}</p>
-                           <p className="text-[8px] text-slate-600 font-black uppercase tracking-tighter">Остаток: ${req.remainderAtTime.toFixed(0)}</p>
-                        </div>
                      </div>
-                     
-                     <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/50 flex items-center justify-between">
-                        <code className="text-[10px] text-slate-400 truncate max-w-[200px]">{req.address}</code>
-                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">{req.method}</span>
+
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-4">
+                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">2. Сумма аванса</label>
+                           <div className="relative group/input">
+                              <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-700 font-bold text-xl group-focus-within/input:text-amber-500 transition-colors">$</div>
+                              <input 
+                                type="number"
+                                value={amount}
+                                onChange={e => setAmount(e.target.value)}
+                                placeholder="0.00"
+                                className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl py-6 pl-12 pr-6 text-2xl font-mono text-white focus:outline-none focus:border-amber-500/50 focus:bg-slate-900 transition-all shadow-inner"
+                              />
+                           </div>
+                        </div>
+
+                        <div className="space-y-4">
+                           <div className="flex items-center justify-between px-1">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">3. Канал выплаты</label>
+                              <div className="flex p-1 bg-slate-950 rounded-xl border border-white/5">
+                                 <button 
+                                   onClick={() => setPaymentMethod('usdt_trc20')}
+                                   className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${paymentMethod === 'usdt_trc20' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-slate-600 hover:text-slate-400'}`}
+                                 >
+                                   USDT
+                                 </button>
+                                 <button 
+                                   onClick={() => setPaymentMethod('card')}
+                                   className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${paymentMethod === 'card' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-slate-600 hover:text-slate-400'}`}
+                                 >
+                                   Card
+                                 </button>
+                              </div>
+                           </div>
+                           <div className="relative group/input">
+                              <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-700 group-focus-within/input:text-amber-500 transition-colors">
+                                 {paymentMethod === 'usdt_trc20' ? <ICONS.Wallet size={20}/> : <ICONS.History size={20}/>}
+                              </div>
+                              <input 
+                                value={walletAddress}
+                                onChange={e => setWalletAddress(e.target.value)}
+                                placeholder={paymentMethod === 'usdt_trc20' ? "T-address..." : "Card number..."}
+                                className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl py-6 pl-14 pr-6 text-xs font-mono text-slate-300 focus:outline-none focus:border-amber-500/50 focus:bg-slate-900 transition-all shadow-inner placeholder:text-slate-800"
+                              />
+                           </div>
+                        </div>
                      </div>
 
                      <button 
-                        onClick={() => markAsPaid(req.id)}
-                        className="w-full bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/30 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                        onClick={sendToTelegram}
+                        disabled={!amount || !walletAddress || isSending}
+                        className="w-full relative group overflow-hidden"
                      >
-                        Пометить как выплачено
+                        <motion.div
+                          whileHover={{ y: -2, scale: 1.01 }}
+                          whileTap={{ scale: 0.98 }}
+                          className="bg-gradient-to-br from-amber-500 via-orange-600 to-amber-700 p-6 rounded-[2rem] shadow-[0_20px_50px_-10px_rgba(245,158,11,0.4)] flex items-center justify-center gap-4 transition-all"
+                        >
+                          {/* Internal Glow */}
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.2),transparent_70%)] pointer-events-none" />
+                          
+                          {/* Shine */}
+                          <motion.div 
+                            animate={{ x: ['-100%', '200%'] }}
+                            transition={{ duration: 2.5, repeat: Infinity, ease: 'linear', repeatDelay: 1 }}
+                            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -rotate-45 pointer-events-none"
+                          />
+
+                          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-md border border-white/10 shadow-inner">
+                             {isSending ? (
+                               <ICONS.RotateCcw size={20} className="text-white animate-spin" />
+                             ) : (
+                               <ICONS.Send size={20} className="text-white group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                             )}
+                          </div>
+                          
+                          <div className="flex flex-col items-start text-left">
+                             <span className="text-white font-black text-xs uppercase tracking-[0.25em]">
+                               {isSending ? 'Обработка...' : 'Отправить запрос'}
+                             </span>
+                             <span className="text-amber-200 text-[8px] font-bold uppercase tracking-widest opacity-60">Secure Payment Request</span>
+                          </div>
+
+                          <ICONS.ArrowRight size={16} className="text-white/40 ml-auto group-hover:translate-x-1 transition-transform" />
+                        </motion.div>
                      </button>
-                  </div>
-                ))
-              )}
+                   </motion.div>
+                 )}
+               </AnimatePresence>
+            </div>
+          </section>
+        </div>
+
+        {/* RIGHT COLUMN: QUEUE & HISTORY */}
+        <div className="lg:col-span-5 space-y-10">
+           <div className="space-y-6">
+              <div className="flex items-center justify-between px-4">
+                 <h2 className="text-sm font-black text-white uppercase tracking-[0.2em] flex items-center gap-3">
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)] animate-pulse"></div>
+                    Живая очередь
+                 </h2>
+                 <span className="bg-white/5 border border-white/10 text-slate-500 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase font-mono">
+                   {activeRequests.length} TX
+                 </span>
+              </div>
+
+              <div className="space-y-4">
+                 <AnimatePresence mode="popLayout">
+                    {activeRequests.length === 0 ? (
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="py-20 border-2 border-dashed border-white/5 rounded-[2.5rem] text-center text-slate-800 flex flex-col items-center gap-4"
+                      >
+                         <ICONS.CheckSquare size={48} className="opacity-10"/>
+                         <p className="text-[10px] font-black uppercase tracking-[0.3em]">Очередь выплат пуста</p>
+                      </motion.div>
+                    ) : (
+                      activeRequests.map(req => (
+                        <motion.div 
+                          key={req.id} 
+                          layout
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          className="glass-card p-8 rounded-[2.5rem] border-white/5 space-y-6 hover:border-amber-500/30 transition-all group shadow-xl"
+                        >
+                           <div className="flex justify-between items-start">
+                              <div className="flex items-center gap-4">
+                                 <div className="w-12 h-12 rounded-[1.25rem] bg-amber-500/10 flex items-center justify-center text-amber-500 shadow-inner">
+                                    <ICONS.User size={20}/>
+                                 </div>
+                                 <div className="space-y-1">
+                                    <p className="text-sm font-black text-white uppercase tracking-wider">@{req.operator}</p>
+                                    <p className="text-[10px] text-slate-600 font-black uppercase tracking-tighter">{new Date(req.createdAt).toLocaleString()}</p>
+                                 </div>
+                              </div>
+                              <div className="text-right">
+                                 <p className="text-2xl font-black text-amber-500 font-mono tracking-tighter">${req.amount}</p>
+                                 <p className="text-[9px] text-slate-700 font-black uppercase tracking-widest mt-1">Status: Pending</p>
+                              </div>
+                           </div>
+                           
+                           <div className="bg-slate-950/80 p-4 rounded-2xl border border-white/5 flex items-center justify-between group-hover:border-amber-500/10 transition-colors">
+                              <code className="text-[10px] text-slate-500 truncate max-w-[200px] font-mono">{req.address}</code>
+                              <span className="text-[8px] font-black uppercase tracking-widest text-slate-700 px-2 py-1 bg-white/5 rounded-md">{req.method}</span>
+                           </div>
+
+                           <button 
+                              onClick={() => markAsPaid(req.id)}
+                              className="w-full bg-emerald-500/10 hover:bg-emerald-600 text-emerald-500 hover:text-white border border-emerald-500/20 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-inner"
+                           >
+                              Провести выплату
+                           </button>
+                        </motion.div>
+                      ))
+                    )}
+                 </AnimatePresence>
+              </div>
+           </div>
+
+           {/* Stats / History Recap */}
+           <div className="glass-card p-8 rounded-[2.5rem] border-white/5 space-y-6">
+              <div className="flex items-center justify-between border-b border-white/5 pb-5">
+                 <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-3">
+                    <ICONS.History size={16} className="text-slate-700"/>
+                    Последние транзакции
+                 </h3>
+                 <button 
+                   onClick={() => updateState(prev => ({ ...prev, advanceRequests: (prev.advanceRequests || []).filter(r => r.status !== 'paid') }))}
+                   className="text-rose-500 text-[8px] font-black uppercase tracking-widest hover:text-rose-400 opacity-40 hover:opacity-100 transition-all font-mono"
+                 >
+                   Flush History
+                 </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                 {historyRequests.length === 0 ? (
+                    <div className="py-10 text-center opacity-10">
+                       <p className="uppercase tracking-widest font-black text-[9px]">No historical data</p>
+                    </div>
+                 ) : (
+                    historyRequests.map(req => (
+                       <div key={req.id} className="bg-slate-950/40 border border-white/5 p-4 rounded-2xl flex items-center justify-between group hover:border-white/10 transition-colors">
+                          <div className="flex items-center gap-3">
+                             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                                <ICONS.Check size={14}/>
+                             </div>
+                             <div>
+                                <p className="text-[11px] font-black text-slate-400">@{req.operator}</p>
+                                <p className="text-[8px] text-slate-700 font-black uppercase tracking-tighter">{new Date(req.paidAt || '').toLocaleDateString()}</p>
+                             </div>
+                          </div>
+                          <p className="text-sm font-black text-slate-600 font-mono tracking-tighter group-hover:text-slate-400 transition-colors">${req.amount}</p>
+                       </div>
+                    ))
+                 )}
+              </div>
            </div>
         </div>
-      </div>
-
-      {/* History Section */}
-      <div className="space-y-6 pt-10">
-         <div className="flex items-center justify-between border-b border-slate-800 pb-4 px-2">
-            <h2 className="text-lg font-black text-slate-400 uppercase tracking-widest flex items-center gap-3">
-               <ICONS.History size={20} className="text-slate-600"/>
-               История выплат
-            </h2>
-            <button 
-               onClick={() => updateState(prev => ({ ...prev, advanceRequests: [] }))}
-               className="text-rose-500 text-[10px] font-black uppercase tracking-widest hover:text-rose-400"
-            >
-               Очистить всё
-            </button>
-         </div>
-
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {historyRequests.length === 0 ? (
-               <div className="col-span-full p-20 text-center opacity-20">
-                  <ICONS.ClipboardList size={64} className="mx-auto mb-4"/>
-                  <p className="uppercase tracking-[0.3em] font-black text-sm">История пуста</p>
-               </div>
-            ) : (
-               historyRequests.map(req => (
-                  <div key={req.id} className="bg-slate-950/40 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
-                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                           <ICONS.Check size={14}/>
-                        </div>
-                        <div>
-                           <p className="text-xs font-bold text-slate-300">@{req.operator}</p>
-                           <p className="text-[9px] text-slate-600 uppercase font-black tracking-tighter">Выплачено {new Date(req.paidAt || '').toLocaleDateString()}</p>
-                        </div>
-                     </div>
-                     <p className="text-sm font-black text-slate-400 font-mono">${req.amount}</p>
-                  </div>
-               ))
-            )}
-         </div>
       </div>
     </div>
   );
