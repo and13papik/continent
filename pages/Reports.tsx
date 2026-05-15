@@ -63,28 +63,30 @@ const PlatformPill = ({ label, gross, net, color, icon }: { label: string, gross
 
 const DetailBox = ({ pill, gross, net, rate, color }: { pill: string, gross: number, net: number, rate: string, color: string }) => {
   const colorMap: any = {
-    indigo: 'from-indigo-600/10 to-indigo-900/5 border-indigo-500/20 text-indigo-400',
-    sky: 'from-sky-600/10 to-sky-900/5 border-sky-500/20 text-sky-400',
-    emerald: 'from-emerald-600/10 to-emerald-900/5 border-emerald-500/20 text-emerald-400'
+    indigo: 'from-indigo-600/10 to-indigo-950/40 border-indigo-500/20 text-indigo-400',
+    sky: 'from-sky-600/10 to-sky-950/40 border-sky-500/20 text-sky-400',
+    emerald: 'from-emerald-600/10 to-emerald-950/40 border-emerald-500/20 text-emerald-400'
   };
   return (
-    <div className={`p-5 rounded-2xl border bg-gradient-to-br transition-all duration-300 hover:bg-opacity-30 ${colorMap[color]}`}>
-       <div className="flex justify-between items-start mb-4">
+    <div className={`p-4 rounded-2xl border bg-gradient-to-br transition-all duration-500 hover:scale-[1.02] hover:bg-opacity-40 group/detail relative overflow-hidden ${colorMap[color]}`}>
+       <div className={`absolute -right-4 -bottom-4 w-16 h-16 blur-2xl opacity-20 transition-all group-hover/detail:opacity-40 ${color === 'indigo' ? 'bg-indigo-500' : color === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'}`}></div>
+       <div className="flex justify-between items-start mb-3 relative z-10">
           <div className="flex flex-col">
-             <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">{pill}</span>
-             <div className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/5 w-fit">
-                <span className="text-[9px] font-black font-mono text-white/80">{rate}</span>
+             <span className="text-[8px] font-black uppercase tracking-[0.2em] opacity-50 mb-1 leading-none">{pill}</span>
+             <div className="px-2 py-0.5 rounded-md bg-white/5 border border-white/5 w-fit">
+                <span className="text-[9px] font-black font-mono text-white/90">{rate}</span>
              </div>
           </div>
+          <div className={`w-1.5 h-1.5 rounded-full ${color === 'indigo' ? 'bg-indigo-500' : color === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'} shadow-lg`}></div>
        </div>
-       <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-0.5">
-             <span className="text-[7px] font-black uppercase tracking-[0.2em] text-slate-500">Gross</span>
-             <p className="text-sm font-black font-mono text-slate-300">${gross.toFixed(0)}</p>
+       <div className="flex items-end justify-between relative z-10">
+          <div className="flex flex-col">
+             <span className="text-[7px] font-black uppercase text-slate-500 mb-0.5">Gross</span>
+             <p className="text-xs font-black font-mono text-slate-400 tracking-tighter">${gross.toFixed(0)}</p>
           </div>
-          <div className="space-y-0.5 text-right">
-             <span className="text-[7px] font-black uppercase tracking-[0.2em] text-slate-500">Net</span>
-             <p className="text-lg font-black font-mono text-white">${net.toFixed(1)}</p>
+          <div className="flex flex-col text-right">
+             <span className="text-[7px] font-black uppercase text-slate-500 mb-0.5">Net Profit</span>
+             <p className="text-base font-black font-mono text-white tracking-tighter">${net.toFixed(1)}</p>
           </div>
        </div>
     </div>
@@ -354,39 +356,74 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
           <h2 className="text-xl font-black font-outfit uppercase tracking-tighter text-white">Дневник</h2>
           <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">Daily Records Buffer</p>
         </div>
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-3">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-2">
           {report?.dailyHistory.length === 0 && (
             <div className="text-center py-20 opacity-20">
               <ICONS.History size={48} className="mx-auto mb-4" />
               <p className="text-[10px] uppercase font-black tracking-widest">Нет данных</p>
             </div>
           )}
-          {[...(report?.dailyHistory || [])].reverse().map((d) => {
+          {[...(report?.dailyHistory || [])].reverse().map((d, idx) => {
             const isActive = selectedDate === d.date;
+            const dateObj = new Date(d.date);
+            const weekday = dateObj.toLocaleDateString('ru-RU', { weekday: 'short' });
+            
+            // Contextual progress (e.g. against $500 goal)
+            const progress = Math.min((d.totalNet / 500) * 100, 100);
+            
             return (
-              <button
+              <motion.button
                 key={d.date}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.02 }}
                 onClick={() => setSelectedDate(d.date)}
-                className={`w-full text-left p-5 rounded-2xl transition-all duration-300 group relative ${
+                className={`w-full text-left p-3.5 rounded-2xl transition-all duration-500 group relative flex items-center gap-4 ${
                   isActive 
-                    ? 'bg-indigo-600 shadow-xl shadow-indigo-600/20' 
-                    : 'hover:bg-white/5 border border-transparent hover:border-white/5'
+                    ? 'bg-indigo-600 shadow-[0_15px_40px_-5px_rgba(79,70,229,0.5)] border border-indigo-500' 
+                    : 'hover:bg-white/[0.04] border border-transparent hover:border-white/5'
                 }`}
               >
-                <div className="flex flex-col gap-1">
-                  <span className={`font-mono text-sm font-black ${isActive ? 'text-white' : 'text-slate-300'}`}>
-                    {d.date.split('-').reverse().join('.')}
-                  </span>
-                  <div className="flex justify-between items-center mt-2">
-                    <span className={`text-[8px] font-black uppercase tracking-widest ${isActive ? 'text-indigo-200' : 'text-slate-500'}`}>
-                      ${d.totalNet.toFixed(1)}
+                {isActive && (
+                  <motion.div 
+                    layoutId="active-pill" 
+                    className="absolute inset-0 bg-gradient-to-tr from-indigo-700 via-indigo-600 to-indigo-500 rounded-2xl -z-10 shadow-inner"
+                  />
+                )}
+                
+                <div className={`w-9 h-9 shrink-0 rounded-xl flex flex-col items-center justify-center border-2 transition-all duration-500 overflow-hidden ${
+                  isActive ? 'bg-white border-white scale-110 shadow-lg' : 'bg-slate-950 border-white/5 group-hover:border-white/10 group-hover:scale-105'
+                }`}>
+                   <span className={`text-[7px] font-black uppercase leading-none mb-0.5 ${isActive ? 'text-indigo-600' : 'text-slate-500'}`}>{weekday}</span>
+                   <span className={`text-[11px] font-black font-mono leading-none ${isActive ? 'text-indigo-900' : 'text-slate-200'}`}>{d.date.split('-')[2]}</span>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-baseline mb-1.5">
+                    <span className={`font-mono text-[10px] font-black tracking-tight ${isActive ? 'text-white' : 'text-slate-400'}`}>
+                      {d.date.split('-').reverse().slice(0, 2).join('.')}
                     </span>
-                    <div className={`px-2 py-0.5 rounded-md text-[7px] font-black border ${isActive ? 'bg-white/20 border-white/20 text-white' : 'bg-slate-950/40 border-white/5 text-slate-500'}`}>
-                      NET
+                    <div className="flex items-baseline gap-0.5">
+                       <span className={`text-[8px] font-black ${isActive ? 'text-indigo-200' : 'text-slate-600'}`}>$</span>
+                       <span className={`text-[12px] font-black font-mono ${isActive ? 'text-white' : 'text-slate-100 group-hover:text-white'}`}>
+                          {d.totalNet.toFixed(1)}
+                       </span>
                     </div>
                   </div>
+                  
+                  <div className={`h-1 w-full rounded-full overflow-hidden ${isActive ? 'bg-indigo-900' : 'bg-slate-800'}`}>
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progress}%` }}
+                      className={`h-full transition-all duration-1000 ${isActive ? 'bg-white shadow-[0_0_8px_white]' : 'bg-indigo-500'}`}
+                    />
+                  </div>
                 </div>
-              </button>
+
+                {!isActive && progress > 50 && (
+                   <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse absolute right-2 top-2"></div>
+                )}
+              </motion.button>
             );
           })}
         </div>
