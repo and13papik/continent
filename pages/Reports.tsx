@@ -23,6 +23,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [selectedOperator, setSelectedOperator] = useState('');
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   
   // Quick Operations
   const [showQuickOp, setShowQuickOp] = useState(false);
@@ -153,6 +154,17 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
 
     return { totalBrutto, totalNetto, finalBalance, adjustmentGroups, dailyHistory, fullHistory, platformStats, activeModels, wallet };
   }, [selectedOperator, state.incomeData, state.operationsData, state.selectedPeriodId, state.operatorWallets]);
+
+  useEffect(() => {
+    if (report?.dailyHistory.length) {
+      const exists = report.dailyHistory.some(d => d.date === selectedDate);
+      if (!selectedDate || !exists) {
+        setSelectedDate(report.dailyHistory[report.dailyHistory.length - 1].date);
+      }
+    } else {
+      setSelectedDate(null);
+    }
+  }, [report?.dailyHistory, selectedOperator, selectedDate]);
 
   const updateWallet = (address: string, method: 'usdt_trc20' | 'card') => {
     updateState(prev => {
@@ -452,75 +464,116 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                    </div>
                 </motion.div>
 
-                {/* DAILY BREAKDOWN SECTION */}
-                <div className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-2xl">
-                   <div className="p-8 border-b border-slate-800 bg-slate-900/40 flex justify-between items-center relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-3xl pointer-events-none"></div>
-                      <div>
-                        <h2 className="font-black font-outfit text-xl text-white tracking-tight uppercase">Детальный отчет по дням</h2>
-                        <div className="flex gap-2 mt-1">
-                          {report.activeModels.map(m => <span key={m} className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-md text-[8px] font-black tracking-widest border border-white/5 uppercase opacity-60">{m}</span>)}
-                        </div>
+                {/* DAILY BREAKDOWN SECTION - REDESIGNED */}
+                <div className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-2xl flex flex-col md:flex-row h-[600px]">
+                   {/* DAYS SIDEBAR */}
+                   <div className="w-full md:w-80 border-r border-slate-800 flex flex-col bg-slate-900/40">
+                      <div className="p-6 border-b border-slate-800">
+                         <h2 className="font-black font-outfit text-sm text-white tracking-tight uppercase">Дневник Выработки</h2>
+                         <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">Выберите день для деталей</p>
+                      </div>
+                      <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                         {[...report.dailyHistory].reverse().map((d) => {
+                           const isActive = selectedDate === d.date;
+                           return (
+                             <button
+                               key={d.date}
+                               onClick={() => setSelectedDate(d.date)}
+                               className={`w-full text-left p-4 rounded-2xl transition-all duration-300 group ${isActive ? 'bg-indigo-600 shadow-xl shadow-indigo-600/20' : 'hover:bg-white/[0.03]'}`}
+                             >
+                                <div className="flex justify-between items-start mb-1">
+                                   <div className="flex flex-col">
+                                      <span className={`font-mono text-[13px] font-black ${isActive ? 'text-white' : 'text-slate-200'}`}>
+                                         {d.date.split('-').reverse().join('.')}
+                                      </span>
+                                      <span className={`text-[8px] font-black uppercase tracking-widest ${isActive ? 'text-white/60' : 'text-slate-500'}`}>
+                                         {new Date(d.date).toLocaleDateString('ru-RU', { weekday: 'short' })}
+                                      </span>
+                                   </div>
+                                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110 ${isActive ? 'bg-white/20' : 'bg-slate-800 opacity-50'}`}>
+                                      <ICONS.Reports size={14} className={isActive ? 'text-white' : 'text-slate-400'} />
+                                   </div>
+                                </div>
+                                <div className="flex gap-4 mt-2">
+                                   <div className="flex flex-col">
+                                      <span className={`text-[7px] font-black uppercase tracking-[0.2em] ${isActive ? 'text-white/40' : 'text-slate-600'}`}>Грязными</span>
+                                      <span className={`text-[11px] font-mono font-black ${isActive ? 'text-white' : 'text-slate-400'}`}>${d.totalGross.toFixed(0)}</span>
+                                   </div>
+                                   <div className="flex flex-col">
+                                      <span className={`text-[7px] font-black uppercase tracking-[0.2em] ${isActive ? 'text-white/40' : 'text-emerald-500/50'}`}>На руки</span>
+                                      <span className={`text-[11px] font-mono font-black ${isActive ? 'text-white' : 'text-emerald-400'}`}>${d.totalNet.toFixed(1)}</span>
+                                   </div>
+                                </div>
+                             </button>
+                           );
+                         })}
                       </div>
                    </div>
-                   <div className="overflow-x-auto custom-scrollbar">
-                      <table className="w-full text-left text-sm border-separate border-spacing-0">
-                         <thead>
-                            <tr className="bg-slate-900/50 text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] border-b border-slate-800">
-                               <th className="px-8 py-5">Дата</th>
-                               <th className="px-6 py-5">Разбивка дохода по моделям</th>
-                               <th className="px-8 py-5 text-right w-[150px]">Итог за день</th>
-                            </tr>
-                         </thead>
-                         <tbody className="divide-y divide-white/[0.03]">
-                            {[...report.dailyHistory].reverse().map((d, idx) => (
-                               <motion.tr 
-                                  key={d.date}
-                                  initial={{ opacity: 0, x: -10 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  transition={{ delay: idx * 0.05 }}
-                                  className="hover:bg-white/[0.01] transition-all group/row"
-                               >
-                                  <td className="px-8 py-8 align-top">
-                                     <div className="flex flex-col">
-                                        <span className="font-mono text-white text-sm font-black">{d.date.split('-').reverse().join('.')}</span>
-                                        <span className="text-[9px] font-black uppercase text-slate-600 tracking-widest mt-1">Accounting Point</span>
-                                     </div>
-                                  </td>
-                                  <td className="px-6 py-8">
-                                     <div className="flex flex-col gap-4">
-                                        {d.modelBreakdown.map((m, mIdx) => (
-                                          <div key={mIdx} className="relative group transition-all">
-                                             <div className="flex justify-between items-center mb-2 px-1">
-                                                <div className="flex items-center gap-2">
-                                                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-                                                   <span className="text-white font-black text-[12px] uppercase tracking-tight">{m.name}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                   <span className="text-[9px] font-black text-slate-600 uppercase">Gross:</span>
-                                                   <span className="text-[11px] font-mono font-black text-slate-400 opacity-80">${m.gross.toFixed(0)}</span>
-                                                </div>
-                                             </div>
-                                             <div className="grid grid-cols-3 gap-2">
-                                                <DailyPill pill="OF" rate={m.ofR} val={m.ofN} color="indigo" />
-                                                <DailyPill pill="PP" rate={m.ppR} val={m.ppN} color="sky" />
-                                                <DailyPill pill="CR" rate={m.crR} val={m.crN} color="emerald" />
-                                             </div>
-                                          </div>
-                                        ))}
-                                     </div>
-                                  </td>
-                                  <td className="px-8 py-8 text-right bg-white/[0.01]">
-                                     <div className="flex flex-col items-end gap-1">
-                                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest leading-none">Day Earnings</span>
-                                        <span className="text-xl font-black font-mono text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)] tracking-tighter leading-none">${d.totalNet.toFixed(1)}</span>
-                                        <div className="h-0.5 w-12 bg-emerald-500/20 rounded-full mt-1"></div>
-                                     </div>
-                                  </td>
-                               </motion.tr>
-                            ))}
-                         </tbody>
-                      </table>
+
+                   {/* DAY DETAILS */}
+                   <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden bg-slate-950/20">
+                      {selectedDate ? (
+                        <div className="w-full h-full flex flex-col">
+                           <div className="p-8 border-b border-slate-800 bg-slate-900/20 flex justify-between items-center sm:hidden md:flex">
+                              <div>
+                                 <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></span>
+                                    <h3 className="font-black font-outfit text-xl text-white tracking-tight uppercase">Отчет за {selectedDate.split('-').reverse().join('.')}</h3>
+                                 </div>
+                                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Детальная разбивка по моделям и платформам</p>
+                              </div>
+                              <div className="flex gap-2">
+                                 {report.activeModels.map(m => <span key={m} className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-md text-[8px] font-black tracking-widest border border-white/5 uppercase opacity-60">{m}</span>)}
+                              </div>
+                           </div>
+                           
+                           <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
+                              {report.dailyHistory.find(d => d.date === selectedDate)?.modelBreakdown.map((m, mIdx) => (
+                                <motion.div 
+                                  key={mIdx}
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ delay: mIdx * 0.1 }}
+                                  className="glass-card p-6 rounded-3xl border-slate-800 bg-white/[0.01] hover:bg-white/[0.02] transition-colors group"
+                                >
+                                   <div className="flex justify-between items-center mb-6">
+                                      <div className="flex items-center gap-3">
+                                         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-lg shadow-xl shadow-indigo-600/20">
+                                            {m.name.charAt(0)}
+                                         </div>
+                                         <div className="flex flex-col">
+                                            <span className="text-white font-black text-lg uppercase tracking-tight leading-none">{m.name}</span>
+                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">Profit Distribution</span>
+                                         </div>
+                                      </div>
+                                      <div className="flex flex-col items-end">
+                                         <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Model Day Gross</span>
+                                         <span className="text-2xl font-black font-mono text-white tracking-tighter leading-none">${m.gross.toFixed(0)}</span>
+                                      </div>
+                                   </div>
+                                   
+                                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                      <DetailBox pill="OnlyFans" gross={m.ofG} net={m.ofN} rate={m.ofR} color="indigo" />
+                                      <DetailBox pill="PayPal" gross={m.ppG} net={m.ppN} rate={m.ppR} color="sky" />
+                                      <DetailBox pill="Crypto" gross={m.crG} net={m.crN} rate={m.crR} color="emerald" />
+                                   </div>
+
+                                   <div className="mt-6 pt-6 border-t border-white/[0.05] flex justify-between items-center">
+                                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Итог по модели:</span>
+                                      <div className="flex flex-col items-end">
+                                         <span className="text-xl font-black font-mono text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.3)]">${m.net.toFixed(1)}</span>
+                                      </div>
+                                   </div>
+                                </motion.div>
+                              ))}
+                           </div>
+                        </div>
+                      ) : (
+                        <div className="text-center opacity-30 select-none pointer-events-none">
+                           <ICONS.Reports size={64} className="mx-auto mb-4 text-slate-700" />
+                           <h3 className="font-black uppercase tracking-[0.3em] text-slate-500">Выберите дату</h3>
+                        </div>
+                      )}
                    </div>
                 </div>
              </div>
@@ -641,10 +694,10 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                             )}
                          </div>
                          {report.wallet?.updatedAt && (
-                           <p className="text-[7px] text-slate-700 font-bold uppercase tracking-widest text-right mt-2 flex items-center justify-end gap-1 opacity-50">
+                           <div className="text-[7px] text-slate-700 font-bold uppercase tracking-widest text-right mt-2 flex items-center justify-end gap-1 opacity-50">
                              <div className="w-1 h-1 rounded-full bg-slate-700"></div>
                              Last Updated: {new Date(report.wallet.updatedAt).toLocaleDateString()}
-                           </p>
+                           </div>
                          )}
                       </div>
                    </div>
@@ -872,6 +925,32 @@ const PlatformPill = ({ label, gross, net, color, icon }: { label: string, gross
     </div>
   </div>
 );
+
+const DetailBox = ({ pill, gross, net, rate, color }: { pill: string, gross: number, net: number, rate: string, color: string }) => {
+  const colorMap: any = {
+    indigo: 'from-indigo-500/20 to-indigo-500/5 border-indigo-500/20 text-indigo-400',
+    sky: 'from-sky-500/20 to-sky-500/5 border-sky-500/20 text-sky-400',
+    emerald: 'from-emerald-500/20 to-emerald-500/5 border-emerald-500/20 text-emerald-400'
+  };
+  return (
+    <div className={`p-4 rounded-2xl border bg-gradient-to-br ${colorMap[color]}`}>
+       <div className="flex justify-between items-center mb-3">
+          <span className="text-[9px] font-black uppercase tracking-widest opacity-60">{pill}</span>
+          <span className="text-[10px] font-black font-mono px-2 py-0.5 rounded-lg bg-white/5 border border-white/5">{rate}</span>
+       </div>
+       <div className="flex flex-col">
+          <div className="flex items-center gap-1 opacity-50">
+             <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400">B:</span>
+             <span className="text-xs font-mono font-bold text-slate-300">${gross.toFixed(0)}</span>
+          </div>
+          <div className="flex items-center gap-1">
+             <span className="text-[10px] font-black uppercase tracking-widest text-slate-200">H:</span>
+             <span className="text-lg font-black font-mono text-white">${net.toFixed(1)}</span>
+          </div>
+       </div>
+    </div>
+  );
+};
 
 const DailyPill = ({ pill, rate, val, color }: { pill: string, rate: string, val: number, color: string }) => {
   const cMap: any = { 
