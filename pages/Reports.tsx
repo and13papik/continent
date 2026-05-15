@@ -394,72 +394,57 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                   isActive ? 'bg-indigo-500 shadow-[0_0_20px_#6366f1]' : isElite ? 'bg-amber-400' : isPro ? 'bg-emerald-400' : 'bg-slate-800'
                 }`} />
 
-                <div className="flex-1 p-4.5 flex items-center gap-4 relative">
-                  {/* Date Block: WAW Effect */}
-                  <div className={`relative w-16 h-16 shrink-0 rounded-[1.25rem] flex flex-col items-center justify-center border transition-all duration-700 overflow-hidden ${
+                <div className="flex-1 p-3 flex items-center gap-3 relative min-w-0">
+                  {/* Compact Premium Date Block */}
+                  <div className={`relative w-12 h-12 shrink-0 rounded-2xl flex flex-col items-center justify-center border transition-all duration-700 overflow-hidden ${
                     isActive 
-                      ? 'bg-gradient-to-br from-indigo-500 to-indigo-700 border-white/20 shadow-xl scale-105 rotate-1' 
-                      : 'bg-slate-900/80 border-white/5 group-hover:border-white/10 group-hover:bg-slate-800'
+                      ? 'bg-gradient-to-br from-indigo-500 to-indigo-700 border-white/20 shadow-lg scale-105' 
+                      : 'bg-slate-900/60 border-white/5 group-hover:border-white/10'
                   }`}>
-                    <span className={`text-[9px] font-black uppercase tracking-tighter mb-0.5 ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>{weekday}</span>
-                    <span className={`text-2xl font-black font-outfit leading-none ${isActive ? 'text-white' : 'text-slate-200'}`}>{dayNum}</span>
-                    <span className={`text-[8px] font-black uppercase mt-1 opacity-60 tracking-wider ${isActive ? 'text-indigo-200' : 'text-slate-500'}`}>{monthName}</span>
+                    <span className={`text-[7px] font-black uppercase leading-none mb-0.5 tracking-tighter ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>{weekday}</span>
+                    <span className={`text-lg font-black font-outfit leading-none ${isActive ? 'text-white' : 'text-slate-200'}`}>{dayNum}</span>
                     
-                    {/* Active Flare Effect */}
                     {isActive && (
                       <motion.div 
                         animate={{ x: ['-100%', '100%'] }} 
                         transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -rotate-45"
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -rotate-45"
                       />
                     )}
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start mb-2">
-                       <div className="space-y-0.5">
-                          {/* Achievement Badge */}
-                          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/5 w-fit">
-                             {isElite ? <ICONS.Star className="text-amber-400" size={8} /> : isPro ? <ICONS.Chart className="text-emerald-400" size={8} /> : <div className="w-1.5 h-1.5 rounded-full bg-slate-600" />}
-                             <span className={`text-[7px] font-black uppercase tracking-widest ${isElite ? 'text-amber-400' : isPro ? 'text-emerald-400' : 'text-slate-500'}`}>
-                                {isElite ? 'Elite Tier' : isPro ? 'Pro Performance' : 'Solid Day'}
-                             </span>
-                          </div>
-                       </div>
-                    </div>
-
-                    {/* Gross Earnings: Priority */}
-                    <div className="flex items-baseline justify-between">
-                       <div className="flex items-baseline gap-1">
-                          <span className={`text-[10px] font-black font-mono transition-colors ${isActive ? 'text-indigo-300' : 'text-slate-600'}`}>$</span>
-                          <span className={`text-2xl font-black font-mono tracking-tighter transition-all ${isActive ? 'text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]' : 'text-slate-50 group-hover:text-white'}`}>
+                    <div className="flex justify-between items-center mb-1.5">
+                       <div className="flex items-baseline gap-0.5 min-w-0">
+                          <span className={`text-[9px] font-black font-mono shrink-0 ${isActive ? 'text-indigo-300' : 'text-slate-600'}`}>$</span>
+                          <span className={`text-[1.35rem] font-black font-mono tracking-tighter truncate ${isActive ? 'text-white' : 'text-slate-50'}`}>
                              {d.totalGross.toFixed(0)}
                           </span>
                        </div>
                        
-                       <div className="flex flex-col items-end">
-                          <span className={`text-[7px] font-black uppercase tracking-[0.2em] mb-0.5 ${isActive ? 'text-indigo-400/60' : 'text-slate-600'}`}>Netto</span>
-                          <div className="flex items-baseline gap-1">
-                             <span className={`text-[8px] font-bold font-mono ${isActive ? 'text-indigo-300/40' : 'text-slate-700'}`}>$</span>
-                             <span className={`text-[12px] font-black font-mono ${isActive ? 'text-indigo-200' : 'text-emerald-500/90'}`}>
+                       <div className="flex flex-col items-end shrink-0 ml-2">
+                          <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border ${
+                            isActive ? 'bg-white/10 border-white/10' : 'bg-slate-950/60 border-white/5'
+                          }`}>
+                             <span className={`text-[9px] font-black font-mono ${isActive ? 'text-white' : 'text-emerald-500'}`}>
                                 {d.totalNet.toFixed(1)}
                              </span>
                           </div>
                        </div>
                     </div>
 
-                    {/* Dynamic Status Indicator */}
-                    <div className="mt-3 flex items-center gap-2">
+                    {/* Minimal Progress */}
+                    <div className="flex items-center gap-2">
                        <div className={`h-1 flex-1 rounded-full overflow-hidden ${isActive ? 'bg-indigo-950' : 'bg-slate-800/40'}`}>
                           <motion.div 
                             initial={{ width: 0 }}
                             animate={{ width: `${progress}%` }}
                             className={`h-full ${
-                              isActive ? 'bg-white' : isElite ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24]' : isPro ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-indigo-500'
+                              isActive ? 'bg-white' : isElite ? 'bg-amber-400' : isPro ? 'bg-emerald-400' : 'bg-indigo-500'
                             }`}
                           />
                        </div>
-                       {isActive && <div className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_white] animate-pulse" />}
+                       {isElite && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_#fbbf24]" />}
                     </div>
                   </div>
                 </div>
