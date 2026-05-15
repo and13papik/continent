@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AppState, IncomeRecord, OperationType, OperationRecord, Platform, OperatorWallet } from '../types';
 import { ICONS, PLATFORM_NAMES, OPERATION_META } from '../constants';
+import PeriodBadge from '../components/PeriodBadge';
 
 interface ReportsProps {
   state: AppState;
@@ -215,7 +216,10 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold font-outfit text-white">Аналитика Оператора</h1>
-          <p className="text-slate-400">Детализация за <span className="text-indigo-400 font-bold">{activePeriod?.label}</span></p>
+          <div className="flex items-center gap-3">
+             <PeriodBadge state={state} />
+             <p className="text-slate-400">Детализация за <span className="text-indigo-400 font-bold">{activePeriod?.label}</span></p>
+          </div>
         </div>
         <div className="flex gap-3">
           <select className="bg-slate-900 border border-slate-700 rounded-2xl px-6 py-3 font-bold text-white shadow-xl outline-none min-w-[280px]" value={selectedOperator} onChange={(e) => setSelectedOperator(e.target.value)}>

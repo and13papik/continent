@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { AppState, RosterEntry, ShiftType, AccountingPeriod } from '../types';
 import { ICONS } from '../constants';
 import { motion, AnimatePresence } from 'framer-motion';
+import PeriodBadge from '../components/PeriodBadge';
 
 interface RosterProps {
   state: AppState;
@@ -302,13 +303,11 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-4xl font-black text-white tracking-tight mb-2">Состав</h1>
-          <p className="text-slate-400 font-medium">Управление сменами и распределение операторов</p>
-        </div>
-        
-        <div className="flex items-center gap-4 bg-indigo-500/10 px-6 py-3 rounded-2xl border border-indigo-500/20">
-          <ICONS.Calendar size={20} className="text-indigo-400" />
-          <span className="text-white font-black uppercase tracking-wider">{currentPeriod?.label || 'Текущий месяц'}</span>
+          <h1 className="text-4xl font-black text-white tracking-tight">Состав</h1>
+          <div className="flex items-center gap-3 mt-1">
+            <PeriodBadge state={state} />
+            <p className="text-slate-400 font-medium">Управление сменами и распределение операторов</p>
+          </div>
         </div>
       </div>
 

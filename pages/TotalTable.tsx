@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AppState, DailyTotalEntry, ShiftData } from '../types';
 import { ICONS } from '../constants';
 import { findPeriodIdByDate } from '../store';
+import PeriodBadge from '../components/PeriodBadge';
 
 const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
 const DEFAULT_CHAT_ID = '-1003748692600';
@@ -493,6 +494,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
            <div className="bg-indigo-600 p-2 rounded-xl text-white font-bold font-outfit text-sm">Continental Core</div>
            <div className="h-6 w-px bg-slate-800 hidden md:block"></div>
            
+           <PeriodBadge state={state} />
+
            <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 shadow-inner group transition-all hover:border-indigo-500/30">
               <ICONS.Calendar size={14} className="text-slate-500 group-hover:text-indigo-400" />
               <input 

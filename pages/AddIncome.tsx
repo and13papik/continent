@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { AppState, IncomeRecord } from '../types';
 import { ICONS } from '../constants';
 import { findPeriodIdByDate, parseYearMonth } from '../store';
+import PeriodBadge from '../components/PeriodBadge';
 
 interface AddIncomeProps {
   state: AppState;
@@ -176,7 +177,10 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold font-outfit text-white">Добавить доход</h1>
-          <p className="text-slate-400">Внесение данных за период: <span className="text-indigo-400 font-bold">{activePeriod.label}</span></p>
+          <div className="flex items-center gap-3 mt-1">
+             <PeriodBadge state={state} />
+             <p className="text-slate-400">Внесение данных за период: <span className="text-indigo-400 font-bold">{activePeriod.label}</span></p>
+          </div>
         </div>
         {activePeriod.status === 'closed' && (
            <div className="bg-amber-500/10 border border-amber-500/20 px-4 py-2 rounded-xl flex items-center gap-3 text-amber-500">

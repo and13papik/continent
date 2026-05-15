@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { AppState, OperationType, OperationRecord, Platform, IncomeRecord } from '../types';
 import { ICONS, OPERATION_META, PLATFORM_NAMES } from '../constants';
 import { findPeriodIdByDate } from '../store';
+import PeriodBadge from '../components/PeriodBadge';
 
 interface OperationsProps {
   state: AppState;
@@ -161,7 +162,10 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <header>
         <h1 className="text-3xl font-bold text-white font-outfit">Операции и Активность</h1>
-        <p className="text-slate-400">Полный аудит начислений и доходов персонала</p>
+        <div className="flex items-center gap-3 mt-1">
+          <PeriodBadge state={state} />
+          <p className="text-slate-400">Полный аудит начислений и доходов персонала</p>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

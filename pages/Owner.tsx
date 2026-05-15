@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { AppState, OwnerManualExpense, OwnerManualIncome, OwnerAdvance, Platform, OperationRecord } from '../types';
 import { ICONS } from '../constants';
+import PeriodBadge from '../components/PeriodBadge';
 
 interface OwnerProps {
   state: AppState;
@@ -216,7 +217,10 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
             <span className="text-amber-500"><ICONS.Owner size={20} /></span>
             <span className="text-xs font-black uppercase tracking-[0.3em] text-amber-500/70">Partnership Analytics</span>
           </div>
-          <h1 className="text-4xl font-bold font-outfit text-white">Панель Владельца</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-4xl font-bold font-outfit text-white">Панель Владельца</h1>
+            <PeriodBadge state={state} />
+          </div>
           <div className="text-slate-400 mt-1">Аудит за {activePeriod.label}</div>
         </div>
       </header>

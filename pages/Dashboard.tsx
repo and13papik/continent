@@ -9,7 +9,25 @@ import {
 } from 'recharts';
 import { motion } from 'motion/react';
 
+import PeriodBadge from '../components/PeriodBadge';
+
 // --- ВСПОМОГАТЕЛЬНЫЕ КОМПОНЕНТЫ ---
+
+function PlatformMiniCard({ label, value, color, icon }: { label: string; value: number; color: string; icon: React.ReactNode }) {
+  const colorClasses: Record<string, string> = {
+    indigo: 'text-indigo-400 border-indigo-500/10 bg-indigo-500/5 hover:border-indigo-500/30',
+    sky: 'text-sky-400 border-sky-500/10 bg-sky-500/5 hover:border-sky-500/30',
+    emerald: 'text-emerald-400 border-emerald-500/10 bg-emerald-500/5 hover:border-emerald-500/30',
+  };
+
+  return (
+    <div className={`p-4 rounded-3xl border transition-all duration-300 flex flex-col items-center justify-center gap-2 min-w-[120px] backdrop-blur-md ${colorClasses[color] || 'border-slate-800'}`}>
+       <div className="opacity-60">{icon}</div>
+       <div className={`text-[9px] font-black uppercase tracking-widest opacity-60`}>{label}</div>
+       <div className="text-lg font-black text-white font-mono">${value.toLocaleString()}</div>
+    </div>
+  );
+}
 
 function StatCard({ 
   title, 
@@ -169,10 +187,52 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
     const totalRawNet = periodIncomes.reduce((s, r) => s + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
     const avgOpRate = rawPlatformGross > 0 ? totalRawNet / rawPlatformGross : 0.20;
 
+    // --- Калькуляция прогноза ---
+    const getAccountingDateUTC = () => {
+      const now = new Date();
+      const kyivStr = now.toLocaleString("en-US", { timeZone: "Europe/Kiev", hour12: false });
+      const [datePart, timePart] = kyivStr.split(', ');
+      const [m, d, y] = datePart.split('/').map(Number);
+      const [h] = timePart.split(':').map(Number);
+      const date = new Date(Date.UTC(y, m - 1, d));
+      if (h < 3) date.setUTCDate(date.getUTCDate() - 1);
+      return date;
+    };
+    
+    const accountingDate = getAccountingDateUTC();
+    const sortedPeriodsForLatest = [...state.accountingPeriods].sort((a, b) => 
+      new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+    );
+    const isLatestPeriod = sortedPeriodsForLatest[sortedPeriodsForLatest.length - 1]?.id === activePeriodId;
+
+    let targetMonth: number;
+    let targetYear: number;
+    if (activePeriod) {
+      const pStart = new Date(activePeriod.startAt);
+      targetMonth = pStart.getUTCMonth();
+      targetYear = pStart.getUTCFullYear();
+    } else {
+      targetMonth = accountingDate.getUTCMonth();
+      targetYear = accountingDate.getUTCFullYear();
+    }
+
+    const totalDaysInMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+    const daysPassed = isLatestPeriod ? accountingDate.getUTCDate() : totalDaysInMonth;
+    const runRate = totalGross / Math.max(daysPassed, 1);
+    const forecast = Math.max(totalGross, runRate * totalDaysInMonth);
+
+    // --- Калькуляция Плана ---
+    const activeModels = activePeriod?.models || state.models;
+    const totalTarget = activeModels.reduce((sum, mName) => {
+      const mGoal = activePeriod?.modelMonthlyPlans?.[mName] || state.modelMonthlyPlans?.[mName] || 0;
+      return sum + mGoal;
+    }, 0);
+
     const totals = { 
       totalGross, platformGross: rawPlatformGross, manualGross: rawManualGross,
       netEarned: totalRawNet - (totalRefunds * avgOpRate),
-      bonuses: 0, penalties: 0, refunds: totalRefunds, advances: 0, paidOut: 0, remainder: 0, 
+      bonuses: 0, penalties: 0, refunds: totalRefunds, advances: 0, paidOut: 0, remainder: 0,
+      forecast, totalTarget, 
       adminDetails: [] as { name: string, amount: number, rate: number }[],
       of: { gross: 0, net: 0 }, pp: { gross: 0, net: 0 }, cr: { gross: 0, net: 0 } 
     };
@@ -196,7 +256,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
     totals.remainder = (totals.netEarned + totals.bonuses) - (totals.penalties + totals.paidOut);
     currentAdmins.forEach(admin => { totals.adminDetails.push({ name: admin.name, amount: totalGross * (admin.rate / 100), rate: admin.rate }); });
     return totals;
-  }, [state.incomeData, state.ownerManualIncomes, state.operationsData, state.admins, activePeriodId, activePeriod]);
+  }, [state.incomeData, state.ownerManualIncomes, state.operationsData, state.admins, activePeriodId, activePeriod, state.modelMonthlyPlans, state.accountingPeriods, state.models]);
 
   const operatorRows = useMemo(() => {
     const raw = currentOperators.map(op => {
@@ -420,6 +480,15 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
 
   return (
     <div className="relative min-h-screen bg-[#0a0c10] text-slate-200">
+      <style>{`
+        @keyframes pulse-subtle {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.95; transform: scale(0.995); }
+        }
+        .pulse-subtle {
+          animation: pulse-subtle 4s ease-in-out infinite;
+        }
+      `}</style>
       {/* Subtle background glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/5 rounded-full blur-[120px]" />
@@ -431,12 +500,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
         <div>
           <h1 className="text-2xl font-bold text-white font-outfit">Main Dashboard</h1>
           <div className="flex flex-wrap items-center gap-4 mt-1">
-             <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest opacity-60">Период:</span>
-                <select className="bg-white/[0.03] border border-white/[0.08] hover:border-white/20 rounded-xl px-4 py-1.5 text-indigo-400 font-bold outline-none cursor-pointer text-sm transition-colors" value={state.selectedPeriodId} onChange={(e) => updateState(prev => ({ ...prev, selectedPeriodId: e.target.value }))}>
-                   {[...state.accountingPeriods].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()).reverse().map(p => <option key={p.id} value={p.id} className="bg-slate-900">{p.label} {p.status === 'closed' ? '🔒' : ''}</option>)}
-                </select>
-             </div>
+             <PeriodBadge state={state} />
              
               {userRole === 'owner' && (
                 <div className="flex items-center gap-3">
@@ -484,69 +548,114 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
-        <div className="space-y-6">
-          <div className="flex items-center gap-3 ml-1">
-             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
-             <h2 className="text-[10px] uppercase font-bold tracking-[0.25em] text-slate-400 opacity-60">Доходы и Платформы</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* SECTION 1: GLOBAL PERFORMANCE (GROSS, TARGET, FORECAST) */}
+        <div className="col-span-1 lg:col-span-2 grid grid-cols-1 xl:grid-cols-3 gap-8">
+          <div className="xl:col-span-2 relative group overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/[0.07] to-indigo-500/[0.03] border border-amber-500/20 rounded-[2.5rem] backdrop-blur-xl transition-all duration-500 group-hover:border-amber-500/40 shadow-2xl shadow-amber-500/5 group-hover:shadow-amber-500/10"></div>
+            <div className="relative p-10 flex flex-col md:flex-row items-center justify-between gap-8">
+               <div className="flex flex-col items-center md:items-start gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-2xl flex items-center justify-center border border-amber-500/20 shadow-inner">
+                       <span className="text-2xl">💰</span>
+                    </div>
+                    <h2 className="text-[12px] font-black text-amber-500 uppercase tracking-[0.3em]">ОБЩИЙ ТОТАЛ (Грязными)</h2>
+                  </div>
+                  <div className="flex flex-col items-center md:items-start">
+                    <span className="text-7xl font-black text-white font-outfit tracking-tighter leading-none pulse-subtle">
+                      ${stats.totalGross.toLocaleString()}
+                    </span>
+                    <div className="flex items-center gap-4 mt-6">
+                      <div className="px-5 py-2.5 bg-white/[0.03] border border-white/[0.05] rounded-2xl backdrop-blur-md flex flex-col">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 tracking-widest mb-1">План-цель</span>
+                        <span className="text-xl font-black text-indigo-400 font-outfit">${stats.totalTarget.toLocaleString()}</span>
+                      </div>
+                      <div className="px-5 py-2.5 bg-white/[0.03] border border-indigo-500/20 rounded-2xl backdrop-blur-md flex flex-col bg-indigo-500/[0.03]">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 tracking-widest mb-1">Прогноз</span>
+                        <span className="text-xl font-black text-indigo-400 font-outfit">${stats.forecast.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      </div>
+                    </div>
+                  </div>
+               </div>
+               
+               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full md:w-auto">
+                  <PlatformMiniCard label="ONLYFANS" value={stats.of.gross} color="indigo" icon={<IncomeIcon size={18} />} />
+                  <PlatformMiniCard label="PAYPAL" value={stats.pp.gross} color="sky" icon={<TransferIcon size={18} />} />
+                  <PlatformMiniCard label="CRYPTO" value={stats.cr.gross} color="emerald" icon={<IncomeIcon size={18} />} />
+               </div>
+            </div>
           </div>
-          <div className="flex flex-col gap-4">
-            <StatCard title="ОБЩИЙ ТОТАЛ (Грязными)" value={`$${stats.totalGross.toLocaleString()}`} color="amber" icon={<span className="text-2xl">💰</span>} highlighted />
-            <div className="grid grid-cols-1 gap-3 pt-2 border-t border-slate-800/50">
-              <StatCard title="ONLYFANS" value={`$${stats.of.gross.toLocaleString()}`} subValue={`$${stats.of.net.toLocaleString()}`} subLabel="Net" color="indigo" icon={<IncomeIcon size={16}/>} />
-              <StatCard title="PAYPAL" value={`$${stats.pp.gross.toLocaleString()}`} subValue={`$${stats.pp.net.toLocaleString()}`} subLabel="Net" color="sky" icon={<TransferIcon size={16}/>} />
-              <StatCard title="CRYPTO" value={`$${stats.cr.gross.toLocaleString()}`} subValue={`$${stats.cr.net.toLocaleString()}`} subLabel="Net" color="emerald" icon={<IncomeIcon size={16}/>} />
+          
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 ml-1">
+               <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]"></div>
+               <h2 className="text-[10px] uppercase font-bold tracking-[0.25em] text-slate-400 opacity-60">Администрирование</h2>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              {stats.adminDetails.map((ad) => (
+                <div 
+                  key={ad.name}
+                  className="relative group bg-slate-900/40 border border-white/[0.05] rounded-[2rem] p-6 transition-all hover:bg-slate-900/60 hover:border-white/10"
+                >
+                  <div className="flex justify-between items-center">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{ad.name}</p>
+                      <p className="text-3xl font-black text-white font-outfit leading-none">${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-indigo-400 font-black border border-white/10">
+                      {ad.rate}%
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-        <div className="space-y-6">
-          <div className="flex items-center gap-3 ml-1">
-             <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]"></div>
-             <h2 className="text-[10px] uppercase font-bold tracking-[0.25em] text-slate-400 opacity-60">Корректировки</h2>
-          </div>
-          <div className="flex flex-col gap-3">
-            <StatCard title="ШТРАФОВ" value={`$${stats.penalties.toLocaleString()}`} color="rose" icon={<PenaltyIcon size={16}/>} />
-            <StatCard title="БОНУСОВ" value={`$${stats.bonuses.toLocaleString()}`} color="emerald" icon={<BonusIcon size={16}/>} />
-            <StatCard title="ВОЗВРАТОВ" value={`$${stats.refunds.toLocaleString()}`} color="blue" icon={<RotateIcon size={16}/>} />
-            <StatCard title="АВАНСОВ (Staff)" value={`$${stats.advances.toLocaleString()}`} color="amber" icon={<AdvanceIcon size={16}/>} />
-          </div>
-        </div>
-        <div className="space-y-6">
-          <div className="flex items-center gap-3 ml-1">
-             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
-             <h2 className="text-[10px] uppercase font-bold tracking-[0.25em] text-slate-400 opacity-60">Операционная ЗП</h2>
-          </div>
-          <div className="flex flex-col gap-3">
-            <StatCard title="ОБЩАЯ ЗП ОПЕРАТОРОВ" value={`$${stats.netEarned.toLocaleString()}`} color="emerald" icon={<SalaryIcon size={16}/>} />
-            <StatCard title="ВЫПЛАЧЕНО ОПЕРАТОРАМ" value={`$${stats.paidOut.toLocaleString()}`} color="sky" icon={<TransferIcon size={16}/>} />
-            <StatCard title="ОСТАТОК ОПЕРАТОРАМ" value={`$${stats.remainder.toLocaleString()}`} color="emerald" icon={<RemainderIcon size={16}/>} highlighted />
-          </div>
-        </div>
-        <div className="space-y-6">
-          <div className="flex items-center gap-3 ml-1">
-             <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]"></div>
-             <h2 className="text-[10px] uppercase font-bold tracking-[0.25em] text-slate-400 opacity-60">Администраторы</h2>
-          </div>
-          <div className="flex flex-col gap-3">
-            {stats.adminDetails.map((ad) => (
-              <motion.div 
-                key={ad.name}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                whileHover={{ scale: 1.015 }}
-                className="relative group glass-card p-5 rounded-2xl bg-slate-900/40 border border-white/[0.05] transition-all duration-300 flex flex-col justify-center min-w-0 shadow-sm hover:shadow-indigo-500/[0.05] hover:border-white/10 overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="flex justify-between items-start mb-2.5">
-                  <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest truncate opacity-70 group-hover:opacity-100 transition-opacity">{ad.name}</p>
-                  <span className="text-[10px] text-indigo-400 font-bold bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20 shadow-sm">{ad.rate}%</span>
+
+        {/* SECTION 2: CORRECTIONS & OPERATIONS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 col-span-1 lg:col-span-2">
+           <div className="space-y-6">
+              <div className="flex items-center gap-3 ml-1">
+                 <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]"></div>
+                 <h2 className="text-[10px] uppercase font-bold tracking-[0.25em] text-slate-400 opacity-60">Корректировки и бонусы</h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <StatCard title="Штрафы" value={`$${stats.penalties.toLocaleString()}`} color="rose" icon={<PenaltyIcon size={16}/>} />
+                <StatCard title="Бонусы" value={`$${stats.bonuses.toLocaleString()}`} color="emerald" icon={<BonusIcon size={16}/>} />
+                <StatCard title="Возвраты" value={`$${stats.refunds.toLocaleString()}`} color="blue" icon={<RotateIcon size={16}/>} />
+                <StatCard title="Авансы (Staff)" value={`$${stats.advances.toLocaleString()}`} color="amber" icon={<AdvanceIcon size={16}/>} />
+              </div>
+           </div>
+
+           <div className="space-y-6">
+              <div className="flex items-center gap-3 ml-1">
+                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                 <h2 className="text-[10px] uppercase font-bold tracking-[0.25em] text-slate-400 opacity-60">Операционная ведомость</h2>
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                <div className="relative group bg-emerald-500/5 border border-emerald-500/20 rounded-[2rem] p-8 transition-all hover:bg-emerald-500/10">
+                   <div className="flex items-center justify-between mb-6">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Общая ЗП Операторов</p>
+                        <p className="text-4xl font-black text-white font-outfit">${stats.netEarned.toLocaleString()}</p>
+                      </div>
+                      <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/20">
+                         <SalaryIcon size={24} />
+                      </div>
+                   </div>
+                   <div className="grid grid-cols-2 gap-6 pt-6 border-t border-emerald-500/10">
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Выплачено</p>
+                        <p className="text-xl font-bold text-sky-400 font-outfit">${stats.paidOut.toLocaleString()}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">К выплате</p>
+                        <p className="text-xl font-bold text-emerald-400 font-outfit">${stats.remainder.toLocaleString()}</p>
+                      </div>
+                   </div>
                 </div>
-                <div className="flex items-baseline gap-2 flex-wrap">
-                  <p className="text-2xl font-black text-white font-outfit leading-none">${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+              </div>
+           </div>
         </div>
       </div>
 

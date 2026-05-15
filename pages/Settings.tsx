@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { AppState, CloudSnapshot, AccountingPeriod } from '../types';
 import { ICONS } from '../constants';
 import { fetchFromCloud, testDatabaseConnection, listCloudSnapshots, createEmergencyBackup, restoreEmergencyBackup, reindexAllDataByDate, forcePushToCloud } from '../store';
+import PeriodBadge from '../components/PeriodBadge';
 
 interface SettingsProps {
   state: AppState;
@@ -297,7 +298,10 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold font-outfit text-white">Настройки</h1>
-          <p className="text-slate-400">Конфигурация системы и защита данных</p>
+          <div className="flex items-center gap-3 mt-1">
+             <PeriodBadge state={state} />
+             <p className="text-slate-400">Конфигурация системы и защита данных</p>
+          </div>
         </div>
         <div className="flex gap-2">
           {userRole === 'owner' && (

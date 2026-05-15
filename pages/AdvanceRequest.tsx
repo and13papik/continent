@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { AppState, OperatorWallet, AdvanceRequestItem } from '../types';
 import { ICONS } from '../constants';
+import PeriodBadge from '../components/PeriodBadge';
 
 interface AdvanceRequestProps {
   state: AppState;
@@ -215,12 +216,17 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
 
   return (
     <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in zoom-in duration-500 pb-20">
-      <header className="text-center space-y-2">
+      <header className="text-center space-y-3">
         <div className="w-16 h-16 bg-amber-600/20 text-amber-500 rounded-3xl flex items-center justify-center mx-auto shadow-xl shadow-amber-900/10 border border-amber-500/20">
           <ICONS.HandCoins size={32} />
         </div>
-        <h1 className="text-3xl font-black text-white font-outfit uppercase tracking-tight">Запрос аванса</h1>
-        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Центр управления платежами</p>
+        <div>
+          <h1 className="text-3xl font-black text-white font-outfit uppercase tracking-tight">Запрос аванса</h1>
+          <div className="flex items-center justify-center gap-3 mt-2">
+            <PeriodBadge state={state} />
+            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest leading-none">Центр управления платежами</p>
+          </div>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">

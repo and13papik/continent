@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { AppState, ModelBonus, PaidStatus, OperationRecord } from '../types';
 import { ICONS } from '../constants';
+import PeriodBadge from '../components/PeriodBadge';
 
 interface ModelsProps {
   state: AppState;
@@ -199,7 +200,10 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-bold font-outfit text-white">Модели</h1>
-          <p className="text-slate-400">Ведомость анкет за <span className="text-indigo-400 font-bold">{activePeriod.label}</span></p>
+          <div className="flex items-center gap-3 mt-1">
+            <PeriodBadge state={state} />
+            <p className="text-slate-400">Ведомость анкет и начислений</p>
+          </div>
         </div>
         <div className="bg-slate-900/60 p-4 rounded-3xl border border-slate-800 flex flex-wrap items-center gap-6">
           <div className="space-y-1">

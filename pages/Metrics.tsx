@@ -7,6 +7,7 @@ import {
   Cell, LineChart, Line, Legend, AreaChart, Area 
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
+import PeriodBadge from '../components/PeriodBadge';
 
 interface MetricsProps {
   state: AppState;
@@ -283,7 +284,10 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold font-outfit text-white">Аналитика месяца</h1>
-          <p className="text-slate-400">Детальный разбор текущего периода</p>
+          <div className="flex items-center gap-3 mt-1">
+            <PeriodBadge state={state} />
+            <p className="text-slate-400">Детальный разбор текущего периода</p>
+          </div>
         </div>
         <div className="flex items-center gap-6">
           <div className="text-right">

@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { AppState, OwnerTask, TaskPriority, TaskStatus, TaskNote, TaskType, TaskAssignee, TaskAuditEntry } from '../types';
 import { ICONS } from '../constants';
+import PeriodBadge from '../components/PeriodBadge';
 
 const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
 const DEFAULT_CHAT_ID = '-1003748692600';
@@ -364,7 +365,10 @@ const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
             <div className="w-2.5 h-2.5 rounded-full bg-sky-500 shadow-[0_0_15px_rgba(14,165,233,0.7)] animate-pulse"></div>
             <span className="text-[12px] font-black text-sky-500 uppercase tracking-[0.6em]">Узел администрирования</span>
           </div>
-          <h1 className="text-5xl font-black font-outfit text-white tracking-tighter">ЦЕНТР АДМИНОВ</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-5xl font-black font-outfit text-white tracking-tighter">ЦЕНТР АДМИНОВ</h1>
+            <PeriodBadge state={state} />
+          </div>
         </div>
         
         <div className="flex flex-col items-end gap-4">

@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { AppState, OwnerTask, TaskPriority, TaskStatus, OwnerTag, TaskNote, TaskAssignee, TaskType, RecurrenceCycle, TaskAuditEntry, OwnerNote } from '../types';
 import { ICONS } from '../constants';
+import PeriodBadge from '../components/PeriodBadge';
 
 const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
 const DEFAULT_CHAT_ID = '-1003748692600';
@@ -355,7 +356,10 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
           <div className="flex items-center gap-2 mb-2">
             <div className="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-[9px] font-black text-amber-500 uppercase tracking-widest">Стратегический надзор штаба</div>
           </div>
-          <h1 className="text-4xl font-black font-outfit text-white tracking-tight">Ядро управления</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-4xl font-black font-outfit text-white tracking-tight">Ядро управления</h1>
+            <PeriodBadge state={state} />
+          </div>
         </div>
         <div className="flex flex-col gap-3 items-end">
           <div className="flex bg-slate-900/50 p-1 rounded-xl border border-slate-800">

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ICONS } from './constants';
 import { createInitialState, saveLocal, syncToCloud, fetchFromCloud } from './store';
 import { AppState } from './types';
+import PeriodSelector from './components/PeriodSelector';
 import Dashboard from './pages/Dashboard';
 import AddIncome from './pages/AddIncome';
 import Operations from './pages/Operations';
@@ -211,6 +212,8 @@ const App: React.FC = () => {
             </div>
             <span className="font-outfit text-xl font-bold tracking-tight text-white leading-none">Continental</span>
           </div>
+
+          <PeriodSelector state={state} updateState={updateState} />
 
           <div className="flex flex-col gap-2">
             <NavLink to="/" icon={<ICONS.Dashboard size={18} />} label="Dashboard" />
