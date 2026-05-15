@@ -15,6 +15,8 @@ import {
   Plus, 
   ArrowRightLeft, 
   TriangleAlert, 
+  ArrowLeft,
+  ChartBar,
   Gift, 
   RotateCcw, 
   BadgeDollarSign,
@@ -63,6 +65,8 @@ export const ICONS: Record<string, any> = {
   Transfer: ArrowRightLeft,
   Penalty: TriangleAlert,
   AlertTriangle: TriangleAlert,
+  ArrowLeft: ArrowLeft,
+  Chart: ChartBar,
   Bonus: Gift,
   Gift: Gift,
   Refund: RotateCcw,
@@ -90,8 +94,7 @@ export const ICONS: Record<string, any> = {
   User: User,
   History: History,
   Empty: ClipboardList,
-  Star: Star,
-  Chart: TrendingUp
+  Star: Star
 };
 
 export const PLATFORM_NAMES: Record<string, string> = {
