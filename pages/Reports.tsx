@@ -475,7 +475,20 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                  <ICONS.Reports size={20} />
               </div>
               <div>
-                 <h1 className="text-lg font-black font-outfit uppercase tracking-tight text-white leading-none mb-1">Аналитика Оператора</h1>
+                 <div className="flex items-center gap-2 mb-1">
+                    {selectedOperator && (
+                      <button 
+                        onClick={() => setSelectedOperator('')}
+                        className="w-6 h-6 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-500 hover:text-white transition-all mr-1"
+                        title="Назад к списку"
+                      >
+                        <ICONS.ArrowLeft size={14} />
+                      </button>
+                    )}
+                    <h1 className="text-lg font-black font-outfit uppercase tracking-tight text-white leading-none">
+                      {selectedOperator ? `Отчет: ${selectedOperator}` : 'Аналитика Оператора'}
+                    </h1>
+                 </div>
                  <div className="flex items-center gap-2">
                     <PeriodBadge state={state} />
                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{activePeriod?.label}</span>
@@ -511,10 +524,116 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
         {/* SCROLLABLE WORKSPACE */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8 pb-32">
           {!selectedOperator && (
-             <div className="h-full flex flex-col items-center justify-center opacity-40 py-20 border border-dashed border-white/5 rounded-[3rem]">
-                <ICONS.Users size={64} className="mb-6 text-slate-700" />
-                <h3 className="text-xl font-black font-outfit uppercase tracking-widest text-slate-500">Выберите оператора для начала</h3>
-                <p className="text-xs font-medium text-slate-600 mt-2">Все финансовые потоки будут агрегированы мгновенно</p>
+             <div className="space-y-8">
+               <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-black font-outfit uppercase tracking-tighter text-white">Ведомость персонала</h2>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Выберите сотрудника для просмотра подробной аналитики</p>
+                  </div>
+                  <div className="flex items-center gap-3 px-4 py-2 bg-slate-900/40 rounded-2xl border border-white/5">
+                    <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse shadow-[0_0_10px_#6366f1]" />
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Период: {activePeriod?.label}</span>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                 {currentOperators.map((op, idx) => {
+                   // Calculate simplified stats for this operator
+                   const incomes = state.incomeData.filter(r => r.operator === op && r.periodId === state.selectedPeriodId);
+                   const ops = state.operationsData.filter(o => o.operator === op && o.periodId === state.selectedPeriodId);
+                   
+                   const gross = incomes.reduce((s, r) => s + r.total, 0);
+                   const net = incomes.reduce((s, r) => s + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
+                   const refunds = ops.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
+                   const avgRate = gross > 0 ? net / gross : 0.20;
+                   const totalGross = gross - refunds;
+                   const totalNet = net - (refunds * avgRate);
+
+                   const performance = Math.min((totalGross / 1000) * 100, 100);
+                   const isElite = totalGross >= 1000;
+                   const isPro = totalGross >= 500 && totalGross < 1000;
+
+                   return (
+                     <motion.button
+                       key={op}
+                       initial={{ opacity: 0, y: 10 }}
+                       animate={{ opacity: 1, y: 0 }}
+                       transition={{ delay: idx * 0.03 }}
+                       onClick={() => setSelectedOperator(op)}
+                       className="group relative bg-slate-900/40 border border-white/5 rounded-[2rem] p-5 text-left transition-all duration-500 hover:bg-slate-900/80 hover:border-indigo-500/40 hover:-translate-y-1 shadow-xl overflow-hidden flex flex-col min-h-[220px]"
+                     >
+                       {/* High-end Decorative Elements */}
+                       <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 blur-[40px] rounded-full -translate-y-1/2 translate-x-1/2 transition-all duration-700" />
+                       
+                       <div className="relative z-10 flex flex-col h-full">
+                         <div className="flex justify-between items-start mb-4">
+                           <div className={`relative w-11 h-11 rounded-[1.25rem] flex items-center justify-center text-lg font-black transition-all duration-700 group-hover:scale-110 shadow-2xl ${
+                             isElite ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white' : isPro ? 'bg-gradient-to-br from-indigo-500 to-indigo-700 text-white' : 'bg-slate-800 border border-white/5 text-slate-400 group-hover:text-indigo-400'
+                           }`}>
+                             {op.charAt(0)}
+                             {isElite && (
+                               <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white rounded-full border-2 border-slate-900 flex items-center justify-center text-[8px] shadow-xl">
+                                 👑
+                               </div>
+                             )}
+                           </div>
+                           <div className="flex flex-col items-end gap-1.5">
+                             {(isElite || isPro) && (
+                               <div className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all duration-500 ${
+                                 isElite ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20 group-hover:bg-amber-500 group-hover:text-white' : 
+                                 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:bg-indigo-500 group-hover:text-white'
+                               }`}>
+                                 {isElite ? 'Elite' : 'Pro'}
+                               </div>
+                             )}
+                           </div>
+                         </div>
+
+                         <div className="mb-4">
+                           <h3 className="text-base font-black font-outfit uppercase tracking-tighter text-white group-hover:text-indigo-400 transition-colors leading-tight truncate">{op}</h3>
+                         </div>
+
+                         <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-white/5">
+                           <div className="flex flex-col">
+                             <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Gross</span>
+                             <div className="flex items-baseline gap-0.5">
+                               <span className="text-[10px] font-black text-indigo-400">$</span>
+                               <span className="text-sm font-black font-mono text-white tracking-tighter transition-all group-hover:translate-x-0.5">{totalGross.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                             </div>
+                           </div>
+                           <div className="flex flex-col items-end text-right">
+                             <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Net</span>
+                             <div className="flex items-baseline gap-0.5">
+                               <span className="text-[10px] font-black text-emerald-500">$</span>
+                               <span className="text-sm font-black font-mono text-emerald-400 tracking-tighter transition-all group-hover:-translate-x-0.5">{totalNet.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                             </div>
+                           </div>
+                         </div>
+
+                         <div className="mt-auto">
+                            <div className="flex justify-between items-center mb-2">
+                               <div className="flex items-center gap-1.5">
+                                  <div className="flex -space-x-1">
+                                    {(incomes.some(i => i.onlyFans > 0)) && <div className="w-3.5 h-3.5 rounded-full bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-[5px] font-black text-sky-400">OF</div>}
+                                    {(incomes.some(i => i.paypal > 0)) && <div className="w-3.5 h-3.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-[5px] font-black text-indigo-400">PP</div>}
+                                    {(incomes.some(i => i.crypto > 0)) && <div className="w-3.5 h-3.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-[5px] font-black text-emerald-400">CR</div>}
+                                  </div>
+                               </div>
+                               <span className="text-[10px] font-black font-mono text-indigo-400">{performance.toFixed(0)}%</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden p-[px] border border-white/5">
+                               <motion.div 
+                                 initial={{ width: 0 }}
+                                 animate={{ width: `${performance}%` }}
+                                 className={`h-full rounded-full transition-all duration-1000 ${isElite ? 'bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.3)]' : isPro ? 'bg-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.3)]' : 'bg-slate-700'}`}
+                               />
+                            </div>
+                         </div>
+                       </div>
+                     </motion.button>
+                   );
+                 })}
+               </div>
              </div>
           )}
 
