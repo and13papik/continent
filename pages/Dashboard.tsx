@@ -711,12 +711,10 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
               </div>
               <div className="flex flex-col">
                 <h2 className="text-lg font-black font-outfit text-white tracking-tight">Ведомость персонала</h2>
-                <span className="text-[8px] font-black uppercase tracking-[0.15em] text-slate-500">Детальный аудит выплат за период</span>
               </div>
             </div>
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white/[0.02] border border-white/5 rounded-xl">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 blur-[1px]" />
-              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Sync Alive</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 blur-[1px] animate-pulse" />
             </div>
           </div>
           <div className="overflow-x-auto custom-scrollbar">
@@ -724,12 +722,12 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
               <thead>
                 <tr className="bg-white/[0.02] text-slate-500 uppercase text-[8px] font-black tracking-[0.1em]">
                   <th className="px-4 py-4 border-b border-white/5 first:rounded-tl-3xl">Оператор</th>
-                  <th className="px-4 py-4 border-b border-white/5 text-center">Объем & Эффект.</th>
+                  <th className="px-4 py-4 border-b border-white/5 text-center">Эффективность</th>
                   <th className="px-2 py-4 border-b border-white/5 text-center">OnlyFans <span className="text-indigo-500/50">●</span></th>
                   <th className="px-2 py-4 border-b border-white/5 text-center">PayPal <span className="text-sky-500/50">●</span></th>
                   <th className="px-2 py-4 border-b border-white/5 text-center">Crypto <span className="text-emerald-500/50">●</span></th>
                   <th className="px-2 py-4 border-b border-white/5 text-center">Правки & Бонусы</th>
-                  <th className="px-4 py-4 border-b border-white/5 text-center">Баланс</th>
+                  <th className="px-4 py-4 border-b border-white/5 text-center">ЗП</th>
                   <th className="px-4 py-4 border-b border-white/5 text-right last:rounded-tr-3xl">Выплата</th>
                 </tr>
               </thead>
