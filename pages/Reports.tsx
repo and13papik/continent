@@ -366,8 +366,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
       {/* SIDEBAR CALENDAR / DAY LIST */}
       <aside className={`w-full lg:w-[320px] bg-slate-900/40 border-r border-white/5 flex flex-col transition-all duration-500 overflow-hidden ${!report ? 'lg:w-0 border-r-0' : ''}`}>
         <div className="p-8 border-b border-white/5 bg-slate-950/20">
-          <h2 className="text-xl font-black font-outfit uppercase tracking-tighter text-white">Дневник</h2>
-          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">Daily Records Buffer</p>
+          <h2 className="text-xl font-black font-outfit uppercase tracking-tighter text-white">ДНЕВНИК</h2>
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
           {report?.dailyHistory.length === 0 && (
@@ -576,7 +575,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                <div className="grid grid-cols-12 gap-3">
                   <div className="col-span-12 md:col-span-6 lg:col-span-3 h-full">
                     <MetricCard 
-                      title="Зарплата (Чистыми)" 
+                      title="Зп (чистая)" 
                       label="Final Balance"
                       value={report.finalBalance} 
                       icon={<ICONS.Wallet />} 
@@ -586,7 +585,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                   </div>
                   <div className="col-span-12 md:col-span-6 lg:col-span-3 h-full">
                     <MetricCard 
-                      title="Общий вал (Грязными)" 
+                      title="Общий тотал (грязными)" 
                       label="Total Gross"
                       value={report.totalBrutto} 
                       icon={<ICONS.Income />} 
@@ -597,7 +596,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                   {/* Platform Compact Trio */}
                   <div className="col-span-12 lg:col-span-6 grid grid-cols-3 gap-2">
                     <MetricCard 
-                      title="OnlyFans (OF)" 
+                      title="Onlyfans" 
                       value={report.platformStats.of.gross} 
                       subValue={report.platformStats.of.net}
                       icon={<div className="font-black text-[10px]">OF</div>} 
@@ -605,7 +604,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                       variant="platform"
                     />
                     <MetricCard 
-                      title="PayPal (PP)" 
+                      title="PAYPAL" 
                       value={report.platformStats.pp.gross} 
                       subValue={report.platformStats.pp.net}
                       icon={<div className="font-black text-[10px]">PP</div>} 
@@ -613,7 +612,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                       variant="platform"
                     />
                     <MetricCard 
-                      title="Crypto (CR)" 
+                      title="Crypto" 
                       value={report.platformStats.cr.gross} 
                       subValue={report.platformStats.cr.net}
                       icon={<div className="font-black text-[10px]">CR</div>} 
@@ -633,8 +632,8 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                               <ICONS.History size={18} />
                            </div>
                            <div>
-                              <h3 className="text-lg font-black font-outfit uppercase tracking-tight text-white mb-0.5">Суточный отчет</h3>
-                              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{selectedDate?.split('-').reverse().join('.')} — Details</span>
+                              <h3 className="text-lg font-black font-outfit uppercase tracking-tight text-white mb-0.5">Подробный отчет</h3>
+                              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{selectedDate?.split('-').reverse().join('.')}</span>
                            </div>
                         </div>
                         <div className="px-4 py-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
@@ -690,8 +689,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                      
                      <div className="px-6 py-5 border-b border-white/5 bg-slate-900/40 flex justify-between items-center relative z-10">
                         <div className="flex flex-col">
-                           <h3 className="text-base font-black font-outfit uppercase tracking-tight text-white leading-none">Финальный чек</h3>
-                           <span className="text-[7px] font-black text-slate-500 uppercase tracking-[0.2em] mt-1">Official Settlement</span>
+                           <h3 className="text-base font-black font-outfit uppercase tracking-tight text-white leading-none">Статистика</h3>
                         </div>
                         <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-indigo-400">
                            <ICONS.Salary size={16} />
@@ -713,7 +711,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                            <SummaryLine label="Авансы / Салари" val={report.adjustmentGroups.advance + report.adjustmentGroups.salary} type="minus" />
                            <SummaryLine label="Штрафы / Списания" val={report.adjustmentGroups.penalty} type="minus" />
                            <SummaryLine label="Бонусы / Премии" val={report.adjustmentGroups.bonus} type="plus" />
-                           <SummaryLine label="Обучение / Офис" val={report.adjustmentGroups.internship} type="minus" />
+                           <SummaryLine label="стажировочные" val={report.adjustmentGroups.internship} type="minus" />
                         </div>
 
                         {/* Refund Auto-Adjustment */}
@@ -735,10 +733,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                            <span className="text-4xl font-black font-mono text-white tracking-tighter drop-shadow-[0_8px_16px_rgba(79,70,229,0.4)]">
                               ${report.finalBalance.toLocaleString(undefined, { minimumFractionDigits: 1 })}
                            </span>
-                           <div className="flex items-center gap-1.5 mt-2.5 p-0.5 px-2 rounded-full bg-white/5 border border-white/5">
-                              <div className="w-1 h-1 rounded-full bg-emerald-500" />
-                              <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Verified by Continental</span>
-                           </div>
                         </div>
                      </div>
                   </div>
@@ -751,7 +745,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                   <div className="glass-card rounded-[2.5rem] border-white/5 overflow-hidden flex flex-col h-[400px]">
                      <div className="px-8 py-5 border-b border-white/5 bg-slate-900/60 flex items-center justify-between shrink-0">
                         <h3 className="text-base font-black font-outfit uppercase tracking-tight text-white leading-none">Лог операций</h3>
-                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Operator Audit</span>
                      </div>
                      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                         <div className="space-y-3">
@@ -805,7 +798,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                      <div className="flex justify-between items-center relative z-10">
                         <div className="flex flex-col">
                            <h3 className="text-xl font-black font-outfit uppercase tracking-tight text-white leading-none">Реквизиты</h3>
-                           <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">Payment Endpoint Settings</span>
                         </div>
                         <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
                            <ICONS.Wallet size={20} />
@@ -836,7 +828,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
 
                         <div className="space-y-2">
                            <div className="flex items-center justify-between mb-1">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Destination Address</label>
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Кошелек</label>
                               <div className={`px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-[0.2em] ${report.wallet?.method === 'card' ? 'bg-indigo-500/10 text-indigo-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
                                  {report.wallet?.method === 'card' ? 'BANK NETWORK' : 'TRC20 NETWORK'}
                               </div>
