@@ -68,25 +68,22 @@ const DetailBox = ({ pill, gross, net, rate, color }: { pill: string, gross: num
     emerald: 'from-emerald-600/10 to-emerald-950/40 border-emerald-500/20 text-emerald-400'
   };
   return (
-    <div className={`p-4 rounded-2xl border bg-gradient-to-br transition-all duration-500 hover:scale-[1.02] hover:bg-opacity-40 group/detail relative overflow-hidden ${colorMap[color]}`}>
-       <div className={`absolute -right-4 -bottom-4 w-16 h-16 blur-2xl opacity-20 transition-all group-hover/detail:opacity-40 ${color === 'indigo' ? 'bg-indigo-500' : color === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'}`}></div>
-       <div className="flex justify-between items-start mb-3 relative z-10">
+    <div className={`p-3 rounded-xl border bg-gradient-to-br transition-all duration-500 hover:bg-opacity-40 group/detail relative overflow-hidden ${colorMap[color]}`}>
+       <div className="flex justify-between items-start mb-2 relative z-10">
           <div className="flex flex-col">
-             <span className="text-[8px] font-black uppercase tracking-[0.2em] opacity-50 mb-1 leading-none">{pill}</span>
-             <div className="px-2 py-0.5 rounded-md bg-white/5 border border-white/5 w-fit">
-                <span className="text-[9px] font-black font-mono text-white/90">{rate}</span>
-             </div>
+             <span className="text-[7px] font-black uppercase tracking-[0.2em] opacity-50 mb-0.5 leading-none">{pill}</span>
+             <span className="text-[8px] font-black font-mono text-white/70">{rate}</span>
           </div>
-          <div className={`w-1.5 h-1.5 rounded-full ${color === 'indigo' ? 'bg-indigo-500' : color === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'} shadow-lg`}></div>
+          <div className={`w-1 h-1 rounded-full ${color === 'indigo' ? 'bg-indigo-500' : color === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'} shadow-lg`}></div>
        </div>
-       <div className="flex items-end justify-between relative z-10">
-          <div className="flex flex-col">
-             <span className="text-[7px] font-black uppercase text-slate-500 mb-0.5">Gross</span>
-             <p className="text-xs font-black font-mono text-slate-400 tracking-tighter">${gross.toFixed(0)}</p>
+       <div className="flex items-end justify-between relative z-10 gap-2">
+          <div className="flex flex-col min-w-0">
+             <span className="text-[6px] font-black uppercase text-slate-500 mb-0.5">Gross</span>
+             <p className="text-[10px] font-black font-mono text-slate-400 tracking-tighter truncate">${gross.toFixed(0)}</p>
           </div>
-          <div className="flex flex-col text-right">
-             <span className="text-[7px] font-black uppercase text-slate-500 mb-0.5">Net Profit</span>
-             <p className="text-base font-black font-mono text-white tracking-tighter">${net.toFixed(1)}</p>
+          <div className="flex flex-col text-right shrink-0">
+             <span className="text-[6px] font-black uppercase text-slate-500 mb-0.5">Net</span>
+             <p className="text-sm font-black font-mono text-white tracking-tighter">${net.toFixed(1)}</p>
           </div>
        </div>
     </div>
@@ -596,26 +593,34 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                            <span className="text-lg font-black font-mono text-emerald-400">${report.dailyHistory.find(d => d.date === selectedDate)?.totalNet.toFixed(1)}</span>
                         </div>
                      </div>
-                     <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
+                     <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
                         <AnimatePresence mode="wait">
                            {selectedDate ? (
                              <motion.div 
                                key={selectedDate}
-                               initial={{ opacity: 0, x: 20 }}
-                               animate={{ opacity: 1, x: 0 }}
-                               exit={{ opacity: 0, x: -20 }}
-                               className="space-y-6"
+                               initial={{ opacity: 0, y: 10 }}
+                               animate={{ opacity: 1, y: 0 }}
+                               exit={{ opacity: 0, y: -10 }}
+                               className="space-y-4"
                              >
                                {report.dailyHistory.find(d => d.date === selectedDate)?.modelBreakdown.map((m, idx) => (
-                                 <div key={idx} className="space-y-4">
-                                    <div className="flex items-center gap-4">
-                                       <span className="text-sm font-black uppercase tracking-widest text-indigo-400 font-outfit px-4 py-1.5 bg-indigo-500/5 rounded-full border border-indigo-500/10">{m.name}</span>
-                                       <div className="h-px flex-1 bg-white/[0.03]"></div>
+                                 <div key={idx} className="bg-slate-900/40 rounded-2xl border border-white/5 p-4 space-y-3 group/model transition-all hover:bg-slate-900/60">
+                                    <div className="flex items-center justify-between">
+                                       <div className="flex items-center gap-3">
+                                          <div className="w-1.5 h-4 bg-indigo-500 rounded-full" />
+                                          <span className="text-xs font-black uppercase tracking-widest text-white font-outfit">{m.name}</span>
+                                       </div>
+                                       <div className="flex items-center gap-4">
+                                          <div className="flex flex-col items-end">
+                                             <span className="text-[6px] font-black uppercase text-slate-500">Model Day Net</span>
+                                             <span className="text-xs font-black font-mono text-emerald-400">${m.net.toFixed(1)}</span>
+                                          </div>
+                                       </div>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                       <DetailBox pill="OnlyFans" gross={m.ofG} net={m.ofN} rate={m.ofR} color="indigo" />
-                                       <DetailBox pill="PayPal" gross={m.ppG} net={m.ppN} rate={m.ppR} color="sky" />
-                                       <DetailBox pill="Crypto" gross={m.crG} net={m.crN} rate={m.crR} color="emerald" />
+                                    <div className="grid grid-cols-3 gap-2">
+                                       <DetailBox pill="OF" gross={m.ofG} net={m.ofN} rate={m.ofR} color="indigo" />
+                                       <DetailBox pill="PP" gross={m.ppG} net={m.ppN} rate={m.ppR} color="sky" />
+                                       <DetailBox pill="CR" gross={m.crG} net={m.crN} rate={m.crR} color="emerald" />
                                     </div>
                                  </div>
                                ))}
