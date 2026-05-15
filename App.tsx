@@ -205,128 +205,127 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-200">
-        <nav className="w-full md:w-60 glass-card border-r border-slate-800/50 p-2.5 flex flex-col gap-1 sticky top-0 h-auto md:h-screen overflow-y-auto custom-scrollbar z-50">
-          <div className="flex items-center gap-2 px-2 py-1.5">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0">
-              <span className="text-white font-outfit text-base font-bold">C</span>
+        <nav className="w-full md:w-56 bg-slate-950/80 backdrop-blur-xl border-r border-white/5 p-3 flex flex-col gap-1 sticky top-0 h-auto md:h-screen overflow-y-auto custom-scrollbar z-50">
+          <div className="flex items-center gap-2.5 px-2 py-3 mb-2">
+            <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center shadow-[0_5px_15px_-5px_rgba(79,70,229,0.5)] shrink-0 group hover:rotate-12 transition-transform">
+              <span className="text-white font-outfit text-base font-black">C</span>
             </div>
-            <span className="font-outfit text-xl font-bold tracking-tight text-white leading-none truncate">Continental</span>
+            <div className="flex flex-col min-w-0">
+               <span className="font-outfit text-lg font-black tracking-tight text-white leading-none truncate">Continental</span>
+               <span className="text-[7px] font-black uppercase tracking-[0.2em] text-slate-500 mt-1">Management Hub</span>
+            </div>
           </div>
 
           <PeriodSelector state={state} updateState={updateState} />
 
           {cloudStatus === 'conflict' && (
             <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              whileHover={{ scale: 1.02 }}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
               onClick={forcePull}
-              className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl cursor-pointer shadow-[0_0_15px_rgba(244,63,94,0.1)] group transition-all"
+              className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl cursor-pointer group transition-all mb-2"
             >
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></div>
-                <p className="text-[10px] font-black text-rose-500 uppercase tracking-wider">КОНФЛИКТ ДАННЫХ</p>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></div>
+                <p className="text-[8px] font-black text-rose-500 uppercase tracking-widest">Update Required</p>
               </div>
-              <p className="text-[10px] leading-relaxed text-slate-300 transition-colors group-hover:text-white">Напарник внес изменения. <span className="text-rose-400 font-bold underline underline-offset-2">Загрузить сейчас</span></p>
+              <p className="text-[9px] font-bold text-slate-400 group-hover:text-white transition-colors">Sync conflict detected. <span className="text-rose-400 underline underline-offset-2">Fix now</span></p>
             </motion.div>
           )}
 
-          <motion.div 
-             layout
-             className={`relative p-2 rounded-xl border transition-all duration-500 overflow-hidden ${
-               cloudStatus === 'success' ? 'bg-emerald-500/[0.03] border-emerald-500/20' : 
+          <div 
+             className={`relative p-2.5 rounded-2xl border transition-all duration-700 overflow-hidden mb-4 ${
+               cloudStatus === 'success' ? 'bg-emerald-500/[0.03] border-emerald-500/20 shadow-[0_0_20px_-10px_rgba(16,185,129,0.2)]' : 
                cloudStatus === 'loading' ? 'bg-amber-500/[0.03] border-amber-500/20' :
                cloudStatus === 'conflict' ? 'bg-rose-500/[0.03] border-rose-500/20' : 
-               'bg-slate-900/40 border-white/[0.05]'
+               'bg-slate-900/40 border-white/5'
              }`}
           >
             <div className="relative flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border transition-all duration-500 ${
-                cloudStatus === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border transition-all duration-500 ${
+                cloudStatus === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-inner' :
                 cloudStatus === 'loading' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
                 cloudStatus === 'conflict' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
-                'bg-slate-800/50 border-white/[0.05] text-slate-500'
+                'bg-slate-800/50 border-white/5 text-slate-500'
               }`}>
                 {isSyncing || cloudStatus === 'loading' ? (
                   <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}>
-                    <ICONS.RotateCcw size={14} />
+                    <ICONS.RotateCcw size={12} />
                   </motion.div>
                 ) : cloudStatus === 'success' ? (
-                  <ICONS.Check size={16} />
+                  <ICONS.Check size={14} />
                 ) : cloudStatus === 'conflict' ? (
-                  <ICONS.AlertTriangle size={16} />
+                  <ICONS.AlertTriangle size={14} />
                 ) : (
-                  <ICONS.Unlock size={14} />
+                  <ICONS.Unlock size={12} />
                 )}
               </div>
               
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest opacity-60">База</span>
-                  <motion.div 
-                    animate={isSyncing || cloudStatus === 'loading' ? { scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] } : {}}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      cloudStatus === 'success' ? 'bg-emerald-500' : 
-                      cloudStatus === 'loading' ? 'bg-amber-500' : 
-                      cloudStatus === 'conflict' ? 'bg-rose-500' : 
-                      'bg-slate-700'
-                    }`}
-                  />
+                  <span className="text-[7.5px] text-slate-500 uppercase font-black tracking-widest opacity-60">Status</span>
+                  <div className={`w-1 h-1 rounded-full ${
+                    cloudStatus === 'success' ? 'bg-emerald-500' : 
+                    cloudStatus === 'loading' ? 'bg-amber-500' : 
+                    cloudStatus === 'conflict' ? 'bg-rose-500' : 
+                    'bg-slate-700'
+                  }`} />
                 </div>
-                <span className={`text-[9px] font-black tracking-tight transition-colors duration-500 truncate ${
+                <span className={`text-[8.5px] font-black tracking-wider transition-colors duration-500 truncate uppercase ${
                   cloudStatus === 'success' ? 'text-emerald-400' :
                   cloudStatus === 'loading' ? 'text-amber-400' :
-                  cloudStatus === 'conflict' ? 'text-rose-400' :
+                  cloudStatus === 'conflict' ? 'text-rose-400 font-bold' :
                   'text-slate-400'
                 }`}>
-                  {cloudStatus === 'conflict' ? 'В ОБЛАКЕ НОВЕЕ!' : 
-                   !state.syncUrl ? 'ЛОКАЛЬНЫЙ' : 
-                   cloudStatus === 'success' ? 'OK' :
-                   isSyncing || cloudStatus === 'loading' ? 'SYNC...' :
-                   'WAIT...'}
+                  {cloudStatus === 'conflict' ? 'CONFLICT' : 
+                   !state.syncUrl ? 'OFFLINE' : 
+                   cloudStatus === 'success' ? 'SYNCED' :
+                   isSyncing || cloudStatus === 'loading' ? 'PENDING' :
+                   'WAITING'}
                 </span>
               </div>
-              
-              {lastSyncTime && (
-                <div className="ml-auto opacity-30 text-[7px] font-mono font-bold text-slate-500 hidden xl:block">
-                  {lastSyncTime}
-                </div>
-              )}
             </div>
-          </motion.div>
-
-          <div className="flex flex-col gap-1.5">
-            <NavLink to="/" icon={<ICONS.Dashboard size={18} />} label="Dashboard" />
-            <NavLink to="/metrics" icon={<ICONS.Reports size={18} />} label="Метрика" />
-            <NavLink to="/add-income" icon={<ICONS.Income size={18} />} label="Добавить доход" />
-            <NavLink to="/advance-request" icon={<ICONS.HandCoins size={18} />} label="Запрос аванса" />
-            <NavLink to="/operations" icon={<ICONS.Operations size={18} />} label="Операции" />
-            <NavLink to="/reports" icon={<ICONS.Reports size={18} />} label="Отчеты" />
-            <NavLink to="/models" icon={<ICONS.Models size={18} />} label="Модели" />
-            <NavLink to="/roster" icon={<ICONS.Reports size={18} />} label="Состав" />
-            <NavLink to="/total-table" icon={<ICONS.Transfer size={18} />} label="Total Table" admin />
-            <NavLink to="/admin-table" icon={<ICONS.Internship size={18} />} label="Admin Table" admin />
-            {userRole === 'owner' && (
-              <>
-                <NavLink to="/owner-table" icon={<ICONS.Calendar size={18} />} label="Core Table" premium />
-                <NavLink to="/owner" icon={<ICONS.Owner size={18} />} label="Core Finance" premium />
-              </>
-            )}
-            <NavLink to="/settings" icon={<ICONS.Settings size={18} />} label="Настройки" />
           </div>
 
-          <div className="pt-2 border-t border-slate-800 space-y-2">
+          <div className="flex flex-col gap-1.5 flex-1">
+            <NavLink to="/" icon={<ICONS.Dashboard size={14} />} label="Dashboard" />
+            <NavLink to="/metrics" icon={<ICONS.Reports size={14} />} label="Метрика" />
+            <NavLink to="/add-income" icon={<ICONS.Income size={14} />} label="Добавить доход" />
+            <NavLink to="/advance-request" icon={<ICONS.HandCoins size={14} />} label="Запрос аванса" />
+            <NavLink to="/operations" icon={<ICONS.Operations size={14} />} label="Операции" />
+            <NavLink to="/reports" icon={<ICONS.Reports size={14} />} label="Отчеты" />
+            <NavLink to="/models" icon={<ICONS.Models size={14} />} label="Модели" />
+            <NavLink to="/roster" icon={<ICONS.Reports size={14} />} label="Состав" />
+            
+            <div className="mt-4 mb-2 px-3 flex items-center gap-2 opacity-30">
+               <div className="h-[1px] flex-1 bg-slate-800" />
+               <span className="text-[7px] font-bold uppercase tracking-widest text-slate-400">Admin Area</span>
+               <div className="h-[1px] flex-1 bg-slate-800" />
+            </div>
+
+            <NavLink to="/total-table" icon={<ICONS.Transfer size={14} />} label="Total Table" admin />
+            <NavLink to="/admin-table" icon={<ICONS.Internship size={14} />} label="Admin Table" admin />
+            
+            {userRole === 'owner' && (
+              <>
+                <NavLink to="/owner-table" icon={<ICONS.Calendar size={14} />} label="Core Table" premium />
+                <NavLink to="/owner" icon={<ICONS.Owner size={14} />} label="Core Finance" premium />
+              </>
+            )}
+            <NavLink to="/settings" icon={<ICONS.Settings size={14} />} label="Настройки" />
+          </div>
+
+          <div className="mt-auto pt-4 border-t border-white/5 pb-2">
             <button 
               onClick={() => {
                 localStorage.removeItem('continental_auth');
                 localStorage.removeItem('continental_role');
                 window.location.reload();
               }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all text-[10px] font-black uppercase tracking-wider group"
+              className="w-full flex items-center justify-center gap-2.5 px-3 py-3 text-slate-500 hover:text-white hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 rounded-2xl transition-all text-[9px] font-black uppercase tracking-[0.2em] group"
             >
-              <ICONS.Unlock size={12} className="group-hover:scale-110 transition-transform" /> 
-              Выйти
+              <ICONS.Unlock size={12} className="group-hover:rotate-12 transition-transform" /> 
+              <span>Выйти из HUB</span>
             </button>
           </div>
         </nav>
@@ -363,33 +362,61 @@ const NavLink: React.FC<{ to: string; icon: React.ReactNode; label: string; prem
   const location = useLocation();
   const isActive = location.pathname === to;
 
-  let activeClass = 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30';
-  let hoverClass = 'text-slate-500 hover:bg-slate-900 hover:text-slate-100';
-  let iconClass = 'text-slate-600 group-hover:text-indigo-400';
+  let activeBg = 'bg-indigo-500 shadow-[0_0_20px_-5px_rgba(99,102,241,0.5)]';
+  let activeText = 'text-white';
+  let inactiveText = 'text-slate-500 hover:text-slate-300';
+  let iconActiveColor = 'text-white';
+  let iconInactiveColor = 'text-slate-600 group-hover:text-indigo-400';
+  let indicatorColor = 'bg-indigo-400';
 
   if (premium) {
-    activeClass = 'bg-amber-600 text-white shadow-lg shadow-amber-600/30';
-    hoverClass = 'text-amber-500/70 hover:bg-amber-500/10 hover:text-amber-400';
-    iconClass = 'text-amber-500/50';
+    activeBg = 'bg-amber-500 shadow-[0_0_20px_-5px_rgba(245,158,11,0.5)]';
+    inactiveText = 'text-amber-500/70 hover:text-amber-400';
+    iconInactiveColor = 'text-amber-600/50 group-hover:text-amber-400';
+    indicatorColor = 'bg-amber-400';
   }
 
   if (admin) {
-    activeClass = 'bg-sky-600 text-white shadow-lg shadow-sky-600/30';
-    hoverClass = 'text-sky-500/70 hover:bg-sky-500/10 hover:text-sky-400';
-    iconClass = 'text-sky-500/50';
+    activeBg = 'bg-sky-500 shadow-[0_0_20px_-5px_rgba(14,165,233,0.5)]';
+    inactiveText = 'text-sky-500/70 hover:text-sky-400';
+    iconInactiveColor = 'text-sky-600/50 group-hover:text-sky-400';
+    indicatorColor = 'bg-sky-400';
   }
 
   return (
     <Link
       to={to}
-      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all duration-300 group ${
-        isActive ? activeClass : hoverClass
+      className={`relative flex items-center gap-3 px-3 py-1.5 rounded-xl transition-all duration-500 group overflow-hidden ${
+        isActive ? activeBg + ' ' + activeText : inactiveText
       }`}
     >
-      <span className={`transition-all duration-300 shrink-0 ${isActive ? 'text-white scale-110' : iconClass + ' group-hover:scale-110'}`}>
-        {icon || icon}
+      {/* Active Indicator Bar */}
+      {isActive && (
+        <motion.div 
+          layoutId="active-nav-indicator"
+          className={`absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full ${indicatorColor}`}
+        />
+      )}
+
+      {/* Hover Background Glow */}
+      <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+
+      <span className={`transition-all duration-500 shrink-0 relative z-10 ${isActive ? iconActiveColor + ' scale-110' : iconInactiveColor + ' group-hover:scale-110'}`}>
+        {icon}
       </span>
-      <span className={`font-black text-[11px] uppercase tracking-wide truncate ${isActive ? 'text-white' : ''}`}>{label}</span>
+      
+      <span className={`font-black text-[9.5px] uppercase tracking-[0.1em] truncate relative z-10 ${isActive ? 'text-white' : ''}`}>
+        {label}
+      </span>
+
+      {/* Shine Effect Animation */}
+      {isActive && (
+        <motion.div 
+          animate={{ x: ['-100%', '200%'] }} 
+          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear', repeatDelay: 3 }}
+          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -rotate-45 pointer-events-none"
+        />
+      )}
     </Link>
   );
 };
