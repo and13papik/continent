@@ -356,7 +356,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
           <h2 className="text-xl font-black font-outfit uppercase tracking-tighter text-white">Дневник</h2>
           <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">Daily Records Buffer</p>
         </div>
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-2">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
           {report?.dailyHistory.length === 0 && (
             <div className="text-center py-20 opacity-20">
               <ICONS.History size={48} className="mx-auto mb-4" />
@@ -367,62 +367,102 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
             const isActive = selectedDate === d.date;
             const dateObj = new Date(d.date);
             const weekday = dateObj.toLocaleDateString('ru-RU', { weekday: 'short' });
+            const dayNum = d.date.split('-')[2];
+            const monthName = dateObj.toLocaleDateString('ru-RU', { month: 'short' }).replace('.', '');
             
-            // Contextual progress (e.g. against $500 goal)
-            const progress = Math.min((d.totalNet / 500) * 100, 100);
-            
+            // Performance Tiers
+            const progress = Math.min((d.totalGross / 1000) * 100, 100);
+            const isElite = d.totalGross >= 800;
+            const isPro = d.totalGross >= 400 && d.totalGross < 800;
+            const isSolid = d.totalGross > 0 && d.totalGross < 400;
+
             return (
               <motion.button
                 key={d.date}
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.02 }}
+                transition={{ delay: idx * 0.04, type: 'spring', damping: 15 }}
                 onClick={() => setSelectedDate(d.date)}
-                className={`w-full text-left p-3.5 rounded-2xl transition-all duration-500 group relative flex items-center gap-4 ${
+                className={`w-full text-left p-0 rounded-[2.2rem] transition-all duration-500 group relative flex items-stretch border overflow-hidden ${
                   isActive 
-                    ? 'bg-indigo-600 shadow-[0_15px_40px_-5px_rgba(79,70,229,0.5)] border border-indigo-500' 
-                    : 'hover:bg-white/[0.04] border border-transparent hover:border-white/5'
+                    ? 'bg-slate-900 border-indigo-500/60 shadow-[0_25px_60px_-15px_rgba(79,70,229,0.5)] ring-1 ring-white/10' 
+                    : 'bg-slate-950/40 border-white/5 hover:border-white/15 hover:bg-slate-900/60'
                 }`}
               >
-                {isActive && (
-                  <motion.div 
-                    layoutId="active-pill" 
-                    className="absolute inset-0 bg-gradient-to-tr from-indigo-700 via-indigo-600 to-indigo-500 rounded-2xl -z-10 shadow-inner"
-                  />
-                )}
-                
-                <div className={`w-9 h-9 shrink-0 rounded-xl flex flex-col items-center justify-center border-2 transition-all duration-500 overflow-hidden ${
-                  isActive ? 'bg-white border-white scale-110 shadow-lg' : 'bg-slate-950 border-white/5 group-hover:border-white/10 group-hover:scale-105'
-                }`}>
-                   <span className={`text-[7px] font-black uppercase leading-none mb-0.5 ${isActive ? 'text-indigo-600' : 'text-slate-500'}`}>{weekday}</span>
-                   <span className={`text-[11px] font-black font-mono leading-none ${isActive ? 'text-indigo-900' : 'text-slate-200'}`}>{d.date.split('-')[2]}</span>
-                </div>
+                {/* Lateral Status Bar */}
+                <div className={`w-1.5 shrink-0 transition-all duration-700 ${
+                  isActive ? 'bg-indigo-500 shadow-[0_0_20px_#6366f1]' : isElite ? 'bg-amber-400' : isPro ? 'bg-emerald-400' : 'bg-slate-800'
+                }`} />
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-baseline mb-1.5">
-                    <span className={`font-mono text-[10px] font-black tracking-tight ${isActive ? 'text-white' : 'text-slate-400'}`}>
-                      {d.date.split('-').reverse().slice(0, 2).join('.')}
-                    </span>
-                    <div className="flex items-baseline gap-0.5">
-                       <span className={`text-[8px] font-black ${isActive ? 'text-indigo-200' : 'text-slate-600'}`}>$</span>
-                       <span className={`text-[12px] font-black font-mono ${isActive ? 'text-white' : 'text-slate-100 group-hover:text-white'}`}>
-                          {d.totalNet.toFixed(1)}
-                       </span>
+                <div className="flex-1 p-4.5 flex items-center gap-4 relative">
+                  {/* Date Block: WAW Effect */}
+                  <div className={`relative w-16 h-16 shrink-0 rounded-[1.25rem] flex flex-col items-center justify-center border transition-all duration-700 overflow-hidden ${
+                    isActive 
+                      ? 'bg-gradient-to-br from-indigo-500 to-indigo-700 border-white/20 shadow-xl scale-105 rotate-1' 
+                      : 'bg-slate-900/80 border-white/5 group-hover:border-white/10 group-hover:bg-slate-800'
+                  }`}>
+                    <span className={`text-[9px] font-black uppercase tracking-tighter mb-0.5 ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>{weekday}</span>
+                    <span className={`text-2xl font-black font-outfit leading-none ${isActive ? 'text-white' : 'text-slate-200'}`}>{dayNum}</span>
+                    <span className={`text-[8px] font-black uppercase mt-1 opacity-60 tracking-wider ${isActive ? 'text-indigo-200' : 'text-slate-500'}`}>{monthName}</span>
+                    
+                    {/* Active Flare Effect */}
+                    {isActive && (
+                      <motion.div 
+                        animate={{ x: ['-100%', '100%'] }} 
+                        transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -rotate-45"
+                      />
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start mb-2">
+                       <div className="space-y-0.5">
+                          {/* Achievement Badge */}
+                          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/5 w-fit">
+                             {isElite ? <ICONS.Star className="text-amber-400" size={8} /> : isPro ? <ICONS.Chart className="text-emerald-400" size={8} /> : <div className="w-1.5 h-1.5 rounded-full bg-slate-600" />}
+                             <span className={`text-[7px] font-black uppercase tracking-widest ${isElite ? 'text-amber-400' : isPro ? 'text-emerald-400' : 'text-slate-500'}`}>
+                                {isElite ? 'Elite Tier' : isPro ? 'Pro Performance' : 'Solid Day'}
+                             </span>
+                          </div>
+                       </div>
+                    </div>
+
+                    {/* Gross Earnings: Priority */}
+                    <div className="flex items-baseline justify-between">
+                       <div className="flex items-baseline gap-1">
+                          <span className={`text-[10px] font-black font-mono transition-colors ${isActive ? 'text-indigo-300' : 'text-slate-600'}`}>$</span>
+                          <span className={`text-2xl font-black font-mono tracking-tighter transition-all ${isActive ? 'text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]' : 'text-slate-50 group-hover:text-white'}`}>
+                             {d.totalGross.toFixed(0)}
+                          </span>
+                       </div>
+                       
+                       <div className="flex flex-col items-end">
+                          <span className={`text-[7px] font-black uppercase tracking-[0.2em] mb-0.5 ${isActive ? 'text-indigo-400/60' : 'text-slate-600'}`}>Netto</span>
+                          <div className="flex items-baseline gap-1">
+                             <span className={`text-[8px] font-bold font-mono ${isActive ? 'text-indigo-300/40' : 'text-slate-700'}`}>$</span>
+                             <span className={`text-[12px] font-black font-mono ${isActive ? 'text-indigo-200' : 'text-emerald-500/90'}`}>
+                                {d.totalNet.toFixed(1)}
+                             </span>
+                          </div>
+                       </div>
+                    </div>
+
+                    {/* Dynamic Status Indicator */}
+                    <div className="mt-3 flex items-center gap-2">
+                       <div className={`h-1 flex-1 rounded-full overflow-hidden ${isActive ? 'bg-indigo-950' : 'bg-slate-800/40'}`}>
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progress}%` }}
+                            className={`h-full ${
+                              isActive ? 'bg-white' : isElite ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24]' : isPro ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-indigo-500'
+                            }`}
+                          />
+                       </div>
+                       {isActive && <div className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_white] animate-pulse" />}
                     </div>
                   </div>
-                  
-                  <div className={`h-1 w-full rounded-full overflow-hidden ${isActive ? 'bg-indigo-900' : 'bg-slate-800'}`}>
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${progress}%` }}
-                      className={`h-full transition-all duration-1000 ${isActive ? 'bg-white shadow-[0_0_8px_white]' : 'bg-indigo-500'}`}
-                    />
-                  </div>
                 </div>
-
-                {!isActive && progress > 50 && (
-                   <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse absolute right-2 top-2"></div>
-                )}
               </motion.button>
             );
           })}
