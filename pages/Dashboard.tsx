@@ -237,18 +237,26 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
     const raw = currentOperators.map(op => {
       const incomes = state.incomeData.filter(r => r.operator === op && r.periodId === activePeriodId);
       const ops = state.operationsData.filter(o => o.operator === op && o.periodId === activePeriodId && !o.model);
+      
       const rawG = incomes.reduce((sum, r) => sum + r.total, 0);
       const rawN = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
       const opRefunds = state.operationsData.filter(o => o.type === 'refund' && o.operator === op && o.periodId === activePeriodId).reduce((sum, o) => sum + o.amount, 0);
+      
       const avgRate = rawG > 0 ? rawN / rawG : 0.20;
       const totalGross = rawG - opRefunds;
       const totalNet = rawN - (opRefunds * avgRate);
-      const adjPlus = ops.filter(o => o.type === 'bonus').reduce((sum, o) => sum + o.amount, 0);
-      const adjMinus = ops.filter(o => ['penalty', 'advance', 'salary_payment', 'internship'].includes(o.type)).reduce((sum, o) => sum + o.amount, 0);
-      const remainder = totalNet + adjPlus - adjMinus;
+      
+      const bns = ops.filter(o => o.type === 'bonus').reduce((sum, o) => sum + o.amount, 0);
+      const pnl = ops.filter(o => o.type === 'penalty' || o.type === 'internship').reduce((sum, o) => sum + o.amount, 0);
+      const adv = ops.filter(o => o.type === 'advance').reduce((sum, o) => sum + o.amount, 0);
+      const pay = ops.filter(o => o.type === 'salary_payment').reduce((sum, o) => sum + o.amount, 0);
+      
+      const remainder = totalNet + bns - (pnl + adv + pay);
       const isPaid = state.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
+      
       return { 
         op, totalGross, refunds: opRefunds, remainder, isPaid,
+        bonuses: bns, penalties: pnl, advances: adv,
         ofG: incomes.reduce((sum, r) => sum + r.onlyFans, 0), ofN: incomes.reduce((sum, r) => sum + r.nettoOF, 0),
         ppG: incomes.reduce((sum, r) => sum + r.paypal, 0), ppN: incomes.reduce((sum, r) => sum + r.nettoPP, 0),
         crG: incomes.reduce((sum, r) => sum + r.crypto, 0), crN: incomes.reduce((sum, r) => sum + r.nettoCrypto, 0)
@@ -709,16 +717,17 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
+            <table className="w-full text-left text-[11px] whitespace-nowrap">
               <thead>
-                <tr className="bg-slate-900/50 text-slate-500 uppercase text-[10px] font-black tracking-[0.25em] border-b border-white/5">
-                  <th className="px-8 py-5">Персонал</th>
-                  <th className="px-6 py-5 text-center">Эффективность</th>
-                  <th className="px-6 py-5 text-center">OnlyFans</th>
-                  <th className="px-6 py-5 text-center">PayPal</th>
-                  <th className="px-6 py-5 text-center">Crypto</th>
-                  <th className="px-6 py-5 text-center">Чистый баланс</th>
-                  <th className="px-8 py-5 text-right">Статус</th>
+                <tr className="bg-slate-900/50 text-slate-500 uppercase text-[9px] font-black tracking-[0.2em] border-b border-white/5">
+                  <th className="px-6 py-4">Оператор</th>
+                  <th className="px-6 py-4">Общий вал & Эфф.</th>
+                  <th className="px-4 py-4 text-center">OnlyFans (G/N)</th>
+                  <th className="px-4 py-4 text-center">PayPal (G/N)</th>
+                  <th className="px-4 py-4 text-center">Crypto (G/N)</th>
+                  <th className="px-4 py-4 text-center">Правки & Бонусы</th>
+                  <th className="px-6 py-4 text-center">Баланс</th>
+                  <th className="px-6 py-4 text-right">Выплата</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -727,65 +736,77 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
                     key={row.op}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.05 }}
-                    className="hover:bg-white/[0.03] transition-colors group/row"
+                    transition={{ delay: idx * 0.03 }}
+                    className="hover:bg-white/[0.02] transition-all group/row"
                   >
-                    <td className="px-8 py-6">
+                    <td className="px-6 py-4">
                       <div 
                         className="flex items-center gap-3 cursor-pointer" 
                         onClick={() => navigate('/reports', { state: { operator: row.op } })}
                       >
-                        <div className="w-10 h-10 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-xs font-black text-slate-400 group-hover/row:border-indigo-500/30 group-hover/row:text-indigo-400 transition-all">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500/20 to-slate-800 border border-white/5 flex items-center justify-center text-[10px] font-black text-indigo-400 group-hover/row:scale-110 transition-transform">
                           {row.op.charAt(0)}
                         </div>
-                        <div className="font-black text-white text-base group-hover/row:translate-x-1 transition-transform">{row.op}</div>
+                        <div className="flex flex-col">
+                          <span className="font-black text-white text-sm tracking-tight leading-tight group-hover/row:text-indigo-400 transition-colors">{row.op}</span>
+                          <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest opacity-60">ID: {row.op.slice(0,3).toUpperCase()}</span>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-6 py-6 w-56">
-                      <div className="flex flex-col gap-2">
-                         <div className="flex justify-between items-center text-[9px] font-black text-slate-500 px-1">
-                            <span className="text-white font-mono tracking-tighter">${row.totalGross.toFixed(0)}</span>
-                            {row.refunds > 0 && <span className="text-rose-500">Возврат: -${row.refunds.toFixed(0)}</span>}
+                    <td className="px-6 py-4 min-w-[180px]">
+                      <div className="flex flex-col gap-1.5">
+                         <div className="flex justify-between items-center text-[9px] font-black">
+                            <span className="text-white">${row.totalGross.toFixed(0)}</span>
+                            {row.refunds > 0 && <span className="text-rose-500 opacity-80">-${row.refunds.toFixed(0)}</span>}
                          </div>
-                         <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden shadow-inner p-[1px]">
+                         <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden p-[0.5px]">
                             <motion.div 
                               initial={{ width: 0 }}
                               animate={{ width: `${row.percentOfMax}%` }}
-                              transition={{ duration: 1, delay: 0.5 }}
-                              className="h-full bg-gradient-to-r from-indigo-600 to-indigo-400 rounded-full shadow-[0_0_12px_rgba(99,102,241,0.5)]" 
+                              transition={{ duration: 1, delay: idx * 0.05 }}
+                              className="h-full bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.4)]" 
                             />
                          </div>
                       </div>
                     </td>
-                    <td className="px-6 py-6 text-center">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-slate-500 font-mono opacity-50 mb-1 tracking-tighter">${row.ofG.toFixed(0)}</span>
-                        <span className="text-indigo-400 font-outfit font-black text-sm tracking-tight">${row.ofN.toFixed(1)}</span>
+                    <td className="px-4 py-4 text-center">
+                      <div className="inline-flex flex-col items-center bg-indigo-500/5 border border-indigo-500/10 rounded-xl p-2 min-w-[70px]">
+                        <span className="text-[8px] text-indigo-400/50 font-mono mb-0.5 tracking-tighter">${row.ofG.toFixed(0)}</span>
+                        <span className="text-indigo-400 font-outfit font-black text-xs leading-none">${row.ofN.toFixed(0)}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-6 text-center">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-slate-500 font-mono opacity-50 mb-1 tracking-tighter">${row.ppG.toFixed(0)}</span>
-                        <span className="text-sky-400 font-outfit font-black text-sm tracking-tight">${row.ppN.toFixed(1)}</span>
+                    <td className="px-4 py-4 text-center">
+                      <div className="inline-flex flex-col items-center bg-sky-500/5 border border-sky-500/10 rounded-xl p-2 min-w-[70px]">
+                        <span className="text-[8px] text-sky-400/50 font-mono mb-0.5 tracking-tighter">${row.ppG.toFixed(0)}</span>
+                        <span className="text-sky-400 font-outfit font-black text-xs leading-none">${row.ppN.toFixed(0)}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-6 text-center">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-slate-500 font-mono opacity-50 mb-1 tracking-tighter">${row.crG.toFixed(0)}</span>
-                        <span className="text-emerald-400 font-outfit font-black text-sm tracking-tight">${row.crN.toFixed(1)}</span>
+                    <td className="px-4 py-4 text-center">
+                      <div className="inline-flex flex-col items-center bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-2 min-w-[70px]">
+                        <span className="text-[8px] text-emerald-400/50 font-mono mb-0.5 tracking-tighter">${row.crG.toFixed(0)}</span>
+                        <span className="text-emerald-400 font-outfit font-black text-xs leading-none">${row.crN.toFixed(0)}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-6 text-center">
-                      <div className={`text-lg font-black font-outfit tracking-tighter ${row.remainder >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <td className="px-4 py-4">
+                      <div className="flex flex-wrap justify-center gap-1 max-w-[150px] mx-auto">
+                        {row.bonuses > 0 && <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-md text-[8px] font-black uppercase tracking-tighter">Бонус: +${row.bonuses.toFixed(0)}</span>}
+                        {row.penalties > 0 && <span className="px-2 py-0.5 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-md text-[8px] font-black uppercase tracking-tighter">Штраф: -${row.penalties.toFixed(0)}</span>}
+                        {row.advances > 0 && <span className="px-2 py-0.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-md text-[8px] font-black uppercase tracking-tighter">Аванс: -${row.advances.toFixed(0)}</span>}
+                        {row.refunds > 0 && <span className="px-2 py-0.5 bg-blue-500/10 text-blue-500 border border-blue-500/20 rounded-md text-[8px] font-black uppercase tracking-tighter">Возврат: -${row.refunds.toFixed(0)}</span>}
+                        {row.bonuses === 0 && row.penalties === 0 && row.advances === 0 && row.refunds === 0 && <span className="text-slate-600 text-[8px] font-bold">—</span>}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className={`text-base font-black font-outfit tracking-tighter px-3 py-1 rounded-full ${row.remainder >= 0 ? 'text-emerald-400 bg-emerald-400/5' : 'text-rose-400 bg-rose-400/5'}`}>
                         ${row.remainder.toFixed(1)}
                       </div>
                     </td>
-                    <td className="px-8 py-6 text-right">
+                    <td className="px-6 py-4 text-right">
                       <button 
                         onClick={() => toggleOperatorPaid(row.op, row.remainder)} 
-                        className={`px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 shadow-lg ${row.isPaid ? 'bg-emerald-500 text-white shadow-emerald-500/30' : 'bg-white/5 text-slate-500 border border-white/5 hover:bg-white/10 hover:text-white'}`}
+                        className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-300 shadow-md transform hover:scale-105 active:scale-95 ${row.isPaid ? 'bg-emerald-500 text-white shadow-emerald-500/30' : 'bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10 hover:text-white'}`}
                       >
-                        {row.isPaid ? 'Выплачено' : 'К выплате'}
+                        {row.isPaid ? 'Выплачено' : 'Выплатить'}
                       </button>
                     </td>
                   </motion.tr>
