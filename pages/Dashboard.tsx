@@ -563,8 +563,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
                        <span className="text-xl">💰</span>
                     </div>
                     <div className="flex flex-col">
-                      <h2 className="text-[10px] font-black text-amber-500 uppercase tracking-[0.3em] mb-0.5">Ключевые показатели</h2>
-                      <p className="text-[9px] text-slate-500 font-bold tracking-widest uppercase">Общая валовая выручка</p>
+                      <h2 className="text-[10px] font-black text-amber-500 uppercase tracking-[0.3em] mb-0.5">Главные показатели</h2>
+                      <p className="text-[9px] text-slate-500 font-bold tracking-widest uppercase">Всего заработано</p>
                     </div>
                   </div>
                   <div className="flex flex-col items-center lg:items-start">
@@ -606,7 +606,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
           <div className="space-y-6">
             <div className="flex items-center gap-3 ml-2">
               <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.5)]" />
-              <h2 className="text-[10px] uppercase font-black tracking-[0.3em] text-slate-400 opacity-60">Корректировки и бонусы</h2>
+              <h2 className="text-[10px] uppercase font-black tracking-[0.3em] text-slate-400 opacity-60">Бонусы и правки</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <StatCard title="Штрафы" value={`$${stats.penalties.toLocaleString()}`} color="rose" icon={<PenaltyIcon size={16}/>} />
@@ -652,7 +652,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
           <div className="space-y-6">
             <div className="flex items-center gap-3 ml-2">
                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
-               <h2 className="text-[10px] uppercase font-black tracking-[0.3em] text-slate-400 opacity-60">Операционная ведомость</h2>
+               <h2 className="text-[10px] uppercase font-black tracking-[0.3em] text-slate-400 opacity-60">Операторская ведомость</h2>
             </div>
             <div className="grid grid-cols-1 gap-5">
               <motion.div 
@@ -663,7 +663,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
                 
                 <div className="flex items-center justify-between mb-6 relative z-10">
                    <div className="space-y-1">
-                     <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">Валовая ЗП Операторов</p>
+                     <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">Зарплаты операторов</p>
                      <p className="text-4xl font-black text-white font-outfit tracking-tighter leading-none">${stats.netEarned.toLocaleString()}</p>
                    </div>
                    <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/20 shadow-inner group-hover:rotate-6 transition-transform duration-500">
