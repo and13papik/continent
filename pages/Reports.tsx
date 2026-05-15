@@ -16,50 +16,67 @@ import PeriodBadge from '../components/PeriodBadge';
 
 // --- HELPER COMPONENTS ---
 
-const StatsCard = ({ title, value, icon, color, highlighted }: { title: string, value: number, icon: React.ReactNode, color: string, highlighted?: boolean }) => (
-  <div className={`glass-card p-6 rounded-[2.5rem] border transition-all duration-700 relative overflow-hidden group h-full flex flex-col ${highlighted ? 'border-indigo-500/40 bg-slate-900 shadow-[0_20px_40px_-10px_rgba(99,102,241,0.3)] ring-1 ring-white/10' : 'border-white/5 bg-slate-900/40 hover:bg-slate-900/60 hover:border-white/10 shadow-xl'}`}>
-    <div className={`absolute -right-6 -top-6 w-32 h-32 blur-[60px] rounded-full opacity-0 group-hover:opacity-20 transition-all duration-700 ${color === 'indigo' ? 'bg-indigo-500' : 'bg-emerald-500'}`}></div>
-    <div className="flex flex-col gap-6 relative z-10 flex-grow">
-      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-700 group-hover:scale-110 group-hover:rotate-6 ${highlighted ? 'bg-indigo-600 text-white shadow-lg' : `bg-slate-950/60 border border-white/5 text-${color}-400 shadow-inner`}`}>
-        {React.cloneElement(icon as React.ReactElement, { size: 24 })}
-      </div>
-      <div className="space-y-2">
-        <div className="flex flex-col gap-0.5">
-           <p className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em] leading-none mb-1 group-hover:text-indigo-400 transition-colors truncate">{title}</p>
-        </div>
-        <div className="flex items-baseline gap-1.5 overflow-hidden">
-           <span className={`text-xs font-mono font-black ${highlighted ? 'text-indigo-400' : 'text-slate-600'}`}>$</span>
-           <p className={`text-2xl font-black font-outfit tracking-tighter truncate ${highlighted ? 'text-white' : `text-slate-100 group-hover:text-white`}`}>
-              {value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-           </p>
-        </div>
-      </div>
-    </div>
-  </div>
-);
+const MetricCard = ({ title, value, subValue, icon, color, highlighted, label }: { title: string, value: number, subValue?: number, icon: React.ReactNode, color: string, highlighted?: boolean, label?: string }) => {
+  const colorMap: any = {
+    indigo: 'from-indigo-600/20 to-indigo-900/40 border-indigo-500/30 text-indigo-400',
+    emerald: 'from-emerald-600/20 to-emerald-950/40 border-emerald-500/30 text-emerald-400',
+    sky: 'from-sky-600/20 to-sky-950/40 border-sky-500/30 text-sky-400',
+    amber: 'from-amber-600/20 to-amber-950/40 border-amber-500/30 text-amber-400'
+  };
 
-const PlatformPill = ({ label, gross, net, color, icon }: { label: string, gross: number, net: number, color: string, icon: React.ReactNode }) => (
-  <div className="glass-card p-5 rounded-[2rem] border-white/5 bg-slate-900/40 hover:bg-slate-900/60 hover:border-white/10 transition-all border group relative overflow-hidden">
-    <div className="flex items-center gap-3 mb-4 relative z-10">
-       <div className={`w-8 h-8 rounded-lg flex items-center justify-center border transition-all duration-500 group-hover:scale-110 group-hover:bg-opacity-20 ${color === 'indigo' ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' : color === 'sky' ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'}`}>
-          {icon}
-       </div>
-       <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors">{label}</span>
+  return (
+    <div className={`p-4 rounded-[1.75rem] border bg-gradient-to-br transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] group relative overflow-hidden flex flex-col justify-between h-full ${
+      highlighted 
+        ? 'bg-slate-900 border-indigo-500/50 shadow-[0_15px_35px_-10px_rgba(79,70,229,0.3)] ring-1 ring-white/10' 
+        : `bg-slate-900/40 border-white/5 hover:border-white/10 ${colorMap[color] || ''}`
+    }`}>
+      {/* Decorative Glow */}
+      <div className={`absolute -right-4 -top-4 w-20 h-20 blur-3xl opacity-0 group-hover:opacity-30 transition-all duration-700 ${
+        color === 'indigo' ? 'bg-indigo-500' : color === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'
+      }`} />
+
+      <div className="flex justify-between items-start mb-3 relative z-10">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 ${
+          highlighted ? 'bg-white text-indigo-600 shadow-lg shadow-white/10' : 'bg-white/5 border border-white/10 text-white/80 group-hover:text-white'
+        }`}>
+          {React.cloneElement(icon as React.ReactElement, { size: 18 })}
+        </div>
+        <div className="flex flex-col items-end">
+           <span className="text-[7px] font-black uppercase tracking-[0.25em] text-slate-500 mb-0.5 leading-none transition-colors group-hover:text-white/40">{label || 'Total'}</span>
+           <div className={`h-1 w-4 rounded-full ${color === 'indigo' ? 'bg-indigo-500' : color === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'}`} />
+        </div>
+      </div>
+
+      <div className="relative z-10">
+        <h4 className="text-[9px] font-black uppercase text-slate-500 tracking-wider mb-2 group-hover:text-white/60 transition-colors truncate">{title}</h4>
+        
+        <div className="flex items-baseline gap-1">
+          <span className={`text-[10px] font-black font-mono transition-colors ${highlighted ? 'text-indigo-300' : 'text-slate-600'}`}>$</span>
+          <p className={`text-xl font-black font-mono tracking-tighter transition-all truncate ${highlighted ? 'text-white' : 'text-white group-hover:scale-110 origin-left'}`}>
+            {value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+          </p>
+        </div>
+
+        {subValue !== undefined && (
+          <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between">
+             <span className="text-[7px] font-black uppercase text-slate-600">Netto</span>
+             <span className={`text-[10px] font-black font-mono ${color === 'indigo' ? 'text-indigo-300' : color === 'sky' ? 'text-sky-300' : 'text-emerald-400'}`}>
+                ${subValue.toFixed(1)}
+             </span>
+          </div>
+        )}
+      </div>
+
+      {/* Shine Effect */}
+      <motion.div 
+        animate={{ x: ['100%', '-200%'] }} 
+        transition={{ duration: 3, repeat: Infinity, ease: 'linear', repeatDelay: 4 }}
+        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -rotate-45 pointer-events-none"
+      />
     </div>
-    <div className="space-y-2 relative z-10">
-       <div className="flex justify-between items-center px-0.5">
-          <span className="text-[8px] font-black uppercase text-slate-600 tracking-widest">Gross</span>
-          <span className="text-[10px] text-slate-400 font-mono font-black">${gross.toFixed(0)}</span>
-       </div>
-       <div className="flex justify-between items-center px-0.5">
-          <span className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Net</span>
-          <span className={`text-base font-black font-mono transition-colors ${color === 'indigo' ? 'text-white group-hover:text-indigo-400' : color === 'sky' ? 'text-white group-hover:text-sky-400' : 'text-white group-hover:text-emerald-400'}`}>
-             ${net.toFixed(1)}
-          </span>
-       </div>
-    </div>
-  </div>
-);
+  );
+};
+
 
 const DetailBox = ({ pill, gross, net, rate, color }: { pill: string, gross: number, net: number, rate: string, color: string }) => {
   const colorMap: any = {
@@ -557,22 +574,46 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                </AnimatePresence>
 
                {/* TOP STATS BENTO */}
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                  <div className="lg:col-span-1">
-                    <StatsCard title="Выручка (Brutto)" value={report.totalBrutto} icon={<ICONS.Income />} color="indigo" />
-                  </div>
-                  <div className="lg:col-span-1">
-                    <StatsCard title="Зарплата (Netto)" value={report.totalNetto} icon={<ICONS.Wallet />} color="emerald" highlighted />
-                  </div>
-                  <div className="lg:col-span-1">
-                    <PlatformPill label="OnlyFans" gross={report.platformStats.of.gross} net={report.platformStats.of.net} color="indigo" icon={<span className="text-[9px] font-black">OF</span>} />
-                  </div>
-                  <div className="lg:col-span-1">
-                    <PlatformPill label="PayPal" gross={report.platformStats.pp.gross} net={report.platformStats.pp.net} color="sky" icon={<span className="text-[9px] font-black">PP</span>} />
-                  </div>
-                  <div className="lg:col-span-1">
-                    <PlatformPill label="Crypto" gross={report.platformStats.cr.gross} net={report.platformStats.cr.net} color="emerald" icon={<span className="text-[9px] font-black">CR</span>} />
-                  </div>
+               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                  <MetricCard 
+                    title="Зарплата (Чистыми)" 
+                    label="Final Balance"
+                    value={report.finalBalance} 
+                    icon={<ICONS.Wallet />} 
+                    color="emerald" 
+                    highlighted 
+                  />
+                  <MetricCard 
+                    title="Общий вал (Грязными)" 
+                    label="Total Gross"
+                    value={report.totalBrutto} 
+                    icon={<ICONS.Income />} 
+                    color="indigo" 
+                  />
+                  <MetricCard 
+                    title="OnlyFans (OF)" 
+                    label="Gross / Net"
+                    value={report.platformStats.of.gross} 
+                    subValue={report.platformStats.of.net}
+                    icon={<div className="font-black text-[10px]">OF</div>} 
+                    color="sky" 
+                  />
+                  <MetricCard 
+                    title="PayPal (PP)" 
+                    label="Gross / Net"
+                    value={report.platformStats.pp.gross} 
+                    subValue={report.platformStats.pp.net}
+                    icon={<div className="font-black text-[10px]">PP</div>} 
+                    color="indigo" 
+                  />
+                  <MetricCard 
+                    title="Crypto (CR)" 
+                    label="Gross / Net"
+                    value={report.platformStats.cr.gross} 
+                    subValue={report.platformStats.cr.net}
+                    icon={<div className="font-black text-[10px]">CR</div>} 
+                    color="emerald" 
+                  />
                </div>
 
                {/* SECONDARY ROW: DAY DETAILS & FINAL BALANCE */}
