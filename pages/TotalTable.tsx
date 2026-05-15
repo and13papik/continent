@@ -478,6 +478,20 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     });
   };
 
+  const testTelegram = async () => {
+    try {
+      const resp = await fetch('/api/test-telegram');
+      const data = await resp.json();
+      if (resp.ok) {
+        alert('✅ Тестовое сообщение отправлено! Проверьте группу Telegram.');
+      } else {
+        alert(`❌ Ошибка проверки: ${data.error || 'Неизвестная ошибка'}`);
+      }
+    } catch (e: any) {
+      alert(`❌ Сбой запроса: ${e.message}`);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-700 pb-20 max-w-[1400px] mx-auto">
       <header className="flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800 shadow-xl">
@@ -502,6 +516,9 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         </div>
         
         <div className="flex gap-3">
+           <button onClick={testTelegram} className="bg-amber-600/20 hover:bg-amber-600 border border-amber-500/30 text-amber-400 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 shadow-lg shadow-amber-500/10">
+              <ICONS.Send size={14} /> Тест Telegram
+           </button>
            <button onClick={handleRecalculateDynamicGoals} className="bg-sky-600/20 hover:bg-sky-600 border border-sky-500/30 text-sky-400 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 shadow-lg shadow-sky-500/10">
               <ICONS.RotateCcw size={14} /> Пересчитать динамические цели
            </button>
