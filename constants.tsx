@@ -86,7 +86,8 @@ export const ICONS: Record<string, any> = {
   Wallet: Wallet,
   Send: Send,
   User: User,
-  History: History
+  History: History,
+  Empty: ClipboardList
 };
 
 export const PLATFORM_NAMES: Record<string, string> = {
