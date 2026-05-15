@@ -16,7 +16,7 @@ import PeriodBadge from '../components/PeriodBadge';
 
 // --- HELPER COMPONENTS ---
 
-const MetricCard = ({ title, value, subValue, icon, color, highlighted, label }: { title: string, value: number, subValue?: number, icon: React.ReactNode, color: string, highlighted?: boolean, label?: string }) => {
+const MetricCard = ({ title, value, subValue, icon, color, highlighted, label, variant = 'primary' }: { title: string, value: number, subValue?: number, icon: React.ReactNode, color: string, highlighted?: boolean, label?: string, variant?: 'primary' | 'platform' }) => {
   const colorMap: any = {
     indigo: 'from-indigo-600/20 to-indigo-900/40 border-indigo-500/30 text-indigo-400',
     emerald: 'from-emerald-600/20 to-emerald-950/40 border-emerald-500/30 text-emerald-400',
@@ -24,8 +24,12 @@ const MetricCard = ({ title, value, subValue, icon, color, highlighted, label }:
     amber: 'from-amber-600/20 to-amber-950/40 border-amber-500/30 text-amber-400'
   };
 
+  const isPlatform = variant === 'platform';
+
   return (
-    <div className={`p-4 rounded-[1.75rem] border bg-gradient-to-br transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] group relative overflow-hidden flex flex-col justify-between h-full ${
+    <div className={`rounded-[1.4rem] border bg-gradient-to-br transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] group relative overflow-hidden flex flex-col justify-between h-full ${
+      isPlatform ? 'p-3' : 'p-4'
+    } ${
       highlighted 
         ? 'bg-slate-900 border-indigo-500/50 shadow-[0_15px_35px_-10px_rgba(79,70,229,0.3)] ring-1 ring-white/10' 
         : `bg-slate-900/40 border-white/5 hover:border-white/10 ${colorMap[color] || ''}`
@@ -35,44 +39,39 @@ const MetricCard = ({ title, value, subValue, icon, color, highlighted, label }:
         color === 'indigo' ? 'bg-indigo-500' : color === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'
       }`} />
 
-      <div className="flex justify-between items-start mb-3 relative z-10">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 ${
+      <div className={`flex justify-between items-start relative z-10 ${isPlatform ? 'mb-1' : 'mb-3'}`}>
+        <div className={`${isPlatform ? 'w-7 h-7' : 'w-9 h-9'} rounded-xl flex items-center justify-center transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 ${
           highlighted ? 'bg-white text-indigo-600 shadow-lg shadow-white/10' : 'bg-white/5 border border-white/10 text-white/80 group-hover:text-white'
         }`}>
-          {React.cloneElement(icon as React.ReactElement, { size: 18 })}
+          {React.cloneElement(icon as React.ReactElement, { size: isPlatform ? 14 : 18 })}
         </div>
-        <div className="flex flex-col items-end">
-           <span className="text-[7px] font-black uppercase tracking-[0.25em] text-slate-500 mb-0.5 leading-none transition-colors group-hover:text-white/40">{label || 'Total'}</span>
-           <div className={`h-1 w-4 rounded-full ${color === 'indigo' ? 'bg-indigo-500' : color === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'}`} />
-        </div>
+        {!isPlatform && (
+          <div className="flex flex-col items-end">
+             <span className="text-[7px] font-black uppercase tracking-[0.25em] text-slate-500 mb-0.5 leading-none transition-colors group-hover:text-white/40">{label || 'Total'}</span>
+             <div className={`h-1 w-4 rounded-full ${color === 'indigo' ? 'bg-indigo-500' : color === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'}`} />
+          </div>
+        )}
       </div>
 
       <div className="relative z-10">
-        <h4 className="text-[9px] font-black uppercase text-slate-500 tracking-wider mb-2 group-hover:text-white/60 transition-colors truncate">{title}</h4>
+        <h4 className={`${isPlatform ? 'text-[7.5px]' : 'text-[9px]'} font-black uppercase text-slate-500 tracking-wider mb-1 transition-colors truncate`}>{title}</h4>
         
-        <div className="flex items-baseline gap-1">
-          <span className={`text-[10px] font-black font-mono transition-colors ${highlighted ? 'text-indigo-300' : 'text-slate-600'}`}>$</span>
-          <p className={`text-xl font-black font-mono tracking-tighter transition-all truncate ${highlighted ? 'text-white' : 'text-white group-hover:scale-110 origin-left'}`}>
+        <div className="flex items-baseline gap-0.5">
+          <span className={`${isPlatform ? 'text-[8px]' : 'text-[10px]'} font-black font-mono transition-colors ${highlighted ? 'text-indigo-300' : 'text-slate-600'}`}>$</span>
+          <p className={`${isPlatform ? 'text-base' : 'text-xl'} font-black font-mono tracking-tighter transition-all truncate ${highlighted ? 'text-white' : 'text-white group-hover:translate-x-1'}`}>
             {value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </p>
         </div>
 
         {subValue !== undefined && (
-          <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between">
-             <span className="text-[7px] font-black uppercase text-slate-600">Netto</span>
-             <span className={`text-[10px] font-black font-mono ${color === 'indigo' ? 'text-indigo-300' : color === 'sky' ? 'text-sky-300' : 'text-emerald-400'}`}>
+          <div className={`${isPlatform ? 'mt-1 pt-1' : 'mt-2 pt-2'} border-t border-white/5 flex items-center justify-between`}>
+             <span className={`${isPlatform ? 'text-[6px]' : 'text-[7px]'} font-black uppercase text-slate-600 shrink-0`}>Netto</span>
+             <span className={`${isPlatform ? 'text-[9px]' : 'text-[10px]'} font-black font-mono ${color === 'indigo' ? 'text-indigo-300' : color === 'sky' ? 'text-sky-300' : 'text-emerald-400'}`}>
                 ${subValue.toFixed(1)}
              </span>
           </div>
         )}
       </div>
-
-      {/* Shine Effect */}
-      <motion.div 
-        animate={{ x: ['100%', '-200%'] }} 
-        transition={{ duration: 3, repeat: Infinity, ease: 'linear', repeatDelay: 4 }}
-        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -rotate-45 pointer-events-none"
-      />
     </div>
   );
 };
@@ -573,52 +572,60 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                  )}
                </AnimatePresence>
 
-               {/* TOP STATS BENTO */}
-               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                  <MetricCard 
-                    title="Зарплата (Чистыми)" 
-                    label="Final Balance"
-                    value={report.finalBalance} 
-                    icon={<ICONS.Wallet />} 
-                    color="emerald" 
-                    highlighted 
-                  />
-                  <MetricCard 
-                    title="Общий вал (Грязными)" 
-                    label="Total Gross"
-                    value={report.totalBrutto} 
-                    icon={<ICONS.Income />} 
-                    color="indigo" 
-                  />
-                  <MetricCard 
-                    title="OnlyFans (OF)" 
-                    label="Gross / Net"
-                    value={report.platformStats.of.gross} 
-                    subValue={report.platformStats.of.net}
-                    icon={<div className="font-black text-[10px]">OF</div>} 
-                    color="sky" 
-                  />
-                  <MetricCard 
-                    title="PayPal (PP)" 
-                    label="Gross / Net"
-                    value={report.platformStats.pp.gross} 
-                    subValue={report.platformStats.pp.net}
-                    icon={<div className="font-black text-[10px]">PP</div>} 
-                    color="indigo" 
-                  />
-                  <MetricCard 
-                    title="Crypto (CR)" 
-                    label="Gross / Net"
-                    value={report.platformStats.cr.gross} 
-                    subValue={report.platformStats.cr.net}
-                    icon={<div className="font-black text-[10px]">CR</div>} 
-                    color="emerald" 
-                  />
+               {/* TOP STATS BENTO: Hierarchical Grid */}
+               <div className="grid grid-cols-12 gap-3">
+                  <div className="col-span-12 md:col-span-6 lg:col-span-3 h-full">
+                    <MetricCard 
+                      title="Зарплата (Чистыми)" 
+                      label="Final Balance"
+                      value={report.finalBalance} 
+                      icon={<ICONS.Wallet />} 
+                      color="emerald" 
+                      highlighted 
+                    />
+                  </div>
+                  <div className="col-span-12 md:col-span-6 lg:col-span-3 h-full">
+                    <MetricCard 
+                      title="Общий вал (Грязными)" 
+                      label="Total Gross"
+                      value={report.totalBrutto} 
+                      icon={<ICONS.Income />} 
+                      color="indigo" 
+                    />
+                  </div>
+                  
+                  {/* Platform Compact Trio */}
+                  <div className="col-span-12 lg:col-span-6 grid grid-cols-3 gap-2">
+                    <MetricCard 
+                      title="OnlyFans (OF)" 
+                      value={report.platformStats.of.gross} 
+                      subValue={report.platformStats.of.net}
+                      icon={<div className="font-black text-[10px]">OF</div>} 
+                      color="sky" 
+                      variant="platform"
+                    />
+                    <MetricCard 
+                      title="PayPal (PP)" 
+                      value={report.platformStats.pp.gross} 
+                      subValue={report.platformStats.pp.net}
+                      icon={<div className="font-black text-[10px]">PP</div>} 
+                      color="indigo" 
+                      variant="platform"
+                    />
+                    <MetricCard 
+                      title="Crypto (CR)" 
+                      value={report.platformStats.cr.gross} 
+                      subValue={report.platformStats.cr.net}
+                      icon={<div className="font-black text-[10px]">CR</div>} 
+                      color="emerald" 
+                      variant="platform"
+                    />
+                  </div>
                </div>
 
                {/* SECONDARY ROW: DAY DETAILS & FINAL BALANCE */}
                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                  {/* SELECTED DAY DETAILS */}
+                  {/* ... day details remains similar ... */}
                   <div className="xl:col-span-2 glass-card rounded-[2.5rem] border-white/5 overflow-hidden flex flex-col h-[500px]">
                      <div className="px-8 py-6 border-b border-white/5 bg-white/[0.02] flex items-center justify-between shrink-0">
                         <div className="flex items-center gap-4">
@@ -676,38 +683,66 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                      </div>
                   </div>
 
-                  {/* SETTLEMENT CARD (FINAL BALANCE) */}
-                  <div className="xl:col-span-1 glass-card rounded-[2.5rem] border-white/5 bg-slate-900/40 p-8 flex flex-col items-stretch h-[500px]">
-                     <div className="flex justify-between items-center mb-8">
-                        <h3 className="text-xl font-black font-outfit uppercase tracking-tight text-white leading-none">Финальный чек</h3>
-                        <ICONS.Salary className="text-indigo-500" size={24} />
+                  {/* SETTLEMENT CARD (FINAL BALANCE): WAW REDESIGN */}
+                  <div className="xl:col-span-1 border border-white/5 bg-slate-950 rounded-[2.5rem] overflow-hidden flex flex-col h-[500px] relative shadow-2xl">
+                     {/* Premium Background Accent */}
+                     <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-indigo-950/30 to-transparent" />
+                     
+                     <div className="px-6 py-5 border-b border-white/5 bg-slate-900/40 flex justify-between items-center relative z-10">
+                        <div className="flex flex-col">
+                           <h3 className="text-base font-black font-outfit uppercase tracking-tight text-white leading-none">Финальный чек</h3>
+                           <span className="text-[7px] font-black text-slate-500 uppercase tracking-[0.2em] mt-1">Official Settlement</span>
+                        </div>
+                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-indigo-400">
+                           <ICONS.Salary size={16} />
+                        </div>
                      </div>
-                     <div className="flex-1 space-y-4 overflow-y-auto custom-scrollbar -mx-2 px-2">
-                        <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5">
-                           <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block mb-1">Сумма по выработке</span>
+
+                     <div className="flex-1 p-5 space-y-4 overflow-hidden relative z-10 flex flex-col justify-center">
+                        {/* Earnings Section */}
+                        <div className="relative p-4 rounded-[1.25rem] bg-indigo-600/5 border border-indigo-500/10 group hover:bg-indigo-600/10 transition-all">
+                           <span className="text-[7px] font-black uppercase tracking-[0.25em] text-indigo-400 mb-1.5 block">Выработано за период</span>
                            <div className="flex justify-between items-baseline">
-                              <span className="font-bold text-slate-300">Net Profit</span>
-                              <span className="font-mono font-black text-xl text-white">${report.totalNetto.toFixed(1)}</span>
+                              <span className="text-slate-400 text-[10px] font-bold">Чистая прибыль</span>
+                              <span className="font-mono font-black text-xl text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">${report.totalNetto.toFixed(1)}</span>
                            </div>
                         </div>
-                        <div className="space-y-1">
+
+                        {/* Adjustments Section */}
+                        <div className="space-y-1.5">
                            <SummaryLine label="Авансы / Салари" val={report.adjustmentGroups.advance + report.adjustmentGroups.salary} type="minus" />
                            <SummaryLine label="Штрафы / Списания" val={report.adjustmentGroups.penalty} type="minus" />
                            <SummaryLine label="Бонусы / Премии" val={report.adjustmentGroups.bonus} type="plus" />
-                           <SummaryLine label="Обучение" val={report.adjustmentGroups.internship} type="minus" />
+                           <SummaryLine label="Обучение / Офис" val={report.adjustmentGroups.internship} type="minus" />
                         </div>
-                        <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 border-dashed text-center">
-                           <span className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-400/60">Авто-коррекция возвратов: -${report.adjustmentGroups.refund.toFixed(0)}</span>
-                        </div>
+
+                        {/* Refund Auto-Adjustment */}
+                        {report.adjustmentGroups.refund > 0 && (
+                          <div className="p-2.5 rounded-xl bg-rose-500/5 border border-rose-500/10 border-dashed flex justify-between items-center">
+                             <div className="flex items-center gap-1.5">
+                                <div className="w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
+                                <span className="text-[7px] font-black uppercase tracking-widest text-rose-400/80">Возвраты (комиссия)</span>
+                             </div>
+                             <span className="font-mono font-black text-[9px] text-rose-400">-${(report.adjustmentGroups.refund * 0.2).toFixed(1)}</span>
+                          </div>
+                        )}
                      </div>
-                     <div className="mt-8 pt-8 border-t-2 border-slate-800 border-dashed text-center relative">
-                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-indigo-600 px-4 py-1 rounded-full text-[8px] font-black uppercase text-white shadow-lg">К выплате</div>
-                        <div className="flex flex-col items-center">
-                           <span className="text-5xl font-black font-mono text-white tracking-tighter">${report.finalBalance.toLocaleString(undefined, { minimumFractionDigits: 1 })}</span>
-                           <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-2">{selectedOperator} Verified Wallet</span>
+
+                     <div className="p-6 bg-slate-900/60 border-t border-white/5 relative z-10 mt-auto">
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 px-4 py-1 rounded-full text-[8px] font-black uppercase text-white shadow-xl ring-2 ring-slate-900">К выплате</div>
+                        
+                        <div className="flex flex-col items-center mt-2">
+                           <span className="text-4xl font-black font-mono text-white tracking-tighter drop-shadow-[0_8px_16px_rgba(79,70,229,0.4)]">
+                              ${report.finalBalance.toLocaleString(undefined, { minimumFractionDigits: 1 })}
+                           </span>
+                           <div className="flex items-center gap-1.5 mt-2.5 p-0.5 px-2 rounded-full bg-white/5 border border-white/5">
+                              <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                              <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Verified by Continental</span>
+                           </div>
                         </div>
                      </div>
                   </div>
+
                </div>
 
                {/* WALLET & TRANSACTION HISTORY */}
@@ -718,53 +753,98 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                         <h3 className="text-base font-black font-outfit uppercase tracking-tight text-white leading-none">Лог операций</h3>
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Operator Audit</span>
                      </div>
-                     <div className="flex-1 overflow-y-auto custom-scrollbar">
-                        <table className="w-full text-left text-xs border-separate border-spacing-0">
-                           <tbody className="divide-y divide-white/[0.03]">
-                              {report.fullHistory.map((item, idx) => (
-                                 <tr key={item.id} className="hover:bg-white/[0.02] group transition-colors">
-                                    <td className="px-8 py-4 font-mono font-black text-slate-500">{item.date.split('-').reverse().slice(0,2).join('.')}</td>
-                                    <td className="px-8 py-4">
-                                       <div className="flex items-center gap-3">
-                                          <div className={`w-1.5 h-1.5 rounded-full ${item.type === 'income' ? 'bg-emerald-500' : 'bg-indigo-500'}`}></div>
-                                          <span className="font-bold text-slate-200 uppercase truncate max-w-[200px]">{item.label}</span>
-                                       </div>
-                                    </td>
-                                    <td className="px-8 py-4 font-mono font-black text-right">
-                                       <span className={item.amount >= 0 && item.type === 'income' || (item as any).opType === 'bonus' ? 'text-emerald-400' : 'text-rose-400'}>
-                                          {item.amount >= 0 ? '+' : ''}${item.amount.toFixed(1)}
-                                       </span>
-                                    </td>
-                                    <td className="px-8 py-4 text-right">
-                                       <button onClick={() => deleteRecord({type: item.type, id: item.id})} className="p-2 rounded-lg hover:bg-rose-500/20 text-slate-600 hover:text-rose-500 transition-all">
-                                          <ICONS.Trash size={14} />
-                                       </button>
-                                    </td>
-                                 </tr>
-                              ))}
-                           </tbody>
-                        </table>
+                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                        <div className="space-y-3">
+                           {report.fullHistory.length === 0 ? (
+                             <div className="text-center py-20 opacity-20 flex flex-col items-center">
+                                <ICONS.Empty size={40} className="mx-auto mb-4" />
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em]">История пуста</p>
+                             </div>
+                           ) : report.fullHistory.map((item, idx) => (
+                             <motion.div 
+                                key={item.id}
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: idx * 0.03 }}
+                                className="group flex items-center gap-4 p-3.5 rounded-2xl border border-white/5 bg-white/[0.01] hover:bg-indigo-600/[0.03] hover:border-indigo-500/30 transition-all relative overflow-hidden"
+                             >
+                                <div className="absolute top-0 left-0 w-1 h-full bg-slate-800 transition-all group-hover:bg-indigo-500" />
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all ${
+                                  item.type === 'income' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.1)]'
+                                }`}>
+                                   {item.type === 'income' ? <ICONS.Income size={14} /> : <ICONS.Chart size={14} />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                   <div className="flex justify-between items-baseline mb-0.5">
+                                      <h5 className="text-[10px] font-black text-slate-200 uppercase truncate group-hover:text-white transition-colors">{item.label}</h5>
+                                      <span className={`text-xs font-black font-mono ${item.amount >= 0 && item.type === 'income' || (item as any).opType === 'bonus' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                         {item.amount >= 0 ? '+' : ''}${Math.abs(item.amount).toFixed(1)}
+                                      </span>
+                                   </div>
+                                   <div className="flex items-center gap-2">
+                                      <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">{item.date.split('-').reverse().join('.')}</span>
+                                      <div className="w-0.5 h-0.5 rounded-full bg-slate-700" />
+                                      <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Internal Audit</span>
+                                   </div>
+                                </div>
+                                <button 
+                                  onClick={() => deleteRecord({type: item.type, id: item.id})}
+                                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-700 hover:text-white hover:bg-rose-500 transition-all opacity-0 group-hover:opacity-100"
+                                >
+                                   <ICONS.Trash size={12} />
+                                </button>
+                             </motion.div>
+                           ))}
+                        </div>
                      </div>
                   </div>
 
-                  {/* WALLET & DETAILS */}
-                  <div className="glass-card rounded-[2.5rem] border-white/5 p-8 flex flex-col gap-6 relative overflow-hidden">
-                     <div className="absolute right-0 top-0 w-32 h-32 bg-indigo-600/5 blur-3xl rounded-full"></div>
+                  {/* WALLET & DETAILS: WAW REDESIGN */}
+                  <div className="glass-card rounded-[2.5rem] border-white/5 p-8 flex flex-col gap-6 relative overflow-hidden h-[400px]">
+                     <div className="absolute right-0 top-0 w-32 h-32 bg-indigo-500/10 blur-3xl rounded-full"></div>
                      <div className="flex justify-between items-center relative z-10">
-                        <h3 className="text-xl font-black font-outfit uppercase tracking-tight text-white leading-none">Реквизиты</h3>
-                        <ICONS.Wallet className="text-indigo-500" size={24} />
-                     </div>
-                     <div className="space-y-6 flex-1 relative z-10">
-                        <div className="flex p-1 bg-slate-950 rounded-xl border border-white/5">
-                           <button onClick={() => updateWallet(report.wallet?.address || '', 'usdt_trc20')} className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${(!report.wallet || report.wallet.method === 'usdt_trc20') ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500'}`}>USDT</button>
-                           <button onClick={() => updateWallet(report.wallet?.address || '', 'card')} className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${report.wallet?.method === 'card' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500'}`}>CARD</button>
+                        <div className="flex flex-col">
+                           <h3 className="text-xl font-black font-outfit uppercase tracking-tight text-white leading-none">Реквизиты</h3>
+                           <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">Payment Endpoint Settings</span>
                         </div>
+                        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+                           <ICONS.Wallet size={20} />
+                        </div>
+                     </div>
+
+                     <div className="space-y-5 flex-1 relative z-10">
+                        <div className="flex p-1.5 bg-slate-950 rounded-2xl border border-white/5 relative items-stretch">
+                           <button 
+                             onClick={() => updateWallet(report.wallet?.address || '', 'usdt_trc20')} 
+                             className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all relative z-10 ${(!report.wallet || report.wallet.method === 'usdt_trc20') ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                           >
+                             {(!report.wallet || report.wallet.method === 'usdt_trc20') && (
+                               <motion.div layoutId="wallet-bg" className="absolute inset-0 bg-indigo-600 rounded-xl shadow-[0_10px_20px_-5px_rgba(79,70,229,0.5)] -z-10" />
+                             )}
+                             USDT
+                           </button>
+                           <button 
+                             onClick={() => updateWallet(report.wallet?.address || '', 'card')} 
+                             className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all relative z-10 ${report.wallet?.method === 'card' ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                           >
+                             {report.wallet?.method === 'card' && (
+                               <motion.div layoutId="wallet-bg" className="absolute inset-0 bg-indigo-600 rounded-xl shadow-[0_10px_20px_-5px_rgba(79,70,229,0.5)] -z-10" />
+                             )}
+                             CARD
+                           </button>
+                        </div>
+
                         <div className="space-y-2">
-                           <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Destination Address</label>
+                           <div className="flex items-center justify-between mb-1">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Destination Address</label>
+                              <div className={`px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-[0.2em] ${report.wallet?.method === 'card' ? 'bg-indigo-500/10 text-indigo-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                                 {report.wallet?.method === 'card' ? 'BANK NETWORK' : 'TRC20 NETWORK'}
+                              </div>
+                           </div>
                            <div className="relative group">
                               <input 
                                 type="text"
-                                className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-4 text-sm font-mono text-white outline-none focus:border-indigo-500/40 transition-all pr-24"
+                                className="w-full bg-slate-950/80 border border-white/5 rounded-2xl px-5 py-4 text-sm font-mono text-white outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/10 transition-all pr-24 placeholder:text-slate-800"
                                 placeholder={report.wallet?.method === 'card' ? 'XXXX XXXX XXXX XXXX' : 'T... (Network: TRC20)'}
                                 value={report.wallet?.address || ''}
                                 onChange={e => updateWallet(e.target.value, report.wallet?.method || 'usdt_trc20')}
@@ -772,7 +852,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                               {report.wallet?.address && (
                                 <button 
                                   onClick={() => { navigator.clipboard.writeText(report.wallet!.address); }}
-                                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/5 hover:bg-white/10 rounded-lg px-3 py-2 text-[8px] font-black text-slate-300 transition-all uppercase tracking-widest"
+                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 bg-white/5 hover:bg-indigo-500 hover:text-white rounded-xl px-4 py-2 text-[8px] font-black text-slate-400 transition-all uppercase tracking-[0.2em] border border-white/5"
                                 >
                                   COPY
                                 </button>
@@ -780,11 +860,18 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                            </div>
                         </div>
                      </div>
-                     <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/10 flex items-center gap-3 relative z-10">
-                        <ICONS.AlertTriangle className="text-amber-500 shrink-0" size={20} />
-                        <p className="text-[8px] font-black uppercase text-amber-500/60 tracking-wider">Убедитесь, что реквизиты введены верно. Отмена транзакций в блокчейне/банковской сети невозможна.</p>
+
+                     <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10 flex items-start gap-3 relative z-10">
+                        <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+                           <ICONS.AlertTriangle size={16} />
+                        </div>
+                        <div className="flex-1">
+                           <span className="text-[8px] font-black uppercase text-amber-500 tracking-widest block mb-1">Critical Security Check</span>
+                           <p className="text-[7.5px] font-bold text-amber-500/60 leading-relaxed uppercase tracking-wider">Убедитесь, что реквизиты введены верно. Отмена транзакций в блокчейне/банковской сети невозможна.</p>
+                        </div>
                      </div>
                   </div>
+
                </div>
 
                {/* PRODUCTIVITY DYNAMICS (CHART) AT THE BOTTOM */}
