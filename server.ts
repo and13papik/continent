@@ -3,8 +3,6 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
-import FormData from 'form-data';
-import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,21 +33,19 @@ async function startServer() {
   const TG_CHAT_ID = process.env.TG_CHAT_ID || "-1003748692600";
 
   // Helper for Telegram API requests
-  async function callTelegramAPI(method: string, body: any, isFormData = false) {
+  async function callTelegramAPI(method: string, body: any) {
     const url = `https://api.telegram.org/bot${TG_BOT_TOKEN}/${method}`;
     const options: any = {
       method: "POST",
+      body: body instanceof FormData ? body : JSON.stringify(body),
     };
 
-    if (isFormData) {
-      options.body = body;
-      options.headers = body.getHeaders();
-    } else {
+    if (!(body instanceof FormData)) {
       options.headers = { "Content-Type": "application/json" };
-      options.body = JSON.stringify(body);
     }
 
     try {
+      // Use global fetch
       const resp = await fetch(url, options);
       const data: any = await resp.json();
       if (!resp.ok) {
@@ -91,16 +87,15 @@ async function startServer() {
       const base64Data = matches[2];
       const buffer = Buffer.from(base64Data, 'base64');
       
+      const blob = new Blob([buffer], { type: mimeType });
+      
       const form = new FormData();
       form.append('chat_id', targetChatId);
-      form.append('photo', buffer, { 
-        filename: `report.${mimeType.split('/')[1] || 'jpg'}`, 
-        contentType: mimeType 
-      });
+      form.append('photo', blob, `report.${mimeType.split('/')[1] || 'jpg'}`);
       form.append('caption', caption || "");
       form.append('parse_mode', 'HTML');
       
-      const result = await callTelegramAPI("sendPhoto", form, true);
+      const result = await callTelegramAPI("sendPhoto", form);
       
       if (!result.success) {
         return res.status(result.status || 500).json({ error: result.error });
@@ -138,6 +133,19 @@ async function startServer() {
     }
   });
 
+  // Explicitly list all routes
+  const routes = [
+    { method: 'POST', path: '/api/send-report' },
+    { method: 'POST', path: '/api/send-advance-request' },
+    { method: 'POST', path: '/api/edit-telegram-message' },
+    { method: 'GET', path: '/api/health' },
+    { method: 'GET', path: '/api/ping' },
+    { method: 'ALL', path: '/api/test-telegram' },
+  ];
+
+  console.log("[Server] Registering API Routes:");
+  routes.forEach(r => console.log(`  ${r.method.padEnd(5)} ${r.path}`));
+
   // Endpoint for marking as paid (editing message)
   app.post("/api/edit-telegram-message", async (req, res) => {
     try {
@@ -165,6 +173,13 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", time: new Date().toISOString() });
   });
+
+  app.get("/api/ping", (req, res) => {
+    res.send("pong");
+  });
+
+  // Explicitly list routes for debugging if needed
+  console.log("[Server] Registering Telegram routes...");
 
   app.all("/api/test-telegram", async (req, res) => {
     console.log(`[Server] Handling /api/test-telegram request...`);

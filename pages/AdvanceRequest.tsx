@@ -79,6 +79,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     message += `⚠️ <i>Статус: Ожидает подтверждения</i>`;
 
     try {
+      const dashboardUrl = `${window.location.origin}/#/advance-request`;
       const res = await fetch('/api/send-advance-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -87,7 +88,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
           reply_markup: {
             inline_keyboard: [
               [
-                { text: "🔗 Открыть в Dashboard", url: "https://ais-dev-7xz7xwj4qktl4ynp4sez7n-38906691745.europe-west2.run.app/#/advance-request" }
+                { text: "🔗 Открыть в Dashboard", url: dashboardUrl }
               ]
             ]
           }
