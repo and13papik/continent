@@ -716,101 +716,137 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
               <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Sync Alive</span>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-[11px] whitespace-nowrap">
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left text-[11px] whitespace-nowrap border-separate border-spacing-0">
               <thead>
-                <tr className="bg-slate-900/50 text-slate-500 uppercase text-[9px] font-black tracking-[0.2em] border-b border-white/5">
-                  <th className="px-6 py-4">Оператор</th>
-                  <th className="px-6 py-4">Общий вал & Эфф.</th>
-                  <th className="px-4 py-4 text-center">OnlyFans (G/N)</th>
-                  <th className="px-4 py-4 text-center">PayPal (G/N)</th>
-                  <th className="px-4 py-4 text-center">Crypto (G/N)</th>
-                  <th className="px-4 py-4 text-center">Правки & Бонусы</th>
-                  <th className="px-6 py-4 text-center">Баланс</th>
-                  <th className="px-6 py-4 text-right">Выплата</th>
+                <tr className="bg-white/[0.02] text-slate-500 uppercase text-[9px] font-black tracking-[0.2em]">
+                  <th className="px-6 py-5 border-b border-white/5 first:rounded-tl-3xl">Оператор</th>
+                  <th className="px-6 py-5 border-b border-white/5 text-center">Объем & Эфф.</th>
+                  <th className="px-4 py-5 border-b border-white/5 text-center">OnlyFans <span className="text-indigo-500/50 ml-1">●</span></th>
+                  <th className="px-4 py-5 border-b border-white/5 text-center">PayPal <span className="text-sky-500/50 ml-1">●</span></th>
+                  <th className="px-4 py-5 border-b border-white/5 text-center">Crypto <span className="text-emerald-500/50 ml-1">●</span></th>
+                  <th className="px-4 py-5 border-b border-white/5 text-center">Правки & Бонусы</th>
+                  <th className="px-6 py-5 border-b border-white/5 text-center">Баланс</th>
+                  <th className="px-6 py-5 border-b border-white/5 text-right last:rounded-tr-3xl">Выплата</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
-                {operatorRows.map((row, idx) => (
-                  <motion.tr 
-                    key={row.op}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.03 }}
-                    className="hover:bg-white/[0.02] transition-all group/row"
-                  >
-                    <td className="px-6 py-4">
-                      <div 
-                        className="flex items-center gap-3 cursor-pointer" 
-                        onClick={() => navigate('/reports', { state: { operator: row.op } })}
-                      >
-                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500/20 to-slate-800 border border-white/5 flex items-center justify-center text-[10px] font-black text-indigo-400 group-hover/row:scale-110 transition-transform">
-                          {row.op.charAt(0)}
+              <tbody className="divide-y divide-white/[0.02]">
+                {operatorRows.map((row, idx) => {
+                  const isTop3 = idx < 3;
+                  return (
+                    <motion.tr 
+                      key={row.op}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.04 }}
+                      className="hover:bg-white/[0.03] transition-all duration-300 group/row relative"
+                    >
+                      <td className="px-6 py-5">
+                        <div 
+                          className="flex items-center gap-4 cursor-pointer" 
+                          onClick={() => navigate('/reports', { state: { operator: row.op } })}
+                        >
+                          <div className={`relative w-10 h-10 rounded-2xl flex items-center justify-center text-[11px] font-black transition-all duration-500 group-hover/row:scale-110 shadow-2xl ${isTop3 ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white border border-white/20' : 'bg-slate-800 border border-white/5 text-slate-400 group-hover/row:border-indigo-500/50 group-hover/row:text-indigo-400'}`}>
+                            {row.op.charAt(0)}
+                            {isTop3 && (
+                              <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-slate-900 flex items-center justify-center text-[8px] animate-bounce">
+                                🏆
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-black text-white text-[15px] tracking-tight leading-tight group-hover/row:text-indigo-400 transition-colors uppercase">{row.op}</span>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${row.totalGross > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} />
+                              <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest opacity-60">Status: {row.totalGross > 0 ? 'Active' : 'Idle'}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex flex-col">
-                          <span className="font-black text-white text-sm tracking-tight leading-tight group-hover/row:text-indigo-400 transition-colors">{row.op}</span>
-                          <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest opacity-60">ID: {row.op.slice(0,3).toUpperCase()}</span>
+                      </td>
+                      <td className="px-6 py-5 min-w-[200px]">
+                        <div className="flex flex-col gap-2">
+                           <div className="flex justify-between items-center text-[10px] font-black">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-white font-mono">${row.totalGross.toFixed(0)}</span>
+                                {row.refunds > 0 && <span className="text-rose-500 opacity-60 text-[8px]">-${row.refunds.toFixed(0)}</span>}
+                              </div>
+                              <span className="text-slate-500 font-mono text-[8px] uppercase">Eff: {((row.percentOfMax)).toFixed(0)}%</span>
+                           </div>
+                           <div className="h-2 w-full bg-slate-800/50 rounded-full overflow-hidden p-[1px] border border-white/[0.03]">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${row.percentOfMax}%` }}
+                                transition={{ duration: 1.2, delay: idx * 0.05, ease: "circOut" }}
+                                className={`h-full rounded-full shadow-[0_0_12px_rgba(99,102,241,0.3)] ${isTop3 ? 'bg-gradient-to-r from-indigo-600 to-purple-500' : 'bg-indigo-500/80'}`} 
+                              />
+                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 min-w-[180px]">
-                      <div className="flex flex-col gap-1.5">
-                         <div className="flex justify-between items-center text-[9px] font-black">
-                            <span className="text-white">${row.totalGross.toFixed(0)}</span>
-                            {row.refunds > 0 && <span className="text-rose-500 opacity-80">-${row.refunds.toFixed(0)}</span>}
-                         </div>
-                         <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden p-[0.5px]">
-                            <motion.div 
-                              initial={{ width: 0 }}
-                              animate={{ width: `${row.percentOfMax}%` }}
-                              transition={{ duration: 1, delay: idx * 0.05 }}
-                              className="h-full bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.4)]" 
-                            />
-                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <div className="inline-flex flex-col items-center bg-indigo-500/5 border border-indigo-500/10 rounded-xl p-2 min-w-[70px]">
-                        <span className="text-[8px] text-indigo-400/50 font-mono mb-0.5 tracking-tighter">${row.ofG.toFixed(0)}</span>
-                        <span className="text-indigo-400 font-outfit font-black text-xs leading-none">${row.ofN.toFixed(0)}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <div className="inline-flex flex-col items-center bg-sky-500/5 border border-sky-500/10 rounded-xl p-2 min-w-[70px]">
-                        <span className="text-[8px] text-sky-400/50 font-mono mb-0.5 tracking-tighter">${row.ppG.toFixed(0)}</span>
-                        <span className="text-sky-400 font-outfit font-black text-xs leading-none">${row.ppN.toFixed(0)}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <div className="inline-flex flex-col items-center bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-2 min-w-[70px]">
-                        <span className="text-[8px] text-emerald-400/50 font-mono mb-0.5 tracking-tighter">${row.crG.toFixed(0)}</span>
-                        <span className="text-emerald-400 font-outfit font-black text-xs leading-none">${row.crN.toFixed(0)}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-wrap justify-center gap-1 max-w-[150px] mx-auto">
-                        {row.bonuses > 0 && <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-md text-[8px] font-black uppercase tracking-tighter">Бонус: +${row.bonuses.toFixed(0)}</span>}
-                        {row.penalties > 0 && <span className="px-2 py-0.5 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-md text-[8px] font-black uppercase tracking-tighter">Штраф: -${row.penalties.toFixed(0)}</span>}
-                        {row.advances > 0 && <span className="px-2 py-0.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-md text-[8px] font-black uppercase tracking-tighter">Аванс: -${row.advances.toFixed(0)}</span>}
-                        {row.refunds > 0 && <span className="px-2 py-0.5 bg-blue-500/10 text-blue-500 border border-blue-500/20 rounded-md text-[8px] font-black uppercase tracking-tighter">Возврат: -${row.refunds.toFixed(0)}</span>}
-                        {row.bonuses === 0 && row.penalties === 0 && row.advances === 0 && row.refunds === 0 && <span className="text-slate-600 text-[8px] font-bold">—</span>}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className={`text-base font-black font-outfit tracking-tighter px-3 py-1 rounded-full ${row.remainder >= 0 ? 'text-emerald-400 bg-emerald-400/5' : 'text-rose-400 bg-rose-400/5'}`}>
-                        ${row.remainder.toFixed(1)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => toggleOperatorPaid(row.op, row.remainder)} 
-                        className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-300 shadow-md transform hover:scale-105 active:scale-95 ${row.isPaid ? 'bg-emerald-500 text-white shadow-emerald-500/30' : 'bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10 hover:text-white'}`}
-                      >
-                        {row.isPaid ? 'Выплачено' : 'Выплатить'}
-                      </button>
-                    </td>
-                  </motion.tr>
-                ))}
+                      </td>
+                      <td className="px-4 py-5 text-center">
+                        <div className="inline-flex flex-col items-center bg-indigo-500/[0.03] border border-indigo-500/10 rounded-2xl p-2.5 min-w-[85px] group-hover/row:bg-indigo-500/10 transition-colors duration-500">
+                          <span className="text-[9px] text-indigo-400/50 font-mono mb-1 tracking-tighter">${row.ofG.toFixed(0)}</span>
+                          <span className="text-indigo-300 font-outfit font-black text-sm leading-none">${row.ofN.toFixed(0)}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-5 text-center">
+                        <div className="inline-flex flex-col items-center bg-sky-500/[0.03] border border-sky-500/10 rounded-2xl p-2.5 min-w-[85px] group-hover/row:bg-sky-500/10 transition-colors duration-500">
+                          <span className="text-[9px] text-sky-400/50 font-mono mb-1 tracking-tighter">${row.ppG.toFixed(0)}</span>
+                          <span className="text-sky-300 font-outfit font-black text-sm leading-none">${row.ppN.toFixed(0)}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-5 text-center">
+                        <div className="inline-flex flex-col items-center bg-emerald-500/[0.03] border border-emerald-500/10 rounded-2xl p-2.5 min-w-[85px] group-hover/row:bg-emerald-500/10 transition-colors duration-500">
+                          <span className="text-[9px] text-emerald-400/50 font-mono mb-1 tracking-tighter">${row.crG.toFixed(0)}</span>
+                          <span className="text-emerald-300 font-outfit font-black text-sm leading-none">${row.crN.toFixed(0)}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-5">
+                        <div className="flex flex-wrap justify-center gap-1.5 max-w-[180px] mx-auto">
+                          {row.bonuses > 0 && (
+                            <div className="px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-[8px] font-black uppercase tracking-tight flex items-center gap-1">
+                              <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                              Бонус: +${row.bonuses.toFixed(0)}
+                            </div>
+                          )}
+                          {row.penalties > 0 && (
+                            <div className="px-2 py-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-[8px] font-black uppercase tracking-tight flex items-center gap-1">
+                              <span className="w-1 h-1 rounded-full bg-rose-400" />
+                              Штраф: -${row.penalties.toFixed(0)}
+                            </div>
+                          )}
+                          {row.advances > 0 && (
+                            <div className="px-2 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-lg text-[8px] font-black uppercase tracking-tight flex items-center gap-1">
+                              <span className="w-1 h-1 rounded-full bg-amber-400" />
+                              Аванс: -${row.advances.toFixed(0)}
+                            </div>
+                          )}
+                          {row.refunds > 0 && (
+                            <div className="px-2 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-[8px] font-black uppercase tracking-tight flex items-center gap-1">
+                              <span className="w-1 h-1 rounded-full bg-blue-400" />
+                              Возврат: -${row.refunds.toFixed(0)}
+                            </div>
+                          )}
+                          {row.bonuses === 0 && row.penalties === 0 && row.advances === 0 && row.refunds === 0 && (
+                            <span className="text-slate-700 text-[10px] font-bold">—</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-5 text-center">
+                        <div className={`text-lg font-black font-outfit tracking-tighter px-4 py-1.5 rounded-2xl shadow-inner transition-all duration-500 group-hover/row:scale-105 ${row.remainder >= 0 ? 'text-emerald-400 bg-emerald-400/5 border border-emerald-500/10' : 'text-rose-400 bg-rose-400/5 border border-rose-500/10'}`}>
+                          ${row.remainder.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                        </div>
+                      </td>
+                      <td className="px-6 py-5 text-right">
+                        <button 
+                          onClick={() => toggleOperatorPaid(row.op, row.remainder)} 
+                          className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 shadow-xl transform hover:-translate-y-0.5 active:scale-95 ${row.isPaid ? 'bg-emerald-600/20 text-emerald-500 border border-emerald-500/30' : 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-indigo-600/20 hover:shadow-indigo-600/40 border border-white/10'}`}
+                        >
+                          {row.isPaid ? 'Paid OK' : 'Pay'}
+                        </button>
+                      </td>
+                    </motion.tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
