@@ -1,5 +1,6 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import html2canvas from 'html2canvas';
 import { AppState, RosterEntry, ShiftType, AccountingPeriod, OperatorStatus, OperatorAssessment } from '../types';
 import { ICONS } from '../constants';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -28,10 +29,11 @@ const SHIFTS: { type: ShiftType; label: string; time: string; color: string }[] 
 
 const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
   const [editingCell, setEditingCell] = useState<{ model: string; shift: ShiftType } | null>(null);
-  const [isTraineeMode, setIsTraineeMode] = useState(false);
   const [assessmentTarget, setAssessmentTarget] = useState<{ operator: string; modelName?: string } | null>(null);
 
   const [showSwapList, setShowSwapList] = useState(false);
+  const [isSendingTelegram, setIsSendingTelegram] = useState(false);
+  const rosterRef = useRef<HTMLDivElement>(null);
 
   const [isManagingModels, setIsManagingModels] = useState(false);
   const [newModelName, setNewModelName] = useState('');
@@ -41,6 +43,131 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
   const rosterEntries = useMemo(() => {
     return (state.rosterData || []).filter((e: RosterEntry) => e.periodId === state.selectedPeriodId);
   }, [state.rosterData, state.selectedPeriodId]);
+
+  const operatorWorkingDays = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const operatorsInRoster = Array.from(new Set(rosterEntries.map(e => e.operator)));
+    
+    operatorsInRoster.forEach(opName => {
+      const uniqueDates = new Set(
+        state.incomeData
+          .filter(r => r.operator === opName)
+          .map(r => r.date)
+      );
+      counts[opName] = uniqueDates.size;
+    });
+    return counts;
+  }, [state.incomeData, rosterEntries]);
+
+  // Alert for finishing internship
+  useEffect(() => {
+    // Collect all operators currently in roster
+    const operatorsInRoster = Array.from(new Set(rosterEntries.map(e => e.operator)));
+    
+    operatorsInRoster.forEach(async opName => {
+      if (opName === 'ДЫРКА' || opName === 'СТАЖЕР') return;
+      
+      const days = operatorWorkingDays[opName] || 0;
+      const alreadyNotified = (state.notifiedInterns || []).includes(opName);
+      
+      // If reached 7 days and never notified
+      if (days >= 7 && !alreadyNotified) {
+        try {
+          await fetch('/api/telegram/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: `🎓 <b>СТАЖИРОВКА ЗАВЕРШЕНА</b>\n\nСтажер <b>${opName}</b> отработал 7 дней и успешно закончил стажировку!`,
+            })
+          });
+
+          updateState(prev => ({
+            ...prev,
+            notifiedInterns: [...(prev.notifiedInterns || []), opName]
+          }));
+        } catch (e) {
+          console.error("Failed to notify graduate", e);
+        }
+      }
+    });
+  }, [rosterEntries, operatorWorkingDays, state.notifiedInterns, updateState]);
+
+  const sendRosterToTelegram = async (isManual = false) => {
+    if (!rosterRef.current) return;
+    setIsSendingTelegram(true);
+
+    try {
+      // Capture the roster as image
+      const canvas = await html2canvas(rosterRef.current, {
+        backgroundColor: '#020617', // Match slate-950
+        scale: 2,
+        logging: false,
+      });
+      const dataUrl = canvas.toDataURL('image/png');
+
+      const response = await fetch('/api/telegram/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'photo',
+          image: dataUrl,
+          text: `📊 <b>АКТУАЛЬНЫЙ СОСТАВ</b>\nПериод: ${currentPeriod?.label}\nДата: ${new Date().toLocaleDateString('ru-RU')}\n\n<b>Актуальный список команды?</b>`,
+          replyMarkup: {
+            inline_keyboard: [
+              [
+                { text: '✅ АКТУАЛЬНО (0/2)', callback_data: 'confirm_roster' },
+                { text: '❌ ТРЕБУЕТ ИЗМЕНЕНИЙ', callback_data: 'edit_roster' }
+              ]
+            ]
+          }
+        })
+      });
+
+      if (response.ok) {
+        if (isManual) alert('Состав успешно отправлен в Telegram!');
+        console.log('Состав успешно отправлен в Telegram!');
+      } else {
+        if (isManual) alert('Ошибка при отправке в Telegram. Проверьте конфигурацию');
+        console.error('Ошибка при отправке в Telegram. Проверьте конфигурацию .env');
+      }
+    } catch (error) {
+      console.error(error);
+      if (isManual) alert('Ошибка при генерации скриншота');
+    } finally {
+      setIsSendingTelegram(false);
+    }
+  };
+
+  // Auto-notify daily at 17:00 Kyiv time (14:00 UTC)
+  useEffect(() => {
+    const checkAutoNotify = async () => {
+      const now = new Date();
+      const todayStr = now.toLocaleDateString('en-CA'); // YYYY-MM-DD
+      
+      // Check if it's after 17:00 Kyiv (14:00 UTC)
+      const currentHourUTC = now.getUTCHours();
+      const isAfterTimeKyiv = currentHourUTC >= 14;
+
+      if (isAfterTimeKyiv && state.telegramState?.lastRosterNotifyDate !== todayStr) {
+        // We need the rosterRef to be ready
+        if (rosterRef.current) {
+          console.log("Auto-sending roster to Telegram...");
+          await sendRosterToTelegram(false);
+          
+          updateState(prev => ({
+            ...prev,
+            telegramState: {
+              ...(prev.telegramState || {}),
+              lastRosterNotifyDate: todayStr
+            }
+          }));
+        }
+      }
+    };
+
+    const timer = setTimeout(checkAutoNotify, 5000); // Wait 5s for initial render
+    return () => clearTimeout(timer);
+  }, [state.telegramState?.lastRosterNotifyDate, rosterRef.current]);
 
   // Models to show: designated models for this period OR models that have assigned shifts
   const allModels = useMemo(() => {
@@ -113,21 +240,6 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     return { priority, regular, inactive };
   }, [allModels, priorityModels, inactiveModels]);
 
-  const operatorWorkingDays = useMemo(() => {
-    const counts: Record<string, number> = {};
-    const operatorsInRoster = Array.from(new Set(rosterEntries.map(e => e.operator)));
-    
-    operatorsInRoster.forEach(opName => {
-      const uniqueDates = new Set(
-        state.incomeData
-          .filter(r => r.operator === opName)
-          .map(r => r.date)
-      );
-      counts[opName] = uniqueDates.size;
-    });
-    return counts;
-  }, [state.incomeData, rosterEntries]);
-
   const getAssignment = (model: string, shift: ShiftType) => {
     return rosterEntries.find((e: RosterEntry) => e.shift === shift && e.models.includes(model));
   };
@@ -199,8 +311,11 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     });
   };
 
-  const handleAssign = (operator: string, isTrainee: boolean = false) => {
+  const handleAssign = (operator: string) => {
     if (!editingCell) return;
+
+    const daysWorked = operatorWorkingDays[operator] || 0;
+    const isTrainee = operator !== 'ДЫРКА' && daysWorked < 7;
 
     updateState(prev => {
       const currentPeriodId = prev.selectedPeriodId;
@@ -211,7 +326,6 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       const wasAssignedToThis = roster.some(e => 
         e.shift === editingCell.shift && 
         e.operator === operator && 
-        e.isTrainee === isTrainee &&
         e.models.includes(editingCell.model) &&
         e.periodId === currentPeriodId
       );
@@ -248,12 +362,15 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       const targetEntryIdx = updatedRoster.findIndex(e => 
         e.shift === editingCell.shift && 
         e.operator === operator && 
-        e.isTrainee === isTrainee &&
         e.periodId === currentPeriodId
       );
 
       if (targetEntryIdx > -1) {
         const entry = { ...updatedRoster[targetEntryIdx] };
+        
+        // Update isTrainee in case it changed
+        entry.isTrainee = isTrainee;
+
         // Limit to 2 models for real operators, but "ДЫРКА" can have more
         if (operator === 'ДЫРКА' || entry.models.length < 2) {
           entry.models = [...entry.models, editingCell.model];
@@ -280,7 +397,6 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       return { ...prev, rosterData: updatedRoster, deletedIds: newDeletedIds };
     });
     setEditingCell(null);
-    setIsTraineeMode(false);
   };
 
   const clearCell = () => {
@@ -388,8 +504,8 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
               const assignment = getAssignment(model, shift.type);
               const isGap = assignment?.operator === 'ДЫРКА';
               const isLegacyTrainee = assignment?.operator === 'СТАЖЕР';
-              const isTrainee = assignment?.isTrainee || isLegacyTrainee;
               const daysWorked = assignment ? (operatorWorkingDays[assignment.operator] || 0) : 0;
+              const isTrainee = assignment && assignment.operator !== 'ДЫРКА' && (daysWorked < 7 || assignment.operator === 'СТАЖЕР');
               const isGraduated = isTrainee && daysWorked >= 7;
 
               return (
@@ -480,17 +596,27 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
             <p className="text-slate-400 font-medium">Управление сменами и распределение операторов</p>
           </div>
         </div>
-        <button 
-          onClick={() => setIsManagingModels(true)}
-          className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-xl shadow-indigo-600/20 active:scale-95 transition-all"
-        >
-          <ICONS.Plus size={20} />
-          <span className="font-black text-sm uppercase tracking-widest">Добавить анкету</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button 
+            onClick={() => sendRosterToTelegram(true)}
+            disabled={isSendingTelegram}
+            className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white shadow-xl shadow-sky-600/20 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale"
+          >
+            {isSendingTelegram ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <ICONS.Plus size={20} />}
+            <span className="font-black text-sm uppercase tracking-widest">{isSendingTelegram ? 'Отправка...' : 'Отправить в TG'}</span>
+          </button>
+          <button 
+            onClick={() => setIsManagingModels(true)}
+            className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-xl shadow-indigo-600/20 active:scale-95 transition-all"
+          >
+            <ICONS.Plus size={20} />
+            <span className="font-black text-sm uppercase tracking-widest">Добавить анкету</span>
+          </button>
+        </div>
       </div>
 
       {/* Grid */}
-      <div className="glass-card rounded-[2.5rem] border-slate-800/50 overflow-hidden">
+      <div ref={rosterRef} className="glass-card rounded-[2.5rem] border-slate-800/50 overflow-hidden bg-slate-950">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
@@ -539,34 +665,25 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
               <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-600/20 blur-[100px] rounded-full" />
               
               <div className="relative space-y-8">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-2xl font-black text-white">Назначить оператора</h2>
-                    <p className="text-slate-400 font-medium">
-                      {editingCell.model} • {SHIFTS.find(s => s.type === editingCell.shift)?.label}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer group/toggle">
-                      <div 
-                        onClick={() => setIsTraineeMode(!isTraineeMode)}
-                        className={`w-12 h-6 rounded-full transition-all relative ${isTraineeMode ? 'bg-purple-500' : 'bg-slate-800'}`}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-black text-white">Назначить оператора</h2>
+                      <p className="text-slate-400 font-medium">
+                        {editingCell.model} • {SHIFTS.find(s => s.type === editingCell.shift)?.label}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <button 
+                        onClick={() => {
+                          setEditingCell(null);
+                          setShowSwapList(false);
+                        }}
+                        className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-slate-500 hover:text-white transition-colors"
                       >
-                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${isTraineeMode ? 'left-7' : 'left-1'}`} />
-                      </div>
-                      <span className={`text-xs font-black uppercase tracking-widest ${isTraineeMode ? 'text-purple-400' : 'text-slate-500'}`}>Стажер</span>
-                    </label>
-                    <button 
-                      onClick={() => {
-                        setEditingCell(null);
-                        setShowSwapList(false);
-                      }}
-                      className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-slate-500 hover:text-white transition-colors"
-                    >
-                      <ICONS.Close size={24} />
-                    </button>
+                        <ICONS.Close size={24} />
+                      </button>
+                    </div>
                   </div>
-                </div>
 
                 {editingCell && getAssignment(editingCell.model, editingCell.shift) && !showSwapList ? (
                   <div className="space-y-6">
@@ -658,18 +775,6 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                       </button>
                     )}
                     
-                    {isTraineeMode && (
-                      <div className="bg-purple-500/10 border border-purple-500/20 p-4 rounded-2xl flex items-center gap-3">
-                         <div className="w-8 h-8 rounded-lg bg-purple-500 text-white flex items-center justify-center">
-                            <ICONS.Internship size={18} />
-                         </div>
-                         <div>
-                            <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest">Режим стажировки</p>
-                            <p className="text-xs font-bold text-white leading-none">Выберите оператора из списка ниже</p>
-                         </div>
-                      </div>
-                    )}
-
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
                   {/* GAP BUTTON */}
                   <button
@@ -681,20 +786,21 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                   </button>
 
                   {operators.map((op: string) => {
-                    const isAssignedToThis = rosterEntries.find((e: RosterEntry) => e.shift === editingCell.shift && e.operator === op && e.models.includes(editingCell.model) && e.isTrainee === isTraineeMode);
+                    const daysWorked = operatorWorkingDays[op] || 0;
+                    const isTrainee = op !== 'ДЫРКА' && daysWorked < 7;
+                    const isAssignedToThis = rosterEntries.find((e: RosterEntry) => e.shift === editingCell.shift && e.operator === op && e.models.includes(editingCell.model));
                     const currentAssignment = rosterEntries.find((e: RosterEntry) => e.shift === editingCell.shift && e.operator === op);
                     const otherModels = currentAssignment?.models.filter((m: string) => m !== editingCell.model) || [];
-                    const daysWorked = operatorWorkingDays[op] || 0;
-                    const isGraduated = isTraineeMode && daysWorked >= 7;
+                    const isGraduated = isTrainee && daysWorked >= 7; // This logic might need refinement if isTrainee is derived from daysWorked
                     const asmt = getAssessment(op, editingCell.model);
                     
                     return (
                       <div key={op} className="relative group">
                         <button
-                          onClick={() => handleAssign(op, isTraineeMode)}
+                          onClick={() => handleAssign(op)}
                           className={`w-full p-4 rounded-2xl border-2 transition-all text-left space-y-1 relative ${
                             isAssignedToThis
-                              ? isTraineeMode ? 'bg-purple-600 border-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.3)]' : 'bg-indigo-600 border-indigo-500 text-white'
+                              ? isTrainee ? 'bg-purple-600 border-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.3)]' : 'bg-indigo-600 border-indigo-500 text-white'
                               : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
                           }`}
                         >
@@ -709,21 +815,21 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                                   </div>
                                 );
                               })()}
-                              {isTraineeMode && (
-                                <div className={`px-1.5 py-0.5 rounded text-[8px] font-black ${isGraduated ? 'bg-emerald-500 text-white' : 'bg-purple-500/40 text-purple-200'}`}>
+                              {isTrainee && (
+                                <div className={`px-1.5 py-0.5 rounded text-[8px] font-black ${daysWorked >= 7 ? 'bg-emerald-500 text-white' : 'bg-purple-500/40 text-purple-200'}`}>
                                   {daysWorked}/7дн
                                 </div>
                               )}
                             </div>
                           </div>
-                          {isGraduated && (
+                          {daysWorked >= 7 && isTrainee && (
                             <div className="text-[7px] text-emerald-400 font-bold uppercase tracking-widest flex items-center gap-1">
                                <ICONS.ShieldCheck size={8} /> Стажировка окончена
                             </div>
                           )}
-                          {otherModels.length > 0 && !isGraduated && (
+                          {otherModels.length > 0 && (
                             <div className={`text-[9px] uppercase font-black tracking-tighter ${
-                              isAssignedToThis ? isTraineeMode ? 'text-purple-200' : 'text-indigo-200' : 'text-slate-600'
+                              isAssignedToThis ? isTrainee ? 'text-purple-200' : 'text-indigo-200' : 'text-slate-600'
                             }`}>
                               + {otherModels[0]}
                             </div>

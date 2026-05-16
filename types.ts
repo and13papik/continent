@@ -287,6 +287,11 @@ export interface AppState {
   syncKey?: string;
   dbUrl?: string;
   lastSyncedAt?: string;
+  notifiedInterns?: string[]; 
+  telegramState?: {
+    lastRosterNotifyDate?: string;
+    approvals?: Record<string, string[]>; // date -> [admin_names]
+  };
 }
 
 export interface CloudSnapshot {
