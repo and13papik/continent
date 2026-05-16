@@ -174,7 +174,15 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
   }, [location.state]);
 
   const activePeriod = state.accountingPeriods.find(p => p.id === state.selectedPeriodId);
-  const currentOperators = activePeriod?.operators || state.operators;
+  
+  const currentOperators = useMemo(() => {
+    const operators = activePeriod?.operators || state.operators;
+    return [...operators].sort((a, b) => {
+      const incomeA = state.incomeData.filter(r => r.operator === a && r.periodId === state.selectedPeriodId).reduce((s, r) => s + r.total, 0);
+      const incomeB = state.incomeData.filter(r => r.operator === b && r.periodId === state.selectedPeriodId).reduce((s, r) => s + r.total, 0);
+      return incomeB - incomeA;
+    });
+  }, [activePeriod, state.operators, state.incomeData, state.selectedPeriodId]);
 
   const report = useMemo(() => {
     if (!selectedOperator) return null;
@@ -364,18 +372,25 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
   return (
     <div className="flex flex-col lg:flex-row h-screen -m-6 overflow-hidden bg-black text-slate-200">
       {/* SIDEBAR CALENDAR / DAY LIST */}
-      <aside className={`w-full lg:w-[320px] bg-slate-900/40 border-r border-white/5 flex flex-col transition-all duration-500 overflow-hidden ${!report ? 'lg:w-0 border-r-0' : ''}`}>
+      <aside className="w-full lg:w-[320px] bg-slate-900/40 border-r border-white/5 flex flex-col transition-all duration-500 overflow-hidden">
         <div className="p-8 border-b border-white/5 bg-slate-950/20">
           <h2 className="text-xl font-black font-outfit uppercase tracking-tighter text-white">ДНЕВНИК</h2>
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
-          {report?.dailyHistory.length === 0 && (
+          {!selectedOperator ? (
+            <div className="h-full flex flex-col items-center justify-center text-center p-10 opacity-30">
+              <ICONS.Users size={48} className="mb-4 text-indigo-500" />
+              <p className="text-[10px] uppercase font-black tracking-[0.2em] leading-relaxed">
+                Нужно выбрать сотрудника для просмотра
+              </p>
+            </div>
+          ) : report?.dailyHistory.length === 0 ? (
             <div className="text-center py-20 opacity-20">
               <ICONS.History size={48} className="mx-auto mb-4" />
               <p className="text-[10px] uppercase font-black tracking-widest">Нет данных</p>
             </div>
-          )}
-          {[...(report?.dailyHistory || [])].reverse().map((d, idx) => {
+          ) : (
+            [...(report?.dailyHistory || [])].reverse().map((d, idx) => {
             const isActive = selectedDate === d.date;
             const dateObj = new Date(d.date);
             const weekday = dateObj.toLocaleDateString('ru-RU', { weekday: 'short' });
@@ -462,7 +477,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                 </div>
               </motion.button>
             );
-          })}
+          }) ) }
         </div>
       </aside>
 
@@ -488,10 +503,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                     <h1 className="text-lg font-black font-outfit uppercase tracking-tight text-white leading-none">
                       {selectedOperator ? `Отчет: ${selectedOperator}` : 'Аналитика Оператора'}
                     </h1>
-                 </div>
-                 <div className="flex items-center gap-2">
-                    <PeriodBadge state={state} />
-                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{activePeriod?.label}</span>
                  </div>
               </div>
            </div>
@@ -529,10 +540,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                   <div>
                     <h2 className="text-2xl font-black font-outfit uppercase tracking-tighter text-white">Ведомость персонала</h2>
                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Выберите сотрудника для просмотра подробной аналитики</p>
-                  </div>
-                  <div className="flex items-center gap-3 px-4 py-2 bg-slate-900/40 rounded-2xl border border-white/5">
-                    <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse shadow-[0_0_10px_#6366f1]" />
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Период: {activePeriod?.label}</span>
                   </div>
                </div>
 
@@ -818,7 +825,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                      <div className="flex-1 p-5 space-y-4 overflow-hidden relative z-10 flex flex-col justify-center">
                         {/* Earnings Section */}
                         <div className="relative p-4 rounded-[1.25rem] bg-indigo-600/5 border border-indigo-500/10 group hover:bg-indigo-600/10 transition-all">
-                           <span className="text-[7px] font-black uppercase tracking-[0.25em] text-indigo-400 mb-1.5 block">Выработано за период</span>
+                           <span className="text-[7px] font-black uppercase tracking-[0.25em] text-indigo-400 mb-1.5 block">Выработано</span>
                            <div className="flex justify-between items-baseline">
                               <span className="text-slate-400 text-[10px] font-bold">Чистая прибыль</span>
                               <span className="font-mono font-black text-xl text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">${report.totalNetto.toFixed(1)}</span>

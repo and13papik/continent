@@ -218,7 +218,7 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            <PeriodSelector state={state} updateState={updateState} />
+            {location.pathname !== '/reports' && <PeriodSelector state={state} updateState={updateState} />}
 
             {cloudStatus === 'conflict' && (
               <motion.div 
@@ -268,10 +268,10 @@ const App: React.FC = () => {
                  <span className="text-[7.5px] font-black uppercase tracking-[0.3em] text-slate-700 whitespace-nowrap">Main Navigation</span>
                  <div className="h-[1px] flex-1 bg-slate-900" />
               </div>
-              <NavLink to="/" icon={<ICONS.Dashboard size={14} />} label="Dashboard" />
+              <NavLink to="/" icon={<ICONS.Dashboard size={14} />} label="Dashboard" primary />
               <NavLink to="/metrics" icon={<ICONS.Reports size={14} />} label="Метрика" />
               <NavLink to="/operations" icon={<ICONS.Operations size={14} />} label="Операции" />
-              <NavLink to="/reports" icon={<ICONS.Reports size={14} />} label="Отчеты" />
+              <NavLink to="/reports" icon={<ICONS.Reports size={14} />} label="Операторская" />
               <NavLink to="/models" icon={<ICONS.Models size={14} />} label="Модели" />
               <NavLink to="/roster" icon={<ICONS.Reports size={14} />} label="Состав" />
             </div>
@@ -404,7 +404,8 @@ const NavLink: React.FC<{
   action?: boolean;
   variant?: 'indigo' | 'amber' | 'emerald';
   subLabel?: string;
-}> = ({ to, icon, label, premium, admin, action, variant = 'indigo', subLabel }) => {
+  primary?: boolean;
+}> = ({ to, icon, label, premium, admin, action, variant = 'indigo', subLabel, primary }) => {
   const location = useLocation();
   const isActive = location.pathname === to;
 
@@ -424,64 +425,55 @@ const NavLink: React.FC<{
         className="relative group block"
       >
         <motion.div
-          whileHover={{ y: -4, scale: 1.02 }}
-          whileTap={{ scale: 0.95 }}
-          className={`relative flex flex-col items-center justify-center pt-6 pb-5 px-2 rounded-[2rem] border transition-all duration-700 backdrop-blur-2xl overflow-hidden
+          whileHover={{ y: -2, scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
+          className={`relative flex flex-col items-center justify-center py-4 px-2 rounded-[1.75rem] border transition-all duration-500 backdrop-blur-2xl overflow-hidden
             ${isActive 
-              ? `bg-gradient-to-br ${accentColor} ${borderActive} shadow-[0_20px_40px_-10px_${shadowColor}]` 
-              : `bg-slate-900/40 border-white/5 ${borderHover} hover:bg-slate-900 shadow-xl`
+              ? `bg-gradient-to-br ${accentColor} ${borderActive} shadow-[0_15px_30px_-8px_${shadowColor}]` 
+              : `bg-slate-900/40 border-white/5 ${borderHover} hover:bg-slate-900`
             }`}
         >
-          {/* Sophisticated Glow Layer */}
+          {/* Internal Glow */}
           {isActive && (
-            <div className="absolute inset-0 opacity-40">
-              <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_0%,white,transparent_60%)]" />
+            <div className="absolute inset-0 opacity-30">
+              <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_0%,white,transparent_70%)]" />
             </div>
           )}
 
           {/* Luxury Shine Effect */}
           <motion.div 
             animate={isActive ? { x: ['-100%', '250%'] } : {}}
-            transition={{ duration: 3, repeat: Infinity, ease: 'linear', repeatDelay: 1.5 }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'linear', repeatDelay: 1 }}
             className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -rotate-45 pointer-events-none"
           />
 
-          {/* Premium Icon Stage */}
-          <div className={`relative z-10 w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-700 shadow-2xl mb-3
+          {/* Refined Icon Stage */}
+          <div className={`relative z-10 w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-700 shadow-xl mb-2
             ${isActive 
               ? 'bg-white/10 text-white backdrop-blur-md border border-white/20' 
-              : `bg-slate-950 ${lightText} border border-white/5 group-hover:scale-110 group-hover:shadow-[0_0_20px_-5px_${shadowColor}]`
+              : `bg-slate-950 ${lightText} border border-white/5 group-hover:scale-110`
             }`}
           >
-            {React.cloneElement(icon as React.ReactElement, { size: 24 })}
+            {React.cloneElement(icon as React.ReactElement, { size: 18 })}
           </div>
 
-          {/* Typography Section */}
-          <div className="relative z-10 flex flex-col items-center">
-            <span className={`font-black text-[11px] uppercase tracking-[0.2em] transition-colors duration-500 mb-0.5
-              ${isActive ? 'text-white' : 'text-slate-300 group-hover:text-white'}`}
+          {/* Typography */}
+          <div className="relative z-10 flex flex-col items-center -space-y-0.5">
+            <span className={`font-black text-[9px] uppercase tracking-[0.15em] transition-colors duration-500
+              ${isActive ? 'text-white' : 'text-slate-200 group-hover:text-white'}`}
             >
               {label}
             </span>
-            <div className={`flex items-center gap-1.5 opacity-60 transition-all duration-500 ${isActive ? 'translate-y-0' : 'translate-y-1 group-hover:translate-y-0'}`}>
-              <div className={`w-1 h-1 rounded-full ${isActive ? 'bg-white' : (isAmber ? 'bg-amber-500' : 'bg-indigo-500')}`} />
-              <span className={`text-[8px] font-black uppercase tracking-widest
-                ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-400'}`}
-              >
-                {subLabel || 'SELECT'}
-              </span>
-            </div>
+            <span className={`text-[6px] font-black uppercase tracking-[0.2em] opacity-40 transition-all duration-500
+              ${isActive ? 'text-white translate-y-0' : 'text-slate-500 translate-y-0.5 group-hover:translate-y-0 group-hover:opacity-80'}`}
+            >
+              {subLabel || 'SELECT'}
+            </span>
           </div>
 
-          {/* Floating UI Elements */}
-          {!isActive && (
-            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-500 text-[8px] text-white/20 font-black">
-              PRO
-            </div>
-          )}
-          
+          {/* Small Indicator */}
           {isActive && (
-             <div className="absolute bottom-1 w-10 h-0.5 rounded-full bg-white/30" />
+             <div className="absolute top-1.5 right-1.5 w-1 h-1 rounded-full bg-white shadow-[0_0_8px_white] animate-pulse" />
           )}
         </motion.div>
       </Link>
@@ -494,6 +486,15 @@ const NavLink: React.FC<{
   let iconActiveColor = 'text-white';
   let iconInactiveColor = 'text-slate-600 group-hover:text-indigo-400';
   let indicatorColor = 'bg-indigo-400';
+
+  if (primary) {
+    activeBg = 'bg-indigo-600/30 border border-indigo-400/40 shadow-[0_15px_40px_-10px_rgba(79,70,229,0.4)] backdrop-blur-2xl px-5 py-4 mb-6 rounded-2xl';
+    activeText = 'text-white font-black';
+    inactiveText = 'text-slate-400 hover:text-white border border-white/5 mb-6 py-4 px-5 bg-slate-950/40 hover:bg-slate-900 shadow-xl rounded-2xl transition-all';
+    iconActiveColor = 'text-indigo-400';
+    iconInactiveColor = 'text-slate-600 group-hover:text-indigo-400 group-hover:scale-110';
+    indicatorColor = 'bg-indigo-400';
+  }
 
   if (premium) {
     activeBg = 'bg-amber-500 shadow-[0_0_20px_-5px_rgba(245,158,11,0.5)]';
@@ -512,12 +513,12 @@ const NavLink: React.FC<{
   return (
     <Link
       to={to}
-      className={`relative flex items-center gap-3 px-3 py-1.5 rounded-xl transition-all duration-500 group overflow-hidden ${
-        isActive ? activeBg + ' ' + activeText : inactiveText
-      }`}
+      className={`relative flex items-center gap-3 transition-all duration-500 group overflow-hidden ${
+        primary ? '' : 'px-3 py-1.5 rounded-xl '
+      }${isActive ? activeBg + ' ' + activeText : inactiveText}`}
     >
       {/* Active Indicator Bar */}
-      {isActive && (
+      {isActive && !primary && (
         <motion.div 
           layoutId="active-nav-indicator"
           className={`absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full ${indicatorColor}`}
@@ -525,15 +526,22 @@ const NavLink: React.FC<{
       )}
 
       {/* Hover Background Glow */}
-      <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+      {!isActive && !primary && (
+        <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+      )}
 
-      <span className={`transition-all duration-500 shrink-0 relative z-10 ${isActive ? iconActiveColor + ' scale-110' : iconInactiveColor + ' group-hover:scale-110'}`}>
-        {icon}
+      <span className={`transition-all duration-500 shrink-0 relative z-10 ${isActive ? iconActiveColor + ' scale-110' : iconInactiveColor}`}>
+        {React.cloneElement(icon as React.ReactElement, { size: primary ? 18 : 14 })}
       </span>
       
-      <span className={`font-black text-[9.5px] uppercase tracking-[0.1em] truncate relative z-10 ${isActive ? 'text-white' : ''}`}>
+      <span className={`font-black uppercase tracking-[0.1em] truncate relative z-10 ${primary ? 'text-[11px]' : 'text-[9.5px]'} ${isActive ? activeText : ''}`}>
         {label}
       </span>
+
+      {/* Primary Badge */}
+      {primary && !isActive && (
+        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+      )}
 
       {/* Shine Effect Animation */}
       {isActive && (
