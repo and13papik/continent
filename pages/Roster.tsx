@@ -318,7 +318,8 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
             {SHIFTS.map(shift => {
               const assignment = getAssignment(model, shift.type);
               const isGap = assignment?.operator === 'ДЫРКА';
-              const isTrainee = assignment?.isTrainee || assignment?.operator === 'СТАЖЕР';
+              const isLegacyTrainee = assignment?.operator === 'СТАЖЕР';
+              const isTrainee = assignment?.isTrainee || isLegacyTrainee;
               const daysWorked = assignment ? (operatorWorkingDays[assignment.operator] || 0) : 0;
               const isGraduated = isTrainee && daysWorked >= 7;
 
@@ -332,7 +333,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setEditingCell({ model, shift: shift.type })}
                     className={`w-full h-16 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1 relative overflow-hidden group/cell ${
-                      isGap
+                      isGap || isLegacyTrainee
                         ? 'bg-rose-500/20 border-rose-500/50 hover:border-rose-500'
                         : isTrainee
                           ? 'bg-purple-500/20 border-purple-500/50 hover:border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.2)]'
@@ -343,12 +344,12 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                   >
                     {assignment ? (
                       <>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 px-2">
                           {isTrainee && <ICONS.Internship size={12} className={isGraduated ? 'text-emerald-400' : 'text-purple-400'} />}
-                          <span className={`text-xs font-black uppercase tracking-tighter ${
-                            isGap ? 'text-rose-400' : isTrainee ? isGraduated ? 'text-emerald-400' : 'text-purple-400' : 'text-indigo-400'
+                          <span className={`text-xs font-black uppercase tracking-tighter truncate ${
+                            isGap ? 'text-rose-400' : isLegacyTrainee ? 'text-white bg-rose-500 px-1 rounded' : isTrainee ? isGraduated ? 'text-emerald-400' : 'text-purple-400' : 'text-indigo-400'
                           }`}>
-                            {assignment.operator}
+                            {isLegacyTrainee ? 'ВЫБРАТЬ ИМЯ' : assignment.operator}
                           </span>
                           {(() => {
                             const asmt = getAssessment(assignment.operator, model);
@@ -497,14 +498,19 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                           <div>
                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Текущий оператор</p>
                              <p className="text-3xl font-black text-white uppercase tracking-tighter">
-                               {getAssignment(editingCell.model, editingCell.shift)?.operator}
+                               {getAssignment(editingCell.model, editingCell.shift)?.operator === 'СТАЖЕР' ? 'ИМЯ НЕ ВЫБРАНО' : getAssignment(editingCell.model, editingCell.shift)?.operator}
                              </p>
                              <div className="flex gap-2 mt-2">
-                               {getAssignment(editingCell.model, editingCell.shift)?.isTrainee && (
+                               {getAssignment(editingCell.model, editingCell.shift) && (getAssignment(editingCell.model, editingCell.shift)?.isTrainee || getAssignment(editingCell.model, editingCell.shift)?.operator === 'СТАЖЕР') && (
                                  <span className="px-2 py-0.5 rounded-lg bg-purple-500/20 text-purple-400 text-[8px] font-black uppercase tracking-widest border border-purple-500/30">Стажер</span>
                                )}
+                               {getAssignment(editingCell.model, editingCell.shift)?.operator === 'СТАЖЕР' && (
+                                 <span className="px-2 py-0.5 rounded-lg bg-rose-500 text-white text-[8px] font-black uppercase tracking-widest">Ошибка: Нужно имя!</span>
+                               )}
                                {(() => {
-                                  const asmt = getAssessment(getAssignment(editingCell.model, editingCell.shift)!.operator, editingCell.model);
+                                  const assignment = getAssignment(editingCell.model, editingCell.shift);
+                                  if (!assignment || assignment.operator === 'СТАЖЕР') return null;
+                                  const asmt = getAssessment(assignment.operator, editingCell.model);
                                   if (!asmt) return null;
                                   const meta = ASSESSMENT_META[asmt.status];
                                   return (
@@ -529,12 +535,17 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                        <button 
                          onClick={() => {
                            const assignment = getAssignment(editingCell.model, editingCell.shift);
-                           if (assignment) {
+                           if (assignment && assignment.operator !== 'СТАЖЕР') {
                              setAssessmentTarget({ operator: assignment.operator, modelName: editingCell.model });
                              setEditingCell(null);
                            }
                          }}
-                         className="p-6 rounded-[2rem] bg-slate-800 text-white font-black uppercase text-xs tracking-widest flex flex-col items-center gap-3 border border-white/5 hover:bg-slate-750 transition-all"
+                         className={`p-6 rounded-[2rem] font-black uppercase text-xs tracking-widest flex flex-col items-center gap-3 border transition-all ${
+                           getAssignment(editingCell.model, editingCell.shift)?.operator === 'СТАЖЕР' 
+                            ? 'bg-slate-900 text-slate-700 border-white/5 cursor-not-allowed'
+                            : 'bg-slate-800 text-white border-white/5 hover:bg-slate-750'
+                         }`}
+                         disabled={getAssignment(editingCell.model, editingCell.shift)?.operator === 'СТАЖЕР'}
                        >
                          <ICONS.Star size={24} />
                          Поставить статус
@@ -566,6 +577,19 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                          <ICONS.ChevronRight size={14} className="rotate-180" /> Назад к действиям
                       </button>
                     )}
+                    
+                    {isTraineeMode && (
+                      <div className="bg-purple-500/10 border border-purple-500/20 p-4 rounded-2xl flex items-center gap-3">
+                         <div className="w-8 h-8 rounded-lg bg-purple-500 text-white flex items-center justify-center">
+                            <ICONS.Internship size={18} />
+                         </div>
+                         <div>
+                            <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest">Режим стажировки</p>
+                            <p className="text-xs font-bold text-white leading-none">Выберите оператора из списка ниже</p>
+                         </div>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
                   {/* GAP BUTTON */}
                   <button
