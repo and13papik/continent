@@ -23,8 +23,8 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
 
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
-  const currentOperators = activePeriod?.operators || state.operators;
-  const currentModels = activePeriod?.models || state.models;
+  const currentOperators = (activePeriod?.operators && activePeriod.operators.length > 0) ? activePeriod.operators : state.operators;
+  const currentModels = (activePeriod?.models && activePeriod.models.length > 0) ? activePeriod.models : state.models;
   const currentAdmins = activePeriod?.admins || state.admins;
   const currentGoals = activePeriod?.modelDefaultGoals || state.modelDefaultGoals || {};
   const currentPlans = activePeriod?.modelMonthlyPlans || state.modelMonthlyPlans || {};
@@ -454,10 +454,22 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
              <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Имя..." value={newOp} onChange={e => setNewOp(e.target.value)}/>
              <button onClick={() => { 
                if(newOp) { 
-                 updateState(p => ({
-                   ...p, 
-                   accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, operators: [...(ap.operators || p.operators), newOp], updatedAt: new Date().toISOString() } : ap)
-                 })); 
+                 updateState(p => {
+                    const activeP = p.accountingPeriods.find(ap => ap.id === p.selectedPeriodId);
+                    const currentOps = activeP?.operators || p.operators;
+                    if (currentOps.includes(newOp)) return p;
+                    
+                    let newGlobalOps = p.operators;
+                    if (!newGlobalOps.includes(newOp)) {
+                       newGlobalOps = [...newGlobalOps, newOp];
+                    }
+
+                    return {
+                      ...p,
+                      operators: newGlobalOps,
+                      accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, operators: [...currentOps, newOp], updatedAt: new Date().toISOString() } : ap)
+                    };
+                 }); 
                  setNewOp(''); 
                } 
              }} className="bg-sky-600 px-3 rounded-lg"><ICONS.Plus size={18}/></button>
@@ -495,10 +507,22 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
              <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Название..." value={newModel} onChange={e => setNewModel(e.target.value)}/>
              <button onClick={() => { 
                if(newModel) { 
-                 updateState(p => ({
-                   ...p, 
-                   accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, models: [...(ap.models || p.models), newModel], updatedAt: new Date().toISOString() } : ap)
-                 })); 
+                 updateState(p => {
+                    const activeP = p.accountingPeriods.find(ap => ap.id === p.selectedPeriodId);
+                    const currentMods = activeP?.models || p.models;
+                    if (currentMods.includes(newModel)) return p;
+
+                    let newGlobalModels = p.models;
+                    if (!newGlobalModels.includes(newModel)) {
+                       newGlobalModels = [...newGlobalModels, newModel];
+                    }
+
+                    return {
+                      ...p,
+                      models: newGlobalModels,
+                      accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, models: [...currentMods, newModel], updatedAt: new Date().toISOString() } : ap)
+                    };
+                 }); 
                  setNewModel(''); 
                } 
              }} className="bg-indigo-600 px-3 rounded-lg"><ICONS.Plus size={18}/></button>

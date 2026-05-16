@@ -108,8 +108,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
 
-  const currentOperators = activePeriod?.operators || state.operators;
-  const currentModels = activePeriod?.models || state.models;
+  const currentOperators = (activePeriod?.operators && activePeriod.operators.length > 0) ? activePeriod.operators : state.operators;
+  const currentModels = (activePeriod?.models && activePeriod.models.length > 0) ? activePeriod.models : state.models;
 
   // Проверка на наличие "бездомных" записей (из-за которых данные могли "пропасть")
   const homelessRecords = useMemo(() => {
@@ -197,7 +197,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
     const forecast = Math.max(totalGross, runRate * totalDaysInMonth);
 
     // --- Калькуляция Плана ---
-    const activeModels = activePeriod?.models || state.models;
+    const activeModels = (activePeriod?.models && activePeriod.models.length > 0) ? activePeriod.models : state.models;
     const totalTarget = activeModels.reduce((sum, mName) => {
       const mGoal = activePeriod?.modelMonthlyPlans?.[mName] || state.modelMonthlyPlans?.[mName] || 0;
       return sum + mGoal;

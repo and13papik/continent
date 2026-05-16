@@ -13,9 +13,21 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId)!;
   
-  // Show all models from state.models to ensure they "remain everywhere" 
-  // even if hidden from the Roster (period-specific subset)
-  const currentModels = state.models;
+  // Show models that have any data in this period, plus those designated for this period
+  const currentModels = useMemo(() => {
+    const periodModels = (activePeriod.models && activePeriod.models.length > 0) ? activePeriod.models : state.models;
+    const modelsWithIncome = state.incomeData.filter(r => r.periodId === activePeriodId).map(r => r.model);
+    const modelsWithBonuses = (state.modelBonuses || []).filter(b => b.periodId === activePeriodId).map(b => b.model);
+    const modelsWithOps = state.operationsData.filter(o => o.periodId === activePeriodId).map(o => o.model);
+    
+    return Array.from(new Set([
+      ...periodModels,
+      ...modelsWithIncome,
+      ...modelsWithBonuses,
+      ...modelsWithOps
+    ])).filter((m): m is string => Boolean(m));
+  }, [activePeriod.models, state.models, state.incomeData, state.modelBonuses, state.operationsData, activePeriodId]);
+
   const currentRates = activePeriod.modelRates || state.modelRates;
 
   const [bonusInputs, setBonusInputs] = useState<Record<string, string>>({});
