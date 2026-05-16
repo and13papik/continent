@@ -260,16 +260,18 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
   }, [state.operatorAssessments, state.selectedPeriodId]);
 
   const getAssessment = (operator: string, modelName?: string) => {
-    return currentAssessments.find(a => 
-      a.operator === operator && 
-      ((a.modelName || '') === (modelName || ''))
-    );
+    // Favor model-specific assessment, fall back to global
+    const assessments = currentAssessments.filter(a => a.operator === operator);
+    const specific = assessments.find(a => (a.modelName || '') === (modelName || ''));
+    if (specific) return specific;
+    return assessments.find(a => !a.modelName || a.modelName === '');
   };
 
   const handleSetAssessment = (status: OperatorStatus) => {
     if (!assessmentTarget) return;
 
     updateState(prev => {
+      // Filter out EXACT match for (operator, period, modelName)
       const existing = (prev.operatorAssessments || []).filter(a => 
         !(a.operator === assessmentTarget.operator && 
           a.periodId === prev.selectedPeriodId && 
@@ -294,7 +296,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         operatorAssessments: [newAssessment, ...existing]
       };
     });
-    setAssessmentTarget(null);
+    // Removed setAssessmentTarget(null) to keep modal open for verification
   };
 
   const toggleModelStatus = (model: string, status: 'priority' | 'inactive') => {
@@ -940,12 +942,13 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                     {Object.entries(ASSESSMENT_META).map(([key, meta]) => {
                     const StatusIcon = meta.icon;
                     const currentAsmt = getAssessment(assessmentTarget.operator, assessmentTarget.modelName);
+                    // Check if this specific status is active
                     const isActive = (currentAsmt?.status || 'none') === key;
                     
                     return (
                       <button
                         key={key}
-                        onClick={() => handleSetAssessment(key as OperatorStatus)}
+                        onClick={() => handleSetAssessment(isActive ? 'none' : key as OperatorStatus)}
                         className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
                           isActive
                             ? 'bg-white text-slate-950 border-white'
@@ -955,7 +958,12 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${meta.bg} ${meta.color}`}>
                           <StatusIcon size={18} />
                         </div>
-                        <span className="font-black uppercase tracking-widest text-[10px]">{meta.label}</span>
+                        <div className="flex flex-col items-start">
+                          <span className="font-black uppercase tracking-widest text-[10px]">{meta.label}</span>
+                          <span className="text-[8px] font-medium opacity-50">
+                            {isActive ? 'Нажато (убрать)' : 'Нажать для выбора'}
+                          </span>
+                        </div>
                       </button>
                     );
                   })}
