@@ -33,8 +33,64 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
 
   const [showSwapList, setShowSwapList] = useState(false);
 
+  const [isManagingModels, setIsManagingModels] = useState(false);
+  const [newModelName, setNewModelName] = useState('');
+
   const currentPeriod = state.accountingPeriods.find((p: AccountingPeriod) => p.id === state.selectedPeriodId);
   const allModels = currentPeriod?.models || state.models;
+  
+  // Available models are those in state.models but not in activePeriod.models
+  const availableModels = useMemo(() => {
+    if (!currentPeriod?.models) return [];
+    return state.models.filter(m => !currentPeriod.models?.includes(m));
+  }, [state.models, currentPeriod?.models]);
+
+  const addModelToPeriod = (modelName: string) => {
+    updateState(prev => {
+      const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
+      if (!activeP) return prev;
+      
+      const currentModels = activeP.models || prev.models;
+      if (currentModels.includes(modelName)) return prev;
+
+      // Also ensure it exists in global models if it's a new one
+      let newGlobalModels = prev.models;
+      if (!newGlobalModels.includes(modelName)) {
+        newGlobalModels = [...newGlobalModels, modelName];
+      }
+
+      return {
+        ...prev,
+        models: newGlobalModels,
+        accountingPeriods: prev.accountingPeriods.map(p => 
+          p.id === prev.selectedPeriodId 
+            ? { ...p, models: [...currentModels, modelName], updatedAt: new Date().toISOString() } 
+            : p
+        )
+      };
+    });
+    setNewModelName('');
+  };
+
+  const removeModelFromPeriod = (modelName: string) => {
+    if (!confirm(`Удалить анкету "${modelName}" из этого периода? Данные не удалятся, но анкета перестанет отображаться в составе.`)) return;
+    
+    updateState(prev => {
+      const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
+      if (!activeP) return prev;
+      
+      const currentModels = activeP.models || prev.models;
+      return {
+        ...prev,
+        accountingPeriods: prev.accountingPeriods.map(p => 
+          p.id === prev.selectedPeriodId 
+            ? { ...p, models: currentModels.filter(m => m !== modelName), updatedAt: new Date().toISOString() } 
+            : p
+        )
+      };
+    });
+  };
+
   const operators = currentPeriod?.operators || state.operators;
 
   const priorityModels = state.priorityModels || [];
@@ -312,6 +368,13 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                   >
                     <ICONS.Penalty size={14} />
                   </button>
+                  <button 
+                    onClick={() => removeModelFromPeriod(model)}
+                    className="p-2 rounded-lg text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                    title="Удалить из списка"
+                  >
+                    <ICONS.Trash size={14} />
+                  </button>
                 </div>
               </div>
             </td>
@@ -370,12 +433,12 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                         {!isGap && (
                           <div className="flex items-center gap-2 mt-0.5">
                             {isTrainee && (
-                              <div className={`px-1.5 py-0.5 rounded-md text-[7px] font-black border leading-none ${
+                              <div className={`px-2 py-1 rounded-lg text-[9px] font-black border-2 leading-none shadow-sm ${
                                 isGraduated 
-                                  ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' 
-                                  : 'bg-purple-500/20 border-purple-500/30 text-purple-300'
+                                  ? 'bg-emerald-500 text-white border-emerald-400' 
+                                  : 'bg-purple-600 text-white border-purple-400'
                               }`}>
-                                {daysWorked}/7ДН
+                                {daysWorked}/7 ДН
                               </div>
                             )}
                             <div className="flex gap-0.5">
@@ -411,6 +474,13 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
             <p className="text-slate-400 font-medium">Управление сменами и распределение операторов</p>
           </div>
         </div>
+        <button 
+          onClick={() => setIsManagingModels(true)}
+          className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-xl shadow-indigo-600/20 active:scale-95 transition-all"
+        >
+          <ICONS.Plus size={20} />
+          <span className="font-black text-sm uppercase tracking-widest">Добавить анкету</span>
+        </button>
       </div>
 
       {/* Grid */}
@@ -767,6 +837,89 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                   className="w-full py-4 rounded-2xl bg-slate-800 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all border border-white/5"
                 >
                   Закрыть
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Model Management Modal */}
+      <AnimatePresence>
+        {isManagingModels && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-card w-full max-w-2xl rounded-[3rem] p-8 md:p-12 border-white/10 shadow-2xl relative overflow-hidden"
+            >
+              <div className="relative z-10 space-y-10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tight">Управление анкетами</h3>
+                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Добавление анкет в текущий состав ({currentPeriod?.label})</p>
+                  </div>
+                  <button 
+                    onClick={() => setIsManagingModels(false)}
+                    className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-slate-500 hover:text-white transition-colors"
+                  >
+                    <ICONS.Close size={24} />
+                  </button>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Создать новую анкету</label>
+                    <div className="flex gap-3">
+                      <input 
+                        type="text" 
+                        value={newModelName}
+                        onChange={e => setNewModelName(e.target.value)}
+                        placeholder="Название анкеты (напр. Alena, Masha...)"
+                        className="flex-1 bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-indigo-500 outline-none transition-all"
+                        onKeyDown={e => e.key === 'Enter' && newModelName && addModelToPeriod(newModelName)}
+                      />
+                      <button 
+                        onClick={() => newModelName && addModelToPeriod(newModelName)}
+                        className="px-8 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-600/20 active:scale-95 transition-all"
+                      >
+                        Добавить
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between px-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Доступные из глобального списка</label>
+                      <span className="text-[10px] font-bold text-slate-600">{availableModels.length} найдено</span>
+                    </div>
+                    {availableModels.length === 0 ? (
+                      <div className="p-8 rounded-3xl border border-dashed border-white/5 text-center">
+                        <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">Все анкеты уже в списке</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[30vh] overflow-y-auto pr-2 custom-scrollbar">
+                        {availableModels.map(model => (
+                          <button
+                            key={model}
+                            onClick={() => addModelToPeriod(model)}
+                            className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-indigo-500/50 hover:bg-indigo-500/5 text-slate-300 hover:text-white transition-all text-center flex flex-col items-center gap-2"
+                          >
+                            <ICONS.Models size={16} />
+                            <span className="font-black text-[10px] uppercase tracking-tighter truncate w-full">{model}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => setIsManagingModels(false)}
+                  className="w-full py-5 rounded-[2rem] bg-slate-900 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all border border-white/5"
+                >
+                  Завершить управление
                 </button>
               </div>
             </motion.div>
