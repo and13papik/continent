@@ -129,14 +129,21 @@ async function startServer() {
         form.append('chat_id', CHAT_ID);
         form.append('photo', buffer, { filename: 'roster.png' });
         if (text) form.append('caption', text);
+        form.append('parse_mode', 'HTML');
         if (replyMarkup) form.append('reply_markup', JSON.stringify(replyMarkup));
 
         const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
           method: 'POST',
+          headers: form.getHeaders(),
           body: form
         });
         const result = await response.json();
-        return res.json(result);
+        
+        if (!response.ok) {
+           console.error("Telegram error result:", result);
+        }
+        
+        return res.status(response.status).json(result);
       } else {
         const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
           method: 'POST',
@@ -149,7 +156,7 @@ async function startServer() {
           })
         });
         const result = await response.json();
-        return res.json(result);
+        return res.status(response.status).json(result);
       }
     } catch (error: any) {
       console.error("Telegram API Error:", error);

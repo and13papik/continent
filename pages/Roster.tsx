@@ -127,8 +127,10 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         if (isManual) alert('Состав успешно отправлен в Telegram!');
         console.log('Состав успешно отправлен в Telegram!');
       } else {
-        if (isManual) alert('Ошибка при отправке в Telegram. Проверьте конфигурацию');
-        console.error('Ошибка при отправке в Telegram. Проверьте конфигурацию .env');
+        const errResult = await response.json().catch(() => ({}));
+        const errMsg = errResult.description || errResult.error || 'Неизвестная ошибка';
+        if (isManual) alert(`Ошибка при отправке в Telegram: ${errMsg}`);
+        console.error('Ошибка при отправке в Telegram:', errMsg);
       }
     } catch (error) {
       console.error(error);
