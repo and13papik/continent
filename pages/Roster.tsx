@@ -263,40 +263,71 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     // Favor model-specific assessment, fall back to global
     const assessments = currentAssessments.filter(a => a.operator === operator);
     const specific = assessments.find(a => (a.modelName || '') === (modelName || ''));
+    
+    // If we have a specific assessment (including 'none' status which acts as an override), return it
     if (specific) return specific;
+    
+    // Fall back to global assessment (no modelName)
     return assessments.find(a => !a.modelName || a.modelName === '');
   };
 
   const handleSetAssessment = (status: OperatorStatus) => {
     if (!assessmentTarget) return;
 
-    updateState(prev => {
-      // Filter out EXACT match for (operator, period, modelName)
-      const existing = (prev.operatorAssessments || []).filter(a => 
-        !(a.operator === assessmentTarget.operator && 
-          a.periodId === prev.selectedPeriodId && 
-          ((a.modelName || '') === (assessmentTarget.modelName || '')))
-      );
+    const op = assessmentTarget.operator;
+    const model = assessmentTarget.modelName;
+    const period = state.selectedPeriodId;
 
-      if (status === 'none') {
-        return { ...prev, operatorAssessments: existing };
+    updateState(prev => {
+      let assessments = [...(prev.operatorAssessments || [])];
+
+      // If we are in a "General/Global" context (no modelName), we should clear all 
+      // assessments for this operator in this period to avoid conflicting fallbacks.
+      if (!model || model === '') {
+        assessments = assessments.filter(a => 
+          !(a.operator === op && a.periodId === period)
+        );
+      } else {
+        // Model-specific context: only clear the exact model-specific assessment
+        assessments = assessments.filter(a => 
+          !(a.operator === op && a.periodId === period && (a.modelName || '') === model)
+        );
       }
 
-      const newAssessment: OperatorAssessment = {
-        id: `asmt_${Date.now()}`,
-        operator: assessmentTarget.operator,
-        periodId: prev.selectedPeriodId,
-        status,
-        modelName: assessmentTarget.modelName,
-        updatedAt: new Date().toISOString()
-      };
+      if (status !== 'none') {
+        const newAsmt: OperatorAssessment = {
+          id: `asmt_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          operator: op,
+          periodId: period,
+          status,
+          modelName: model,
+          updatedAt: new Date().toISOString()
+        };
+        assessments.push(newAsmt);
+      } else if (model && model !== '') {
+        // Special case: if clearing a specific model status but a global one exists,
+        // we add an explicit 'none' status for this model to override the global fallback.
+        const hasGlobal = (prev.operatorAssessments || []).some(a => 
+          a.operator === op && a.periodId === period && (!a.modelName || a.modelName === '')
+        );
+        if (hasGlobal) {
+          const override: OperatorAssessment = {
+            id: `asmt_none_${Date.now()}`,
+            operator: op,
+            periodId: period,
+            status: 'none',
+            modelName: model,
+            updatedAt: new Date().toISOString()
+          };
+          assessments.push(override);
+        }
+      }
 
       return {
         ...prev,
-        operatorAssessments: [newAssessment, ...existing]
+        operatorAssessments: assessments
       };
     });
-    // Removed setAssessmentTarget(null) to keep modal open for verification
   };
 
   const toggleModelStatus = (model: string, status: 'priority' | 'inactive') => {
@@ -933,40 +964,44 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
               className="glass-card w-full max-w-sm rounded-[3rem] p-8 border-white/10 shadow-2xl relative overflow-hidden"
             >
               <div className="relative z-10 space-y-8">
-                <div className="text-center">
-                  <h3 className="text-xl font-black text-white uppercase">{assessmentTarget.operator}</h3>
-                  <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mt-1">Цель: {assessmentTarget.modelName || 'Общий'}</p>
-                </div>
+                  <div className="text-center">
+                    <h3 className="text-xl font-black text-white uppercase">{assessmentTarget.operator}</h3>
+                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mt-2 bg-indigo-500/10 py-1.5 px-4 rounded-full border border-indigo-500/20 inline-block mx-auto">
+                      {assessmentTarget.modelName ? `АНКЕТА: ${assessmentTarget.modelName}` : 'ОБЩИЙ СТАТУС'}
+                    </p>
+                  </div>
 
                 <div className="grid grid-cols-1 gap-2">
                     {Object.entries(ASSESSMENT_META).map(([key, meta]) => {
-                    const StatusIcon = meta.icon;
-                    const currentAsmt = getAssessment(assessmentTarget.operator, assessmentTarget.modelName);
-                    // Check if this specific status is active
-                    const isActive = (currentAsmt?.status || 'none') === key;
-                    
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => handleSetAssessment(isActive ? 'none' : key as OperatorStatus)}
-                        className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
-                          isActive
-                            ? 'bg-white text-slate-950 border-white'
-                            : 'bg-slate-900/50 border-white/5 text-slate-400 hover:border-white/20'
-                        }`}
-                      >
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${meta.bg} ${meta.color}`}>
-                          <StatusIcon size={18} />
-                        </div>
-                        <div className="flex flex-col items-start">
-                          <span className="font-black uppercase tracking-widest text-[10px]">{meta.label}</span>
-                          <span className="text-[8px] font-medium opacity-50">
-                            {isActive ? 'Нажато (убрать)' : 'Нажать для выбора'}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
+                      const StatusIcon = meta.icon;
+                      const currentAsmt = getAssessment(assessmentTarget.operator, assessmentTarget.modelName);
+                      
+                      // Check if THIS specific record in the component state matches the key
+                      // To avoid fallback confusion, we check for exact model match OR global match accordingly
+                      const isActive = (currentAsmt?.status || 'none') === key;
+                      
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => handleSetAssessment(isActive ? 'none' : key as OperatorStatus)}
+                          className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
+                            isActive
+                              ? 'bg-white text-slate-950 border-white'
+                              : 'bg-slate-900/50 border-white/5 text-slate-400 hover:border-white/20'
+                          }`}
+                        >
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${meta.bg} ${meta.color}`}>
+                            <StatusIcon size={18} />
+                          </div>
+                          <div className="flex flex-col items-start">
+                            <span className="font-black uppercase tracking-widest text-[10px]">{meta.label}</span>
+                            <span className="text-[8px] font-medium opacity-50">
+                              {isActive ? 'АКТИВНО (Нажмите чтобы убрать)' : 'ВЫБРАТЬ'}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
                 </div>
 
                 <button 
