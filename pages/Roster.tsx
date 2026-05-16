@@ -137,57 +137,6 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     });
   };
 
-  const deleteModel = (modelToDelete: string) => {
-    if (!window.confirm(`Вы уверены, что хотите полностью удалить анкету "${modelToDelete}"? Это также очистит её расписание.`)) {
-      return;
-    }
-
-    updateState(prev => {
-      // 1. Remove from global models
-      const newGlobalModels = (prev.models || []).filter(m => m !== modelToDelete);
-      
-      // 2. Remove from accounting periods
-      const newPeriods = prev.accountingPeriods.map(p => ({
-        ...p,
-        models: (p.models || []).filter(m => m !== modelToDelete)
-      }));
-
-      // 3. Remove from roster data
-      const roster = (prev.rosterData || []);
-      const entriesToRemove = roster.filter(e => e.models.includes(modelToDelete));
-      const newDeletedIds = [...(prev.deletedIds || []), ...entriesToRemove.map(e => e.id)];
-      
-      const newRoster = roster.map(e => {
-        if (e.models.includes(modelToDelete)) {
-          return {
-            ...e,
-            models: e.models.filter(m => m !== modelToDelete),
-            updatedAt: new Date().toISOString()
-          };
-        }
-        return e;
-      }).filter(e => e.models.length > 0);
-
-      // 4. Remove from statuses
-      const newPriority = (prev.priorityModels || []).filter(m => m !== modelToDelete);
-      const newInactive = (prev.inactiveModels || []).filter(m => m !== modelToDelete);
-      
-      // 5. Remove from assessments
-      const newAssessments = (prev.operatorAssessments || []).filter(a => a.modelName !== modelToDelete);
-
-      return {
-        ...prev,
-        models: newGlobalModels,
-        accountingPeriods: newPeriods,
-        rosterData: newRoster,
-        deletedIds: newDeletedIds,
-        priorityModels: newPriority,
-        inactiveModels: newInactive,
-        operatorAssessments: newAssessments
-      };
-    });
-  };
-
   const handleAssign = (operator: string, isTrainee: boolean = false) => {
     if (!editingCell) return;
 
@@ -362,13 +311,6 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                     title="Без чаттеров"
                   >
                     <ICONS.Penalty size={14} />
-                  </button>
-                  <button 
-                    onClick={() => deleteModel(model)}
-                    className="p-2 rounded-lg text-slate-600 hover:text-rose-600 hover:bg-rose-600/10 transition-colors"
-                    title="Удалить анкету"
-                  >
-                    <ICONS.Trash size={14} />
                   </button>
                 </div>
               </div>
