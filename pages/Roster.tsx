@@ -262,7 +262,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
   const getAssessment = (operator: string, modelName?: string) => {
     return currentAssessments.find(a => 
       a.operator === operator && 
-      (modelName ? a.modelName === modelName : true)
+      ((a.modelName || '') === (modelName || ''))
     );
   };
 
@@ -273,7 +273,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       const existing = (prev.operatorAssessments || []).filter(a => 
         !(a.operator === assessmentTarget.operator && 
           a.periodId === prev.selectedPeriodId && 
-          a.modelName === assessmentTarget.modelName)
+          ((a.modelName || '') === (assessmentTarget.modelName || '')))
       );
 
       if (status === 'none') {
@@ -937,14 +937,17 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                 </div>
 
                 <div className="grid grid-cols-1 gap-2">
-                  {Object.entries(ASSESSMENT_META).map(([key, meta]) => {
+                    {Object.entries(ASSESSMENT_META).map(([key, meta]) => {
                     const StatusIcon = meta.icon;
+                    const currentAsmt = getAssessment(assessmentTarget.operator, assessmentTarget.modelName);
+                    const isActive = (currentAsmt?.status || 'none') === key;
+                    
                     return (
                       <button
                         key={key}
                         onClick={() => handleSetAssessment(key as OperatorStatus)}
                         className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
-                          getAssessment(assessmentTarget.operator, assessmentTarget.modelName)?.status === key
+                          isActive
                             ? 'bg-white text-slate-950 border-white'
                             : 'bg-slate-900/50 border-white/5 text-slate-400 hover:border-white/20'
                         }`}
