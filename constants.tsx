@@ -43,7 +43,8 @@ import {
   User,
   History,
   Star,
-  TrendingUp
+  TrendingUp,
+  Clock
 } from 'lucide-react';
 
 export const ICONS: Record<string, any> = {
@@ -96,7 +97,8 @@ export const ICONS: Record<string, any> = {
   User: User,
   History: History,
   Empty: ClipboardList,
-  Star: Star
+  Star: Star,
+  Clock: Clock
 };
 
 export const PLATFORM_NAMES: Record<string, string> = {

@@ -37,7 +37,8 @@ export function createInitialState(): AppState {
         priorityModels: parsed.priorityModels || [],
         inactiveModels: parsed.inactiveModels || [],
         modelDefaultGoals: parsed.modelDefaultGoals || {},
-        modelMonthlyPlans: parsed.modelMonthlyPlans || {}
+        modelMonthlyPlans: parsed.modelMonthlyPlans || {},
+        operatorAssessments: parsed.operatorAssessments || []
       };
     } catch (e) {
       console.error("Failed to parse storage", e);
@@ -75,6 +76,7 @@ export function createInitialState(): AppState {
     operationsData: [],
     accountingPeriods: [firstPeriod],
     selectedPeriodId: firstPeriod.id,
+    operatorAssessments: [],
     modelRates: { of: 25, pp: 17, cr: 25 },
     ownerExpenses: [],
     ownerManualIncomes: [],
@@ -194,6 +196,7 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         finalState.advanceRequests = mergeArraysById(state.advanceRequests || [], remote.advanceRequests || [], combinedDeletedIds);
         finalState.operatorWallets = mergeArraysById(state.operatorWallets || [], remote.operatorWallets || [], combinedDeletedIds);
         finalState.rosterData = mergeArraysById(state.rosterData || [], remote.rosterData || [], combinedDeletedIds);
+        finalState.operatorAssessments = mergeArraysById(state.operatorAssessments || [], remote.operatorAssessments || [], combinedDeletedIds);
         finalState.priorityModels = Array.from(new Set([...(state.priorityModels || []), ...(remote.priorityModels || [])]));
         finalState.inactiveModels = Array.from(new Set([...(state.inactiveModels || []), ...(remote.inactiveModels || [])]));
         finalState.modelDefaultGoals = { ...(remote.modelDefaultGoals || {}), ...(state.modelDefaultGoals || {}) };

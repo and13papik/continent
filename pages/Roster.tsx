@@ -1,9 +1,17 @@
 
 import React, { useState, useMemo } from 'react';
-import { AppState, RosterEntry, ShiftType, AccountingPeriod } from '../types';
+import { AppState, RosterEntry, ShiftType, AccountingPeriod, OperatorStatus, OperatorAssessment } from '../types';
 import { ICONS } from '../constants';
 import { motion, AnimatePresence } from 'framer-motion';
 import PeriodBadge from '../components/PeriodBadge';
+
+const ASSESSMENT_META: Record<OperatorStatus, { label: string; color: string; bg: string; icon: any }> = {
+  good: { label: 'Хороший', color: 'text-emerald-400', bg: 'bg-emerald-500/10', icon: ICONS.ShieldCheck },
+  bad: { label: 'Плохой', color: 'text-rose-400', bg: 'bg-rose-500/10', icon: ICONS.Penalty },
+  deadline: { label: 'Дедлайн', color: 'text-amber-400', bg: 'bg-amber-500/10', icon: ICONS.Clock },
+  replace: { label: 'Заменить', color: 'text-rose-500', bg: 'bg-rose-500/10', icon: ICONS.Users },
+  none: { label: 'Нет', color: 'text-slate-400', bg: 'bg-slate-800', icon: ICONS.Close }
+};
 
 interface RosterProps {
   state: AppState;
@@ -20,6 +28,7 @@ const SHIFTS: { type: ShiftType; label: string; time: string; color: string }[] 
 const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
   const [editingCell, setEditingCell] = useState<{ model: string; shift: ShiftType } | null>(null);
   const [isTraineeMode, setIsTraineeMode] = useState(false);
+  const [assessmentTarget, setAssessmentTarget] = useState<{ operator: string; modelName?: string } | null>(null);
 
   const currentPeriod = state.accountingPeriods.find((p: AccountingPeriod) => p.id === state.selectedPeriodId);
   const allModels = currentPeriod?.models || state.models;
@@ -39,8 +48,65 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     return (state.rosterData || []).filter((e: RosterEntry) => e.periodId === state.selectedPeriodId);
   }, [state.rosterData, state.selectedPeriodId]);
 
+  const operatorWorkingDays = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const operatorsInRoster = Array.from(new Set(rosterEntries.map(e => e.operator)));
+    
+    operatorsInRoster.forEach(opName => {
+      const uniqueDates = new Set(
+        state.incomeData
+          .filter(r => r.operator === opName)
+          .map(r => r.date)
+      );
+      counts[opName] = uniqueDates.size;
+    });
+    return counts;
+  }, [state.incomeData, rosterEntries]);
+
   const getAssignment = (model: string, shift: ShiftType) => {
     return rosterEntries.find((e: RosterEntry) => e.shift === shift && e.models.includes(model));
+  };
+
+  const currentAssessments = useMemo(() => {
+    return (state.operatorAssessments || []).filter(a => a.periodId === state.selectedPeriodId);
+  }, [state.operatorAssessments, state.selectedPeriodId]);
+
+  const getAssessment = (operator: string, modelName?: string) => {
+    return currentAssessments.find(a => 
+      a.operator === operator && 
+      (modelName ? a.modelName === modelName : true)
+    );
+  };
+
+  const handleSetAssessment = (status: OperatorStatus) => {
+    if (!assessmentTarget) return;
+
+    updateState(prev => {
+      const existing = (prev.operatorAssessments || []).filter(a => 
+        !(a.operator === assessmentTarget.operator && 
+          a.periodId === prev.selectedPeriodId && 
+          a.modelName === assessmentTarget.modelName)
+      );
+
+      if (status === 'none') {
+        return { ...prev, operatorAssessments: existing };
+      }
+
+      const newAssessment: OperatorAssessment = {
+        id: `asmt_${Date.now()}`,
+        operator: assessmentTarget.operator,
+        periodId: prev.selectedPeriodId,
+        status,
+        modelName: assessmentTarget.modelName,
+        updatedAt: new Date().toISOString()
+      };
+
+      return {
+        ...prev,
+        operatorAssessments: [newAssessment, ...existing]
+      };
+    });
+    setAssessmentTarget(null);
   };
 
   const toggleModelStatus = (model: string, status: 'priority' | 'inactive') => {
@@ -250,6 +316,9 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
               const assignment = getAssignment(model, shift.type);
               const isGap = assignment?.operator === 'ДЫРКА';
               const isTrainee = assignment?.isTrainee || assignment?.operator === 'СТАЖЕР';
+              const daysWorked = assignment ? (operatorWorkingDays[assignment.operator] || 0) : 0;
+              const isGraduated = isTrainee && daysWorked >= 7;
+
               return (
                 <td 
                   key={shift.type} 
@@ -271,16 +340,41 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                   >
                     {assignment ? (
                       <>
-                        <span className={`text-xs font-black uppercase tracking-tighter ${
-                          isGap ? 'text-rose-400' : isTrainee ? 'text-purple-400' : 'text-indigo-400'
-                        }`}>
-                          {assignment.operator}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {isTrainee && <ICONS.Internship size={12} className={isGraduated ? 'text-emerald-400' : 'text-purple-400'} />}
+                          <span className={`text-xs font-black uppercase tracking-tighter ${
+                            isGap ? 'text-rose-400' : isTrainee ? isGraduated ? 'text-emerald-400' : 'text-purple-400' : 'text-indigo-400'
+                          }`}>
+                            {assignment.operator}
+                          </span>
+                          {(() => {
+                            const asmt = getAssessment(assignment.operator, model);
+                            if (!asmt) return null;
+                            const meta = ASSESSMENT_META[asmt.status];
+                            return (
+                              <div className={`p-1 rounded-md ${meta.bg} ${meta.color} ml-1`} title={meta.label}>
+                                <meta.icon size={10} />
+                              </div>
+                            );
+                          })()}
+                          {isGraduated && (
+                            <div className="absolute top-1 right-1">
+                               <div className="bg-emerald-500 text-[6px] text-white font-black px-1 rounded-sm animate-bounce">READY</div>
+                            </div>
+                          )}
+                        </div>
                         {!isGap && (
-                          <div className="flex gap-1">
-                            {assignment.models.map((m: string, i: number) => (
-                              <div key={i} className={`w-1 h-1 rounded-full ${isTrainee ? 'bg-purple-500' : 'bg-indigo-500'}`} />
-                            ))}
+                          <div className="flex items-center gap-1">
+                            {isTrainee && (
+                              <span className={`text-[8px] font-black ${isGraduated ? 'text-emerald-500/50' : 'text-purple-500/50'}`}>
+                                {daysWorked}/7дн
+                              </span>
+                            )}
+                            <div className="flex gap-0.5 ml-1">
+                              {assignment.models.map((m: string, i: number) => (
+                                <div key={i} className={`w-1 h-1 rounded-full ${isTrainee ? isGraduated ? 'bg-emerald-500' : 'bg-purple-500' : 'bg-indigo-500'}`} />
+                              ))}
+                            </div>
                           </div>
                         )}
                       </>
@@ -397,38 +491,66 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                     <span className="font-black text-xs uppercase">ДЫРКА</span>
                   </button>
 
-                  {/* TRAINEE GAP BUTTON */}
-                  <button
-                    onClick={() => handleAssign('СТАЖЕР', true)}
-                    className="p-4 rounded-2xl border-2 border-purple-500/30 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-all flex flex-col items-center justify-center gap-1 shadow-[0_0_15px_rgba(168,85,247,0.1)]"
-                  >
-                    <ICONS.Bonus size={20} />
-                    <span className="font-black text-xs uppercase">СТАЖЕР</span>
-                  </button>
-
                   {operators.map((op: string) => {
                     const isAssignedToThis = rosterEntries.find((e: RosterEntry) => e.shift === editingCell.shift && e.operator === op && e.models.includes(editingCell.model) && e.isTrainee === isTraineeMode);
-                    const otherModels = rosterEntries.find((e: RosterEntry) => e.shift === editingCell.shift && e.operator === op)?.models.filter((m: string) => m !== editingCell.model) || [];
+                    const currentAssignment = rosterEntries.find((e: RosterEntry) => e.shift === editingCell.shift && e.operator === op);
+                    const otherModels = currentAssignment?.models.filter((m: string) => m !== editingCell.model) || [];
+                    const daysWorked = operatorWorkingDays[op] || 0;
+                    const isGraduated = isTraineeMode && daysWorked >= 7;
+                    const asmt = getAssessment(op, editingCell.model);
                     
                     return (
-                      <button
-                        key={op}
-                        onClick={() => handleAssign(op, isTraineeMode)}
-                        className={`p-4 rounded-2xl border-2 transition-all text-left space-y-1 group ${
-                          isAssignedToThis
-                            ? isTraineeMode ? 'bg-purple-600 border-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.3)]' : 'bg-indigo-600 border-indigo-500 text-white'
-                            : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
-                        }`}
-                      >
-                        <div className="font-bold truncate">{op}</div>
-                        {otherModels.length > 0 && (
-                          <div className={`text-[9px] uppercase font-black tracking-tighter ${
-                            isAssignedToThis ? isTraineeMode ? 'text-purple-200' : 'text-indigo-200' : 'text-slate-600'
-                          }`}>
-                            + {otherModels[0]}
+                      <div key={op} className="relative group">
+                        <button
+                          onClick={() => handleAssign(op, isTraineeMode)}
+                          className={`w-full p-4 rounded-2xl border-2 transition-all text-left space-y-1 relative ${
+                            isAssignedToThis
+                              ? isTraineeMode ? 'bg-purple-600 border-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.3)]' : 'bg-indigo-600 border-indigo-500 text-white'
+                              : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="font-bold truncate">{op}</div>
+                            <div className="flex gap-1 items-center">
+                              {asmt && (() => {
+                                const Icon = ASSESSMENT_META[asmt.status].icon;
+                                return (
+                                  <div className={`p-1 rounded-md ${ASSESSMENT_META[asmt.status].bg} ${ASSESSMENT_META[asmt.status].color}`}>
+                                    <Icon size={8} />
+                                  </div>
+                                );
+                              })()}
+                              {isTraineeMode && (
+                                <div className={`px-1.5 py-0.5 rounded text-[8px] font-black ${isGraduated ? 'bg-emerald-500 text-white' : 'bg-purple-500/40 text-purple-200'}`}>
+                                  {daysWorked}/7дн
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        )}
-                      </button>
+                          {isGraduated && (
+                            <div className="text-[7px] text-emerald-400 font-bold uppercase tracking-widest flex items-center gap-1">
+                               <ICONS.ShieldCheck size={8} /> Стажировка окончена
+                            </div>
+                          )}
+                          {otherModels.length > 0 && !isGraduated && (
+                            <div className={`text-[9px] uppercase font-black tracking-tighter ${
+                              isAssignedToThis ? isTraineeMode ? 'text-purple-200' : 'text-indigo-200' : 'text-slate-600'
+                            }`}>
+                              + {otherModels[0]}
+                            </div>
+                          )}
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAssessmentTarget({ operator: op, modelName: editingCell.model });
+                          }}
+                          className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-10 hover:bg-white hover:text-slate-950 shadow-xl"
+                          title="Поставить отметку"
+                        >
+                          <ICONS.Star size={12} />
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -447,6 +569,105 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                     Отмена
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Replacement List */}
+      <div className="mt-12 space-y-6">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-400 flex items-center justify-center border border-orange-500/20 shadow-lg shadow-orange-500/10">
+            <ICONS.Users size={20} />
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-white uppercase tracking-tight">На замену</h2>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Операторы, требующие ротации в текущем периоде</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {currentAssessments.filter(a => a.status === 'replace').length === 0 ? (
+            <div className="col-span-full py-12 px-8 rounded-[2.5rem] bg-white/[0.02] border border-dashed border-white/5 flex flex-col items-center justify-center gap-3">
+               <ICONS.ShieldCheck size={32} className="text-slate-800" />
+               <p className="text-sm font-bold text-slate-600 uppercase tracking-widest">Кандидатов на замену нет</p>
+            </div>
+          ) : (
+            currentAssessments.filter(a => a.status === 'replace').map(asmt => (
+              <motion.div 
+                key={asmt.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass-card p-6 rounded-3xl border-rose-500/20 bg-rose-500/5 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/30">
+                    <ICONS.Users size={24} />
+                  </div>
+                  <div>
+                    <p className="text-lg font-black text-white leading-none">{asmt.operator}</p>
+                    <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mt-1">Анкета: {asmt.modelName || 'Общий'}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setAssessmentTarget({ operator: asmt.operator, modelName: asmt.modelName });
+                  }}
+                  className="w-10 h-10 rounded-xl bg-slate-900 border border-white/5 flex items-center justify-center text-slate-500 hover:text-white transition-all"
+                >
+                  <ICONS.Edit size={16} />
+                </button>
+              </motion.div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Assessment Target Modal */}
+      <AnimatePresence>
+        {assessmentTarget && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-card w-full max-w-sm rounded-[3rem] p-8 border-white/10 shadow-2xl relative overflow-hidden"
+            >
+              <div className="relative z-10 space-y-8">
+                <div className="text-center">
+                  <h3 className="text-xl font-black text-white uppercase">{assessmentTarget.operator}</h3>
+                  <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mt-1">Цель: {assessmentTarget.modelName || 'Общий'}</p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2">
+                  {Object.entries(ASSESSMENT_META).map(([key, meta]) => {
+                    const StatusIcon = meta.icon;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => handleSetAssessment(key as OperatorStatus)}
+                        className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
+                          getAssessment(assessmentTarget.operator, assessmentTarget.modelName)?.status === key
+                            ? 'bg-white text-slate-950 border-white'
+                            : 'bg-slate-900/50 border-white/5 text-slate-400 hover:border-white/20'
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${meta.bg} ${meta.color}`}>
+                          <StatusIcon size={18} />
+                        </div>
+                        <span className="font-black uppercase tracking-widest text-[10px]">{meta.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button 
+                  onClick={() => setAssessmentTarget(null)}
+                  className="w-full py-4 rounded-2xl bg-slate-800 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all border border-white/5"
+                >
+                  Закрыть
+                </button>
               </div>
             </motion.div>
           </div>

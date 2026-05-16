@@ -202,6 +202,18 @@ export interface RosterEntry {
   updatedAt?: string;
 }
 
+export type OperatorStatus = 'good' | 'bad' | 'deadline' | 'replace' | 'none';
+
+export interface OperatorAssessment {
+  id: string;
+  operator: string;
+  periodId: string;
+  status: OperatorStatus;
+  modelName?: string;
+  comment?: string;
+  updatedAt: string;
+}
+
 export interface OperatorWallet {
   id: string;
   operator: string;
@@ -246,6 +258,7 @@ export interface AppState {
   incomeData: IncomeRecord[];
   operationsData: OperationRecord[];
   rosterData?: RosterEntry[];
+  operatorAssessments?: OperatorAssessment[];
   priorityModels?: string[];
   inactiveModels?: string[];
   accountingPeriods: AccountingPeriod[];
