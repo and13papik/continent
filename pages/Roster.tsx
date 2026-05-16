@@ -1,6 +1,5 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import html2canvas from 'html2canvas';
 import { AppState, RosterEntry, ShiftType, AccountingPeriod, OperatorStatus, OperatorAssessment } from '../types';
 import { ICONS } from '../constants';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -93,34 +92,44 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
   }, [rosterEntries, operatorWorkingDays, state.notifiedInterns, updateState]);
 
   const sendRosterToTelegram = async (isManual = false) => {
+    const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
+    const DEFAULT_CHAT_ID = '-1003748692600';
+
     if (!rosterRef.current) return;
     setIsSendingTelegram(true);
 
     try {
       // Capture the roster as image
-      const canvas = await html2canvas(rosterRef.current, {
+      const canvas = await (window as any).html2canvas(rosterRef.current, {
         backgroundColor: '#020617', // Match slate-950
         scale: 2,
         logging: false,
+        useCORS: true,
+        allowTaint: true
       });
-      const dataUrl = canvas.toDataURL('image/png');
+      
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
+      if (!blob) throw new Error('Не удалось создать изображение');
 
-      const response = await fetch('/api/telegram/send', {
+      const text = `📊 <b>АКТУАЛЬНЫЙ СОСТАВ</b>\nПериод: ${currentPeriod?.label}\nДата: ${new Date().toLocaleDateString('ru-RU')}\n\n<b>Актуальный список команды?</b>`;
+
+      const formData = new FormData();
+      formData.append('chat_id', DEFAULT_CHAT_ID);
+      formData.append('photo', blob, 'roster.png');
+      formData.append('caption', text);
+      formData.append('parse_mode', 'HTML');
+      formData.append('reply_markup', JSON.stringify({
+        inline_keyboard: [
+          [
+            { text: '✅ АКТУАЛЬНО (0/2)', callback_data: 'confirm_roster' },
+            { text: '❌ ТРЕБУЕТ ИЗМЕНЕНИЙ', callback_data: 'edit_roster' }
+          ]
+        ]
+      }));
+
+      const response = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'photo',
-          image: dataUrl,
-          text: `📊 <b>АКТУАЛЬНЫЙ СОСТАВ</b>\nПериод: ${currentPeriod?.label}\nДата: ${new Date().toLocaleDateString('ru-RU')}\n\n<b>Актуальный список команды?</b>`,
-          replyMarkup: {
-            inline_keyboard: [
-              [
-                { text: '✅ АКТУАЛЬНО (0/2)', callback_data: 'confirm_roster' },
-                { text: '❌ ТРЕБУЕТ ИЗМЕНЕНИЙ', callback_data: 'edit_roster' }
-              ]
-            ]
-          }
-        })
+        body: formData
       });
 
       if (response.ok) {
