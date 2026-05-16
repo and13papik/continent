@@ -12,7 +12,10 @@ interface ModelsProps {
 const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId)!;
-  const currentModels = activePeriod.models || state.models;
+  
+  // Show all models from state.models to ensure they "remain everywhere" 
+  // even if hidden from the Roster (period-specific subset)
+  const currentModels = state.models;
   const currentRates = activePeriod.modelRates || state.modelRates;
 
   const [bonusInputs, setBonusInputs] = useState<Record<string, string>>({});

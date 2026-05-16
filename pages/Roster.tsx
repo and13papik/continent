@@ -37,9 +37,19 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
   const [newModelName, setNewModelName] = useState('');
 
   const currentPeriod = state.accountingPeriods.find((p: AccountingPeriod) => p.id === state.selectedPeriodId);
-  const allModels = currentPeriod?.models || state.models;
   
-  // Available models are those in state.models but not in activePeriod.models
+  const rosterEntries = useMemo(() => {
+    return (state.rosterData || []).filter((e: RosterEntry) => e.periodId === state.selectedPeriodId);
+  }, [state.rosterData, state.selectedPeriodId]);
+
+  // Models to show: designated models for this period OR models that have assigned shifts
+  const allModels = useMemo(() => {
+    const periodModels = currentPeriod?.models || state.models;
+    const modelsWithAssignments = rosterEntries.flatMap(e => e.models || []);
+    return Array.from(new Set([...periodModels, ...modelsWithAssignments]));
+  }, [currentPeriod?.models, state.models, rosterEntries]);
+  
+  // Available models are those in state.models but not in currentPeriod.models
   const availableModels = useMemo(() => {
     if (!currentPeriod?.models) return [];
     return state.models.filter(m => !currentPeriod.models?.includes(m));
@@ -73,7 +83,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
   };
 
   const removeModelFromPeriod = (modelName: string) => {
-    if (!confirm(`Удалить анкету "${modelName}" из этого периода? Данные не удалятся, но анкета перестанет отображаться в составе.`)) return;
+    if (!confirm(`Скрыть анкету "${modelName}" из состава на этот период? Данные в отчетах сохранятся, анкета останется в системе.`)) return;
     
     updateState(prev => {
       const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
@@ -102,10 +112,6 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     const regular = allModels.filter(m => !priorityModels.includes(m) && !inactiveModels.includes(m));
     return { priority, regular, inactive };
   }, [allModels, priorityModels, inactiveModels]);
-
-  const rosterEntries = useMemo(() => {
-    return (state.rosterData || []).filter((e: RosterEntry) => e.periodId === state.selectedPeriodId);
-  }, [state.rosterData, state.selectedPeriodId]);
 
   const operatorWorkingDays = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -370,10 +376,10 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                   </button>
                   <button 
                     onClick={() => removeModelFromPeriod(model)}
-                    className="p-2 rounded-lg text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
-                    title="Удалить из списка"
+                    className="p-2 rounded-lg text-slate-600 hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
+                    title="Скрыть из состава"
                   >
-                    <ICONS.Trash size={14} />
+                    <ICONS.Close size={14} />
                   </button>
                 </div>
               </div>
