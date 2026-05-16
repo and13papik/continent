@@ -528,7 +528,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setEditingCell({ model, shift: shift.type })}
-                    className={`w-full h-16 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1 relative overflow-hidden group/cell ${
+                    className={`w-full h-20 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1.5 relative group/cell ${
                       isGap || isLegacyTrainee
                         ? 'bg-rose-500/20 border-rose-500/50 hover:border-rose-500'
                         : isTrainee
@@ -540,20 +540,23 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                   >
                     {assignment ? (
                       <>
-                        <div className="flex items-center gap-1.5 px-2">
-                          {isTrainee && <ICONS.Internship size={12} className={isGraduated ? 'text-emerald-400' : 'text-purple-400'} />}
-                          <span className={`text-xs font-black uppercase tracking-tighter truncate ${
-                            isGap ? 'text-rose-400' : isLegacyTrainee ? 'text-white bg-rose-500 px-1 rounded' : isTrainee ? isGraduated ? 'text-emerald-400' : 'text-purple-400' : 'text-indigo-400'
-                          }`}>
-                            {isLegacyTrainee ? 'ВЫБРАТЬ ИМЯ' : assignment.operator}
-                          </span>
+                        <div className="flex flex-col items-center justify-center gap-1 px-2 w-full">
+                          <div className="flex items-center gap-1">
+                            {isTrainee && <ICONS.Internship size={12} className={isGraduated ? 'text-emerald-400' : 'text-purple-400'} />}
+                            <span className={`text-[11px] font-black uppercase tracking-tight text-center break-all leading-normal ${
+                              isGap ? 'text-rose-400' : isLegacyTrainee ? 'text-white bg-rose-500 px-1 rounded' : isTrainee ? isGraduated ? 'text-emerald-400' : 'text-purple-400' : 'text-indigo-400'
+                            }`}>
+                              {isLegacyTrainee ? 'ВЫБРАТЬ ИМЯ' : assignment.operator}
+                            </span>
+                          </div>
                           {(() => {
                             const asmt = getAssessment(assignment.operator, model);
                             if (!asmt) return null;
                             const meta = ASSESSMENT_META[asmt.status];
                             return (
-                              <div className={`p-1 rounded-md ${meta.bg} ${meta.color} ml-1`} title={meta.label}>
+                              <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md ${meta.bg} ${meta.color}`} title={meta.label}>
                                 <meta.icon size={10} />
+                                <span className="text-[7px] font-bold uppercase">{meta.label}</span>
                               </div>
                             );
                           })()}
