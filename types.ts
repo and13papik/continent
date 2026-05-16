@@ -202,7 +202,7 @@ export interface RosterEntry {
   updatedAt?: string;
 }
 
-export type OperatorStatus = 'good' | 'bad' | 'deadline' | 'replace' | 'none';
+export type OperatorStatus = 'good' | 'average' | 'bad' | 'deadline' | 'replace' | 'none';
 
 export interface OperatorAssessment {
   id: string;

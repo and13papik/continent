@@ -7,6 +7,7 @@ import PeriodBadge from '../components/PeriodBadge';
 
 const ASSESSMENT_META: Record<OperatorStatus, { label: string; color: string; bg: string; icon: any }> = {
   good: { label: 'Хороший', color: 'text-emerald-400', bg: 'bg-emerald-500/10', icon: ICONS.ShieldCheck },
+  average: { label: 'Средний', color: 'text-sky-400', bg: 'bg-sky-500/10', icon: ICONS.Star },
   bad: { label: 'Плохой', color: 'text-rose-400', bg: 'bg-rose-500/10', icon: ICONS.Penalty },
   deadline: { label: 'Дедлайн', color: 'text-amber-400', bg: 'bg-amber-500/10', icon: ICONS.Clock },
   replace: { label: 'Заменить', color: 'text-rose-500', bg: 'bg-rose-500/10', icon: ICONS.Users },
@@ -29,6 +30,8 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
   const [editingCell, setEditingCell] = useState<{ model: string; shift: ShiftType } | null>(null);
   const [isTraineeMode, setIsTraineeMode] = useState(false);
   const [assessmentTarget, setAssessmentTarget] = useState<{ operator: string; modelName?: string } | null>(null);
+
+  const [showSwapList, setShowSwapList] = useState(false);
 
   const currentPeriod = state.accountingPeriods.find((p: AccountingPeriod) => p.id === state.selectedPeriodId);
   const allModels = currentPeriod?.models || state.models;
@@ -189,8 +192,8 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
 
       if (targetEntryIdx > -1) {
         const entry = { ...updatedRoster[targetEntryIdx] };
-        // Limit to 2 models for real operators, but "ДЫРКА" or "СТАЖЕР" can have more
-        if (operator === 'ДЫРКА' || operator === 'СТАЖЕР' || entry.models.length < 2) {
+        // Limit to 2 models for real operators, but "ДЫРКА" can have more
+        if (operator === 'ДЫРКА' || entry.models.length < 2) {
           entry.models = [...entry.models, editingCell.model];
         } else {
           // Replace the second one if already has 2
@@ -473,7 +476,10 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                       <span className={`text-xs font-black uppercase tracking-widest ${isTraineeMode ? 'text-purple-400' : 'text-slate-500'}`}>Стажер</span>
                     </label>
                     <button 
-                      onClick={() => setEditingCell(null)}
+                      onClick={() => {
+                        setEditingCell(null);
+                        setShowSwapList(false);
+                      }}
                       className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-slate-500 hover:text-white transition-colors"
                     >
                       <ICONS.Close size={24} />
@@ -481,7 +487,86 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                {editingCell && getAssignment(editingCell.model, editingCell.shift) && !showSwapList ? (
+                  <div className="space-y-6">
+                    <div className="p-8 rounded-[2rem] bg-white/[0.03] border border-white/5 flex items-center justify-between">
+                       <div className="flex items-center gap-6">
+                          <div className="w-16 h-16 rounded-[1.5rem] bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/20 shadow-lg shadow-indigo-500/10">
+                            <ICONS.User size={32} />
+                          </div>
+                          <div>
+                             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Текущий оператор</p>
+                             <p className="text-3xl font-black text-white uppercase tracking-tighter">
+                               {getAssignment(editingCell.model, editingCell.shift)?.operator}
+                             </p>
+                             <div className="flex gap-2 mt-2">
+                               {getAssignment(editingCell.model, editingCell.shift)?.isTrainee && (
+                                 <span className="px-2 py-0.5 rounded-lg bg-purple-500/20 text-purple-400 text-[8px] font-black uppercase tracking-widest border border-purple-500/30">Стажер</span>
+                               )}
+                               {(() => {
+                                  const asmt = getAssessment(getAssignment(editingCell.model, editingCell.shift)!.operator, editingCell.model);
+                                  if (!asmt) return null;
+                                  const meta = ASSESSMENT_META[asmt.status];
+                                  return (
+                                    <span className={`px-2 py-0.5 rounded-lg ${meta.bg} ${meta.color} text-[8px] font-black uppercase tracking-widest border border-white/5`}>
+                                      {meta.label}
+                                    </span>
+                                  );
+                               })()}
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                       <button 
+                         onClick={() => setShowSwapList(true)}
+                         className="p-6 rounded-[2rem] bg-indigo-600 text-white font-black uppercase text-xs tracking-widest flex flex-col items-center gap-3 shadow-xl shadow-indigo-600/20 hover:scale-[1.02] transition-all"
+                       >
+                         <ICONS.RotateCcw size={24} />
+                         Заменить (Swap)
+                       </button>
+                       <button 
+                         onClick={() => {
+                           const assignment = getAssignment(editingCell.model, editingCell.shift);
+                           if (assignment) {
+                             setAssessmentTarget({ operator: assignment.operator, modelName: editingCell.model });
+                             setEditingCell(null);
+                           }
+                         }}
+                         className="p-6 rounded-[2rem] bg-slate-800 text-white font-black uppercase text-xs tracking-widest flex flex-col items-center gap-3 border border-white/5 hover:bg-slate-750 transition-all"
+                       >
+                         <ICONS.Star size={24} />
+                         Поставить статус
+                       </button>
+                    </div>
+
+                    <div className="flex gap-4">
+                       <button 
+                         onClick={clearCell}
+                         className="flex-1 py-5 rounded-[2rem] bg-rose-500/10 border border-rose-500/20 text-rose-500 font-black uppercase text-[10px] tracking-widest hover:bg-rose-500/20 transition-all"
+                       >
+                         Убрать из смены
+                       </button>
+                       <button 
+                         onClick={() => setEditingCell(null)}
+                         className="flex-1 py-5 rounded-[2rem] bg-slate-900 text-slate-500 font-black uppercase text-[10px] tracking-widest border border-white/5 hover:bg-slate-850 transition-all"
+                       >
+                         Закрыть
+                       </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {showSwapList && (
+                      <button 
+                        onClick={() => setShowSwapList(false)}
+                        className="text-indigo-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:translate-x-1 transition-transform"
+                      >
+                         <ICONS.ChevronRight size={14} className="rotate-180" /> Назад к действиям
+                      </button>
+                    )}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
                   {/* GAP BUTTON */}
                   <button
                     onClick={() => handleAssign('ДЫРКА')}
@@ -554,26 +639,13 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                     );
                   })}
                 </div>
-
-                <div className="pt-4 flex gap-4">
-                  <button
-                    onClick={clearCell}
-                    className="flex-1 py-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-bold hover:bg-rose-500/20 transition-all"
-                  >
-                    Очистить ячейку
-                  </button>
-                  <button
-                    onClick={() => setEditingCell(null)}
-                    className="flex-1 py-4 rounded-2xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 transition-all"
-                  >
-                    Отмена
-                  </button>
-                </div>
               </div>
-            </motion.div>
+            )}
           </div>
-        )}
-      </AnimatePresence>
+        </motion.div>
+      </div>
+    )}
+  </AnimatePresence>
 
       {/* Replacement List */}
       <div className="mt-12 space-y-6">
