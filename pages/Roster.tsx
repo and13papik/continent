@@ -279,20 +279,24 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     const period = state.selectedPeriodId;
 
     updateState(prev => {
-      let assessments = [...(prev.operatorAssessments || [])];
-
-      // If we are in a "General/Global" context (no modelName), we should clear all 
-      // assessments for this operator in this period to avoid conflicting fallbacks.
-      if (!model || model === '') {
-        assessments = assessments.filter(a => 
-          !(a.operator === op && a.periodId === period)
-        );
+      const allAssessments = prev.operatorAssessments || [];
+      let eliminatedIds: string[] = [];
+      
+      // Find what we are about to remove to track in deletedIds
+      const targetModel = model || '';
+      if (!targetModel) {
+        // Clearing global: we clear ALL for this operator/period
+        eliminatedIds = allAssessments
+          .filter(a => a.operator === op && a.periodId === period)
+          .map(a => a.id);
       } else {
         // Model-specific context: only clear the exact model-specific assessment
-        assessments = assessments.filter(a => 
-          !(a.operator === op && a.periodId === period && (a.modelName || '') === model)
-        );
+        eliminatedIds = allAssessments
+          .filter(a => a.operator === op && a.periodId === period && (a.modelName || '') === targetModel)
+          .map(a => a.id);
       }
+
+      let assessments = allAssessments.filter(a => !eliminatedIds.includes(a.id));
 
       if (status !== 'none') {
         const newAsmt: OperatorAssessment = {
@@ -307,7 +311,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       } else if (model && model !== '') {
         // Special case: if clearing a specific model status but a global one exists,
         // we add an explicit 'none' status for this model to override the global fallback.
-        const hasGlobal = (prev.operatorAssessments || []).some(a => 
+        const hasGlobal = assessments.some(a => 
           a.operator === op && a.periodId === period && (!a.modelName || a.modelName === '')
         );
         if (hasGlobal) {
@@ -325,7 +329,8 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
 
       return {
         ...prev,
-        operatorAssessments: assessments
+        operatorAssessments: assessments,
+        deletedIds: Array.from(new Set([...(prev.deletedIds || []), ...eliminatedIds]))
       };
     });
   };
