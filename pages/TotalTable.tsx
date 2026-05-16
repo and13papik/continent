@@ -454,7 +454,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         message += `\n\n🏆 <b>ОБЩИЙ ТОТАЛ СУТОК</b>: ${totals.overallBalance.toFixed(0)}$ / ${totals.overallPlan.toFixed(0)}$ (${totals.overallPlan > 0 ? Math.round(totals.overallBalance/totals.overallPlan*100) : 0}%)`;
       }
 
-      message += `\n\n🔔 @continental_agency <a href="tg://user?id=7475447497">Admin Mentor</a> <a href="tg://user?id=6537516111">Admin Rector</a>`;
+      message += `\n\n🔔 <a href="tg://user?id=8679682362">@adm_viksi_viii [Adm]Vi</a> <a href="tg://user?id=6537516111">@adm_rctr Rector</a> <a href="tg://user?id=1434399006">@continental_agency</a>`;
 
       const formData = new FormData();
       formData.append('chat_id', chatId);

@@ -111,7 +111,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
       if (!blob) throw new Error('Не удалось создать изображение');
 
-      const text = `📊 <b>АКТУАЛЬНЫЙ СОСТАВ</b>\nПериод: ${currentPeriod?.label}\nДата: ${new Date().toLocaleDateString('ru-RU')}\n\n<b>Актуальный список команды?</b>`;
+      const text = `📊 <b>АКТУАЛЬНЫЙ СОСТАВ</b>\nПериод: ${currentPeriod?.label}\nДата: ${new Date().toLocaleDateString('ru-RU')}\n\n<b>Актуальный список команды?</b>\n\n🔔 <a href="tg://user?id=8679682362">@adm_viksi_viii [Adm]Vi</a> <a href="tg://user?id=6537516111">@adm_rctr Rector</a>`;
 
       const formData = new FormData();
       formData.append('chat_id', DEFAULT_CHAT_ID);
