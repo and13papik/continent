@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { AppState, OwnerManualExpense, OwnerManualIncome, OwnerAdvance, Platform, OperationRecord } from '../types';
 import { ICONS } from '../constants';
 import PeriodBadge from '../components/PeriodBadge';
@@ -13,14 +14,14 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
   const CATEGORIES = useMemo(() => ({
     traffic: { label: 'Трафик', icon: ICONS.ChevronRight, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
     infra: { label: 'Инфраструктура', icon: ICONS.Settings, color: 'text-sky-400', bg: 'bg-sky-500/10', border: 'border-sky-500/20' },
-    items: { label: 'Покупки (белье/игрушки)', icon: ICONS.Gift, color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
+    items: { label: 'Покупки', icon: ICONS.Gift, color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
     commission: { label: 'Комиссия', icon: ICONS.Income, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
     bonus: { label: 'Бонусы', icon: ICONS.Bonus, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
     other: { label: 'Прочее', icon: ICONS.Reports, color: 'text-slate-400', bg: 'bg-slate-500/10', border: 'border-slate-500/20' }
   }), []);
 
   const [expenseCategory, setExpenseCategory] = useState<keyof typeof CATEGORIES>('traffic');
-  const [expensePlatform, setExpensePlatform] = useState<Platform>('onlyFans');
+  const [expensePlatform] = useState<Platform>('onlyFans');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseComment, setExpenseComment] = useState('');
   const [expenseFilter, setExpenseFilter] = useState<keyof typeof CATEGORIES | 'all'>('all');
@@ -101,11 +102,8 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     const totalAdminAccrued = adminDetails.reduce((s, a) => s + a.accrued, 0);
     const totalAdminPaid = adminDetails.reduce((s, a) => s + a.paid, 0);
 
-    const currentExpenses = state.ownerExpenses.filter(e => e.periodId === activePeriodId);
+    const currentExpenses = (state.ownerExpenses || []).filter(e => e.periodId === activePeriodId);
     const bizExpenses = currentExpenses.reduce((s,e) => s + e.amount, 0);
-    
-    const trafficTotal = currentExpenses.filter(e => e.category === 'traffic').reduce((s, e) => s + e.amount, 0);
-    const commissionTotal = currentExpenses.filter(e => e.category === 'commission').reduce((s, e) => s + e.amount, 0);
     
     // Чистая прибыль
     const netProfitTotal = grossTotal - (staffAccrued + modelSummary.accrued + totalAdminAccrued + bizExpenses);
@@ -123,8 +121,6 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       adminDetails,
       totalPaidGlobal, totalRemainderGlobal,
       bizExpenses,
-      trafficTotal,
-      commissionTotal,
       currentExpenses,
       currentManualIncomes: (state.ownerManualIncomes || []).filter(i => i.periodId === activePeriodId),
       currentOwnerAdvances: (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId),
@@ -136,19 +132,11 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
   const addAdminPayment = (adminName: string) => {
     const val = parseFloat(adminPaidInputs[adminName]) || 0;
     if (val <= 0) return;
-
     const newOp: OperationRecord = {
       id: `admin-pay-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      type: 'salary_payment',
-      operator: adminName,
-      amount: val,
-      comment: 'Выплата админу',
-      date: new Date().toISOString().split('T')[0],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      periodId: activePeriodId
+      type: 'salary_payment', operator: adminName, amount: val, comment: 'Выплата админу',
+      date: new Date().toISOString().split('T')[0], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), periodId: activePeriodId
     };
-
     updateState(prev => ({ ...prev, operationsData: [newOp, ...prev.operationsData] }));
     setAdminPaidInputs(prev => ({ ...prev, [adminName]: '' }));
   };
@@ -157,375 +145,536 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     const amt = parseFloat(expenseAmount);
     if (isNaN(amt) || amt <= 0) return;
     const expense: OwnerManualExpense = {
-      id: `exp-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      periodId: activePeriodId,
-      category: expenseCategory,
-      platform: expensePlatform,
-      amount: amt,
-      comment: expenseComment,
-      date: new Date().toISOString().split('T')[0],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      id: `exp-${Date.now()}`, periodId: activePeriodId, category: expenseCategory, platform: 'crypto', amount: amt, comment: expenseComment,
+      date: new Date().toISOString().split('T')[0], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
     };
     updateState(prev => ({ ...prev, ownerExpenses: [expense, ...(prev.ownerExpenses || [])] }));
-    setExpenseAmount('');
-    setExpenseComment('');
+    setExpenseAmount(''); setExpenseComment('');
   };
 
   const addExtraIncome = () => {
     const amt = parseFloat(incomeAmount);
     if (isNaN(amt) || amt <= 0) return;
     const income: OwnerManualIncome = {
-      id: `own-inc-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      periodId: activePeriodId,
-      platform: incomePlatform,
-      amount: amt,
-      comment: incomeComment,
-      date: new Date().toISOString().split('T')[0],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      id: `inc-${Date.now()}`, periodId: activePeriodId, platform: incomePlatform, amount: amt, comment: incomeComment,
+      date: new Date().toISOString().split('T')[0], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
     };
     updateState(prev => ({ ...prev, ownerManualIncomes: [income, ...(prev.ownerManualIncomes || [])] }));
-    setIncomeAmount('');
-    setIncomeComment('');
+    setIncomeAmount(''); setIncomeComment('');
   };
 
   const addOwnerAdvance = () => {
     const amt = parseFloat(advanceAmount);
     if (isNaN(amt) || amt <= 0) return;
     const advance: OwnerAdvance = {
-      id: `own-adv-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      periodId: activePeriodId,
-      ownerName: advanceOwner,
-      platform: 'crypto',
-      amount: amt,
-      comment: advanceComment,
-      date: new Date().toISOString().split('T')[0],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      id: `adv-${Date.now()}`, periodId: activePeriodId, ownerName: advanceOwner, platform: 'crypto', amount: amt, comment: advanceComment,
+      date: new Date().toISOString().split('T')[0], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
     };
     updateState(prev => ({ ...prev, ownerAdvances: [advance, ...(prev.ownerAdvances || [])] }));
-    setAdvanceAmount('');
-    setAdvanceComment('');
+    setAdvanceAmount(''); setAdvanceComment('');
   };
 
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  } as const;
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } }
+  } as const;
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <motion.div 
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+      className="space-y-12 pb-24"
+    >
+      {/* HEADER SECTION - REFINED HIERARCHY */}
+      <motion.header variants={itemVariants} className="flex flex-col md:flex-row md:items-end justify-between gap-8 pt-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-amber-500"><ICONS.Owner size={20} /></span>
-            <span className="text-xs font-black uppercase tracking-[0.3em] text-amber-500/70">Partnership Analytics</span>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 shadow-inner">
+               <ICONS.Owner size={20} />
+            </div>
+            <div className="flex flex-col">
+               <span className="text-[10px] font-black uppercase tracking-[0.4em] text-amber-500/60 leading-none">Management Core</span>
+               <div className="h-px w-8 bg-amber-500/30 mt-1.5"></div>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-4xl font-bold font-outfit text-white">Панель Владельца</h1>
+          <div className="flex items-center gap-5">
+            <h1 className="text-5xl font-black font-outfit text-white tracking-tight">Финансы</h1>
             <PeriodBadge state={state} />
           </div>
-          <div className="text-slate-400 mt-1">Аудит за {activePeriod.label}</div>
         </div>
-      </header>
+        
+        <div className="flex gap-4">
+           {/* Quick Stats Summary */}
+           <div className="flex flex-col items-end">
+              <span className="text-[9px] font-black uppercase text-rose-500 tracking-widest">Операционные Расходы</span>
+              <span className="text-2xl font-black text-rose-400 font-mono leading-none mt-1">${stats.bizExpenses.toLocaleString()}</span>
+           </div>
+        </div>
+      </motion.header>
 
-      {/* ГЛАВНАЯ СВОДКА ПРИБЫЛИ */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="glass-card p-6 rounded-[2rem] border-emerald-500/40 bg-emerald-500/5 col-span-1 lg:col-span-2">
-            <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">Clean Gross Total</p>
-            <div className="flex items-baseline gap-2">
-              <p className="text-3xl font-black font-outfit text-white leading-tight">${stats.grossTotal.toLocaleString(undefined, { minimumFractionDigits: 1 })}</p>
-              <div className="flex flex-col">
-                 <span className="text-[9px] font-bold text-slate-500">Platform: ${stats.rawPlatformGross.toLocaleString()}</span>
-                 <span className="text-[9px] font-bold text-rose-500">Refunds: -${stats.totalRefundAmount.toLocaleString()}</span>
-              </div>
+      {/* PRIMARY BENTO GRID - WOW EFFECT METRICS */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+         <motion.div variants={itemVariants} className="lg:col-span-8 glass-card p-10 rounded-[3rem] border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.04] to-transparent relative overflow-hidden group">
+            <div className="absolute top-0 right-0 -mr-16 -mt-16 w-96 h-96 bg-emerald-500/5 blur-[100px] rounded-full group-hover:bg-emerald-500/10 transition-all duration-1000"></div>
+            
+            <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+               <div>
+                  <div className="flex items-center gap-2 mb-4">
+                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                     <p className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-500/70">Чистая Выручка Периода</p>
+                  </div>
+                  <h2 className="text-7xl font-black font-outfit text-white tracking-tighter leading-none mb-6">
+                     ${stats.netProfitTotal.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                  </h2>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.2em] leading-relaxed max-w-xs">
+                     Финальный баланс партнерства после всех обязательств и выплат
+                  </p>
+               </div>
+
+               <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="p-6 rounded-[2.5rem] bg-amber-500/[0.03] border border-amber-500/10 group/item transition-all hover:bg-amber-500/[0.05]">
+                        <div className="flex items-center gap-2 mb-3">
+                           <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+                           <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Andrey</span>
+                        </div>
+                        <p className="text-3xl font-black font-mono text-white tracking-tighter">${(stats.andrey.totalShare - stats.andrey.advances).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                        <p className="text-[8px] font-bold text-slate-600 uppercase tracking-tighter mt-1">Остаток: -${stats.andrey.advances.toLocaleString()}</p>
+                     </div>
+                     <div className="p-6 rounded-[2.5rem] bg-indigo-500/[0.03] border border-indigo-500/10 group/item transition-all hover:bg-indigo-500/[0.05]">
+                        <div className="flex items-center gap-2 mb-3">
+                           <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
+                           <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Anton</span>
+                        </div>
+                        <p className="text-3xl font-black font-mono text-white tracking-tighter">${(stats.anton.totalShare - stats.anton.advances).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                        <p className="text-[8px] font-bold text-slate-600 uppercase tracking-tighter mt-1">Остаток: -${stats.anton.advances.toLocaleString()}</p>
+                     </div>
+                  </div>
+               </div>
             </div>
-          </div>
-          <div className="glass-card p-6 rounded-[2rem] border-amber-500/20 bg-amber-500/5">
-             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Чистая прибыль ($)</p>
-             <p className="text-2xl font-black font-outfit text-white leading-tight">${stats.netProfitTotal.toLocaleString(undefined, { minimumFractionDigits: 0 })}</p>
-             <p className="text-[9px] text-slate-500 font-bold uppercase mt-1">50% доля = ${stats.sharePerOwner.toLocaleString()}</p>
-          </div>
-          <div className="glass-card p-6 rounded-[2rem] border-rose-500/20 bg-rose-500/5">
-             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Бизнес расходы ($)</p>
-             <p className="text-2xl font-black font-outfit text-rose-400 leading-tight">-${stats.bizExpenses.toLocaleString()}</p>
-             <p className="text-[9px] text-slate-500 font-bold uppercase mt-1">Трафик / Инфра / Покупки</p>
-          </div>
+         </motion.div>
+
+         <motion.div variants={itemVariants} className="lg:col-span-4 flex flex-col gap-6">
+            <div className="flex-1 glass-card p-8 rounded-[3rem] border-rose-500/20 bg-rose-500/[0.02] flex flex-col justify-center relative overflow-hidden group">
+               <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 blur-3xl group-hover:bg-rose-500/10 transition-all duration-700"></div>
+               <div className="relative z-10">
+                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-rose-500 mb-2">Общий вал (OF/PP)</p>
+                  <p className="text-4xl font-black font-outfit text-white tracking-tighter">${stats.grossTotal.toLocaleString()}</p>
+               </div>
+            </div>
+            <div className="flex-1 glass-card p-8 rounded-[3rem] border-slate-800 bg-slate-900/10 flex flex-col justify-center group">
+               <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-2">Операционные траты</p>
+               <p className="text-4xl font-black font-outfit text-rose-400 tracking-tighter">-${stats.bizExpenses.toLocaleString()}</p>
+            </div>
+         </motion.div>
       </section>
 
-      {/* ГЛОБАЛЬНАЯ ВЕДОМОСТЬ ВЫПЛАТ */}
-      <section className="glass-card p-8 rounded-[2.5rem] border-slate-800 shadow-2xl">
-         <h2 className="text-2xl font-bold font-outfit text-white mb-6 flex items-center gap-3">
-            <ICONS.Salary className="text-indigo-400" /> Payroll Summary
-         </h2>
-         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
-            <PayrollStatCard title="ОБЩАЯ ЗП АДМИНОВ" accrued={stats.adminAccrued} paid={stats.adminPaid} color="indigo" />
-            <PayrollStatCard title="ОБЩАЯ ЗП МОДЕЛЕЙ" accrued={stats.modelAccrued} paid={stats.modelPaid} color="emerald" />
-            <PayrollStatCard title="ОБЩАЯ ЗП ОПЕРАТОРОВ" accrued={stats.staffAccrued} paid={stats.staffPaid} color="sky" />
-            <div className="lg:col-span-2 grid grid-cols-2 gap-4">
-               <div className="bg-slate-900/40 p-5 rounded-3xl border border-slate-800 flex flex-col justify-center">
-                  <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">ВЫПЛАЧЕНО ВСЕГО</p>
-                  <p className="text-2xl font-black text-white font-mono">${stats.totalPaidGlobal.toLocaleString()}</p>
+      {/* PAYROLL INFRASTRUCTURE AUDIT - SYSTEM OVERSIGHT */}
+      <motion.section variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+         <div className="glass-card p-8 rounded-[2.5rem] border-indigo-500/10 bg-indigo-500/[0.02] relative overflow-hidden group">
+            <div className="flex items-center gap-3 mb-6">
+               <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                  <ICONS.Owner size={18} />
                </div>
-               <div className="bg-indigo-500/10 p-5 rounded-3xl border border-indigo-500/20 flex flex-col justify-center">
-                  <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-1">ОСТАТОК ВСЕГО</p>
-                  <p className="text-2xl font-black text-indigo-400 font-mono">${stats.totalRemainderGlobal.toLocaleString()}</p>
+               <div>
+                  <h3 className="text-sm font-black text-white uppercase tracking-wider">ЗП Админов</h3>
                </div>
             </div>
+            <PayrollTracker label="Заработано" accrued={stats.adminAccrued} paid={stats.adminPaid} color="indigo" />
          </div>
-      </section>
 
-      {/* ВЕДОМОСТЬ АДМИНОВ */}
-      <section className="glass-card rounded-[2.5rem] overflow-hidden border-slate-800 shadow-xl">
-         <div className="p-6 bg-slate-900/40 border-b border-slate-800 flex justify-between items-center">
-            <h3 className="text-xl font-bold font-outfit text-white">Ведомость Админов</h3>
-            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Calculated as % of Clean Gross</span>
+         <div className="glass-card p-8 rounded-[2.5rem] border-emerald-500/10 bg-emerald-500/[0.02] relative overflow-hidden group">
+            <div className="flex items-center gap-3 mb-6">
+               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                  <ICONS.Income size={18} />
+               </div>
+               <div>
+                  <h3 className="text-sm font-black text-white uppercase tracking-wider">ЗП Моделей</h3>
+               </div>
+            </div>
+            <PayrollTracker label="Заработано" accrued={stats.modelAccrued} paid={stats.modelPaid} color="emerald" />
          </div>
-         <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-               <thead>
-                  <tr className="bg-slate-900/50 text-slate-500 text-[10px] font-black uppercase tracking-widest border-b border-slate-800">
-                     <th className="px-8 py-5">Администратор</th>
-                     <th className="px-6 py-5 text-center">Ставка (%)</th>
-                     <th className="px-6 py-5 text-center">Начислено ($)</th>
-                     <th className="px-6 py-5 text-center">Выплачено ($)</th>
-                     <th className="px-6 py-5 text-center">Остаток ($)</th>
-                     <th className="px-8 py-5 text-right">Внести выплату</th>
-                  </tr>
-               </thead>
-               <tbody className="divide-y divide-slate-800">
+
+         <div className="glass-card p-8 rounded-[2.5rem] border-sky-500/10 bg-sky-500/[0.02] relative overflow-hidden group">
+            <div className="flex items-center gap-3 mb-6">
+               <div className="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center text-sky-400">
+                  <ICONS.Users size={18} />
+               </div>
+               <div>
+                  <h3 className="text-sm font-black text-white uppercase tracking-wider">ЗП Операторов</h3>
+               </div>
+            </div>
+            <PayrollTracker label="Заработано" accrued={stats.staffAccrued} paid={stats.staffPaid} color="sky" />
+         </div>
+      </motion.section>
+
+      {/* OPERATIONS WORKSPACE - THE HEART OF THE PAGE */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+         
+         {/* LEFT COLUMN: MAIN WORKFLOW (EXPENSES & HISTORY) */}
+         <div className="lg:col-span-8 space-y-8">
+            <InputCard 
+               title="Бизнес Расходы" 
+               icon={<ICONS.Penalty size={28} />} 
+               color="rose"
+               history={stats.currentExpenses}
+               onRemove={(id: string) => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerExpenses: (p.ownerExpenses || []).filter(e => e.id !== id)}))}
+               isExpenses
+               categories={CATEGORIES}
+               stats={stats}
+               fullWidth
+            >
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="md:col-span-1">
+                     <InputGroup label="Категория">
+                        <select className="modern-input font-bold h-16 text-lg" value={expenseCategory} onChange={e => setExpenseCategory(e.target.value as any)}>
+                           {Object.entries(CATEGORIES).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+                        </select>
+                     </InputGroup>
+                  </div>
+                  <div className="md:col-span-1">
+                     <InputGroup label="Сумма ($)">
+                        <input type="number" className="modern-input font-mono h-16 text-2xl font-black" placeholder="0" value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)} />
+                     </InputGroup>
+                  </div>
+                  <div className="md:col-span-1 flex flex-col justify-end">
+                     <button onClick={addBusinessExpense} className="h-16 w-full rounded-[1.5rem] bg-rose-600 hover:bg-rose-500 text-white font-black uppercase tracking-widest text-xs shadow-lg shadow-rose-600/30 transition-all flex items-center justify-center gap-2 group/btn">
+                        <span>Зафиксировать</span>
+                        <ICONS.Plus size={18} className="group-hover/btn:rotate-90 transition-transform" />
+                     </button>
+                  </div>
+                  <div className="md:col-span-3">
+                     <InputGroup label="Заметка / Комментарий">
+                        <input type="text" className="modern-input h-14" placeholder="На что именно потрачено?.." value={expenseComment} onChange={e => setExpenseComment(e.target.value)} />
+                     </InputGroup>
+                  </div>
+               </div>
+            </InputCard>
+
+            {/* MANAGEMENT STRIP: ADMIN PAYROLL */}
+            <motion.div variants={itemVariants} className="glass-card p-8 rounded-[3.5rem] border-indigo-500/10 bg-[#08090c] shadow-2xl relative overflow-hidden group">
+               <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[80px] rounded-full group-hover:bg-indigo-500/10 transition-all duration-1000"></div>
+               
+               <div className="flex items-center justify-between mb-8 relative z-10">
+                  <div className="flex items-center gap-4">
+                     <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-lg">
+                        <ICONS.Owner size={22} />
+                     </div>
+                     <div>
+                        <h3 className="text-2xl font-black font-outfit text-white tracking-tight uppercase">Control Hub</h3>
+                        <p className="text-[9px] font-black tracking-[0.3em] text-slate-500 uppercase mt-1">Ведомость Админов</p>
+                     </div>
+                  </div>
+                  <div className="flex flex-col items-end">
+                     <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1">System Remainder</span>
+                     <span className="text-2xl font-black text-indigo-400 font-mono tracking-tighter">${stats.adminRemainder.toLocaleString()}</span>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
                   {stats.adminDetails.map(admin => (
-                     <tr key={admin.id} className="hover:bg-indigo-500/5 transition-colors">
-                        <td className="px-8 py-4 font-bold text-white">{admin.name}</td>
-                        <td className="px-6 py-4 text-center font-mono text-slate-400">{admin.rate}%</td>
-                        <td className="px-6 py-4 text-center font-mono font-bold text-white">${admin.accrued.toFixed(1)}</td>
-                        <td className="px-6 py-4 text-center font-mono text-emerald-400">${admin.paid.toFixed(1)}</td>
-                        <td className={`px-6 py-4 text-center font-mono font-black ${admin.remainder > 0 ? 'text-indigo-400' : 'text-slate-500'}`}>${admin.remainder.toFixed(1)}</td>
-                        <td className="px-8 py-4 text-right">
-                           <div className="flex justify-end gap-2">
-                              <input 
-                                 type="number" 
-                                 className="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-indigo-500" 
-                                 placeholder="0"
-                                 value={adminPaidInputs[admin.name] || ''}
-                                 onChange={e => setAdminPaidInputs(prev => ({...prev, [admin.name]: e.target.value}))}
-                              />
-                              <button onClick={() => addAdminPayment(admin.name)} className="bg-indigo-600 hover:bg-indigo-500 text-white p-1.5 rounded-lg transition-all active:scale-90"><ICONS.Plus size={14}/></button>
+                     <div key={admin.id} className="p-6 rounded-[2.5rem] bg-indigo-500/[0.02] border border-white/5 hover:border-indigo-500/20 transition-all group/admin shadow-xl">
+                        <div className="flex justify-between items-center mb-4">
+                           <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.5)]"></div>
+                              <span className="text-sm font-black text-white">{admin.name}</span>
                            </div>
-                        </td>
-                     </tr>
+                           <span className="text-[10px] font-black text-indigo-500/80 bg-indigo-500/10 px-2 py-0.5 rounded-lg">{admin.rate}%</span>
+                        </div>
+                        
+                        <div className="flex items-end justify-between mb-4">
+                           <div className="flex flex-col">
+                              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">К выплате</span>
+                              <span className="text-xl font-black text-white font-mono tracking-tighter">${admin.remainder.toFixed(0)}</span>
+                           </div>
+                        </div>
+
+                        <div className="flex gap-2 p-1 bg-black/40 rounded-2xl border border-white/5 focus-within:border-indigo-500/50 transition-all">
+                           <input 
+                              type="number" 
+                              className="flex-1 bg-transparent px-3 py-2 text-xs text-white font-mono outline-none placeholder:text-slate-700 w-full" 
+                              placeholder="0.00"
+                              value={adminPaidInputs[admin.name] || ''}
+                              onChange={e => setAdminPaidInputs(prev => ({...prev, [admin.name]: e.target.value}))}
+                           />
+                           <button onClick={() => addAdminPayment(admin.name)} className="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-50 text-white hover:text-indigo-600 transition-all flex items-center justify-center shadow-lg shadow-indigo-600/20">
+                              <ICONS.Plus size={16} />
+                           </button>
+                        </div>
+                     </div>
                   ))}
-               </tbody>
-            </table>
-         </div>
-      </section>
-
-      {/* ВЛАДЕЛЬЦЫ */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <OwnerShareCard name="Андрей" totalShare={stats.sharePerOwner} advances={stats.andrey.advances} color="amber" />
-        <OwnerShareCard name="Антон" totalShare={stats.sharePerOwner} advances={stats.anton.advances} color="indigo" />
-      </div>
-
-      {/* ФОРМЫ ВВОДА РАСХОДОВ И ДОХОДОВ */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="glass-card p-8 rounded-[3rem] border-emerald-500/20 shadow-2xl flex flex-col">
-            <h2 className="text-2xl font-bold font-outfit text-white mb-6 flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500"><ICONS.Income size={24} /></div>
-              Внести доход
-            </h2>
-            <div className="space-y-4">
-              <input type="number" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white font-mono outline-none" placeholder="Сумма $" value={incomeAmount} onChange={e => setIncomeAmount(e.target.value)} />
-              <select className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white font-bold outline-none" value={incomePlatform} onChange={e => setIncomePlatform(e.target.value as any)}>
-                <option value="all">Общий счет</option>
-                <option value="onlyFans">OnlyFans</option>
-                <option value="paypal">PayPal</option>
-                <option value="crypto">Crypto</option>
-              </select>
-              <input type="text" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Заметка..." value={incomeComment} onChange={e => setIncomeComment(e.target.value)} />
-              <button onClick={addExtraIncome} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl shadow-xl">Сохранить</button>
-            </div>
-            <HistoryList items={stats.currentManualIncomes} onRemove={(id: string) => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerManualIncomes: p.ownerManualIncomes?.filter(i => i.id !== id)}))} title="История доходов" />
-          </div>
-
-          <div className="glass-card p-8 rounded-[3rem] border-rose-500/20 shadow-2xl flex flex-col">
-             <h2 className="text-2xl font-bold font-outfit text-white mb-6 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-500"><ICONS.Penalty size={24} /></div>
-                Расходы
-             </h2>
-             <div className="space-y-4">
-                <select className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-white font-bold outline-none" value={expenseCategory} onChange={e => setExpenseCategory(e.target.value as any)}>
-                   {Object.entries(CATEGORIES).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
-                </select>
-                <input type="number" className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-white font-mono outline-none" placeholder="Сумма $" value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)} />
-                <input type="text" className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Заметка..." value={expenseComment} onChange={e => setExpenseComment(e.target.value)} />
-                <button onClick={addBusinessExpense} className="w-full bg-rose-600 hover:bg-rose-500 text-white font-black py-4 rounded-2xl shadow-xl">Сохранить</button>
-             </div>
-
-             {/* Фильтрация и Сводка */}
-             <div className="mt-6 space-y-4">
-               <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="flex-1 flex flex-wrap gap-2">
-                    <button 
-                      onClick={() => setExpenseFilter('all')}
-                      className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${expenseFilter === 'all' ? 'bg-white text-black border-white' : 'bg-slate-900 text-slate-500 border-slate-800'}`}
-                    >
-                      Все
-                    </button>
-                    {Object.entries(CATEGORIES).map(([k, v]) => (
-                      <button 
-                        key={k}
-                        onClick={() => setExpenseFilter(k as any)}
-                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${expenseFilter === k ? `${v.bg} ${v.color} ${v.border}` : 'bg-slate-900 text-slate-500 border-slate-800'}`}
-                      >
-                        {v.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="relative">
-                    <ICONS.Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                    <input 
-                      type="text" 
-                      placeholder="Поиск..." 
-                      className="bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-1.5 text-xs text-white outline-none focus:border-rose-500/50 w-full sm:w-40"
-                      value={expenseSearch}
-                      onChange={e => setExpenseSearch(e.target.value)}
-                    />
-                  </div>
                </div>
+            </motion.div>
+         </div>
 
-               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-                  {Object.entries(CATEGORIES).map(([k, v]) => {
-                    const total = stats.currentExpenses.filter(e => e.category === k).reduce((s, e) => s + e.amount, 0);
-                    return (
-                      <div key={k} className={`${v.bg} border ${v.border} p-2 rounded-xl flex flex-col items-center justify-center text-center`}>
-                        <p className={`text-[7px] font-black uppercase tracking-tighter ${v.color} opacity-60 mb-1`}>{v.label}</p>
-                        <p className={`text-xs font-bold ${v.color} font-mono`}>${total.toLocaleString()}</p>
+          {/* RIGHT COLUMN: SECONDARY ACTIONS (INCOME & ADVANCES) */}
+          <div className="lg:col-span-4 space-y-8">
+             <InputCard 
+                title="Внести доход" 
+                icon={<ICONS.Income size={28} />} 
+                color="emerald"
+                history={stats.currentManualIncomes}
+                onRemove={(id: string) => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerManualIncomes: p.ownerManualIncomes?.filter(i => i.id !== id)}))}
+             >
+                <div className="space-y-6">
+                   <div className="bg-black/20 p-6 rounded-[2rem] border border-white/5 shadow-inner">
+                      <InputGroup label="Сумма получения ($)">
+                         <div className="relative">
+                            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-black text-emerald-500/50 font-mono">$</span>
+                            <input type="number" className="modern-input font-mono pl-12 text-3xl font-black h-20 bg-transparent border-none shadow-none focus:ring-0" placeholder="0.00" value={incomeAmount} onChange={e => setIncomeAmount(e.target.value)} />
+                         </div>
+                      </InputGroup>
+                   </div>
+
+                   <InputGroup label="Кошелек / Назначение">
+                      <div className="grid grid-cols-1 gap-2">
+                         <select className="modern-input font-bold text-sm h-14 bg-black/40" value={incomePlatform} onChange={e => setIncomePlatform(e.target.value as any)}>
+                            <option value="all">Общий счет / Master Card</option>
+                            <option value="onlyFans">OnlyFans Global</option>
+                            <option value="paypal">PayPal Merchant</option>
+                            <option value="crypto">Crypto Wallet (USDT)</option>
+                         </select>
                       </div>
-                    );
-                  })}
+                   </InputGroup>
+
+                   <InputGroup label="Комментарий">
+                      <input type="text" className="modern-input h-14 bg-black/40" placeholder="Источник дохода..." value={incomeComment} onChange={e => setIncomeComment(e.target.value)} />
+                   </InputGroup>
+
+                   <button onClick={addExtraIncome} className="btn-primary h-16 bg-emerald-600 hover:bg-emerald-500 text-white font-black shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+                      <span>Зафиксировать Доход</span>
+                      <ICONS.Plus size={18} className="ml-2" />
+                   </button>
                 </div>
-             </div>
+             </InputCard>
 
-             <HistoryList 
-                items={stats.currentExpenses.filter(e => {
-                  const matchesFilter = expenseFilter === 'all' || e.category === expenseFilter;
-                  const matchesSearch = !expenseSearch || 
-                    e.comment?.toLowerCase().includes(expenseSearch.toLowerCase()) ||
-                    (CATEGORIES[e.category as keyof typeof CATEGORIES] as any)?.label.toLowerCase().includes(expenseSearch.toLowerCase());
-                  return matchesFilter && matchesSearch;
-                })} 
-                onRemove={(id: string) => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerExpenses: p.ownerExpenses.filter(e => e.id !== id)}))} 
-                title="История расходов" 
-                isExpenses 
-                categories={CATEGORIES}
-              />
-          </div>
+             <InputCard 
+                title="Личный Аванс" 
+                icon={<ICONS.Salary size={28} />} 
+                color="amber"
+                history={stats.currentOwnerAdvances}
+                onRemove={(id: string) => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerAdvances: (p.ownerAdvances || []).filter(a => a.id !== id)}))}
+                isOwner
+             >
+                <div className="space-y-6">
+                   <div className="flex p-1.5 bg-black/40 rounded-[1.5rem] border border-white/5">
+                       <button onClick={() => setAdvanceOwner('Andrey')} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-500 ${advanceOwner === 'Andrey' ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/40' : 'text-slate-600 hover:text-slate-400'}`}>Andrey</button>
+                       <button onClick={() => setAdvanceOwner('Anton')} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-500 ${advanceOwner === 'Anton' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/40' : 'text-slate-600 hover:text-slate-400'}`}>Anton</button>
+                   </div>
 
-          <div className="glass-card p-8 rounded-[3rem] border-amber-500/20 shadow-2xl flex flex-col">
-            <h2 className="text-2xl font-bold font-outfit text-white mb-6 flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500"><ICONS.Salary size={24} /></div>
-              Аванс Owner
-            </h2>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => setAdvanceOwner('Andrey')} className={`p-4 rounded-2xl border text-sm font-bold transition-all ${advanceOwner === 'Andrey' ? 'bg-amber-500/20 border-amber-500 text-amber-500 shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-500'}`}>Андрей</button>
-                  <button onClick={() => setAdvanceOwner('Anton')} className={`p-4 rounded-2xl border text-sm font-bold transition-all ${advanceOwner === 'Anton' ? 'bg-indigo-500/20 border-indigo-500 text-indigo-500 shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-500'}`}>Антон</button>
-              </div>
-              <input type="number" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white font-mono outline-none" placeholder="Сумма $" value={advanceAmount} onChange={e => setAdvanceAmount(e.target.value)} />
-              <input type="text" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Заметка..." value={advanceComment} onChange={e => setAdvanceComment(e.target.value)} />
-              <button onClick={addOwnerAdvance} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-4 rounded-2xl shadow-xl">Выдать</button>
-            </div>
-            <HistoryList items={stats.currentOwnerAdvances} onRemove={(id: string) => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerAdvances: p.ownerAdvances.filter(a => a.id !== id)}))} title="История авансов" isOwner />
+                   <div className="bg-black/20 p-6 rounded-[2rem] border border-white/5 shadow-inner">
+                      <InputGroup label="Сумма Аванса ($)">
+                         <div className="relative">
+                            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-black text-amber-500/50 font-mono">$</span>
+                            <input type="number" className="modern-input font-mono pl-12 text-3xl font-black h-20 bg-transparent border-none shadow-none focus:ring-0" placeholder="0" value={advanceAmount} onChange={e => setAdvanceAmount(e.target.value)} />
+                         </div>
+                      </InputGroup>
+                   </div>
+                   
+                   <InputGroup label="Цель выплаты">
+                      <input type="text" className="modern-input h-14 bg-black/40" placeholder="На личные расходы..." value={advanceComment} onChange={e => setAdvanceComment(e.target.value)} />
+                   </InputGroup>
+
+                   <button onClick={addOwnerAdvance} className="btn-primary h-16 bg-amber-600 hover:bg-amber-500 text-white font-black shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+                      <span>Выдать Аванс</span>
+                      <ICONS.ChevronRight size={18} className="ml-2" />
+                   </button>
+                </div>
+             </InputCard>
           </div>
-      </div>
-    </div>
+      </section>
+    </motion.div>
   );
 };
 
-const PayrollStatCard = ({ title, accrued, paid, color }: any) => (
-   <div className="bg-slate-900/40 p-5 rounded-3xl border border-slate-800 flex flex-col gap-2 transition-transform hover:scale-[1.02]">
-      <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">{title}</p>
-      <div className="flex flex-col">
-         <span className="text-xl font-black text-white font-mono">${accrued.toFixed(0)}</span>
-         <div className="flex justify-between items-center mt-1">
-            <span className="text-[10px] text-slate-500 uppercase font-bold">Paid: ${paid.toFixed(0)}</span>
-            <span className={`text-[10px] font-black uppercase text-${color}-400`}>Rest: ${(accrued - paid).toFixed(0)}</span>
+// --- SUBCOMPONENTS ---
+
+const PayrollTracker = ({ label, accrued, paid, color }: any) => {
+   const progress = Math.min(100, (paid / (accrued || 1)) * 100);
+   const colorMap: any = {
+      indigo: 'bg-indigo-500 border-indigo-500/20 text-indigo-400',
+      emerald: 'bg-emerald-500 border-emerald-500/20 text-emerald-400',
+      sky: 'bg-sky-500 border-sky-500/20 text-sky-400'
+   };
+
+   return (
+      <div className="space-y-3 group">
+         <div className="flex justify-between items-end">
+            <div className="space-y-1">
+               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">{label}</p>
+               <h4 className="text-xl font-black text-white font-mono tracking-tighter">${accrued.toLocaleString(undefined, { maximumFractionDigits: 0 })}</h4>
+            </div>
+            <div className="text-right">
+               <p className={`text-[8px] font-black uppercase tracking-[0.2em] mb-1 leading-none ${colorMap[color].split(' ')[2]}`}>Выплаты: {progress.toFixed(0)}%</p>
+               <p className="text-[11px] font-bold text-slate-400 font-mono tracking-tighter">Ост: ${(accrued - paid).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+            </div>
+         </div>
+         <div className="w-full h-1.5 bg-slate-900 border border-white/5 rounded-full overflow-hidden">
+            <motion.div 
+               initial={{ width: 0 }}
+               animate={{ width: `${progress}%` }}
+               transition={{ duration: 1, ease: "circOut" }}
+               className={`h-full ${colorMap[color].split(' ')[0]} shadow-[0_0_10px_rgba(0,0,0,0.5)]`}
+            />
          </div>
       </div>
-      <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden mt-1">
-         <div className={`h-full bg-${color}-500 transition-all`} style={{ width: `${Math.min(100, (paid/accrued)*100)}%` }}></div>
-      </div>
-   </div>
-);
+   );
+};
 
-const HistoryList = ({ items, onRemove, title, isOwner, isExpenses, categories }: any) => (
-   <div className="mt-8 space-y-4 max-h-[400px] overflow-y-auto pr-2 scrollbar-hide">
-      <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-800 pb-3 flex justify-between">
-         {title}
-         <span className="text-[8px] opacity-40">Total entries: {items.length}</span>
-      </h3>
-      {items.length === 0 ? <p className="text-xs text-slate-700 italic py-6 text-center">История пуста</p> : items.map((item: any) => {
-         const cat = isExpenses ? (categories?.[item.category] || categories?.other) : null;
-         const Icon = isExpenses ? cat?.icon : (isOwner ? ICONS.Owner : ICONS.Income);
+const InputCard = ({ title, icon, color, children, history, onRemove, titleStyle, isExpenses, categories, stats, isOwner, fullWidth }: any) => {
+   const [isOpen, setIsOpen] = useState(fullWidth || false);
+   const colorTheme: any = {
+      emerald: {
+         border: 'border-emerald-500/20',
+         bg: 'bg-emerald-500/[0.02]',
+         text: 'text-emerald-500',
+         glow: 'bg-emerald-500/10',
+         btn: 'bg-emerald-600 hover:bg-emerald-500',
+         iconBg: 'bg-emerald-500/10',
+         shadow: 'shadow-emerald-500/5'
+      },
+      rose: {
+         border: 'border-rose-500/30',
+         bg: 'bg-rose-500/[0.03]',
+         text: 'text-rose-500',
+         glow: 'bg-rose-500/10',
+         btn: 'bg-rose-600 hover:bg-rose-500',
+         iconBg: 'bg-rose-500/10',
+         shadow: 'shadow-rose-500/10'
+      },
+      amber: {
+         border: 'border-amber-500/20',
+         bg: 'bg-amber-500/[0.02]',
+         text: 'text-amber-500',
+         glow: 'bg-amber-500/10',
+         btn: 'bg-amber-600 hover:bg-amber-500',
+         iconBg: 'bg-amber-500/10',
+         shadow: 'shadow-amber-500/5'
+      }
+   };
+
+   const theme = colorTheme[color];
+
+   return (
+      <div className={`glass-card p-10 rounded-[3.5rem] border ${theme.border} ${theme.bg} flex flex-col ${theme.shadow} relative overflow-hidden transition-all duration-700 group/card`}>
+         <div className={`absolute top-0 right-0 w-80 h-80 ${theme.glow} blur-[120px] rounded-full -mr-40 -mt-40 transition-all duration-1000 group-hover/card:scale-110`}></div>
          
-         return (
-            <div key={item.id} className="group relative bg-slate-900/40 hover:bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden transition-all duration-300 hover:border-slate-700 hover:shadow-xl hover:shadow-black/20">
-               {isExpenses && <div className={`absolute left-0 top-0 bottom-0 w-1 ${cat?.color.replace('text-', 'bg-')}`}></div>}
-               <div className="p-4 flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isExpenses ? (cat?.bg || '') : 'bg-emerald-500/5'} ${isExpenses ? (cat?.color || '') : 'text-emerald-400'} border ${isExpenses ? (cat?.border || '') : 'border-emerald-500/10'} shrink-0 shadow-inner`}>
-                     {Icon && <Icon size={18} />}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                     <div className="flex justify-between items-start">
-                        <p className="text-xs font-black text-white uppercase tracking-tight truncate">
-                           {isExpenses ? cat?.label : (isOwner ? item.ownerName : 'Income')}
-                        </p>
-                        <p className={`text-sm font-black font-mono ${isExpenses ? 'text-rose-400' : 'text-emerald-400'}`}>
-                           {isExpenses ? '-' : '+'}${item.amount.toLocaleString()}
-                        </p>
-                     </div>
-                     <div className="flex justify-between items-center mt-0.5">
-                        <p className="text-xs text-slate-500 italic truncate pr-4">{item.comment || '—'}</p>
-                        <p className="text-[8px] font-bold text-slate-600 font-mono shrink-0 uppercase tracking-tighter">{item.date}</p>
-                     </div>
-                  </div>
-
-                  <button 
-                    onClick={() => { if(confirm('Удалить запись?')) onRemove(item.id); }} 
-                    className="opacity-0 group-hover:opacity-100 p-2 hover:bg-rose-500/20 text-slate-600 hover:text-rose-500 rounded-lg transition-all absolute -right-2 top-1/2 -translate-y-1/2 group-hover:right-2"
-                  >
-                    <ICONS.Trash size={14}/>
-                  </button>
+         <div className="flex justify-between items-start mb-10 relative z-10">
+            <div className="flex items-center gap-5">
+               <div className={`w-16 h-16 rounded-[1.75rem] flex items-center justify-center border ${theme.border} ${theme.iconBg} ${theme.text} shadow-xl backdrop-blur-md`}>
+                  {icon}
                </div>
-               
-               {item.platform && item.platform !== 'all' && (
-                  <div className="px-4 pb-2 -mt-1 flex justify-end">
-                     <span className="text-[7px] font-black uppercase tracking-widest text-slate-700 border border-slate-800 px-1.5 rounded-sm">
-                        {item.platform}
-                     </span>
-                  </div>
-               )}
+               <div>
+                  <h2 className="text-3xl font-black font-outfit text-white tracking-tight leading-none">{title}</h2>
+                  <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mt-2 opacity-60">{title}</p>
+               </div>
             </div>
-         );
-      })}
-   </div>
-);
+            {isExpenses && (
+               <div className="flex flex-col items-end">
+                  <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest mb-1">Expenses Net</span>
+                  <span className="text-2xl font-black text-rose-400 font-mono tracking-tighter">-${stats.bizExpenses.toLocaleString()}</span>
+               </div>
+            )}
+         </div>
 
-const OwnerShareCard: React.FC<{ name: string; totalShare: number; advances: number; color: string }> = ({ name, totalShare, advances, color }) => (
-  <div className={`glass-card p-8 rounded-[3rem] border shadow-2xl ${color === 'amber' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-indigo-500/10 border-indigo-500/30'}`}>
-    <h3 className="text-3xl font-black font-outfit text-white mb-6 border-b border-slate-800/50 pb-4">{name}</h3>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800">
-        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Доля (50% Clean Net):</p>
-        <p className="text-xl font-bold text-white font-mono">${totalShare.toLocaleString(undefined, { minimumFractionDigits: 1 })}</p>
+         <div className="relative z-10">
+            {children}
+         </div>
+
+         {/* History Toggle */}
+         <div className="mt-10 pt-10 border-t border-white/5 relative z-10">
+            <button 
+               onClick={() => setIsOpen(!isOpen)}
+               className="w-full flex items-center justify-between group/hist overflow-hidden"
+            >
+               <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-500 group-hover/hist:text-white transition-all duration-300">Operational Log</span>
+                  <div className={`h-px w-10 ${theme.bg.replace('/[0.0', '/[0.1')} bg-slate-800 group-hover/hist:w-32 transition-all duration-700`}></div>
+               </div>
+               <div className={`transition-all duration-500 ${isOpen ? 'rotate-180 text-white' : 'text-slate-600'}`}>
+                  <ICONS.ChevronDown size={20} />
+               </div>
+            </button>
+
+            <AnimatePresence>
+               {isOpen && (
+                  <motion.div 
+                     initial={{ height: 0, opacity: 0 }}
+                     animate={{ height: 'auto', opacity: 1 }}
+                     exit={{ height: 0, opacity: 0 }}
+                     transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                     className="overflow-hidden"
+                  >
+                     <div className={`py-6 space-y-4 overflow-y-auto pr-3 custom-scrollbar ${fullWidth ? 'max-h-[600px]' : 'max-h-[350px]'}`}>
+                        <div className={`grid gap-4 ${fullWidth ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
+                           {history.length === 0 ? (
+                              <div className={`text-center py-16 flex flex-col items-center gap-4 ${fullWidth ? 'col-span-2' : ''}`}>
+                                 <div className="w-12 h-12 rounded-full border border-white/5 flex items-center justify-center text-slate-800">
+                                    <ICONS.History size={20} />
+                                 </div>
+                                 <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-800">Data integrity clear. No logs.</p>
+                              </div>
+                           ) : (
+                              history.map((item: any) => {
+                                 const cat = isExpenses ? (categories?.[item.category] || categories?.other) : null;
+                                 return (
+                                    <motion.div 
+                                       initial={{ x: -20, opacity: 0 }}
+                                       animate={{ x: 0, opacity: 1 }}
+                                       key={item.id} 
+                                       className="bg-black/40 p-6 rounded-[2rem] border border-white/5 flex items-center justify-between group/item hover:border-white/10 transition-all hover:bg-black/60 shadow-xl"
+                                    >
+                                       <div className="flex items-center gap-4">
+                                          <div className={`w-12 h-12 rounded-[1.25rem] flex items-center justify-center text-[12px] ${isExpenses ? cat?.color : (isOwner ? 'text-amber-400' : 'text-emerald-400')} bg-slate-900/50 border border-white/5 font-black shadow-inner backdrop-blur-sm`}>
+                                             {isExpenses ? (cat?.icon ? <cat.icon size={16}/> : cat?.label?.[0]) : (isOwner ? item.ownerName?.[0] : <ICONS.Income size={16}/>)}
+                                          </div>
+                                          <div>
+                                             <p className="text-sm font-black text-white uppercase tracking-tight leading-none mb-1">{isExpenses ? cat?.label : (isOwner ? item.ownerName : 'Общий доход')}</p>
+                                             <p className="text-[9px] text-slate-500 font-bold font-mono truncate max-w-[180px] uppercase tracking-tighter">{item.comment || 'System manual entry'}</p>
+                                          </div>
+                                       </div>
+                                       <div className="flex flex-col items-end">
+                                          <div className="flex items-center gap-2">
+                                             <p className={`text-lg font-black font-mono tracking-tighter ${isExpenses ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                                {isExpenses ? '-' : '+'}${item.amount.toLocaleString()}
+                                             </p>
+                                          </div>
+                                          <div className="flex items-center gap-3 mt-1">
+                                             <span className="text-[8px] text-slate-700 font-black uppercase tracking-widest">{item.date}</span>
+                                             <button 
+                                                onClick={() => { if(confirm('Удалить запись безвозвратно?')) onRemove(item.id); }}
+                                                className="opacity-0 group-hover/item:opacity-100 transition-all p-2 hover:bg-rose-500/20 rounded-xl text-slate-600 hover:text-rose-500 -mr-2"
+                                             >
+                                                <ICONS.Trash size={14} />
+                                             </button>
+                                          </div>
+                                       </div>
+                                    </motion.div>
+                                 )
+                              })
+                           )}
+                        </div>
+                     </div>
+                  </motion.div>
+               )}
+            </AnimatePresence>
+         </div>
       </div>
-      <div className="bg-rose-500/5 p-4 rounded-2xl border border-rose-500/10">
-        <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest mb-1">Всего авансов:</p>
-        <p className="text-xl font-bold text-rose-500 font-mono">-${advances.toLocaleString(undefined, { minimumFractionDigits: 1 })}</p>
-      </div>
-      <div className="col-span-1 md:col-span-2 bg-emerald-500/10 p-5 rounded-2xl border border-emerald-500/20 mt-2">
-        <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em] mb-1">Итого к выплате:</p>
-        <p className="text-3xl font-black font-mono text-white tracking-tighter">${(totalShare - advances).toLocaleString(undefined, { minimumFractionDigits: 1 })}</p>
-      </div>
-    </div>
-  </div>
+   );
+};
+
+const InputGroup = ({ label, children }: any) => (
+   <div className="space-y-2">
+      <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">{label}</label>
+      {children}
+   </div>
 );
 
 export default Owner;
