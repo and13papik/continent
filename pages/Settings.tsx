@@ -595,6 +595,33 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
 
         <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <ICONS.Models size={18} className="text-rose-400" /> Скрытые анкеты
+          </h2>
+          <p className="text-[9px] text-slate-500 italic">Эти анкеты не отображаются в Total Table. Нажмите "Восстановить", чтобы вернуть их в список.</p>
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+             {(!state.inactiveModels || state.inactiveModels.length === 0) ? (
+               <p className="text-[10px] text-slate-600 text-center py-4">Нет скрытых анкет</p>
+             ) : (
+               state.inactiveModels.map(m => (
+                 <div key={m} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
+                   <span className="text-sm font-bold text-slate-400 line-through decoration-rose-500/50">{m}</span>
+                   <button 
+                     onClick={() => updateState(p => ({
+                       ...p,
+                       inactiveModels: (p.inactiveModels || []).filter(x => x !== m)
+                     }))}
+                     className="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all"
+                   >
+                     Восстановить
+                   </button>
+                 </div>
+               ))
+             )}
+          </div>
+        </div>
+
+        <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <ICONS.Income size={18} className="text-emerald-400" /> Месячные планы ({activePeriod?.label})
           </h2>
           <p className="text-[9px] text-slate-500 italic">Установите цель на месяц. Система будет автоматически рассчитывать ежедневные цели в Total Table.</p>

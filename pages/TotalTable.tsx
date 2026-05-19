@@ -56,6 +56,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   const currentModels = activePeriod?.models || state.models;
   const currentGoals = activePeriod?.modelDefaultGoals || state.modelDefaultGoals || {};
   const currentPlans = activePeriod?.modelMonthlyPlans || state.modelMonthlyPlans || {};
+  const inactiveModelsSet = new Set((state.inactiveModels || []).map(m => m.trim()));
 
   const esc = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -91,12 +92,12 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     const allForDate = (state.totalTableEntries || []).filter(e => e && e.date === selectedDate && e.periodId === targetPeriodId);
     
     // Оставляем только те анкеты, у которых ЕСТЬ месячный план (динамические цели)
-    // Это убирает дубликаты от "Стандартов" и показывает только нужные анкеты
+    // И которые НЕ скрыты (inactiveModels)
     return allForDate.filter(e => {
       const modelName = e.modelName.trim();
-      return currentPlans[modelName] !== undefined && currentPlans[modelName] !== null;
+      return currentPlans[modelName] !== undefined && currentPlans[modelName] !== null && !inactiveModelsSet.has(modelName);
     });
-  }, [state.totalTableEntries, selectedDate, state.accountingPeriods, state.selectedPeriodId, currentPlans]);
+  }, [state.totalTableEntries, selectedDate, state.accountingPeriods, state.selectedPeriodId, currentPlans, state.inactiveModels]);
 
   const getLastKnownGoals = (modelName: string, dateStr: string) => {
     // Пытаемся рассчитать динамическую цель
@@ -118,7 +119,10 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       const targetPeriodId = findPeriodIdByDate(selectedDate, state.accountingPeriods) || state.selectedPeriodId;
       
       // 1. Получаем список имен моделей, у которых есть месячный план (динамические цели)
-      const modelsWithPlans = Object.keys(currentPlans).map(m => m.trim()).filter(m => m !== '');
+      // И которые НЕ скрыты на постоянной основе
+      const modelsWithPlans = Object.keys(currentPlans)
+        .map(m => m.trim())
+        .filter(m => m !== '' && !inactiveModelsSet.has(m));
       
       // 2. Проверяем, какие модели УЖЕ есть в таблице за это число
       const existingModelNames = new Set(entriesForDate.map(e => e.modelName.trim()));
@@ -166,7 +170,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         });
       }
     }
-  }, [selectedDate, currentPlans, entriesForDate.length, state.deletedIds, updateState]);
+  }, [selectedDate, currentPlans, entriesForDate.length, state.deletedIds, state.inactiveModels, updateState]);
 
   const handleUpdate = (entryId: string, shift: keyof DailyTotalEntry, field: keyof ShiftData, value: string) => {
     const val = value === '' ? undefined : parseFloat(value);
@@ -271,12 +275,28 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   };
 
   const handleRemoveModel = (entryId: string) => {
-    if (!confirm('Удалить эту анкету из таблицы за это число?')) return;
-    updateState(prev => ({
-      ...prev,
-      deletedIds: [...(prev.deletedIds || []), entryId],
-      totalTableEntries: (prev.totalTableEntries || []).filter(e => e && e.id !== entryId)
-    }));
+    const entry = (state.totalTableEntries || []).find(e => e.id === entryId);
+    if (!entry) return;
+
+    const action = confirm(`Удалить анкету "${entry.modelName}"?\n\nOK — Только за это число (${selectedDate.split('-').reverse().join('.')})\nОтмена — Отмена действия`);
+    
+    if (action) {
+      const hidePermanently = confirm(`Скрыть "${entry.modelName}" НА СОВСЕМ из Total Table (чтобы не возвращалась завтра)?`);
+      
+      updateState(prev => {
+        let newState = {
+          ...prev,
+          deletedIds: [...(prev.deletedIds || []), entryId],
+          totalTableEntries: (prev.totalTableEntries || []).filter(e => e && e.id !== entryId)
+        };
+
+        if (hidePermanently) {
+           newState.inactiveModels = Array.from(new Set([...(prev.inactiveModels || []), entry.modelName.trim()]));
+        }
+
+        return newState;
+      });
+    }
   };
 
   const handleAddModel = () => {
