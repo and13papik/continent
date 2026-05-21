@@ -408,7 +408,7 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
                     if (isOp) {
                       const op = item as OperationRecord;
                       const meta = OPERATION_META[op.type];
-                      const isProfit = ['bonus', 'internship', 'refund'].includes(op.type);
+                      const isProfit = ['bonus', 'internship'].includes(op.type);
 
                       return (
                         <motion.div 

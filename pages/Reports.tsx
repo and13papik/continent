@@ -291,7 +291,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
 
     const wallet = state.operatorWallets?.find(w => w.operator === selectedOperator);
 
-    return { totalBrutto, totalNetto, finalBalance, adjustmentGroups, dailyHistory, fullHistory, platformStats, activeModels, wallet };
+    return { totalBrutto, totalNetto, finalBalance, adjustmentGroups, dailyHistory, fullHistory, platformStats, activeModels, wallet, lostCommission };
   }, [selectedOperator, state.incomeData, state.operationsData, state.selectedPeriodId, state.operatorWallets]);
 
   useEffect(() => {
@@ -847,7 +847,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                                 <div className="w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
                                 <span className="text-[7px] font-black uppercase tracking-widest text-rose-400/80">Возвраты (комиссия)</span>
                              </div>
-                             <span className="font-mono font-black text-[9px] text-rose-400">-${(report.adjustmentGroups.refund * 0.2).toFixed(1)}</span>
+                             <span className="font-mono font-black text-[9px] text-rose-400">-${report.lostCommission.toFixed(1)}</span>
                           </div>
                         )}
                      </div>
@@ -896,9 +896,14 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                                 <div className="flex-1 min-w-0">
                                    <div className="flex justify-between items-baseline mb-0.5">
                                       <h5 className="text-[10px] font-black text-slate-200 uppercase truncate group-hover:text-white transition-colors">{item.label}</h5>
-                                      <span className={`text-xs font-black font-mono ${item.amount >= 0 && item.type === 'income' || (item as any).opType === 'bonus' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                         {item.amount >= 0 ? '+' : ''}${Math.abs(item.amount).toFixed(1)}
-                                      </span>
+                                      {(() => {
+                                        const isAdd = item.type === 'income' || ['bonus', 'internship'].includes((item as any).opType);
+                                        return (
+                                          <span className={`text-xs font-black font-mono ${isAdd ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                            {isAdd ? '+' : '-'}${Math.abs(item.amount).toFixed(1)}
+                                          </span>
+                                        );
+                                      })()}
                                    </div>
                                    <div className="flex items-center gap-2">
                                       <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">{item.date.split('-').reverse().join('.')}</span>
