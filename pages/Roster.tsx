@@ -37,6 +37,9 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
   const [isManagingModels, setIsManagingModels] = useState(false);
   const [newModelName, setNewModelName] = useState('');
 
+  const [isManagingOperators, setIsManagingOperators] = useState(false);
+  const [newOperatorName, setNewOperatorName] = useState('');
+
   const currentPeriod = state.accountingPeriods.find((p: AccountingPeriod) => p.id === state.selectedPeriodId);
   
   const rosterEntries = useMemo(() => {
@@ -233,6 +236,56 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         accountingPeriods: prev.accountingPeriods.map(p => 
           p.id === prev.selectedPeriodId 
             ? { ...p, models: currentModels.filter(m => m !== modelName), updatedAt: new Date().toISOString() } 
+            : p
+        )
+      };
+    });
+  };
+
+  const availableOperators = useMemo(() => {
+    const currentOps = currentPeriod?.operators || state.operators;
+    return state.operators.filter(o => !currentOps.includes(o));
+  }, [state.operators, currentPeriod?.operators]);
+
+  const addOperatorToPeriod = (opName: string) => {
+    updateState(prev => {
+      const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
+      if (!activeP) return prev;
+      
+      const currentOps = activeP.operators || prev.operators;
+      if (currentOps.includes(opName)) return prev;
+
+      let newGlobalOps = prev.operators;
+      if (!newGlobalOps.includes(opName)) {
+        newGlobalOps = [...newGlobalOps, opName];
+      }
+
+      return {
+        ...prev,
+        operators: newGlobalOps,
+        accountingPeriods: prev.accountingPeriods.map(p => 
+          p.id === prev.selectedPeriodId 
+            ? { ...p, operators: [...currentOps, opName], updatedAt: new Date().toISOString() } 
+            : p
+        )
+      };
+    });
+    setNewOperatorName('');
+  };
+
+  const removeOperatorFromPeriod = (opName: string) => {
+    if (!confirm(`Скрыть оператора "${opName}" из состава на этот период?`)) return;
+    
+    updateState(prev => {
+      const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
+      if (!activeP) return prev;
+      
+      const currentOps = activeP.operators || prev.operators;
+      return {
+        ...prev,
+        accountingPeriods: prev.accountingPeriods.map(p => 
+          p.id === prev.selectedPeriodId 
+            ? { ...p, operators: currentOps.filter(o => o !== opName), updatedAt: new Date().toISOString() } 
             : p
         )
       };
@@ -664,6 +717,13 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
             <ICONS.Plus size={20} />
             <span className="font-black text-sm uppercase tracking-widest">Добавить анкету</span>
           </button>
+          <button 
+            onClick={() => setIsManagingOperators(true)}
+            className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-xl shadow-emerald-600/20 active:scale-95 transition-all"
+          >
+            <ICONS.Plus size={20} />
+            <span className="font-black text-sm uppercase tracking-widest">Добавить оператора</span>
+          </button>
         </div>
       </div>
 
@@ -1094,6 +1154,113 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
 
                 <button 
                   onClick={() => setIsManagingModels(false)}
+                  className="w-full py-5 rounded-[2rem] bg-slate-900 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all border border-white/5"
+                >
+                  Завершить управление
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Operator Management Modal */}
+      <AnimatePresence>
+        {isManagingOperators && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-card w-full max-w-2xl rounded-[3rem] p-8 md:p-12 border-white/10 shadow-2xl relative overflow-hidden bg-slate-950"
+            >
+              <div className="relative z-10 space-y-10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tight">Управление операторами</h3>
+                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Добавление операторов в текущий состав ({currentPeriod?.label})</p>
+                  </div>
+                  <button 
+                    onClick={() => setIsManagingOperators(false)}
+                    className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-slate-500 hover:text-white transition-colors"
+                  >
+                    <ICONS.Close size={24} />
+                  </button>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Создать нового оператора</label>
+                    <div className="flex gap-3">
+                      <input 
+                        type="text" 
+                        value={newOperatorName}
+                        onChange={e => setNewOperatorName(e.target.value)}
+                        placeholder="Имя оператора (напр. Anna, Vi...)"
+                        className="flex-1 bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-emerald-500 outline-none transition-all"
+                        onKeyDown={e => e.key === 'Enter' && newOperatorName && addOperatorToPeriod(newOperatorName)}
+                      />
+                      <button 
+                        onClick={() => newOperatorName && addOperatorToPeriod(newOperatorName)}
+                        className="px-8 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-emerald-600/20 active:scale-95 transition-all"
+                      >
+                        Добавить
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between px-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Доступные из глобального списка</label>
+                      <span className="text-[10px] font-bold text-slate-600">{availableOperators.length} найдено</span>
+                    </div>
+                    {availableOperators.length === 0 ? (
+                      <div className="p-8 rounded-3xl border border-dashed border-white/5 text-center">
+                        <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">Все операторы уже в списке</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[20vh] overflow-y-auto pr-2 custom-scrollbar">
+                        {availableOperators.map(op => (
+                          <button
+                            key={op}
+                            onClick={() => addOperatorToPeriod(op)}
+                            className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-slate-300 hover:text-white transition-all text-center flex flex-col items-center gap-2"
+                          >
+                            <ICONS.User size={16} />
+                            <span className="font-black text-[10px] uppercase tracking-tighter truncate w-full">{op}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-4 border-t border-white/[0.03] pt-6">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Операторы в составе ({operators.filter(op => op !== 'ДЫРКА').length})</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[20vh] overflow-y-auto pr-2 custom-scrollbar">
+                      {operators.filter(op => op !== 'ДЫРКА').map(op => (
+                        <div
+                          key={op}
+                          className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 text-slate-300 flex items-center justify-between gap-2"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <ICONS.User size={14} className="text-slate-500 shrink-0" />
+                            <span className="font-black text-[10px] uppercase tracking-tighter truncate">{op}</span>
+                          </div>
+                          <button
+                            onClick={() => removeOperatorFromPeriod(op)}
+                            className="text-slate-600 hover:text-rose-500 p-1 rounded-lg hover:bg-rose-500/10 transition-colors"
+                            title="Скрыть оператора"
+                          >
+                            <ICONS.Close size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => setIsManagingOperators(false)}
                   className="w-full py-5 rounded-[2rem] bg-slate-900 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all border border-white/5"
                 >
                   Завершить управление
