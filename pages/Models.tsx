@@ -27,6 +27,14 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
     ])).filter((m): m is string => Boolean(m));
   }, [activePeriod.models, state.models, state.incomeData, state.modelBonuses, state.operationsData, activePeriodId]);
 
+  // Combine state.models and currentModels to ensure EVERY single model in the system is available to be linked
+  const allAvailableModels = useMemo(() => {
+    return Array.from(new Set([
+      ...(state.models || []),
+      ...currentModels
+    ])).filter((m): m is string => Boolean(m)).sort((a, b) => a.localeCompare(b));
+  }, [state.models, currentModels]);
+
   const currentRates = activePeriod.modelRates || state.modelRates;
 
   const [bonusInputs, setBonusInputs] = useState<Record<string, string>>({});
@@ -507,10 +515,10 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Выберите анкеты для объединения</label>
                 <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 h-[150px] overflow-y-auto space-y-1.5 label-scroller">
-                  {state.models.length === 0 ? (
+                  {allAvailableModels.length === 0 ? (
                     <p className="text-[10px] text-slate-600 italic text-center py-4">В системе нет анкет</p>
                   ) : (
-                    state.models.map(modelName => {
+                    allAvailableModels.map(modelName => {
                       // Check if already in another group
                       const otherGroup = (state.modelGroups || []).find(g => g.id !== editingGroupId && g.members.includes(modelName));
                       
