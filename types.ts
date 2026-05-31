@@ -247,6 +247,12 @@ export interface OwnerNote {
   periodId: string;
 }
 
+export interface ModelGroup {
+  id: string;
+  name: string;
+  members: string[];
+}
+
 export interface AppState {
   lastUpdated: number;
   version: number;
@@ -254,6 +260,7 @@ export interface AppState {
   operators: string[];
   operatorWallets?: OperatorWallet[];
   models: string[];
+  modelGroups?: ModelGroup[];
   admins: Admin[];
   incomeData: IncomeRecord[];
   operationsData: OperationRecord[];

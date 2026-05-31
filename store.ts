@@ -38,7 +38,8 @@ export function createInitialState(): AppState {
         inactiveModels: parsed.inactiveModels || [],
         modelDefaultGoals: parsed.modelDefaultGoals || {},
         modelMonthlyPlans: parsed.modelMonthlyPlans || {},
-        operatorAssessments: parsed.operatorAssessments || []
+        operatorAssessments: parsed.operatorAssessments || [],
+        modelGroups: parsed.modelGroups || []
       };
     } catch (e) {
       console.error("Failed to parse storage", e);
@@ -93,6 +94,7 @@ export function createInitialState(): AppState {
     rosterData: [],
     priorityModels: [],
     inactiveModels: [],
+    modelGroups: [],
     modelDefaultGoals: {},
     modelMonthlyPlans: {},
     deletedIds: []
@@ -199,6 +201,7 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         finalState.operatorAssessments = mergeArraysById(state.operatorAssessments || [], remote.operatorAssessments || [], combinedDeletedIds);
         finalState.priorityModels = Array.from(new Set([...(state.priorityModels || []), ...(remote.priorityModels || [])]));
         finalState.inactiveModels = Array.from(new Set([...(state.inactiveModels || []), ...(remote.inactiveModels || [])]));
+        finalState.modelGroups = mergeArraysById(state.modelGroups || [], remote.modelGroups || [], combinedDeletedIds);
         finalState.modelDefaultGoals = { ...(remote.modelDefaultGoals || {}), ...(state.modelDefaultGoals || {}) };
         
         if (state.totalTableEntries || remote.totalTableEntries) {
