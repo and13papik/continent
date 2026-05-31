@@ -167,14 +167,71 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
   const [editingIncome, setEditingIncome] = useState<IncomeRecord | null>(null);
   const [editingOperation, setEditingOperation] = useState<OperationRecord | null>(null);
 
+  const [isManagingOperators, setIsManagingOperators] = useState(false);
+  const [newOperatorName, setNewOperatorName] = useState('');
+
+  const activePeriod = state.accountingPeriods.find(p => p.id === state.selectedPeriodId);
+
+  const availableOperators = useMemo(() => {
+    const currentOps = activePeriod?.operators || state.operators;
+    return state.operators.filter(o => !currentOps.includes(o));
+  }, [state.operators, activePeriod?.operators]);
+
+  const addOperatorToPeriod = (opName: string) => {
+    if (!opName) return;
+    updateState(prev => {
+      const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
+      if (!activeP) return prev;
+      
+      const currentOps = activeP.operators || prev.operators;
+      if (currentOps.includes(opName)) return prev;
+
+      let newGlobalOps = prev.operators;
+      if (!newGlobalOps.includes(opName)) {
+        newGlobalOps = [...newGlobalOps, opName];
+      }
+
+      return {
+        ...prev,
+        operators: newGlobalOps,
+        accountingPeriods: prev.accountingPeriods.map(p => 
+          p.id === prev.selectedPeriodId 
+            ? { ...p, operators: [...currentOps, opName], updatedAt: new Date().toISOString() } 
+            : p
+        )
+      };
+    });
+    setNewOperatorName('');
+  };
+
+  const removeOperatorFromPeriod = (opName: string) => {
+    if (!confirm(`Скрыть оператора "${opName}" из состава на этот период?`)) return;
+    
+    updateState(prev => {
+      const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
+      if (!activeP) return prev;
+      
+      const currentOps = activeP.operators || prev.operators;
+      return {
+        ...prev,
+        accountingPeriods: prev.accountingPeriods.map(p => 
+          p.id === prev.selectedPeriodId 
+            ? { ...p, operators: currentOps.filter(o => o !== opName), updatedAt: new Date().toISOString() } 
+            : p
+        )
+      };
+    });
+    if (selectedOperator === opName) {
+      setSelectedOperator('');
+    }
+  };
+
   useEffect(() => {
     if (location.state && (location.state as any).operator) {
       setSelectedOperator((location.state as any).operator);
     }
   }, [location.state]);
 
-  const activePeriod = state.accountingPeriods.find(p => p.id === state.selectedPeriodId);
-  
   const currentOperators = useMemo(() => {
     const operators = activePeriod?.operators || state.operators;
     return [...operators].sort((a, b) => {
@@ -371,6 +428,106 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
 
   return (
     <div className="flex flex-col lg:flex-row h-screen -m-6 overflow-hidden bg-black text-slate-200">
+      <AnimatePresence>
+        {isManagingOperators && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-3xl">
+             <motion.div 
+               initial={{ scale: 0.9, opacity: 0, y: 30 }}
+               animate={{ scale: 1, opacity: 1, y: 0 }}
+               exit={{ scale: 0.9, opacity: 0, y: 30 }}
+               className="glass-card w-full max-w-2xl rounded-[3rem] p-10 border-emerald-500/40 shadow-2xl relative overflow-hidden bg-slate-950"
+             >
+                <button onClick={() => setIsManagingOperators(false)} className="absolute top-8 right-8 text-slate-500 hover:text-white transition-all group">
+                   <ICONS.Close className="group-hover:scale-110 transition-all text-slate-500 hover:text-white" size={24} />
+                </button>
+                <div className="mb-8 font-outfit">
+                   <h2 className="text-2xl font-black text-white uppercase tracking-tight">Управление операторами</h2>
+                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2">Текущий период: {activePeriod?.label}</p>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Создать нового оператора</label>
+                    <div className="flex gap-3">
+                      <input 
+                        type="text" 
+                        value={newOperatorName}
+                        onChange={e => setNewOperatorName(e.target.value)}
+                        placeholder="Имя оператора (напр. Anna, Vi...)"
+                        className="flex-1 bg-slate-900 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-emerald-500 outline-none transition-all text-sm font-bold"
+                        onKeyDown={e => e.key === 'Enter' && newOperatorName && addOperatorToPeriod(newOperatorName)}
+                      />
+                      <button 
+                        onClick={() => newOperatorName && addOperatorToPeriod(newOperatorName)}
+                        className="px-8 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-emerald-600/20 active:scale-95 transition-all text-center flex items-center justify-center min-h-[50px] shrink-0"
+                      >
+                        Добавить
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between px-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Добавить из общего списка</label>
+                      <span className="text-[10px] font-bold text-slate-600">{availableOperators.length} доступно</span>
+                    </div>
+                    {availableOperators.length === 0 ? (
+                      <div className="p-6 rounded-3xl border border-dashed border-white/5 text-center bg-white/[0.01]">
+                        <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Все зарегистрированные операторы уже в списке</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
+                        {availableOperators.map(op => (
+                          <button
+                            key={op}
+                            onClick={() => addOperatorToPeriod(op)}
+                            className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-slate-300 hover:text-white transition-all text-center flex flex-col items-center gap-1.5"
+                          >
+                            <ICONS.User size={14} className="text-slate-500 shrink-0" />
+                            <span className="font-black text-[10px] uppercase tracking-tighter truncate w-full">{op}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 border-t border-white/[0.03] pt-5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Операторы в текущем составе ({currentOperators.filter(op => op !== 'ДЫРКА').length})</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
+                      {currentOperators.filter(op => op !== 'ДЫРКА').map(op => (
+                        <div
+                          key={op}
+                          className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 text-slate-300 flex items-center justify-between gap-2"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <ICONS.User size={12} className="text-slate-500 shrink-0" />
+                            <span className="font-black text-[10px] uppercase tracking-tighter truncate">{op}</span>
+                          </div>
+                          <button
+                            onClick={() => removeOperatorFromPeriod(op)}
+                            className="text-slate-600 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors"
+                            title="Исключить из периода"
+                          >
+                            <ICONS.Close size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 pt-6 mt-4 border-t border-white/[0.03]">
+                   <button 
+                     onClick={() => setIsManagingOperators(false)} 
+                     className="w-full bg-slate-900 text-slate-500 font-black py-4 rounded-2xl hover:bg-slate-800 transition-all uppercase tracking-widest text-[11px] border border-white/5"
+                   >
+                     Завершить
+                   </button>
+                </div>
+             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       {/* SIDEBAR CALENDAR / DAY LIST */}
       <aside className="w-full lg:w-[320px] bg-slate-900/40 border-r border-white/5 flex flex-col transition-all duration-500 overflow-hidden">
         <div className="p-8 border-b border-white/5 bg-slate-950/20">
@@ -520,13 +677,21 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                 <ICONS.Users size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
               </div>
 
-              {selectedOperator && (
+              {selectedOperator ? (
                 <button 
                   onClick={() => setShowQuickOp(!showQuickOp)}
                   className={`h-11 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-lg ${showQuickOp ? 'bg-rose-500 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
                 >
                   {showQuickOp ? <ICONS.Plus className="rotate-45" size={16} /> : <ICONS.Plus size={16} />}
                   {showQuickOp ? 'Отмена' : 'Коррекция'}
+                </button>
+              ) : (
+                <button 
+                  onClick={() => setIsManagingOperators(true)}
+                  className="h-11 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-lg bg-emerald-600 hover:bg-emerald-500 text-white"
+                >
+                  <ICONS.Plus size={16} />
+                  Добавить оператора
                 </button>
               )}
            </div>
@@ -536,11 +701,18 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
         <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8 pb-32">
           {!selectedOperator && (
              <div className="space-y-8">
-               <div className="flex items-center justify-between">
+               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h2 className="text-2xl font-black font-outfit uppercase tracking-tighter text-white">Ведомость персонала</h2>
                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Выберите сотрудника для просмотра подробной аналитики</p>
                   </div>
+                  <button 
+                    onClick={() => setIsManagingOperators(true)}
+                    className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-xl shadow-emerald-600/20 active:scale-95 transition-all w-fit"
+                  >
+                    <ICONS.Plus size={18} />
+                    <span className="font-black text-[10px] uppercase tracking-widest">Добавить оператора</span>
+                  </button>
                </div>
 
                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
