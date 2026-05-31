@@ -234,6 +234,7 @@ export interface AdvanceRequestItem {
   updatedAt: string;
   paidAt?: string;
   tgMessageId?: number;
+  periodId?: string;
 }
 
 export interface OwnerNote {

@@ -10,6 +10,11 @@ interface AdvanceRequestProps {
   updateState: (updater: (prev: AppState) => AppState) => void;
 }
 
+const formatUsername = (name: string): string => {
+  if (!name) return '';
+  return name.startsWith('@') ? name : `@${name}`;
+};
+
 const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) => {
   const [selectedOperator, setSelectedOperator] = useState('');
   const [amount, setAmount] = useState('');
@@ -68,7 +73,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
 
     let message = `🚀 <b>ЗАПРОС НА АВАНС</b>\n`;
     message += `--------------------------\n`;
-    message += `👤 Оператору <b>@${selectedOperator}</b> запрошен аванс\n`;
+    message += `👤 Оператору <b>${formatUsername(selectedOperator)}</b> запрошен аванс\n`;
     message += `💰 <b>Размер аванса:</b> $${amountValue}\n`;
     message += `📊 <b>Текущий остаток ЗП:</b> $${remainderValue.toFixed(1)}\n`;
     message += `💳 <b>${paymentMethod === 'usdt_trc20' ? 'Кошелек USDT TRC20' : 'Карта'} для выплаты:</b>\n`;
@@ -110,7 +115,8 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
         status: 'pending',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        tgMessageId
+        tgMessageId,
+        periodId: activePeriodId
       };
 
       updateState(prev => {
@@ -159,13 +165,13 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
       )
     }));
 
-    if (request.tgMessageId) {
-      const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
-      const DEFAULT_CHAT_ID = '-1003748692600';
+    const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
+    const DEFAULT_CHAT_ID = '-1003748692600';
 
+    if (request.tgMessageId) {
       let message = `🚀 <b>ЗАПРОС НА АВАНС ВЫПОЛНЕН</b>\n`;
       message += `--------------------------\n`;
-      message += `👤 Оператор: <b>@${request.operator}</b>\n`;
+      message += `👤 Оператор: <b>${formatUsername(request.operator)}</b>\n`;
       message += `💰 <b>Сумма:</b> $${request.amount}\n`;
       message += `📊 <b>Остаток был:</b> $${request.remainderAtTime.toFixed(1)}\n`;
       message += `💳 <b>Реквизиты:</b>\n`;
@@ -186,6 +192,39 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
         });
       } catch (e) {}
     }
+
+    // Отправка нового сообщения-уведомления о выплате аванса
+    let newNotif = `✅ <b>АВАНС ВЫПЛАЧЕН</b>\n`;
+    newNotif += `--------------------------\n`;
+    newNotif += `👤 Оператор: <b>${formatUsername(request.operator)}</b>\n`;
+    newNotif += `💰 <b>Сумма:</b> $${request.amount}\n`;
+    newNotif += `💳 <b>Метод:</b> ${request.method === 'usdt_trc20' ? 'USDT TRC20' : 'Карта'}\n`;
+    newNotif += `🏛️ <b>Реквизиты:</b> <code>${request.address}</code>\n`;
+    newNotif += `--------------------------\n`;
+    newNotif += `🕒 <b>Время выплаты:</b> ${new Date().toLocaleString('ru-RU')}`;
+
+    try {
+      await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: DEFAULT_CHAT_ID,
+          text: newNotif,
+          parse_mode: 'HTML'
+        })
+      });
+    } catch (e) {}
+  };
+
+  const isInActivePeriod = (req: AdvanceRequestItem) => {
+    if (req.periodId) {
+      return req.periodId === activePeriodId;
+    }
+    if (!activePeriod) return false;
+    const reqTime = new Date(req.createdAt).getTime();
+    const pStart = new Date(activePeriod.startAt).getTime();
+    const pEnd = activePeriod.endAt ? new Date(activePeriod.endAt).getTime() : Infinity;
+    return reqTime >= pStart && reqTime <= pEnd;
   };
 
   const activeRequests = (state.advanceRequests || [])
@@ -193,12 +232,16 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     
   const historyRequests = (state.advanceRequests || [])
-    .filter(r => r.status === 'paid')
+    .filter(r => r.status === 'paid' && isInActivePeriod(r))
     .sort((a, b) => new Date(b.paidAt || b.createdAt).getTime() - new Date(a.paidAt || a.createdAt).getTime());
+
+  const totalPaidAdvancesInPeriod = useMemo(() => {
+    return historyRequests.reduce((sum, r) => sum + r.amount, 0);
+  }, [historyRequests]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
           <h1 className="text-4xl font-black font-outfit text-white uppercase tracking-tighter flex items-center gap-4">
              <div className="w-12 h-12 bg-amber-600 rounded-[1.25rem] flex items-center justify-center shadow-2xl shadow-amber-500/20">
@@ -209,6 +252,16 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
           <div className="flex items-center gap-3">
              <PeriodBadge state={state} />
              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">Financial Transaction Center</p>
+          </div>
+        </div>
+        
+        <div className="bg-slate-900/60 px-6 py-4 rounded-[2rem] border border-slate-800 flex items-center gap-5">
+          <div className="w-11 h-11 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/10">
+            <ICONS.HandCoins size={20} />
+          </div>
+          <div>
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Выдано авансов (период)</p>
+            <p className="text-xl font-black text-amber-500 font-mono leading-none mt-1">${totalPaidAdvancesInPeriod.toLocaleString()}</p>
           </div>
         </div>
       </header>
@@ -396,7 +449,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
                                     <ICONS.User size={20}/>
                                  </div>
                                  <div className="space-y-1">
-                                    <p className="text-sm font-black text-white uppercase tracking-wider">@{req.operator}</p>
+                                    <p className="text-sm font-black text-white uppercase tracking-wider">{formatUsername(req.operator)}</p>
                                     <p className="text-[10px] text-slate-600 font-black uppercase tracking-tighter">{new Date(req.createdAt).toLocaleString()}</p>
                                  </div>
                               </div>
@@ -452,7 +505,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
                                 <ICONS.Check size={14}/>
                              </div>
                              <div>
-                                <p className="text-[11px] font-black text-slate-400">@{req.operator}</p>
+                                <p className="text-[11px] font-black text-slate-400">{formatUsername(req.operator)}</p>
                                 <p className="text-[8px] text-slate-700 font-black uppercase tracking-tighter">{new Date(req.paidAt || '').toLocaleDateString()}</p>
                              </div>
                           </div>
