@@ -164,6 +164,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     updateState(prev => ({
       ...prev,
       advanceRequests: (prev.advanceRequests || []).filter(r => r.id !== reqId),
+      deletedIds: [...(prev.deletedIds || []), reqId],
       lastUpdated: Date.now()
     }));
 
