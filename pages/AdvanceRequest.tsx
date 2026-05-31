@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AppState, OperatorWallet, AdvanceRequestItem } from '../types';
+import { AppState, OperatorWallet, AdvanceRequestItem, OperationRecord } from '../types';
 import { ICONS } from '../constants';
 import PeriodBadge from '../components/PeriodBadge';
 
@@ -21,6 +21,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
   const [walletAddress, setWalletAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'usdt_trc20' | 'card'>('usdt_trc20');
   const [isSending, setIsSending] = useState(false);
+  const [autoDeducts, setAutoDeducts] = useState<Record<string, boolean>>({});
 
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
@@ -154,16 +155,74 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     }
   };
 
-  const markAsPaid = async (reqId: string) => {
+  const deleteRequest = async (reqId: string) => {
+    if (!window.confirm('Вы уверены, что хотите удалить этот запрос аванса?')) return;
+
     const request = (state.advanceRequests || []).find(r => r.id === reqId);
     if (!request) return;
 
     updateState(prev => ({
       ...prev,
-      advanceRequests: (prev.advanceRequests || []).map(r => 
-        r.id === reqId ? { ...r, status: 'paid', paidAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : r
-      )
+      advanceRequests: (prev.advanceRequests || []).filter(r => r.id !== reqId),
+      lastUpdated: Date.now()
     }));
+
+    if (request.tgMessageId) {
+      const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
+      const DEFAULT_CHAT_ID = '-1003748692600';
+
+      let message = `❌ <b>ЗАПРОС НА АВАНС ОТКЛОНЕН / УДАЛЕН</b>\n`;
+      message += `--------------------------\n`;
+      message += `👤 Оператор: <b>${formatUsername(request.operator)}</b>\n`;
+      message += `💰 <b>Сумма:</b> $${request.amount}\n`;
+      message += `--------------------------\n`;
+      message += `🔴 <b>Запрос удален из системы администратором</b>`;
+
+      try {
+        await fetch(`https://api.telegram.org/bot${TG_TOKEN}/editMessageText`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: DEFAULT_CHAT_ID,
+            message_id: request.tgMessageId,
+            text: message,
+            parse_mode: 'HTML'
+          })
+        });
+      } catch (e) {}
+    }
+  };
+
+  const markAsPaid = async (reqId: string, isAutoDeducted: boolean) => {
+    const request = (state.advanceRequests || []).find(r => r.id === reqId);
+    if (!request) return;
+
+    updateState(prev => {
+      const updatedRequests: AdvanceRequestItem[] = (prev.advanceRequests || []).map(r => 
+        r.id === reqId ? { ...r, status: 'paid' as const, paidAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : r
+      );
+
+      let nextState = {
+        ...prev,
+        advanceRequests: updatedRequests
+      };
+
+      if (isAutoDeducted) {
+        const newOp: OperationRecord = {
+          id: `op-adv-${request.id}-${Date.now()}`,
+          type: 'advance',
+          operator: request.operator,
+          amount: request.amount,
+          comment: `Автовычет аванса (заявка от ${new Date(request.createdAt).toLocaleDateString('ru-RU')})`,
+          date: new Date().toISOString().split('T')[0],
+          createdAt: new Date().toISOString(),
+          periodId: request.periodId || activePeriodId || ''
+        };
+        nextState.operationsData = [newOp, ...prev.operationsData];
+      }
+
+      return nextState;
+    });
 
     const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
     const DEFAULT_CHAT_ID = '-1003748692600';
@@ -177,6 +236,9 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
       message += `💳 <b>Реквизиты:</b>\n`;
       message += `<code>${request.address}</code>\n`;
       message += `--------------------------\n`;
+      if (isAutoDeducted) {
+        message += `📥 <i>Аванс автоматически высчитан из зарплаты оператора</i>\n`;
+      }
       message += `✅ <b>СТАТУС: ВЫПЛАЧЕНО ${new Date().toLocaleString()}</b>`;
 
       try {
@@ -200,6 +262,9 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     newNotif += `💰 <b>Сумма:</b> $${request.amount}\n`;
     newNotif += `💳 <b>Метод:</b> ${request.method === 'usdt_trc20' ? 'USDT TRC20' : 'Карта'}\n`;
     newNotif += `🏛️ <b>Реквизиты:</b> <code>${request.address}</code>\n`;
+    if (isAutoDeducted) {
+      newNotif += `📥 <b>Аванс автоматически высчитан из зарплаты оператора</b>\n`;
+    }
     newNotif += `--------------------------\n`;
     newNotif += `🕒 <b>Время выплаты:</b> ${new Date().toLocaleString('ru-RU')}`;
 
@@ -464,12 +529,35 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
                               <span className="text-[8px] font-black uppercase tracking-widest text-slate-700 px-2 py-1 bg-white/5 rounded-md">{req.method}</span>
                            </div>
 
-                           <button 
-                              onClick={() => markAsPaid(req.id)}
-                              className="w-full bg-emerald-500/10 hover:bg-emerald-600 text-emerald-500 hover:text-white border border-emerald-500/20 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-inner"
-                           >
-                              Провести выплату
-                           </button>
+                           <div className="space-y-4 pt-2">
+                              {/* Checkbox for auto deduct */}
+                              <label className="flex items-center gap-2.5 cursor-pointer bg-slate-950/60 hover:bg-slate-950 border border-white/5 hover:border-white/10 px-4 py-3 rounded-2xl select-none transition-all duration-300">
+                                <input 
+                                   type="checkbox"
+                                   id={`auto-deduct-${req.id}`}
+                                   checked={autoDeducts[req.id] ?? true}
+                                   onChange={e => setAutoDeducts(prev => ({ ...prev, [req.id]: e.target.checked }))}
+                                   className="w-4 h-4 rounded border-slate-800 bg-slate-950 text-amber-500 focus:ring-amber-500/50 accent-amber-500 cursor-pointer"
+                                />
+                                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Вычесть из ЗП автоматически</span>
+                              </label>
+
+                              <div className="grid grid-cols-4 gap-3">
+                                 <button 
+                                    onClick={() => markAsPaid(req.id, autoDeducts[req.id] ?? true)}
+                                    className="col-span-3 bg-emerald-500/10 hover:bg-emerald-600 text-emerald-500 hover:text-white border border-emerald-500/20 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-inner flex items-center justify-center gap-2"
+                                 >
+                                    <ICONS.Check size={14}/> Провести выплату
+                                 </button>
+                                 <button 
+                                    onClick={() => deleteRequest(req.id)}
+                                    className="col-span-1 bg-rose-500/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/20 py-4 rounded-2xl transition-all shadow-inner flex items-center justify-center"
+                                    title="Удалить запрос"
+                                 >
+                                    <ICONS.Trash size={16}/>
+                                 </button>
+                              </div>
+                           </div>
                         </motion.div>
                       ))
                     )}
