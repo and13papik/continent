@@ -677,21 +677,13 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                 <ICONS.Users size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
               </div>
 
-              {selectedOperator ? (
+              {selectedOperator && (
                 <button 
                   onClick={() => setShowQuickOp(!showQuickOp)}
                   className={`h-11 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-lg ${showQuickOp ? 'bg-rose-500 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
                 >
                   {showQuickOp ? <ICONS.Plus className="rotate-45" size={16} /> : <ICONS.Plus size={16} />}
                   {showQuickOp ? 'Отмена' : 'Коррекция'}
-                </button>
-              ) : (
-                <button 
-                  onClick={() => setIsManagingOperators(true)}
-                  className="h-11 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-lg bg-emerald-600 hover:bg-emerald-500 text-white"
-                >
-                  <ICONS.Plus size={16} />
-                  Добавить оператора
                 </button>
               )}
            </div>
