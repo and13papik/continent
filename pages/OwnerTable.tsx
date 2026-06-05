@@ -351,16 +351,10 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
 
         if (firstPhoto.startsWith('data:')) {
           try {
-            const arr = firstPhoto.split(',');
-            const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+            const blobRes = await fetch(firstPhoto);
+            const blob = await blobRes.blob();
+            const mime = blob.type || 'image/png';
             const ext = mime.split('/')[1] || 'png';
-            const bstr = atob(arr[1]);
-            let n = bstr.length;
-            const u8arr = new Uint8Array(n);
-            while (n--) {
-              u8arr[n] = bstr.charCodeAt(n);
-            }
-            const blob = new Blob([u8arr], { type: mime });
             formData.append('photo', blob, `image.${ext}`);
           } catch (err) {
             formData.append('photo', firstPhoto);
@@ -383,16 +377,10 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
             extraFormData.append('caption', `Фото к заданию [${i + 1}]`);
             if (extraPhoto.startsWith('data:')) {
               try {
-                const arr = extraPhoto.split(',');
-                const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+                const blobRes = await fetch(extraPhoto);
+                const blob = await blobRes.blob();
+                const mime = blob.type || 'image/png';
                 const ext = mime.split('/')[1] || 'png';
-                const bstr = atob(arr[1]);
-                let n = bstr.length;
-                const u8arr = new Uint8Array(n);
-                while (n--) {
-                  u8arr[n] = bstr.charCodeAt(n);
-                }
-                const blob = new Blob([u8arr], { type: mime });
                 extraFormData.append('photo', blob, `image_${i}.${ext}`);
               } catch {
                 extraFormData.append('photo', extraPhoto);
