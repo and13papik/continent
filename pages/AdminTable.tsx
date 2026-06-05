@@ -449,7 +449,14 @@ const AdminTable: React.FC<{
   const createAdminTask = () => {
     if (!newTitle.trim()) return;
     const compiledDesc = newDescBlocks.length > 0
-      ? newDescBlocks.map(b => b.type === 'text' ? b.text : `[Фото: ${b.caption || ''}]`).join('\n\n').replace(/<[^>]*>/g, '')
+      ? newDescBlocks.map(b => b.type === 'text' ? b.text : `[Фото: ${b.caption || ''}]`)
+          .join('\n\n')
+          .replace(/<[^>]*>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .trim()
       : (newDesc || 'Инициировано из панели администратора');
 
     const task: OwnerTask = {

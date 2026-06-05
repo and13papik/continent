@@ -360,7 +360,14 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
 
     const finalAssigned = newTaskTarget === 'owner' ? currentOwner : newTaskAssigned;
     const compiledDesc = newTaskDescBlocks.length > 0
-      ? newTaskDescBlocks.map(b => b.type === 'text' ? b.text : `[Фото: ${b.caption || ''}]`).join('\n\n').replace(/<[^>]*>/g, '')
+      ? newTaskDescBlocks.map(b => b.type === 'text' ? b.text : `[Фото: ${b.caption || ''}]`)
+          .join('\n\n')
+          .replace(/<[^>]*>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .trim()
       : newTaskDesc;
 
     if (editingTask) {
