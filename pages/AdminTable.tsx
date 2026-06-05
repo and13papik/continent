@@ -299,7 +299,9 @@ const TaskCard: React.FC<{
                      {task.notes.map(n => (
                         <div key={n.id} className="p-4 bg-slate-900/20 rounded-xl border border-slate-850 flex justify-between gap-4 text-[11px]">
                            <span className="text-slate-300 flex-1 leading-relaxed font-sans">{n.text}</span>
-                           <span className="text-slate-600 uppercase font-bold text-[8px] self-end">{n.author}</span>
+                           <span className="text-slate-600 uppercase font-bold text-[8px] self-end">
+                             {n.author === 'All' ? 'ОБЩЕЕ (Rector + Admin VI)' : n.author === 'Rector' ? 'Rector' : n.author === 'Mentor' ? 'Admin Vi' : n.author}
+                           </span>
                         </div>
                      ))}
                      {task.notes.length === 0 && (
@@ -338,7 +340,7 @@ const AdminTable: React.FC<{
   state: AppState; 
   updateState: (fn: (prev: AppState) => AppState) => void; 
 }> = ({ state, updateState }) => {
-  const [currentAdminRole, setCurrentAdminRole] = useState<'Rector' | 'Mentor'>('Rector');
+  const [currentAdminRole, setCurrentAdminRole] = useState<'All' | 'Rector' | 'Mentor'>('All');
   
   const [activeMode, setActiveMode] = useState<'directive' | 'regular' | 'recurring'>('regular');
   const [secondaryFilter, setSecondaryFilter] = useState<'all' | 'critical' | 'process' | 'review'>('all');
@@ -533,13 +535,13 @@ const AdminTable: React.FC<{
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-850/60 font-mono">
             <span className="text-[9px] text-slate-500 font-bold px-2 uppercase">Симуляция:</span>
-            {(['Rector', 'Mentor'] as const).map(role => (
+            {(['All', 'Rector', 'Mentor'] as const).map(role => (
               <button
                 key={role}
                 onClick={() => setCurrentAdminRole(role)}
                 className={`text-[9px] px-3.5 py-1.5 rounded-xl font-bold transition-all ${currentAdminRole === role ? 'text-white bg-sky-600 shadow-md shadow-sky-600/10' : 'text-slate-500 hover:text-slate-300'}`}
               >
-                {role === 'Rector' ? 'RECTOR' : 'ADMIN VI'}
+                {role === 'All' ? 'ОБЩЕЕ (Rector + Admin VI)' : role === 'Rector' ? 'RECTOR' : 'ADMIN VI'}
               </button>
             ))}
           </div>
