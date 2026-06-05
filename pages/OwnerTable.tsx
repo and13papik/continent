@@ -313,36 +313,116 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     const prioLabel = PRIORITY_META[task.priority]?.label || 'Средний';
     const prioEmoji = PRIORITY_META[task.priority]?.emoji || '⚡️';
 
-    let message = `🚨 <b>CORE${headerAddon}: Новая стратегическая инициатива</b>\n\n`;
+    let message = `🚨 <b>CORE${headerAddon}: Новое задание</b>\n\n`;
+    message += `Посмотрите на платформе\n\n`;
     message += `<b>Тип:</b> ${typeLabel}\n`;
     message += `<b>Приоритет:</b> ${prioEmoji} ${prioLabel}\n`;
     if (task.dueDate) {
       message += `<b>Дедлайн:</b> ${new Date(task.dueDate).toLocaleDateString()}\n`;
     }
-    message += `\n<b>Инициатива:</b> <u>${task.title}</u>\n`;
-    if (task.description) {
-      message += `<b>Контекст:</b> ${task.description}\n`;
-    }
-    if (task.strategyData?.goal) {
-      message += `<b>Целевой образ:</b> ${task.strategyData.goal}\n`;
-    }
     message += `\n<b>Ответственное крыло:</b> ${mentionTags}`;
 
-    try {
-      const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: DEFAULT_CHAT_ID,
-          text: message,
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: [[
-              { text: "🛰️ Вход в Узел Администратора", url: "https://continental.monster/#/admin-table" }
-            ]]
-          }
-        })
+    // Сбор изображений из скриншотов и блоков описания
+    const photos: string[] = [];
+    if (task.screenshots && task.screenshots.length > 0) {
+      photos.push(...task.screenshots);
+    }
+    if (task.descriptionBlocks && task.descriptionBlocks.length > 0) {
+      task.descriptionBlocks.forEach(b => {
+        if (b.type === 'image' && b.imageSrc) {
+          photos.push(b.imageSrc);
+        }
       });
+    }
+
+    try {
+      let res;
+      if (photos.length > 0) {
+        const firstPhoto = photos[0];
+        const formData = new FormData();
+        formData.append('chat_id', DEFAULT_CHAT_ID);
+        formData.append('caption', message);
+        formData.append('parse_mode', 'HTML');
+        formData.append('reply_markup', JSON.stringify({
+          inline_keyboard: [[
+            { text: "🛰️ Вход в Узел Администратора", url: "https://continental.monster/#/admin-table" }
+          ]]
+        }));
+
+        if (firstPhoto.startsWith('data:')) {
+          try {
+            const arr = firstPhoto.split(',');
+            const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+            const ext = mime.split('/')[1] || 'png';
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) {
+              u8arr[n] = bstr.charCodeAt(n);
+            }
+            const blob = new Blob([u8arr], { type: mime });
+            formData.append('photo', blob, `image.${ext}`);
+          } catch (err) {
+            formData.append('photo', firstPhoto);
+          }
+        } else {
+          formData.append('photo', firstPhoto);
+        }
+
+        res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
+          method: 'POST',
+          body: formData
+        });
+
+        // Если дополнительных фото больше одной, отправим их тоже
+        if (res.ok && photos.length > 1) {
+          for (let i = 1; i < photos.length; i++) {
+            const extraPhoto = photos[i];
+            const extraFormData = new FormData();
+            extraFormData.append('chat_id', DEFAULT_CHAT_ID);
+            extraFormData.append('caption', `Фото к заданию [${i + 1}]`);
+            if (extraPhoto.startsWith('data:')) {
+              try {
+                const arr = extraPhoto.split(',');
+                const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+                const ext = mime.split('/')[1] || 'png';
+                const bstr = atob(arr[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                while (n--) {
+                  u8arr[n] = bstr.charCodeAt(n);
+                }
+                const blob = new Blob([u8arr], { type: mime });
+                extraFormData.append('photo', blob, `image_${i}.${ext}`);
+              } catch {
+                extraFormData.append('photo', extraPhoto);
+              }
+            } else {
+              extraFormData.append('photo', extraPhoto);
+            }
+            await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
+              method: 'POST',
+              body: extraFormData
+            });
+          }
+        }
+      } else {
+        res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: DEFAULT_CHAT_ID,
+            text: message,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [[
+                { text: "🛰️ Вход в Узел Администратора", url: "https://continental.monster/#/admin-table" }
+              ]]
+            }
+          })
+        });
+      }
+
       if (res.ok) alert('Уведомление отправлено в Телеграм!');
       else {
         const err = await res.json();
