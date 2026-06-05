@@ -168,6 +168,7 @@ export interface OwnerTask {
   createdAt: string;
   updatedAt: string;
   periodId: string;
+  screenshots?: string[];
 }
 
 export interface ShiftData {
