@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { AppState, OwnerTask, TaskPriority, TaskStatus, TaskNote, TaskType, TaskAssignee, TaskAuditEntry, TaskDescriptionBlock } from '../types';
+import { AppState, OwnerTask, TaskPriority, TaskStatus, TaskNote, TaskType, TaskAssignee, TaskAuditEntry, TaskDescriptionBlock, TaskReport } from '../types';
 import { BlockDescriptionEditor, BlockDescriptionViewer } from '../components/BlockDescriptionEditor';
+import { TaskReportSection } from '../components/TaskReportSection';
 import { ICONS } from '../constants';
 import PeriodBadge from '../components/PeriodBadge';
 import { motion, AnimatePresence } from 'motion/react';
@@ -79,7 +80,8 @@ const TaskCard: React.FC<{
   onUploadScreenshot: (id: string, e: React.ChangeEvent<HTMLInputElement>) => void;
   onViewImage: (url: string) => void;
   onRemoveScreenshot: (id: string, index: number) => void;
-}> = ({ task, isEx, currentRole, onToggle, onUpdateStatus, onDelete, addNote, onUploadScreenshot, onViewImage, onRemoveScreenshot }) => {
+  onUpdateReport: (id: string, report: TaskReport) => void;
+}> = ({ task, isEx, currentRole, onToggle, onUpdateStatus, onDelete, addNote, onUploadScreenshot, onViewImage, onRemoveScreenshot, onUpdateReport }) => {
   const [noteVal, setNoteVal] = useState('');
   const [showNote, setShowNote] = useState(false);
   const [isSendingToTg, setIsSendingToTg] = useState(false);
@@ -232,21 +234,41 @@ const TaskCard: React.FC<{
                 {isSendingToTg ? 'ОТПРАВКА...' : <><Send size={11}/> В ТЕЛЕГРАМ</>}
              </button>
              
-             <div className="flex gap-1">
-                {['idea', 'in_progress', 'review', 'completed'].map(s => (
-                  <button 
-                     key={s} 
-                     onClick={() => onUpdateStatus(task.id, s as any)}
-                     className={`px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-normal border transition-all font-mono ${
-                       task.status === s 
-                         ? 'bg-sky-600/25 border-sky-500/40 text-sky-400 shadow-md shadow-sky-600/5' 
-                         : 'bg-slate-950/60 border-slate-900 text-slate-500 hover:border-slate-850 hover:text-slate-300'
-                     }`}
-                  >
-                     {STATUS_META[s as TaskStatus].label}
-                  </button>
-                ))}
-             </div>
+             <div className="flex flex-col gap-1.5 items-end">
+                <div className="flex gap-1">
+                   {['idea', 'in_progress', 'review', 'completed'].map(s => (
+                     <button 
+                        key={s} 
+                        onClick={() => {
+                          onUpdateStatus(task.id, s as any);
+                          if (s === 'completed' && !isEx) onToggle(task.id);
+                        }}
+                        className={`px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-normal border transition-all font-mono ${
+                          task.status === s 
+                            ? 'bg-sky-600/25 border-sky-500/40 text-sky-400 shadow-md shadow-sky-600/5' 
+                            : 'bg-slate-950/60 border-slate-900 text-slate-500 hover:border-slate-850 hover:text-slate-300'
+                        }`}
+                     >
+                        {STATUS_META[s as TaskStatus].label}
+                     </button>
+                   ))}
+                </div>
+                {task.taskReport?.statusChoice === 'report_attached' && (
+                  <span className="text-[7.5px] text-emerald-400 font-extrabold tracking-widest uppercase font-mono bg-emerald-500/5 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                     ✓ ОТЧЕТ ПРИКРЕПЛЕН
+                  </span>
+                )}
+                {task.taskReport?.statusChoice === 'no_report_needed' && (
+                  <span className="text-[7.5px] text-slate-500 font-extrabold tracking-widest uppercase font-mono bg-slate-950/60 border border-slate-900 px-2 py-0.5 rounded-md">
+                     ✗ ОТЧЕТ НЕ ТРЕБУЕТСЯ
+                  </span>
+                )}
+                {isCompleted && !task.taskReport?.statusChoice && (
+                  <span className="text-[7.5px] text-amber-500 font-black tracking-widest uppercase font-mono bg-amber-500/5 border border-amber-500/20 px-2 py-0.5 rounded-md animate-pulse">
+                     ⚠ СДЕЛАЙТЕ ОТЧЕТ!
+                  </span>
+                )}
+              </div>
              
              {isOwnTask && (
                <button onClick={() => onDelete(task.id)} className="w-9 h-9 rounded-xl flex items-center justify-center transition-all border border-slate-900 bg-slate-1000 hover:text-rose-500 hover:border-rose-500/50 text-slate-500">
@@ -369,6 +391,15 @@ const TaskCard: React.FC<{
                  )}
               </div>
 
+              
+              {/* РАЗДЕЛ ОТЧЕТА ПО ЗАДАНИЮ */}
+              <TaskReportSection 
+                task={task}
+                isOwner={false}
+                currentUserRole={currentRole}
+                onSaveReport={(report) => onUpdateReport(task.id, report)}
+              />
+
               {showNote && (
                  <div className="bg-slate-900/40 p-6 rounded-2xl border border-sky-500/10 space-y-4 animate-in zoom-in-95">
                     <textarea 
@@ -448,6 +479,17 @@ const AdminTable: React.FC<{
     };
     updateState(prev => ({ ...prev, ownerTasks: [task, ...(prev.ownerTasks || [])] }));
     setNewTitle(''); setNewGoal(''); setNewDesc(''); setNewDescBlocks([]); setNewDueDate(''); setIsCreating(false);
+  };
+
+  const updateTaskReport = (taskId: string, report: TaskReport) => {
+    updateState(prev => ({
+      ...prev,
+      ownerTasks: (prev.ownerTasks || []).map(t => t.id === taskId ? {
+        ...t,
+        taskReport: report,
+        updatedAt: new Date().toISOString()
+      } : t)
+    }));
   };
 
   const updateStatus = (taskId: string, newStatus: TaskStatus) => {
@@ -819,6 +861,7 @@ const AdminTable: React.FC<{
                 onUploadScreenshot={handleScreenshotUpload}
                 onViewImage={setSelectedImage}
                 onRemoveScreenshot={handleRemoveScreenshot}
+                onUpdateReport={updateTaskReport}
               />
             </motion.div>
           ))}

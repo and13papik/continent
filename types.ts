@@ -146,6 +146,18 @@ export interface TaskDescriptionBlock {
   caption?: string;     // Short description/caption for the photo
 }
 
+export interface TaskReport {
+  statusChoice?: 'report_attached' | 'no_report_needed';
+  type?: 'telegram' | 'document' | 'website' | 'none';
+  telegramLink?: string;
+  documentName?: string;
+  documentBase64?: string;
+  websiteText?: string;
+  websiteBlocks?: TaskDescriptionBlock[];
+  createdAt?: string;
+  submittedBy?: string;
+}
+
 export interface OwnerTask {
   id: string;
   title: string;
@@ -164,6 +176,7 @@ export interface OwnerTask {
     text: string;
     links: string[];
   };
+  taskReport?: TaskReport;
   tags: OwnerTag[];
   strategyData?: {
     goal: string;

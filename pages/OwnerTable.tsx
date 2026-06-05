@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { AppState, OwnerTask, TaskPriority, TaskStatus, OwnerTag, TaskNote, TaskAssignee, TaskType, RecurrenceCycle, TaskAuditEntry, OwnerNote, TaskDescriptionBlock } from '../types';
 import { BlockDescriptionEditor, BlockDescriptionViewer } from '../components/BlockDescriptionEditor';
+import { TaskReportSection } from '../components/TaskReportSection';
+import { TaskReport } from '../types';
 import { ICONS } from '../constants';
 import PeriodBadge from '../components/PeriodBadge';
 import { motion, AnimatePresence } from 'motion/react';
@@ -420,6 +422,11 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     const recurring = myTasks.filter(t => t.taskType === 'recurring');
 
     const completed = myTasks.filter(t => t.status === 'completed').length;
+    
+    // Новые метрики по отчетам
+    const reportsAttached = myTasks.filter(t => t.taskReport?.statusChoice === 'report_attached').length;
+    const noReportNeeded = myTasks.filter(t => t.taskReport?.statusChoice === 'no_report_needed').length;
+    const pendingReports = myTasks.filter(t => t.status === 'completed' && !t.taskReport?.statusChoice).length;
     const review = myTasks.filter(t => t.status === 'review').length;
     const critical = myTasks.filter(t => t.priority === 'urgent' || t.priority === 'high').length;
     
@@ -434,7 +441,10 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
       completed,
       review,
       critical,
-      percent
+      percent,
+      reportsAttached,
+      noReportNeeded,
+      pendingReports
     };
   }, [state.ownerTasks, state.selectedPeriodId]);
 
@@ -531,7 +541,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
       </header>
 
       {/* --- HUD СТРАТЕГИЧЕСКИХ ПОКАЗАТЕЛЕЙ (WOW HUD GRID) --- */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {/* HUD 1: Инициативы */}
         <div className="relative group overflow-hidden bg-slate-900/20 border border-slate-800/50 p-5 rounded-[24px] hover:border-amber-500/30 transition-all shadow-xl backdrop-blur-md">
           <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-500/5 to-transparent rounded-full pointer-events-none transition-transform duration-700 group-hover:scale-125"></div>
@@ -590,6 +600,26 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
           <div className="space-y-1">
             <h4 className="text-2xl sm:text-3xl font-black font-outfit text-white leading-none">{metrics.critical}</h4>
             <p className="text-[9px] text-slate-500 font-mono">приоритет Критич./Высок.</p>
+          </div>
+        </div>
+
+        {/* HUD 5: Контроль Отчетов */}
+        <div className="relative group overflow-hidden bg-slate-900/20 border border-slate-800/50 p-5 rounded-[24px] hover:border-indigo-500/30 transition-all shadow-xl backdrop-blur-md col-span-2 md:col-span-3 lg:col-span-1">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-indigo-500/5 to-transparent rounded-full pointer-events-none transition-transform duration-700 group-hover:scale-125"></div>
+          <div className="flex justify-between items-start mb-3">
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-mono">Контроль Отчетов</span>
+            <div className="w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20"><FileText size={14}/></div>
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-baseline gap-1.5">
+              <h4 className="text-2xl sm:text-3xl font-black font-outfit text-indigo-400 leading-none">{metrics.reportsAttached}</h4>
+              <span className="text-[9px] text-slate-500 font-mono">приложено</span>
+            </div>
+            <div className="flex gap-1.5 text-[8.5px] text-slate-500 font-mono font-bold flex-wrap">
+              <span className="text-amber-500">{metrics.pendingReports} ожидают</span>
+              <span>•</span>
+              <span className="text-slate-400">{metrics.noReportNeeded} без отчета</span>
+            </div>
           </div>
         </div>
       </section>
@@ -933,20 +963,51 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                             </button>
                           </div>
                           
-                          <div className="flex gap-1">
-                            {['idea', 'in_progress', 'completed'].map(s => (
-                              <button 
-                                key={s} 
-                                onClick={() => updateState(p => ({...p, ownerTasks: (p.ownerTasks || []).map(t => t.id === task.id ? {...t, status: s as any, auditLog: [...(t.auditLog || []), logAudit(`Статус изменен на ${s}`, currentOwner)]} : t)}))}
-                                className={`px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-normal border transition-all font-mono ${
-                                  task.status === s 
-                                    ? 'bg-indigo-600/25 border-indigo-500/40 text-indigo-400 shadow-md shadow-indigo-600/5' 
-                                    : 'bg-slate-950/60 border-slate-900 text-slate-500 hover:border-slate-850 hover:text-slate-300'
-                                }`}
-                              >
-                                {STATUS_META[s as TaskStatus].label}
-                              </button>
-                            ))}
+                          <div className="flex flex-col gap-1.5 items-end">
+                            <div className="flex gap-1">
+                              {['idea', 'in_progress', 'completed'].map(s => (
+                                <button 
+                                  key={s} 
+                                  onClick={() => {
+                                    updateState(p => ({
+                                      ...p, 
+                                      ownerTasks: (p.ownerTasks || []).map(t => t.id === task.id ? {
+                                        ...t, 
+                                        status: s as any, 
+                                        auditLog: [...(t.auditLog || []), logAudit(`Статус изменен на ${s}`, currentOwner)]
+                                      } : t)
+                                    }));
+                                    if (s === 'completed' && !isEx) {
+                                      const n = new Set(expandedTasks);
+                                      n.add(task.id);
+                                      setExpandedTasks(n);
+                                    }
+                                  }}
+                                  className={`px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-normal border transition-all font-mono ${
+                                    task.status === s 
+                                      ? 'bg-indigo-600/25 border-indigo-500/40 text-indigo-400 shadow-md shadow-indigo-600/5' 
+                                      : 'bg-slate-950/60 border-slate-900 text-slate-500 hover:border-slate-850 hover:text-slate-300'
+                                  }`}
+                                >
+                                  {STATUS_META[s as TaskStatus].label}
+                                </button>
+                              ))}
+                            </div>
+                            {task.taskReport?.statusChoice === 'report_attached' && (
+                              <span className="text-[7.5px] text-emerald-400 font-extrabold tracking-widest uppercase font-mono bg-emerald-500/5 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                                 ✓ ОТЧЕТ ПРИКРЕПЛЕН
+                              </span>
+                            )}
+                            {task.taskReport?.statusChoice === 'no_report_needed' && (
+                              <span className="text-[7.5px] text-slate-500 font-extrabold tracking-widest uppercase font-mono bg-slate-950/60 border border-slate-900 px-2 py-0.5 rounded-md">
+                                 ✗ ОТЧЕТ НЕ ТРЕБУЕТСЯ
+                              </span>
+                            )}
+                            {task.status === 'completed' && !task.taskReport?.statusChoice && (
+                              <span className="text-[7.5px] text-amber-500 font-black tracking-widest uppercase font-mono bg-amber-500/5 border border-amber-500/20 px-2 py-0.5 rounded-md animate-pulse">
+                                 ⚠ НЕТ ОТЧЕТА!
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1068,6 +1129,33 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                                 <p className="text-[10px] text-slate-550 italic font-mono">Графический отчет отсутствует. Нажмите кнопку справа, чтобы загрузить снимок.</p>
                               )}
                             </div>
+
+                            
+                            {/* РАЗДЕЛ ОТЧЕТА ПО ЗАДАНИЮ */}
+                            <TaskReportSection 
+                              task={task}
+                              isOwner={true}
+                              currentUserRole={currentOwner}
+                              onSaveReport={(report) => {
+                                updateState(prev => ({
+                                  ...prev,
+                                  ownerTasks: (prev.ownerTasks || []).map(t => t.id === task.id ? {
+                                    ...t,
+                                    taskReport: report,
+                                    updatedAt: new Date().toISOString(),
+                                    auditLog: [
+                                      ...(t.auditLog || []),
+                                      {
+                                        id: `audit-${Date.now()}`,
+                                        timestamp: new Date().toISOString(),
+                                        action: `Отчет по задаче изменен`,
+                                        actor: currentOwner
+                                      }
+                                    ]
+                                  } : t)
+                                }));
+                              }}
+                            />
 
                             {/* ЖУРНАЛ И СИСТЕМНЫЙ АУДИТ */}
                             <div className="p-4 bg-slate-900/15 rounded-xl border border-slate-900 text-[10px] font-mono text-slate-600 space-y-1 max-h-[120px] overflow-y-auto">
