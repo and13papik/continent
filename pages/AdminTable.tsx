@@ -23,7 +23,8 @@ import {
   FileText,
   BadgeAlert,
   ChevronDown,
-  Check
+  Check,
+  Image
 } from 'lucide-react';
 
 const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
@@ -253,11 +254,16 @@ const TaskCard: React.FC<{
                </button>
              )}
              <button 
-               onClick={() => onToggle(task.id)} 
-               className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all bg-slate-950 text-slate-500 hover:text-slate-300 border border-slate-900 ${isEx ? 'bg-sky-600 text-white' : ''}`}
-             >
-                <Plus size={16} className={`transition-transform duration-300 ${isEx ? 'rotate-45' : ''}`} />
-             </button>
+                onClick={() => onToggle(task.id)} 
+                className={`px-4.5 py-2.5 rounded-2xl text-[9px] font-black uppercase tracking-widest border transition-all flex items-center gap-1.5 font-mono ${
+                  isEx 
+                    ? 'bg-sky-600 border-sky-500 text-white shadow-lg shadow-sky-600/15' 
+                    : 'bg-slate-950 hover:bg-slate-900 border-slate-900 hover:border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                 <span>{isEx ? 'СВЕРНУТЬ ОПИСАНИЕ' : 'РАЗВЕРНУТЬ ОПИСАНИЕ'}</span>
+                 <ChevronDown size={11} className={`transition-transform duration-300 ${isEx ? 'rotate-180' : ''}`} />
+              </button>
           </div>
           <p className="text-[9px] text-slate-600 italic font-mono truncate max-w-[250px]">
             {task.notes.length > 0 ? `Запись: "${task.notes[task.notes.length-1].text}"` : 'Нет протокольных записей'}
@@ -277,7 +283,7 @@ const TaskCard: React.FC<{
                 <div className="space-y-4">
                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block font-mono">Контекст выполнения и Цель</label>
                    <div className="text-[13px] text-slate-300 leading-relaxed bg-slate-900/30 p-6 rounded-2xl border border-slate-800/40">
-                      {task.description || 'Руководство не прикрепило детальное описание.'}
+                      <BlockDescriptionViewer blocks={task.descriptionBlocks} fallbackText={task.description || 'Руководство не прикрепило детальное описание.'} />
                       {task.strategyData?.goal && (
                         <div className="mt-4 pt-3 border-t border-slate-800/40 flex flex-col gap-1">
                            <span className="text-amber-500 text-[9px] font-bold uppercase tracking-widest font-mono">Критерий верификации:</span>
@@ -311,7 +317,59 @@ const TaskCard: React.FC<{
                 </div>
              </div>
 
-             {showNote && (
+             
+              {/* СКРИНШОТЫ ИЗОБРАЖЕНИЙ ПОДТВЕРЖДЕНИЯ */}
+              <div className="pt-6 border-t border-slate-900/60 space-y-4">
+                 <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="space-y-0.5">
+                       <label className="text-[10px] font-black text-sky-450 uppercase tracking-[0.2em] block font-mono">Файловые отчеты и прикрепленные скриншоты:</label>
+                       <p className="text-[9px] text-slate-500 font-mono">Визуальные подтверждения проделанной работы</p>
+                    </div>
+                    <label className="cursor-pointer bg-sky-600/10 hover:bg-sky-600 border border-sky-600/20 hover:border-sky-500 text-sky-400 hover:text-white text-[9px] font-black uppercase tracking-wider px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 active:scale-95 font-mono">
+                      <Plus size={11} /> Прикрепить отчет
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={(e) => onUploadScreenshot(task.id, e)} 
+                      />
+                    </label>
+                 </div>
+
+                 {task.screenshots && task.screenshots.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4 animate-in zoom-in-95">
+                      {task.screenshots.map((src, sIdx) => (
+                        <div key={sIdx} className="relative group/img rounded-2xl overflow-hidden border border-slate-850 bg-slate-1000 aspect-video shadow-md">
+                          <img 
+                            src={src} 
+                            className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-300" 
+                            onClick={() => onViewImage(src)} 
+                            alt="screenshot" 
+                            referrerPolicy="no-referrer"
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              if (confirm('Вы уверены, что хотите удалить этот скриншот?')) {
+                                onRemoveScreenshot(task.id, sIdx);
+                              }
+                            }}
+                            className="absolute top-2 right-2 w-6 h-6 rounded-lg bg-black/85 hover:bg-rose-600 border border-white/10 text-white flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                 ) : (
+                    <div className="flex flex-col items-center justify-center py-8 px-4 rounded-2xl bg-slate-900/10 border border-dashed border-slate-850/60 text-slate-500">
+                      <Image size={24} className="text-slate-750 mb-2 stroke-1" />
+                      <p className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Нет прикрепленных изображений</p>
+                    </div>
+                 )}
+              </div>
+
+              {showNote && (
                  <div className="bg-slate-900/40 p-6 rounded-2xl border border-sky-500/10 space-y-4 animate-in zoom-in-95">
                     <textarea 
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white outline-none min-h-[80px]"
