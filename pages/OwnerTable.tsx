@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { AppState, OwnerTask, TaskPriority, TaskStatus, OwnerTag, TaskNote, TaskAssignee, TaskType, RecurrenceCycle, TaskAuditEntry, OwnerNote } from '../types';
+import { AppState, OwnerTask, TaskPriority, TaskStatus, OwnerTag, TaskNote, TaskAssignee, TaskType, RecurrenceCycle, TaskAuditEntry, OwnerNote, TaskDescriptionBlock } from '../types';
+import { BlockDescriptionEditor, BlockDescriptionViewer } from '../components/BlockDescriptionEditor';
 import { ICONS } from '../constants';
 import PeriodBadge from '../components/PeriodBadge';
 import { motion, AnimatePresence } from 'motion/react';
@@ -254,6 +255,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
   const [editingTask, setEditingTask] = useState<OwnerTask | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
+  const [newTaskDescBlocks, setNewTaskDescBlocks] = useState<TaskDescriptionBlock[]>([]);
   const [newTaskPriority, setNewTaskPriority] = useState<TaskPriority>('medium');
   const [newTaskAssigned, setNewTaskAssigned] = useState<TaskAssignee>('Admins');
   const [newTaskType, setNewTaskType] = useState<TaskType>('directive');
@@ -355,13 +357,19 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     if (!newTaskTitle.trim()) return;
 
     const finalAssigned = newTaskTarget === 'owner' ? currentOwner : newTaskAssigned;
+    const compiledDesc = newTaskDescBlocks.length > 0
+      ? newTaskDescBlocks.map(b => b.type === 'text' ? b.text : `[Фото: ${b.caption || ''}]`).join('\n\n').replace(/<[^>]*>/g, '')
+      : newTaskDesc;
 
     if (editingTask) {
         updateState(prev => ({
             ...prev,
             ownerTasks: (prev.ownerTasks || []).map(t => t.id === editingTask.id ? {
                 ...t,
-                title: newTaskTitle, description: newTaskDesc, priority: newTaskPriority,
+                title: newTaskTitle, 
+                description: compiledDesc, 
+                descriptionBlocks: newTaskDescBlocks,
+                priority: newTaskPriority,
                 assignedTo: finalAssigned as TaskAssignee, taskType: newTaskType,
                 dueDate: newTaskDueDate || undefined,
                 recurrenceCycle: newTaskType === 'recurring' ? newTaskCycle : undefined,
@@ -374,7 +382,10 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     } else {
         const task: OwnerTask = {
             id: `task-${Date.now()}`,
-            title: newTaskTitle, description: newTaskDesc, status: 'idea',
+            title: newTaskTitle, 
+            description: compiledDesc, 
+            descriptionBlocks: newTaskDescBlocks,
+            status: 'idea',
             priority: newTaskPriority, taskType: newTaskType, assignedTo: finalAssigned as TaskAssignee,
             dueDate: newTaskDueDate || undefined,
             recurrenceCycle: newTaskType === 'recurring' ? newTaskCycle : undefined,
@@ -385,12 +396,13 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
         };
         updateState(prev => ({ ...prev, ownerTasks: [task, ...(prev.ownerTasks || [])] }));
     }
-    setNewTaskTitle(''); setNewTaskDesc(''); setNewTaskGoal(''); setNewTaskDueDate('');
+    setNewTaskTitle(''); setNewTaskDesc(''); setNewTaskDescBlocks([]); setNewTaskGoal(''); setNewTaskDueDate('');
   };
 
   const startEditing = (task: OwnerTask) => {
     setEditingTask(task);
     setNewTaskTitle(task.title); setNewTaskDesc(task.description);
+    setNewTaskDescBlocks(task.descriptionBlocks || (task.description ? [{ id: `init-${Date.now()}`, type: 'text', text: `<div>${task.description.replace(/\n/g, '<br>')}</div>` }] : []));
     setNewTaskPriority(task.priority); setNewTaskAssigned(task.assignedTo);
     setNewTaskType(task.taskType || 'regular'); setNewTaskCycle(task.recurrenceCycle || 'daily');
     setNewTaskGoal(task.strategyData?.goal || '');
@@ -684,11 +696,10 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                   
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1 font-mono">Детали и контекст</label>
-                    <textarea 
-                      className="w-full bg-slate-950 border border-slate-800/80 rounded-2xl px-5 py-3.5 text-white text-xs outline-none min-h-[90px] focus:border-amber-500/50 leading-relaxed font-sans" 
-                      placeholder="Детали задачи..." 
-                      value={newTaskDesc} 
-                      onChange={e => setNewTaskDesc(e.target.value)} 
+                    <BlockDescriptionEditor 
+                      blocks={newTaskDescBlocks} 
+                      onChange={(blocks) => setNewTaskDescBlocks(blocks)} 
+                      accentColor="amber" 
                     />
                   </div>
                   
@@ -949,9 +960,9 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                             exit={{ height: 0, opacity: 0 }}
                             className="bg-slate-950/80 border-t border-slate-900 px-6 sm:px-8 py-6 space-y-6 overflow-hidden"
                           >
-                            <div className="p-5 rounded-2xl bg-slate-900/30 border border-slate-800/40 space-y-2">
-                              <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest block font-mono">Описание и Цели директивы</label>
-                              <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap font-sans">{task.description || 'Вводный контекст/описание отсутствует.'}</p>
+                            <div className="p-5 rounded-2xl bg-slate-900/30 border border-slate-800/40 space-y-2 mb-2">
+                              <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest block font-mono mb-2">Описание и Цели директивы</label>
+                              <BlockDescriptionViewer blocks={task.descriptionBlocks} fallbackText={task.description} />
                               {task.strategyData?.goal && (
                                 <div className="mt-3 pt-3 border-t border-slate-800/50 flex items-center gap-2">
                                   <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest font-mono">Целевой вектор:</span>

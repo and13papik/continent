@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { AppState, OwnerTask, TaskPriority, TaskStatus, TaskNote, TaskType, TaskAssignee, TaskAuditEntry } from '../types';
+import { AppState, OwnerTask, TaskPriority, TaskStatus, TaskNote, TaskType, TaskAssignee, TaskAuditEntry, TaskDescriptionBlock } from '../types';
+import { BlockDescriptionEditor, BlockDescriptionViewer } from '../components/BlockDescriptionEditor';
 import { ICONS } from '../constants';
 import PeriodBadge from '../components/PeriodBadge';
 import { motion, AnimatePresence } from 'motion/react';
@@ -309,375 +310,306 @@ const TaskCard: React.FC<{
              </div>
 
              {showNote && (
-                <div className="bg-slate-900/40 p-6 rounded-2xl border border-sky-500/10 space-y-4 animate-in zoom-in-95">
-                   <textarea 
-                     className="w-full bg-transparent border-none outline-none text-xs text-white min-h-[80px] placeholder:text-slate-700 font-sans leading-relaxed" 
-                     placeholder="Введите прогресс или примечание..." 
-                     value={noteVal} 
-                     onChange={e => setNoteVal(e.target.value)} 
-                     autoFocus 
-                   />
-                   <div className="flex justify-end gap-4 font-mono">
-                      <button onClick={() => { setNoteVal(''); setShowNote(false); }} className="text-[10px] text-slate-500 uppercase font-black">Отмена</button>
-                      <button onClick={() => { addNote(task.id, noteVal); setNoteVal(''); setShowNote(false); }} className="bg-sky-600 px-6 py-2 rounded-xl text-[10px] font-black text-white uppercase tracking-wider shadow-md">Сохранить</button>
+                 <div className="bg-slate-900/40 p-6 rounded-2xl border border-sky-500/10 space-y-4 animate-in zoom-in-95">
+                    <textarea 
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white outline-none min-h-[80px]"
+                        placeholder="Текст протокольной записи..."
+                        value={noteVal}
+                        onChange={e => setNoteVal(e.target.value)}
+                    />
+                    <div className="flex justify-end gap-2 font-mono">
+                      <button 
+                        onClick={() => { addNote(task.id, noteVal); setNoteVal(''); setShowNote(false); }}
+                        className="bg-sky-600 hover:bg-sky-500 px-4 py-1.5 rounded-lg text-white text-[10px] font-black uppercase transition-colors"
+                      >
+                        Сохранить
+                      </button>
                     </div>
                  </div>
               )}
-
-              {/* СКРИНШОТЫ ОТЧЕТОВ */}
-              <div className="p-6 rounded-2xl bg-slate-900/20 border border-slate-850 space-y-4">
-                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                       <label className="text-[10px] font-black text-sky-400 uppercase tracking-widest block font-mono">Графические отчеты и снимки подтверждения:</label>
-                       <p className="text-[10px] text-slate-500">Прикрепляйте графический результат работы. Скрины доступны владельцам для быстрого утверждения задачи.</p>
-                    </div>
-                    <label className="cursor-pointer bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-all flex items-center gap-1.5 active:scale-95 shadow-lg shadow-sky-600/10 shrink-0 font-mono">
-                       <Plus size={12} /> Прикрепить снимок
-                       <input 
-                          type="file" 
-                          accept="image/*" 
-                          multiple 
-                          className="hidden" 
-                          onChange={(e) => onUploadScreenshot(task.id, e)} 
-                       />
-                    </label>
-                 </div>
-
-                 {task.screenshots && task.screenshots.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 animate-in zoom-in-95">
-                       {task.screenshots.map((src, sIdx) => (
-                          <div key={sIdx} className="relative group/img rounded-xl overflow-hidden border border-slate-850 bg-slate-950 aspect-video shadow-md">
-                             <img 
-                                src={src} 
-                                className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-300" 
-                                onClick={() => onViewImage(src)} 
-                                alt="screenshot" 
-                                referrerPolicy="no-referrer"
-                             />
-                             <button 
-                                onClick={(e) => { e.stopPropagation(); onRemoveScreenshot(task.id, sIdx); }}
-                                className="absolute top-1.5 right-1.5 w-6 h-6 rounded-lg bg-black/85 hover:bg-rose-600 border border-white/10 text-white flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"
-                             >
-                                <Trash2 size={12} />
-                             </button>
-                          </div>
-                       ))}
-                    </div>
-                 ) : (
-                    <p className="text-[10px] text-slate-600 italic font-mono">Нет загруженных скриншотов. Нажмите кнопку выше для прикрепления графического отчета.</p>
-                  )}
-               </div>
             </motion.div>
-         )}
-      </AnimatePresence>
-    </div>
+          )}
+        </AnimatePresence>
+      </div>
   );
 };
 
-// --- ОСНОВНОЙ ЭКРАН ADMIN TABLE ---
-const AdminTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppState) => AppState) => void }> = ({ state, updateState }) => {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [currentAdminRole, setCurrentAdminRole] = useState<'Mentor' | 'Rector' | 'Admins'>('Mentor');
-  const [activeMode, setActiveMode] = useState<TaskType>('regular');
+const AdminTable: React.FC<{ 
+  state: AppState; 
+  updateState: (fn: (prev: AppState) => AppState) => void; 
+}> = ({ state, updateState }) => {
+  const [currentAdminRole, setCurrentAdminRole] = useState<'Rector' | 'Mentor'>('Rector');
+  
+  const [activeMode, setActiveMode] = useState<'directive' | 'regular' | 'recurring'>('regular');
   const [secondaryFilter, setSecondaryFilter] = useState<'all' | 'critical' | 'process' | 'review'>('all');
   const [taskSearch, setTaskSearch] = useState('');
-
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-
-  const handleScreenshotUpload = (taskId: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    
-    Array.from(files).forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        updateState(prev => ({
-          ...prev,
-          ownerTasks: (prev.ownerTasks || []).map(t => t.id === taskId ? {
-            ...t,
-            screenshots: [...(t.screenshots || []), base64String]
-          } : t)
-        }));
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const handleRemoveScreenshot = (taskId: string, indexToRemove: number) => {
-    updateState(prev => ({
-      ...prev,
-      ownerTasks: (prev.ownerTasks || []).map(t => t.id === taskId ? {
-        ...t,
-        screenshots: (t.screenshots || []).filter((_, idx) => idx !== indexToRemove)
-      } : t)
-    }));
-  };
-
   const [isCreating, setIsCreating] = useState(false);
+
   const [newTitle, setNewTitle] = useState('');
-  const [newTo, setNewTo] = useState<TaskAssignee>('Mentor');
-  const [newPrio, setNewPrio] = useState<TaskPriority>('medium');
-  const [newGoal, setNewGoal] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [newDescBlocks, setNewDescBlocks] = useState<TaskDescriptionBlock[]>([]);
+  const [newTo, setNewTo] = useState<TaskAssignee>('All');
+  const [newPrio, setNewPrio] = useState<TaskPriority>('medium');
   const [newDueDate, setNewDueDate] = useState('');
-
-  const logAudit = (action: string, actor: string): TaskAuditEntry => ({
-    id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-    action, actor, timestamp: new Date().toISOString()
-  });
-
-  const updateStatus = (id: string, status: TaskStatus) => {
-    updateState(p => ({
-      ...p,
-      ownerTasks: (p.ownerTasks || []).map(t => t.id === id ? { 
-        ...t, status, 
-        auditLog: [...(t.auditLog || []), logAudit(`Статус изменен на ${status}`, currentAdminRole)], 
-        updatedAt: new Date().toISOString() 
-      } : t)
-    }));
-  };
-
-  const deleteTask = (id: string) => {
-    if (!confirm('Удалить эту задачу навсегда?')) return;
-    updateState(prev => ({
-      ...prev,
-      deletedIds: [...(prev.deletedIds || []), id],
-      ownerTasks: (prev.ownerTasks || []).filter(t => t.id !== id)
-    }));
-  };
-
-  const addNote = (id: string, text: string) => {
-    if (!text.trim()) return;
-    const note: TaskNote = { id: String(Date.now()), text, author: currentAdminRole, createdAt: new Date().toISOString() };
-    updateState(p => ({
-      ...p,
-      ownerTasks: (p.ownerTasks || []).map(t => t.id === id ? { 
-        ...t, notes: [...(t.notes || []), note], 
-        auditLog: [...(t.auditLog || []), logAudit('Добавлена протокольная запись', currentAdminRole)],
-        updatedAt: new Date().toISOString() 
-      } : t)
-    }));
-  };
+  const [newGoal, setNewGoal] = useState('');
 
   const createAdminTask = () => {
     if (!newTitle.trim()) return;
+    const compiledDesc = newDescBlocks.length > 0
+      ? newDescBlocks.map(b => b.type === 'text' ? b.text : `[Фото: ${b.caption || ''}]`).join('\n\n').replace(/<[^>]*>/g, '')
+      : (newDesc || 'Инициировано из панели администратора');
+
     const task: OwnerTask = {
         id: `admin-task-${Date.now()}`,
         title: newTitle, 
-        description: newDesc || 'Инициировано из панели администратора', 
+        description: compiledDesc, 
+        descriptionBlocks: newDescBlocks,
         status: 'idea',
         priority: newPrio, 
-        taskType: 'regular', 
+        taskType: activeMode === 'directive' ? 'directive' : activeMode === 'recurring' ? 'recurring' : 'regular', 
         assignedTo: newTo,
         dueDate: newDueDate || undefined,
         tags: [], 
         notes: [], 
         strategyData: { goal: newGoal, reason: '', effect: '' },
-        auditLog: [logAudit('Задача создана админом', currentAdminRole)],
+        auditLog: [
+          {
+            id: `audit-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            action: 'Задача создана администратором',
+            actor: currentAdminRole
+          }
+        ],
         createdAt: new Date().toISOString(), 
         updatedAt: new Date().toISOString(),
         periodId: state.selectedPeriodId
     };
     updateState(prev => ({ ...prev, ownerTasks: [task, ...(prev.ownerTasks || [])] }));
-    setNewTitle(''); setNewGoal(''); setNewDesc(''); setNewDueDate(''); setIsCreating(false);
+    setNewTitle(''); setNewGoal(''); setNewDesc(''); setNewDescBlocks([]); setNewDueDate(''); setIsCreating(false);
   };
 
-  // --- ВЫЧИСЛЕНИЕ СТАТИСТИКИ АДМИНА ---
-  const adminMetrics = useMemo(() => {
-    const tasks = state.ownerTasks || [];
-    const myTasks = tasks.filter(t => {
-      const isForMe = t.assignedTo === currentAdminRole || t.assignedTo === 'Admins' || t.assignedTo === 'All';
-      const iDelegatedToOwner = t.id.startsWith('admin-task') && (t.assignedTo === 'Andrey' || t.assignedTo === 'Anton' || t.assignedTo === 'Owners');
-      const matchesPeriod = t.periodId === state.selectedPeriodId;
-      return (isForMe || iDelegatedToOwner) && matchesPeriod;
-    });
+  const updateStatus = (taskId: string, newStatus: TaskStatus) => {
+    updateState(prev => ({
+      ...prev,
+      ownerTasks: (prev.ownerTasks || []).map(t => t.id === taskId ? {
+        ...t,
+        status: newStatus,
+        auditLog: [
+          ...(t.auditLog || []),
+          {
+            id: `audit-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            action: `Статус изменен на "${STATUS_META[newStatus].label}"`,
+            actor: currentAdminRole
+          }
+        ],
+        updatedAt: new Date().toISOString()
+      } : t)
+    }));
+  };
 
-    const activeReg = myTasks.filter(t => t.id.startsWith('admin-task') || t.taskType === 'regular');
-    const myProgress = myTasks.filter(t => t.status === 'in_progress').length;
-    const myReview = myTasks.filter(t => t.status === 'review').length;
-    const myCritical = myTasks.filter(t => t.priority === 'urgent' || t.priority === 'high').length;
-    
-    // Вычисление просрочки
-    const now = new Date();
-    const myOverdue = myTasks.filter(t => t.dueDate && now > new Date(t.dueDate) && t.status !== 'completed').length;
+  const deleteTask = (taskId: string) => {
+    if (confirm('Вы уверены, что хотите удалить эту задачу из ведомости?')) {
+      updateState(prev => ({
+        ...prev,
+        ownerTasks: (prev.ownerTasks || []).filter(t => t.id !== taskId)
+      }));
+    }
+  };
 
-    return {
-      total: myTasks.length,
-      progress: myProgress,
-      review: myReview,
-      critical: myCritical,
-      overdue: myOverdue,
-      tasksWithReview: tasks.filter(t => t.status === 'review').length
+  const addNote = (taskId: string, text: string) => {
+    if (!text.trim()) return;
+    updateState(prev => ({
+      ...prev,
+      ownerTasks: (prev.ownerTasks || []).map(t => t.id === taskId ? {
+        ...t,
+        notes: [
+          ...(t.notes || []),
+          {
+             id: `note-${Date.now()}`,
+             text,
+             author: currentAdminRole,
+             createdAt: new Date().toISOString()
+          }
+        ],
+        updatedAt: new Date().toISOString()
+      } : t)
+    }));
+  };
+
+  const handleScreenshotUpload = (taskId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      updateState(prev => ({
+        ...prev,
+        ownerTasks: (prev.ownerTasks || []).map(t => t.id === taskId ? {
+          ...t,
+          screenshots: [...(t.screenshots || []), base64],
+          updatedAt: new Date().toISOString()
+        } : t)
+      }));
     };
-  }, [state.ownerTasks, currentAdminRole, state.selectedPeriodId]);
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveScreenshot = (taskId: string, index: number) => {
+     updateState(prev => ({
+       ...prev,
+       ownerTasks: (prev.ownerTasks || []).map(t => t.id === taskId ? {
+         ...t,
+         screenshots: (t.screenshots || []).filter((_, idx) => idx !== index),
+         updatedAt: new Date().toISOString()
+       } : t)
+     }));
+  };
 
   const allTasks = useMemo(() => {
-    let list = (state.ownerTasks || []).map(t => {
-      if (!t.taskType) t.taskType = t.id.startsWith('admin-task') ? 'regular' : 'directive';
-      return t;
-    });
-
-    list = list.filter(t => {
-      const isForMe = t.assignedTo === currentAdminRole || t.assignedTo === 'Admins' || t.assignedTo === 'All';
-      const iDelegatedToOwner = t.id.startsWith('admin-task') && (t.assignedTo === 'Andrey' || t.assignedTo === 'Anton' || t.assignedTo === 'Owners');
-      const matchesPeriod = t.periodId === state.selectedPeriodId;
-      return (isForMe || iDelegatedToOwner) && matchesPeriod;
-    });
-
-    list = list.filter(t => t.taskType === activeMode);
-
-    if (taskSearch.trim() !== '') {
-      const q = taskSearch.toLowerCase();
-      list = list.filter(t => t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q) || (t.strategyData?.goal || '').toLowerCase().includes(q));
+    let list = state.ownerTasks || [];
+    if (state.selectedPeriodId) {
+      list = list.filter(t => t.periodId === state.selectedPeriodId);
+    }
+    if (activeMode === 'directive') {
+      list = list.filter(t => t.taskType === 'directive');
+    } else if (activeMode === 'regular') {
+      list = list.filter(t => t.taskType === 'regular' || !t.taskType);
+    } else if (activeMode === 'recurring') {
+      list = list.filter(t => t.taskType === 'recurring');
     }
 
-    if (secondaryFilter === 'critical') list = list.filter(t => t.priority === 'urgent' || t.priority === 'high');
-    if (secondaryFilter === 'process') list = list.filter(t => t.status === 'in_progress');
-    if (secondaryFilter === 'review') list = list.filter(t => t.status === 'review');
+    if (secondaryFilter === 'critical') {
+      list = list.filter(t => t.priority === 'urgent');
+    } else if (secondaryFilter === 'process') {
+      list = list.filter(t => t.status === 'in_progress');
+    } else if (secondaryFilter === 'review') {
+      list = list.filter(t => t.status === 'review');
+    }
 
+    if (taskSearch.trim()) {
+      const q = taskSearch.toLowerCase();
+      list = list.filter(t => 
+        t.title.toLowerCase().includes(q) || 
+        (t.description || '').toLowerCase().includes(q) || 
+        (t.strategyData?.goal || '').toLowerCase().includes(q)
+      );
+    }
     return list;
-  }, [state.ownerTasks, currentAdminRole, activeMode, secondaryFilter, state.selectedPeriodId, taskSearch]);
+  }, [state.ownerTasks, state.selectedPeriodId, activeMode, secondaryFilter, taskSearch]);
+
+  const adminMetrics = useMemo(() => {
+    const tasks = state.ownerTasks || [];
+    const urgentCount = tasks.filter(t => t.priority === 'urgent' && t.status !== 'completed').length;
+    const reviewCount = tasks.filter(t => t.status === 'review').length;
+    const progressCount = tasks.filter(t => t.status === 'in_progress').length;
+    const completedCount = tasks.filter(t => t.status === 'completed').length;
+    return { urgentCount, reviewCount, progressCount, completedCount };
+  }, [state.ownerTasks]);
 
   return (
-    <div className="space-y-10 pb-32 max-w-7xl mx-auto px-4 sm:px-6 animate-in fade-in duration-700">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
       
-      {/* BRAND HEADER */}
-      <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 border-b border-slate-900/40 pb-6">
+      {/* HEADER SECTION WITH ADVANCED ROLES TOGGLE & AUDIT STATS */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gradient-to-r from-slate-950 to-slate-900 p-8 rounded-[2.5rem] border border-slate-800/80 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-sky-500/5 rounded-full blur-3xl pointer-events-none"></div>
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-sky-550 shadow-[0_0_15px_rgba(14,165,233,0.7)] animate-pulse"></div>
-            <span className="text-[10px] sm:text-[11px] font-black text-sky-400 uppercase tracking-[0.4em] font-mono">АДМИНИСТРАТИВНЫЙ РЕДУКТОР</span>
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
+               <Terminal size={18} />
+            </div>
+            <div>
+               <h1 className="text-2xl font-black font-outfit text-white tracking-tight flex items-center gap-2">
+                 Панель Администратора <PeriodBadge state={state} />
+               </h1>
+               <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">Центральный пульт управления континентальной ведомостью</p>
+            </div>
           </div>
-          <div className="flex items-center gap-4 flex-wrap">
-            <h1 className="text-3xl sm:text-5xl font-black font-outfit text-white tracking-tight leading-none bg-gradient-to-r from-white via-slate-205 to-sky-400 bg-clip-text text-transparent">
-              Центр Админов
-            </h1>
-            <PeriodBadge state={state} />
-          </div>
-          <p className="text-xs text-slate-500 font-outfit">Выполнение плановых задач, ведение рабочих регламентов и отправка отчетов.</p>
         </div>
-        
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center self-start xl:self-end">
-          {/* ROLE SELECTOR */}
-          <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800/80 gap-1">
-            {['Rector', 'Mentor', 'Admins'].map(role => (
-              <button 
-                key={role} 
-                onClick={() => { setCurrentAdminRole(role as any); setNewTo(role as any); }} 
-                className={`px-4.5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
-                  currentAdminRole === role 
-                    ? 'bg-sky-600/20 text-sky-450 border-sky-500/20 shadow-md' 
-                    : 'text-slate-500 hover:text-slate-300 border-transparent'
-                }`}
+
+        {/* ROLE SELECTOR & LAUNCH BUTTON */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-850/60 font-mono">
+            <span className="text-[9px] text-slate-500 font-bold px-2 uppercase">Симуляция:</span>
+            {(['Rector', 'Mentor'] as const).map(role => (
+              <button
+                key={role}
+                onClick={() => setCurrentAdminRole(role)}
+                className={`text-[9px] px-3.5 py-1.5 rounded-xl font-bold transition-all ${currentAdminRole === role ? 'text-white bg-sky-600 shadow-md shadow-sky-600/10' : 'text-slate-500 hover:text-slate-300'}`}
               >
-                {ASSIGNEE_LABELS[role as TaskAssignee]}
+                {role === 'Rector' ? 'RECTOR' : 'ADMIN VI'}
               </button>
             ))}
           </div>
 
-          {activeMode === 'regular' && (
-            <button 
-              onClick={() => setIsCreating(!isCreating)} 
-              className="px-5 py-3 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-black text-[9px] uppercase tracking-widest transition-all shadow-md shadow-sky-600/10 active:scale-95 flex items-center gap-2"
-            >
-               <Plus size={12} className={`transition-transform duration-300 ${isCreating ? 'rotate-45' : ''}`} />
-               {isCreating ? 'ОТМЕНИТЬ ДЕЛЕГИРОВАНИЕ' : 'ИНИЦИИРОВАТЬ ЗАДАЧУ'}
-            </button>
-          )}
+          <button 
+            onClick={() => setIsCreating(!isCreating)}
+            className="bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-[10px] uppercase tracking-widest px-6 py-3.5 rounded-2xl shadow-xl shadow-sky-600/15 transition-all active:scale-95 flex items-center gap-2 animate-pulse hover:animate-none font-mono"
+          >
+            <Plus size={14} /> {isCreating ? 'Скрыть блок' : 'Инициировать'}
+          </button>
         </div>
-      </header>
+      </div>
 
-      {/* --- HUD СТАТИСТИКИ АДМИНИСТРАТОРА (CYAN ACCENTS HUD GRID) --- */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* Metric 1 */}
-        <div className="relative group overflow-hidden bg-slate-900/20 border border-slate-800/50 p-5 rounded-[24px] hover:border-sky-500/30 transition-all shadow-xl backdrop-blur-md">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-sky-500/5 to-transparent rounded-full pointer-events-none"></div>
-          <div className="flex justify-between items-start mb-3">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-mono">Ваша ведомость</span>
-            <div className="w-7 h-7 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-400 border border-sky-500/20"><User size={14}/></div>
+      {/* ADMIN METRICS DASHBOARD */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 font-mono">
+        {[
+          { label: 'КРИТИЧЕСКИЕ ДИРЕКТИВЫ', value: adminMetrics.urgentCount, color: 'text-rose-500 border-rose-500/10', bg: 'bg-rose-500/5', desc: 'Требуется контроль' },
+          { label: 'НА ПРОВЕРКЕ АДМИНА', value: adminMetrics.reviewCount, color: 'text-amber-500 border-amber-500/10', bg: 'bg-amber-500/5', desc: 'Ждут верификации' },
+          { label: 'АКТИВНЫЕ ЗАДАЧИ', value: adminMetrics.progressCount, color: 'text-sky-500 border-sky-500/10', bg: 'bg-sky-500/5', desc: 'В настоящее время' },
+          { label: 'ВЫПОЛНЕННЫЕ ПОЛНОСТЬЮ', value: adminMetrics.completedCount, color: 'text-emerald-500 border-emerald-500/10', bg: 'bg-emerald-500/5', desc: 'Закрытые сессии' }
+        ].map((card, i) => (
+          <div key={i} className={`p-6 bg-slate-950/40 rounded-3xl border border-slate-850 flex flex-col justify-between gap-4 relative overflow-hidden`}>
+             <div className="space-y-1">
+                <span className="text-[9px] font-black text-slate-550 uppercase tracking-widest">{card.label}</span>
+                <p className="text-[10px] text-slate-600 tracking-tight font-sans">{card.desc}</p>
+             </div>
+             <div className="flex justify-between items-end">
+                <p className={`text-4xl font-black font-outfit ${card.color.split(' ')[0]}`}>{card.value}</p>
+                <div className={`h-2.5 w-2.5 rounded-full ${card.color.split(' ')[0].replace('text-', 'bg-')}`}></div>
+             </div>
           </div>
-          <div className="space-y-1">
-            <h4 className="text-2xl sm:text-3xl font-black font-outfit text-white leading-none">{adminMetrics.total}</h4>
-            <p className="text-[9px] text-slate-500 font-mono">всего задач на сессии</p>
-          </div>
-        </div>
+        ))}
+      </div>
 
-        {/* Metric 2 */}
-        <div className="relative group overflow-hidden bg-slate-900/20 border border-slate-800/50 p-5 rounded-[24px] hover:border-sky-500/30 transition-all shadow-xl backdrop-blur-md">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-sky-400/5 to-transparent rounded-full pointer-events-none"></div>
-          <div className="flex justify-between items-start mb-3">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-mono">В процессе</span>
-            <div className="w-7 h-7 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-400 border border-sky-500/20"><Activity size={14}/></div>
-          </div>
-          <div className="space-y-1">
-            <h4 className="text-2xl sm:text-3xl font-black font-outfit text-white leading-none">{adminMetrics.progress}</h4>
-            <p className="text-[9px] text-slate-500 font-mono">разрабатывается сменОЙ</p>
-          </div>
-        </div>
-
-        {/* Metric 3 */}
-        <div className={`relative group overflow-hidden border p-5 rounded-[24px] transition-all shadow-xl backdrop-blur-md ${adminMetrics.review > 0 ? 'bg-amber-500/5 border-amber-500/30 animate-pulse' : 'bg-slate-900/20 border-slate-800/50 hover:border-sky-500/30'}`}>
-          <div className="flex justify-between items-start mb-3">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-mono">Отправлено на аудит</span>
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center border ${adminMetrics.review > 0 ? 'bg-amber-500 text-slate-950 border-amber-500/20' : 'bg-slate-800 text-slate-400 border-slate-850'}`}><CheckCircle2 size={14}/></div>
-          </div>
-          <div className="space-y-1">
-            <h4 className={`text-2xl sm:text-3xl font-black font-outfit leading-none ${adminMetrics.review > 0 ? 'text-amber-400' : 'text-white'}`}>{adminMetrics.review}</h4>
-            <p className="text-[9px] text-slate-500 font-mono">ожидают подписи владельцев</p>
-          </div>
-        </div>
-
-        {/* Metric 4 */}
-        <div className={`relative group overflow-hidden border p-5 rounded-[24px] transition-all shadow-xl backdrop-blur-md ${adminMetrics.overdue > 0 ? 'bg-rose-500/5 border-rose-500/30 shadow-[0_0_20px_rgba(244,63,94,0.06)]' : 'bg-slate-900/20 border-slate-800/50 hover:border-sky-500/30'}`}>
-          <div className="flex justify-between items-start mb-3">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-mono">ПРОСРОЧЕННОСТЬ</span>
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center border ${adminMetrics.overdue > 0 ? 'bg-rose-500 text-white border-rose-500/20 animate-bounce' : 'bg-slate-800 text-slate-400 border-slate-850'}`}><AlertCircle size={14}/></div>
-          </div>
-          <div className="space-y-1">
-            <h4 className={`text-2xl sm:text-3xl font-black font-outfit leading-none ${adminMetrics.overdue > 0 ? 'text-rose-450' : 'text-white'}`}>{adminMetrics.overdue}</h4>
-            <p className="text-[9px] text-slate-500 font-mono">нарушены жесткие дедлайны</p>
-          </div>
-        </div>
-      </section>
-
-      {/* --- FORM FOR INITIATING & DELEGATING (ADMIN CONSOLE BLOCK) --- */}
+      {/* --- FORM FOR INITIATING & DELEGATING --- */}
       {isCreating && activeMode === 'regular' && (
         <div className="relative overflow-hidden bg-gradient-to-b from-slate-900/60 to-slate-950/80 p-8 sm:p-10 rounded-[3rem] border border-sky-500/20 space-y-6 animate-in slide-in-from-top-4 shadow-2xl">
-           <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-sky-500/20 to-transparent"></div>
-           
-           <div>
-              <h2 className="text-xl font-bold font-outfit text-white flex items-center gap-2">
-                 <Terminal size={18} className="text-sky-400" /> Инициировать задачу / Делегировать
-              </h2>
-              <p className="text-[10px] text-slate-500 font-mono mt-1">ОПЕРАТИВНЫЙ БЛОК ВНУТРЕННЕГО ПЛАНИРОВАНИЯ</p>
-           </div>
+            <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-sky-500/20 to-transparent"></div>
+            
+            <div>
+               <h2 className="text-xl font-bold font-outfit text-white flex items-center gap-2">
+                  <Terminal size={18} className="text-sky-400" /> Инициировать задачу / Делегировать
+               </h2>
+               <p className="text-[10px] text-slate-500 font-mono mt-1">ОПЕРАТИВНЫЙ БЛОК ВНУТРЕННЕГО ПЛАНИРОВАНИЯ</p>
+            </div>
 
-           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 font-mono">
-              <div className="lg:col-span-8 space-y-5">
-                 <div className="space-y-4">
-                    <div className="space-y-1">
-                       <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1">Название задачи</label>
-                       <input 
-                         className="w-full bg-slate-950 border border-slate-800/80 rounded-2xl px-5 py-4 text-xs text-white font-bold outline-none focus:border-sky-500/40 font-sans" 
-                         placeholder="Суть задачи..." 
-                         value={newTitle} 
-                         onChange={e => setNewTitle(e.target.value)} 
-                       />
-                    </div>
-                    <div className="space-y-1">
-                       <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1">Общий контекст выполнения</label>
-                       <textarea 
-                         className="w-full bg-slate-950 border border-slate-800/80 rounded-2xl px-5 py-4 text-xs text-white outline-none min-h-[100px] focus:border-sky-500/40 leading-relaxed font-sans" 
-                         placeholder="Детали и инструкции..." 
-                         value={newDesc} 
-                         onChange={e => setNewDesc(e.target.value)} 
-                       />
-                    </div>
-                 </div>
-              </div>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 font-mono">
+               <div className="lg:col-span-8 space-y-5">
+                  <div className="space-y-4">
+                     <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1">Название задачи</label>
+                        <input 
+                          className="w-full bg-slate-950 border border-slate-800/80 rounded-2xl px-5 py-4 text-xs text-white font-bold outline-none focus:border-sky-500/40 font-sans" 
+                          placeholder="Суть задачи..." 
+                          value={newTitle} 
+                          onChange={e => setNewTitle(e.target.value)} 
+                        />
+                     </div>
+                     <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1">Общий контекст выполнения</label>
+                        <BlockDescriptionEditor 
+                          blocks={newDescBlocks} 
+                          onChange={(blocks) => setNewDescBlocks(blocks)} 
+                          accentColor="sky" 
+                        />
+                     </div>
+                  </div>
+               </div>
 
-              <div className="lg:col-span-4 space-y-4">
+               <div className="lg:col-span-4 space-y-4">
                  <div>
                     <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1 mb-1 block">Ответственный</label>
                     <select 

@@ -138,10 +138,19 @@ export interface TaskAuditEntry {
   details?: string;
 }
 
+export interface TaskDescriptionBlock {
+  id: string;
+  type: 'text' | 'image';
+  text?: string;        // Rich text content (HTML)
+  imageSrc?: string;    // Base64 representation of the image
+  caption?: string;     // Short description/caption for the photo
+}
+
 export interface OwnerTask {
   id: string;
   title: string;
   description: string;
+  descriptionBlocks?: TaskDescriptionBlock[];
   status: TaskStatus;
   priority: TaskPriority;
   taskType: TaskType;
