@@ -322,6 +322,25 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
     }
     message += `\n<b>Ответственное крыло:</b> ${mentionTags}`;
 
+    // Функция ручной конвертации base64 в Blob
+    const dataURLtoBlob = (dataurl: string) => {
+      try {
+        const arr = dataurl.split(',');
+        const mimeMatch = arr[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        return new Blob([u8arr], { type: mime });
+      } catch (err) {
+        console.error("Manual blob conversion failed:", err);
+        return null;
+      }
+    };
+
     // Сбор изображений из скриншотов и блоков описания
     const photos: string[] = [];
     if (task.screenshots && task.screenshots.length > 0) {
@@ -350,13 +369,11 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
         }));
 
         if (firstPhoto.startsWith('data:')) {
-          try {
-            const blobRes = await fetch(firstPhoto);
-            const blob = await blobRes.blob();
-            const mime = blob.type || 'image/png';
-            const ext = mime.split('/')[1] || 'png';
+          const blob = dataURLtoBlob(firstPhoto);
+          if (blob) {
+            const ext = blob.type.split('/')[1] || 'png';
             formData.append('photo', blob, `image.${ext}`);
-          } catch (err) {
+          } else {
             formData.append('photo', firstPhoto);
           }
         } else {
@@ -376,13 +393,11 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
             extraFormData.append('chat_id', DEFAULT_CHAT_ID);
             extraFormData.append('caption', `Фото к заданию [${i + 1}]`);
             if (extraPhoto.startsWith('data:')) {
-              try {
-                const blobRes = await fetch(extraPhoto);
-                const blob = await blobRes.blob();
-                const mime = blob.type || 'image/png';
-                const ext = mime.split('/')[1] || 'png';
-                extraFormData.append('photo', blob, `image_${i}.${ext}`);
-              } catch {
+              const extraBlob = dataURLtoBlob(extraPhoto);
+              if (extraBlob) {
+                const ext = extraBlob.type.split('/')[1] || 'png';
+                extraFormData.append('photo', extraBlob, `image_${i}.${ext}`);
+              } else {
                 extraFormData.append('photo', extraPhoto);
               }
             } else {
