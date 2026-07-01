@@ -128,6 +128,7 @@ const TaskCard: React.FC<{
     message += `Посмотрите на платформе\n\n`;
     message += `<b>Статус:</b> ${stat.label}\n`;
     message += `<b>Приоритет:</b> ${prioEmoji} ${prioLabel}\n`;
+    message += `<b>Анкеты:</b> 💄 ${task.models && task.models.length > 0 ? task.models.join(', ') : 'Все'}\n`;
     if (task.dueDate) {
        message += `<b>Дедлайн:</b> ${new Date(task.dueDate).toLocaleDateString()}\n`;
     }
@@ -268,6 +269,9 @@ const TaskCard: React.FC<{
             )}
             <span className="text-[8px] text-slate-500 border border-slate-900 px-2.5 py-1 rounded-lg font-black uppercase tracking-widest font-mono">
               👤 {ASSIGNEE_LABELS[task.assignedTo]}
+            </span>
+            <span className="text-[8px] text-pink-400 bg-pink-950/20 border border-pink-900/35 px-2.5 py-1 rounded-lg font-black uppercase tracking-widest font-mono">
+              💄 АНКЕТЫ: {task.models && task.models.length > 0 ? task.models.join(', ') : 'ДЛЯ ВСЕХ'}
             </span>
             {task.dueDate && (
                <span className={`text-[8px] px-2.5 py-1 rounded-lg font-black border font-mono flex items-center gap-1.5 ${
@@ -531,6 +535,7 @@ const AdminTable: React.FC<{
   const [newPrio, setNewPrio] = useState<TaskPriority>('medium');
   const [newDueDate, setNewDueDate] = useState('');
   const [newGoal, setNewGoal] = useState('');
+  const [newSelectedModels, setNewSelectedModels] = useState<string[]>([]);
 
   const createAdminTask = () => {
     if (!newTitle.trim()) return;
@@ -555,6 +560,7 @@ const AdminTable: React.FC<{
         taskType: activeMode === 'directive' ? 'directive' : activeMode === 'recurring' ? 'recurring' : 'regular', 
         assignedTo: newTo,
         dueDate: newDueDate || undefined,
+        models: newSelectedModels.length > 0 ? newSelectedModels : undefined,
         tags: [], 
         notes: [], 
         strategyData: { goal: newGoal, reason: '', effect: '' },

@@ -186,6 +186,7 @@ export interface OwnerTask {
   notes: TaskNote[];
   auditLog: TaskAuditEntry[]; 
   modelId?: string;
+  models?: string[];
   dueDate?: string;
   createdAt: string;
   updatedAt: string;

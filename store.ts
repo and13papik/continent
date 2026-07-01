@@ -199,8 +199,9 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         finalState.operatorWallets = mergeArraysById(state.operatorWallets || [], remote.operatorWallets || [], combinedDeletedIds);
         finalState.rosterData = mergeArraysById(state.rosterData || [], remote.rosterData || [], combinedDeletedIds);
         finalState.operatorAssessments = mergeArraysById(state.operatorAssessments || [], remote.operatorAssessments || [], combinedDeletedIds);
-        finalState.priorityModels = Array.from(new Set([...(state.priorityModels || []), ...(remote.priorityModels || [])]));
-        finalState.inactiveModels = Array.from(new Set([...(state.inactiveModels || []), ...(remote.inactiveModels || [])]));
+        const isLocalNewer = state.lastUpdated > (remote.lastUpdated || 0);
+        finalState.priorityModels = isLocalNewer ? (state.priorityModels || []) : (remote.priorityModels || []);
+        finalState.inactiveModels = isLocalNewer ? (state.inactiveModels || []) : (remote.inactiveModels || []);
         finalState.modelGroups = mergeArraysById(state.modelGroups || [], remote.modelGroups || [], combinedDeletedIds);
         finalState.modelDefaultGoals = { ...(remote.modelDefaultGoals || {}), ...(state.modelDefaultGoals || {}) };
         
