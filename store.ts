@@ -156,6 +156,94 @@ function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?:
   return Array.from(map.values());
 }
 
+export function mergeStates(local: AppState, remote: AppState): AppState {
+  const combinedDeletedIds = Array.from(new Set([
+    ...(local.deletedIds || []).map(id => String(id)), 
+    ...(remote.deletedIds || []).map(id => String(id))
+  ]));
+  
+  const finalState = { ...local };
+  finalState.deletedIds = combinedDeletedIds;
+
+  finalState.accountingPeriods = mergeArraysById(local.accountingPeriods || [], remote.accountingPeriods || [], combinedDeletedIds);
+  finalState.incomeData = mergeArraysById(local.incomeData || [], remote.incomeData || [], combinedDeletedIds);
+  finalState.operationsData = mergeArraysById(local.operationsData || [], remote.operationsData || [], combinedDeletedIds);
+  finalState.ownerExpenses = mergeArraysById(local.ownerExpenses || [], remote.ownerExpenses || [], combinedDeletedIds);
+  finalState.ownerAdvances = mergeArraysById(local.ownerAdvances || [], remote.ownerAdvances || [], combinedDeletedIds);
+  finalState.ownerManualIncomes = mergeArraysById(local.ownerManualIncomes || [], remote.ownerManualIncomes || [], combinedDeletedIds);
+  finalState.modelBonuses = mergeArraysById(local.modelBonuses || [], remote.modelBonuses || [], combinedDeletedIds);
+  finalState.paidStatuses = mergeArraysById(local.paidStatuses || [], remote.paidStatuses || [], combinedDeletedIds);
+  finalState.ownerTasks = mergeArraysById(local.ownerTasks || [], remote.ownerTasks || [], combinedDeletedIds);
+  finalState.ownerNotes = mergeArraysById(local.ownerNotes || [], remote.ownerNotes || [], combinedDeletedIds);
+  
+  const isLocalNewer = local.lastUpdated > (remote.lastUpdated || 0);
+  
+  finalState.ownerDocument = isLocalNewer ? (local.ownerDocument || '') : (remote.ownerDocument || '');
+  finalState.completedDocument = isLocalNewer ? (local.completedDocument || '') : (remote.completedDocument || '');
+  
+  finalState.advanceRequests = mergeArraysById(local.advanceRequests || [], remote.advanceRequests || [], combinedDeletedIds);
+  finalState.operatorWallets = mergeArraysById(local.operatorWallets || [], remote.operatorWallets || [], combinedDeletedIds);
+  finalState.rosterData = mergeArraysById(local.rosterData || [], remote.rosterData || [], combinedDeletedIds);
+  finalState.operatorAssessments = mergeArraysById(local.operatorAssessments || [], remote.operatorAssessments || [], combinedDeletedIds);
+  
+  finalState.priorityModels = isLocalNewer ? (local.priorityModels || []) : (remote.priorityModels || []);
+  finalState.inactiveModels = isLocalNewer ? (local.inactiveModels || []) : (remote.inactiveModels || []);
+  finalState.modelGroups = mergeArraysById(local.modelGroups || [], remote.modelGroups || [], combinedDeletedIds);
+  
+  finalState.modelDefaultGoals = isLocalNewer
+    ? { ...(remote.modelDefaultGoals || {}), ...(local.modelDefaultGoals || {}) }
+    : { ...(local.modelDefaultGoals || {}), ...(remote.modelDefaultGoals || {}) };
+
+  finalState.modelMonthlyPlans = isLocalNewer
+    ? { ...(remote.modelMonthlyPlans || {}), ...(local.modelMonthlyPlans || {}) }
+    : { ...(local.modelMonthlyPlans || {}), ...(remote.modelMonthlyPlans || {}) };
+
+  // Global settings merging
+  finalState.operators = isLocalNewer ? (local.operators || []) : (remote.operators || []);
+  finalState.models = isLocalNewer ? (local.models || []) : (remote.models || []);
+  finalState.admins = mergeArraysById(local.admins || [], remote.admins || [], combinedDeletedIds);
+  finalState.modelRates = isLocalNewer ? (local.modelRates || remote.modelRates) : (remote.modelRates || local.modelRates);
+  finalState.tgChatId = isLocalNewer ? (local.tgChatId || remote.tgChatId) : (remote.tgChatId || local.tgChatId);
+  finalState.dbUrl = isLocalNewer ? (local.dbUrl || remote.dbUrl) : (remote.dbUrl || local.dbUrl);
+
+  const localTg = local.telegramState || {};
+  const remoteTg = remote.telegramState || {};
+  finalState.telegramState = {
+    lastRosterNotifyDate: isLocalNewer 
+      ? (localTg.lastRosterNotifyDate || remoteTg.lastRosterNotifyDate) 
+      : (remoteTg.lastRosterNotifyDate || localTg.lastRosterNotifyDate),
+    approvals: {
+      ...(remoteTg.approvals || {}),
+      ...(localTg.approvals || {})
+    }
+  };
+
+  finalState.notifiedInterns = Array.from(new Set([
+    ...(local.notifiedInterns || []),
+    ...(remote.notifiedInterns || [])
+  ]));
+
+  if (local.totalTableEntries || remote.totalTableEntries) {
+      finalState.totalTableEntries = mergeArraysById(
+        local.totalTableEntries || [], 
+        remote.totalTableEntries || [], 
+        combinedDeletedIds
+      );
+  }
+
+  // Version merging
+  finalState.version = Math.max(local.version, remote.version);
+  if (local.version > remote.version) {
+     finalState.version = local.version + 1;
+  } else if (remote.version > local.version) {
+     finalState.version = remote.version + 1;
+  } 
+
+  finalState.lastUpdated = Date.now();
+  
+  return finalState;
+}
+
 export async function syncToCloud(state: AppState): Promise<{ success: boolean; newState?: AppState }> {
   if (!state.syncUrl || !state.syncKey) return { success: false };
   
@@ -175,64 +263,9 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
       const cloudData = await checkResponse.json();
       if (cloudData.length > 0) {
         const remote: AppState = cloudData[0].state;
-        
-        const combinedDeletedIds = Array.from(new Set([
-          ...(state.deletedIds || []).map(id => String(id)), 
-          ...(remote.deletedIds || []).map(id => String(id))
-        ]));
-        
-        finalState.deletedIds = combinedDeletedIds;
-
-        finalState.accountingPeriods = mergeArraysById(state.accountingPeriods || [], remote.accountingPeriods || [], combinedDeletedIds);
-        finalState.incomeData = mergeArraysById(state.incomeData, remote.incomeData, combinedDeletedIds);
-        finalState.operationsData = mergeArraysById(state.operationsData, remote.operationsData, combinedDeletedIds);
-        finalState.ownerExpenses = mergeArraysById(state.ownerExpenses, remote.ownerExpenses, combinedDeletedIds);
-        finalState.ownerAdvances = mergeArraysById(state.ownerAdvances, remote.ownerAdvances, combinedDeletedIds);
-        finalState.ownerManualIncomes = mergeArraysById(state.ownerManualIncomes || [], remote.ownerManualIncomes || [], combinedDeletedIds);
-        finalState.modelBonuses = mergeArraysById(state.modelBonuses || [], remote.modelBonuses || [], combinedDeletedIds);
-        finalState.paidStatuses = mergeArraysById(state.paidStatuses, remote.paidStatuses, combinedDeletedIds);
-        finalState.ownerTasks = mergeArraysById(state.ownerTasks || [], remote.ownerTasks || [], combinedDeletedIds);
-        finalState.ownerNotes = mergeArraysById(state.ownerNotes || [], remote.ownerNotes || [], combinedDeletedIds);
-        finalState.ownerDocument = (state.lastUpdated > (remote.lastUpdated || 0)) ? (state.ownerDocument || '') : (remote.ownerDocument || '');
-        finalState.completedDocument = (state.lastUpdated > (remote.lastUpdated || 0)) ? (state.completedDocument || '') : (remote.completedDocument || '');
-        finalState.advanceRequests = mergeArraysById(state.advanceRequests || [], remote.advanceRequests || [], combinedDeletedIds);
-        finalState.operatorWallets = mergeArraysById(state.operatorWallets || [], remote.operatorWallets || [], combinedDeletedIds);
-        finalState.rosterData = mergeArraysById(state.rosterData || [], remote.rosterData || [], combinedDeletedIds);
-        finalState.operatorAssessments = mergeArraysById(state.operatorAssessments || [], remote.operatorAssessments || [], combinedDeletedIds);
-        const isLocalNewer = state.lastUpdated > (remote.lastUpdated || 0);
-        finalState.priorityModels = isLocalNewer ? (state.priorityModels || []) : (remote.priorityModels || []);
-        finalState.inactiveModels = isLocalNewer ? (state.inactiveModels || []) : (remote.inactiveModels || []);
-        finalState.modelGroups = mergeArraysById(state.modelGroups || [], remote.modelGroups || [], combinedDeletedIds);
-        finalState.modelDefaultGoals = { ...(remote.modelDefaultGoals || {}), ...(state.modelDefaultGoals || {}) };
-        
-        if (state.totalTableEntries || remote.totalTableEntries) {
-            finalState.totalTableEntries = mergeArraysById(
-              state.totalTableEntries || [], 
-              remote.totalTableEntries || [], 
-              combinedDeletedIds
-            );
-        }
-
-        // Standard merge logic
-        finalState.version = Math.max(state.version, remote.version);
-        
-        // Only increment version if local state has changed since last sync
-        // or if we merged something new from remote
-        if (state.version > remote.version) {
-           finalState.version = state.version + 1;
-        } else if (remote.version > state.version) {
-           finalState.version = remote.version + 1;
-        } 
-        // If versions are equal, we only increment if we want to force a push 
-        // but here we just keep it stable if nothing changed.
-
-        finalState.lastUpdated = Date.now();
+        finalState = mergeStates(state, remote);
       }
     }
-
-    // If versions and timestamps match, skip the POST to save traffic and prevents loops
-    // (This is a simplified check, ideally we'd compare data hash)
-    // but version check is usually enough in this architecture.
 
     const response = await fetch(url, {
       method: 'POST',

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ICONS } from './constants';
-import { createInitialState, saveLocal, syncToCloud, fetchFromCloud } from './store';
+import { createInitialState, saveLocal, syncToCloud, fetchFromCloud, mergeStates } from './store';
 import { AppState } from './types';
 import PeriodSelector from './components/PeriodSelector';
 import Dashboard from './pages/Dashboard';
@@ -92,8 +92,16 @@ const App: React.FC = () => {
       try {
         const remoteData = await fetchFromCloud(state.syncUrl!, state.syncKey!);
         if (remoteData && remoteData.version > state.version) {
-          setState(prev => ({ ...prev, remoteVersion: remoteData.version }));
-          setCloudStatus('conflict');
+          setState(prev => {
+            if (remoteData.version > prev.version) {
+              const merged = mergeStates(prev, remoteData);
+              saveLocal(merged);
+              return merged;
+            }
+            return prev;
+          });
+          setCloudStatus('success');
+          setLastSyncTime(new Date().toLocaleTimeString());
         }
       } catch (e) {
         console.warn("Polling error", e);
@@ -122,13 +130,16 @@ const App: React.FC = () => {
         
         if (result.success && result.newState) {
           setState(current => {
-            if (current.version === versionAtStart) {
-               // Only update if success was achieved
-               setCloudStatus('success');
-               setLastSyncTime(new Date().toLocaleTimeString());
-               return result.newState!;
-            }
-            return current;
+             setCloudStatus('success');
+             setLastSyncTime(new Date().toLocaleTimeString());
+             if (current.version === versionAtStart) {
+                return result.newState!;
+             } else {
+                // Local state changed during sync; merge concurrent changes to preserve both
+                const merged = mergeStates(current, result.newState!);
+                saveLocal(merged);
+                return merged;
+             }
           });
         } else {
           setCloudStatus('error');
