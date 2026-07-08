@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { AppState, IncomeRecord } from '../types';
 import { ICONS } from '../constants';
+import { OnlyMonsterTab } from '../components/OnlyMonsterTab';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   Cell, LineChart, Line, AreaChart, Area, PieChart, Pie
@@ -28,7 +29,7 @@ const METRICS_COLORS = {
 
 const Metrics: React.FC<MetricsProps> = ({ state }) => {
   const incomeData = state.incomeData || [];
-  const [activeTab, setActiveTab] = useState<'overview' | 'diagnostics' | 'models' | 'operators' | 'calendar'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'diagnostics' | 'models' | 'operators' | 'calendar' | 'onlymonster'>('overview');
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [modelFilterSearch, setModelFilterSearch] = useState('');
   const [opFilterSearch, setOpFilterSearch] = useState('');
@@ -592,7 +593,8 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
           { id: 'diagnostics', label: 'Анализ & Инсайты', icon: ICONS.Penalty, highlight: metrics.diagnostics.warnings.length > 0 },
           { id: 'models', label: 'Модели & Планы', icon: ICONS.Models },
           { id: 'operators', label: 'Операторы', icon: ICONS.Reports },
-          { id: 'calendar', label: 'Дни и Тренды', icon: ICONS.Calendar }
+          { id: 'calendar', label: 'Дни и Тренды', icon: ICONS.Calendar },
+          { id: 'onlymonster', label: 'OnlyMonster', icon: ICONS.Clock }
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1213,6 +1215,10 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
                   </div>
                 </div>
               </div>
+            )}
+
+            {activeTab === 'onlymonster' && (
+              <OnlyMonsterTab agencyModels={state.models || []} />
             )}
           </motion.div>
         </AnimatePresence>

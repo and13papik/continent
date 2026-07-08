@@ -164,6 +164,201 @@ async function startServer() {
     }
   });
 
+  // OnlyMonster in-memory state
+  const omWebhooksHistory: any[] = [];
+  const maxOmWebhooks = 100;
+  
+  let omToken = process.env.ONLYMONSTER_TOKEN || "om_token_fc269e0cc20370b29c803be7ad2e85c8c43b3d84366a6cf0f3ae0c5001c9f2ca";
+  let omWebhookId = process.env.ONLYMONSTER_WEBHOOK_ID || "om_webhook_c0c072250515454194c4619f1c7e3d0c3a58b8349bf1b092519e22c670ca41a4";
+
+  // OnlyMonster Webhook handler (supporting multiple paths for safety)
+  const handleOnlyMonsterWebhook = (req: any, res: any) => {
+    const payload = req.body;
+    console.log("Received OnlyMonster Webhook:", JSON.stringify(payload, null, 2));
+
+    const eventType = payload.event || payload.type || "unknown";
+    const data = payload.data || payload.payload || payload;
+    
+    const webhookEvent = {
+      id: String(Date.now() + Math.random().toString(36).substring(2, 7)),
+      timestamp: new Date().toISOString(),
+      type: eventType,
+      data: data,
+      source: "OnlyMonster Webhook"
+    };
+
+    omWebhooksHistory.unshift(webhookEvent);
+    if (omWebhooksHistory.length > maxOmWebhooks) {
+      omWebhooksHistory.pop();
+    }
+
+    res.status(200).json({ success: true, received: true });
+  };
+
+  app.post("/api/webhook", handleOnlyMonsterWebhook);
+  app.post("/api/onlymonster/webhook", handleOnlyMonsterWebhook);
+
+  // Retrieve received webhooks
+  app.get("/api/onlymonster/webhooks", (req, res) => {
+    res.json({
+      success: true,
+      webhooks: omWebhooksHistory
+    });
+  });
+
+  // Simulate a webhook internally
+  app.post("/api/onlymonster/simulate", (req, res) => {
+    const { type, data } = req.body;
+    const simulatedEvent = {
+      id: String(Date.now() + Math.random().toString(36).substring(2, 7)),
+      timestamp: new Date().toISOString(),
+      type: type || "chat.message",
+      data: data || {},
+      source: "Simulator"
+    };
+
+    omWebhooksHistory.unshift(simulatedEvent);
+    if (omWebhooksHistory.length > maxOmWebhooks) {
+      omWebhooksHistory.pop();
+    }
+
+    res.json({ success: true, event: simulatedEvent });
+  });
+
+  // OnlyMonster API Proxy
+  app.get("/api/onlymonster/proxy", async (req, res) => {
+    const subpath = req.query.path as string;
+    if (!subpath) {
+      return res.status(400).json({ error: "Missing path parameter" });
+    }
+
+    const cleanSubpath = subpath.replace(/^\//, "");
+    
+    // Multiple potential base URLs to try in case of Cloudflare 530 or other DNS/network errors.
+    // We prioritize the known working live endpoint first to make requests instant and avoid DNS timeouts.
+    const baseUrls = [
+      "https://onlymonster.ai/api/v0/",
+      "https://api.onlymonster.ai/v0/",
+      "https://onlymonster.com/api/v0/",
+      "https://api.onlymonster.com/v0/",
+      "https://onlymonster.co/api/v0/",
+      "https://api.onlymonster.co/v0/"
+    ];
+
+    let lastError: any = null;
+    let successResult: any = null;
+    let workedUrl = "";
+
+    for (const baseUrl of baseUrls) {
+      const apiUrl = `${baseUrl}${cleanSubpath}`;
+      try {
+        console.log(`Proxying OnlyMonster API request candidate: ${apiUrl}`);
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${omToken}`,
+          "X-API-Key": omToken,
+          "X-OM-Token": omToken
+        };
+
+        // Use a timeout of 5 seconds to avoid hanging on unresponsive endpoints
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch(apiUrl, { 
+          headers,
+          signal: controller.signal as any
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          successResult = await response.json();
+          workedUrl = apiUrl;
+          break; // Successfully got data, exit loop!
+        }
+
+        // Parse error text
+        let errorText = "";
+        try {
+          errorText = await response.text();
+        } catch (textErr) {
+          errorText = "Could not parse error response text";
+        }
+
+        console.log(`OnlyMonster API proxy candidate ${apiUrl} responded with status ${response.status}`);
+
+        // If it's 401 or 403, the server is live but the credentials are wrong.
+        // We should stop here instead of looping, because we reached the live API and it rejected us.
+        if (response.status === 401 || response.status === 403) {
+          lastError = {
+            error: `Ошибка авторизации (${response.status}): Проверьте правильность введенного API токена.`,
+            status: response.status,
+            details: errorText
+          };
+          break;
+        }
+
+        lastError = {
+          error: `API returned status ${response.status}`,
+          status: response.status,
+          details: errorText
+        };
+      } catch (err: any) {
+        console.log(`OnlyMonster API proxy candidate ${apiUrl} failed: ${err.message}`);
+        lastError = {
+          error: `API connection failed: ${err.message}`,
+          status: err.name === "AbortError" ? 504 : 500,
+          details: err.message
+        };
+      }
+    }
+
+    if (successResult) {
+      console.log(`Successfully fetched from OnlyMonster API: ${workedUrl}`);
+      return res.json(successResult);
+    }
+
+    if (lastError?.status === 401 || lastError?.status === 403) {
+      console.log(`OnlyMonster API returned client authorization error (${lastError.status}). Ready for user token configuration.`);
+    } else {
+      console.log("All OnlyMonster API proxy candidates failed or timed out.");
+    }
+    
+    let friendlyMsg = lastError?.error || "Не удалось связаться с серверами OnlyMonster API.";
+    if (lastError?.status === 530 || (lastError?.details && (lastError.details.includes("DNS") || lastError.details.includes("Cloudflare")))) {
+      friendlyMsg = `Сервер OnlyMonster API в данный момент испытывает технические неполадки с DNS у Cloudflare (Error 530: Origin DNS error). Мы попытались подключиться по альтернативным адресам, но все они временно недоступны.`;
+    }
+
+    return res.status(200).json({ 
+      success: false,
+      error: friendlyMsg, 
+      status: lastError?.status || 500,
+      details: lastError?.details?.length > 500 ? lastError.details.substring(0, 500) + "..." : lastError?.details || "",
+      fallback: true 
+    });
+  });
+
+  // OnlyMonster Configuration getters and setters
+  app.get("/api/onlymonster/config", (req, res) => {
+    res.json({
+      success: true,
+      token: omToken,
+      webhookId: omWebhookId
+    });
+  });
+
+  app.post("/api/onlymonster/config", (req, res) => {
+    const { token, webhookId } = req.body;
+    if (token) omToken = token;
+    if (webhookId) omWebhookId = webhookId;
+    res.json({
+      success: true,
+      message: "Configuration updated successfully",
+      token: omToken,
+      webhookId: omWebhookId
+    });
+  });
+
   // Vite middleware
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
