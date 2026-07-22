@@ -141,8 +141,7 @@ async function startServer() {
                 const origCaption = (msg.caption || msg.text || '').split('\n\n<b>СОСТАВ АКТУАЛЕН?</b>')[0];
                 const newCaption = `${origCaption}\n\n❌ <b>СОСТАВ НЕ АКТУАЛЕН!</b>\nОтклонил: ${userName}\n\nПожалуйста, исправьте состав на сайте и нажмите "Подтвердить".`;
 
-                const appUrl = process.env.APP_URL || 'https://ais-dev-7xz7xwj4qktl4ynp4sez7n-38906691745.europe-west2.run.app';
-                const rosterUrl = `${appUrl.replace(/\/$/, '')}/#roster`;
+                const rosterUrl = 'https://continental.monster/#roster';
 
                 await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageCaption`, {
                   method: 'POST',

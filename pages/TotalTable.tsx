@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import html2canvas from 'html2canvas';
 import { AppState, DailyTotalEntry, ShiftData } from '../types';
 import { ICONS } from '../constants';
 import { findPeriodIdByDate } from '../store';
@@ -374,8 +375,16 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
     try {
       if (!tableRef.current) throw new Error("Table ref is missing");
+
+      let h2c = html2canvas;
+      if (typeof h2c !== 'function') {
+        h2c = (window as any).html2canvas;
+      }
+      if (typeof h2c !== 'function') {
+        throw new Error("Модуль html2canvas недоступен");
+      }
       
-      const canvas = await (window as any).html2canvas(tableRef.current, {
+      const canvas = await h2c(tableRef.current, {
         backgroundColor: '#020617',
         scale: 3,
         logging: false,
@@ -421,8 +430,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         }
       });
       
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
-      if (!blob) throw new Error('Не удалось создать изображение таблицы');
+      const dataUrl = canvas.toDataURL('image/png');
 
       let message = `<b>📊 ОТЧЕТ: ${shiftInfo.label.toUpperCase()} ${shiftInfo.icon}</b>\n`;
       message += `📅 Дата: ${selectedDate.split('-').reverse().join('.')}\n\n`;
@@ -476,22 +484,84 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
       message += `\n\n🔔 <a href="tg://user?id=8679682362">@adm_viksi_viii [Adm]Vi</a> <a href="tg://user?id=6537516111">@adm_rctr Rector</a> <a href="tg://user?id=1434399006">@continental_agency</a>`;
 
-      const formData = new FormData();
-      formData.append('chat_id', chatId);
-      formData.append('photo', blob, 'report.png');
-      formData.append('caption', message);
-      formData.append('parse_mode', 'HTML');
+      // Telegram limits photo caption to 1024 chars
+      let captionToSend = message;
+      if (message.length > 950) {
+        const percent = totals.overallPlan > 0 ? Math.round(totals.overallBalance / totals.overallPlan * 100) : 0;
+        captionToSend = `<b>📊 ОТЧЕТ: ${shiftInfo.label.toUpperCase()} ${shiftInfo.icon}</b>\n` +
+          `📅 Дата: ${selectedDate.split('-').reverse().join('.')}\n\n` +
+          `📈 <b>ИТОГО ЗА ${shiftInfo.label.toUpperCase()} СМЕНУ</b>: ${totalShiftBal.toFixed(0)}$ / ${totalShiftGoal.toFixed(0)}$\n` +
+          `🏆 <b>ОБЩИЙ ТОТАЛ СУТОК</b>: ${totals.overallBalance.toFixed(0)}$ / ${totals.overallPlan.toFixed(0)}$ (${percent}%)\n\n` +
+          `🔔 <a href="tg://user?id=8679682362">@adm_viksi_viii [Adm]Vi</a> <a href="tg://user?id=6537516111">@adm_rctr Rector</a> <a href="tg://user?id=1434399006">@continental_agency</a>`;
+      }
 
-      const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
-        method: 'POST',
-        body: formData
-      });
+      let sentSuccessfully = false;
 
-      if (res.ok) {
+      // 1. Try sending via backend proxy
+      try {
+        const res = await fetch('/api/telegram/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'photo',
+            image: dataUrl,
+            text: captionToSend
+          })
+        });
+        if (res.ok) {
+          sentSuccessfully = true;
+        }
+      } catch (err) {
+        console.warn('Backend send failed, falling back to direct Telegram API:', err);
+      }
+
+      // 2. Direct fallback if backend proxy failed
+      if (!sentSuccessfully) {
+        const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
+        if (!blob) throw new Error('Не удалось создать изображение таблицы');
+
+        const formData = new FormData();
+        formData.append('chat_id', chatId);
+        formData.append('photo', blob, 'report.png');
+        formData.append('caption', captionToSend);
+        formData.append('parse_mode', 'HTML');
+
+        const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (res.ok) {
+          sentSuccessfully = true;
+        } else {
+          const resultData = await res.json().catch(() => ({}));
+          throw new Error(`Ошибка Telegram: ${resultData.description || 'Неизвестная ошибка'}`);
+        }
+      }
+
+      // Send full text message if caption was shortened
+      if (sentSuccessfully && message.length > 950) {
+        try {
+          await fetch('/api/telegram/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'text', text: message })
+          });
+        } catch {
+          fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: message,
+              parse_mode: 'HTML'
+            })
+          }).catch(() => {});
+        }
+      }
+
+      if (sentSuccessfully) {
         alert('Отчет успешно доставлен в Telegram!');
-      } else {
-        const resultData = await res.json();
-        alert(`Ошибка Telegram: ${resultData.description || 'Неизвестная ошибка'}`);
       }
     } catch (e: any) {
       alert(`Сбой при отправке: ${e.message}`);
