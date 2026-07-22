@@ -172,35 +172,108 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       
       const dataUrl = canvas.toDataURL('image/png');
 
-      const response = await fetch('/api/telegram/send-roster', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image: dataUrl,
-          periodLabel: currentPeriod?.label || 'Текущий',
-          isCorrection: isCorrection || rosterNeedsFix,
-          scheduledSlot
-        })
-      });
+      const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
+      const DEFAULT_CHAT_ID = '-1003748692600';
 
-      const result = await response.json();
+      const headerText = (isCorrection || rosterNeedsFix)
+        ? `📊 <b>СОСТАВ КОМАНДЫ (актуальный состав после исправления)</b>`
+        : `📊 <b>СОСТАВ КОМАНДЫ</b>`;
 
-      if (response.ok && result.success) {
+      const captionText = `${headerText}\nПериод: ${currentPeriod?.label || 'Текущий'}\nДата: ${new Date().toLocaleDateString('ru-RU')}\n\n<b>СОСТАВ АКТУАЛЕН?</b>\n\n🔔 <a href="tg://user?id=8679682362">@adm_viksi_viii [Adm]Vi</a> <a href="tg://user?id=6537516111">@adm_rctr Rector</a>`;
+
+      const replyMarkup = {
+        inline_keyboard: [
+          [
+            { text: 'АКТУАЛЕН', callback_data: 'roster_actual' },
+            { text: 'НЕТ', callback_data: 'roster_not_actual' }
+          ]
+        ]
+      };
+
+      let sentSuccessfully = false;
+      let lastErrMsg = '';
+
+      // 1. Try sending via backend proxy
+      try {
+        const response = await fetch('/api/telegram/send-roster', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image: dataUrl,
+            periodLabel: currentPeriod?.label || 'Текущий',
+            isCorrection: isCorrection || rosterNeedsFix,
+            scheduledSlot
+          })
+        });
+
+        const responseText = await response.text();
+        let result: any = null;
+        try {
+          result = JSON.parse(responseText);
+        } catch {
+          console.warn("Backend /api/telegram/send-roster response was not JSON:", responseText.substring(0, 100));
+        }
+
+        if (response.ok && result?.success) {
+          sentSuccessfully = true;
+        } else {
+          lastErrMsg = result?.error || 'Ошибка backend сервера';
+        }
+      } catch (apiErr: any) {
+        console.warn("Backend API call failed, falling back to direct Telegram send:", apiErr);
+        lastErrMsg = apiErr?.message || String(apiErr);
+      }
+
+      // 2. Fallback to direct Telegram API if backend failed
+      if (!sentSuccessfully) {
+        const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
+        if (!blob) throw new Error('Не удалось сформировать изображение');
+
+        const formData = new FormData();
+        formData.append('chat_id', DEFAULT_CHAT_ID);
+        formData.append('photo', blob, 'roster.png');
+        formData.append('caption', captionText);
+        formData.append('parse_mode', 'HTML');
+        formData.append('reply_markup', JSON.stringify(replyMarkup));
+
+        const directRes = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
+          method: 'POST',
+          body: formData
+        });
+
+        const directText = await directRes.text();
+        let directResult: any = null;
+        try {
+          directResult = JSON.parse(directText);
+        } catch {
+          throw new Error('Telegram API вернул некорректный ответ: ' + directText.substring(0, 80));
+        }
+
+        if (directRes.ok && directResult?.ok) {
+          sentSuccessfully = true;
+          // Notify server of the state change
+          fetch('/api/roster/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'pending_approval', needsFix: false })
+          }).catch(() => {});
+        } else {
+          throw new Error(directResult?.description || lastErrMsg || 'Ошибка при отправке в Telegram');
+        }
+      }
+
+      if (sentSuccessfully) {
         setRosterNeedsFix(false);
         setRosterStatusText('Отправлено на подтверждение');
 
         if (isManual) {
           alert('Состав успешно отправлен в Telegram!');
         }
-      } else {
-        const errMsg = result.error || 'Ошибка при отправке в Telegram';
-        if (isManual) alert(`Ошибка: ${errMsg}`);
-        console.error('Ошибка при отправке в Telegram:', errMsg);
       }
     } catch (error: any) {
       console.error('Error generating roster screenshot or sending to Telegram:', error);
       if (isManual) {
-        alert(`Ошибка при генерации скриншота: ${error?.message || error}`);
+        alert(`Ошибка при отправке: ${error?.message || error}`);
       }
     } finally {
       setIsSendingTelegram(false);
