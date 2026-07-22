@@ -94,11 +94,57 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     });
   }, [rosterEntries, operatorWorkingDays, state.notifiedInterns, updateState]);
 
-  const sendRosterToTelegram = async (isManual = false) => {
-    const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
-    const DEFAULT_CHAT_ID = '-1003748692600';
+  const [rosterNeedsFix, setRosterNeedsFix] = useState(false);
+  const [rosterStatusText, setRosterStatusText] = useState<string | null>(null);
+  const isAutoSendingRef = useRef(false);
 
+  // Poll roster status from server
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkStatus = async () => {
+      try {
+        const res = await fetch('/api/roster/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        if (isMounted && data.success) {
+          const needsFix = !!data.rosterState?.needsFix;
+          setRosterNeedsFix(needsFix);
+
+          if (needsFix) {
+            setRosterStatusText(`Требуется исправление (отклонил: ${data.rosterState?.rejectedBy || 'Админ'})`);
+          } else if (data.rosterState?.status === 'ok') {
+            setRosterStatusText(data.rosterState?.confirmedBy ? `Подтвержден (${data.rosterState.confirmedBy})` : null);
+          } else {
+            setRosterStatusText(null);
+          }
+
+          // Check for scheduled send trigger (10:00 / 20:00 Kyiv time)
+          if (data.pendingScheduledSend && !isAutoSendingRef.current && !isSendingTelegram) {
+            isAutoSendingRef.current = true;
+            console.log(`[Scheduled Send] Executing scheduled send for slot: ${data.pendingScheduledSend}`);
+            await sendRosterToTelegram(false, needsFix, data.pendingScheduledSend);
+            isAutoSendingRef.current = false;
+          }
+        }
+      } catch (e) {
+        console.error("Failed to check roster status:", e);
+      }
+    };
+
+    checkStatus();
+    const interval = setInterval(checkStatus, 10000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [isSendingTelegram]);
+
+  const sendRosterToTelegram = async (isManual = false, isCorrection = false, scheduledSlot?: string) => {
     if (!rosterRef.current) return;
+    if (isSendingTelegram) return;
+
     setIsSendingTelegram(true);
 
     try {
@@ -111,77 +157,40 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         allowTaint: true
       });
       
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
-      if (!blob) throw new Error('Не удалось создать изображение');
+      const dataUrl = canvas.toDataURL('image/png');
 
-      const text = `📊 <b>АКТУАЛЬНЫЙ СОСТАВ</b>\nПериод: ${currentPeriod?.label}\nДата: ${new Date().toLocaleDateString('ru-RU')}\n\n<b>Актуальный список команды?</b>\n\n🔔 <a href="tg://user?id=8679682362">@adm_viksi_viii [Adm]Vi</a> <a href="tg://user?id=6537516111">@adm_rctr Rector</a>`;
-
-      const formData = new FormData();
-      formData.append('chat_id', DEFAULT_CHAT_ID);
-      formData.append('photo', blob, 'roster.png');
-      formData.append('caption', text);
-      formData.append('parse_mode', 'HTML');
-      formData.append('reply_markup', JSON.stringify({
-        inline_keyboard: [
-          [
-            { text: '✅ АКТУАЛЬНО (0/2)', callback_data: 'confirm_roster' },
-            { text: '❌ ТРЕБУЕТ ИЗМЕНЕНИЙ', callback_data: 'edit_roster' }
-          ]
-        ]
-      }));
-
-      const response = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
+      const response = await fetch('/api/telegram/send-roster', {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: dataUrl,
+          periodLabel: currentPeriod?.label || 'Текущий',
+          isCorrection: isCorrection || rosterNeedsFix,
+          scheduledSlot
+        })
       });
 
-      if (response.ok) {
-        if (isManual) alert('Состав успешно отправлен в Telegram!');
-        console.log('Состав успешно отправлен в Telegram!');
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setRosterNeedsFix(false);
+        setRosterStatusText('Отправлено на подтверждение');
+
+        if (isManual) {
+          alert('Состав успешно отправлен в Telegram!');
+        }
       } else {
-        const errResult = await response.json().catch(() => ({}));
-        const errMsg = errResult.description || errResult.error || 'Неизвестная ошибка';
-        if (isManual) alert(`Ошибка при отправке в Telegram: ${errMsg}`);
+        const errMsg = result.error || 'Ошибка при отправке в Telegram';
+        if (isManual) alert(`Ошибка: ${errMsg}`);
         console.error('Ошибка при отправке в Telegram:', errMsg);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       if (isManual) alert('Ошибка при генерации скриншота');
     } finally {
       setIsSendingTelegram(false);
     }
   };
-
-  // Auto-notify daily at 17:00 Kyiv time (14:00 UTC)
-  useEffect(() => {
-    const checkAutoNotify = async () => {
-      const now = new Date();
-      const todayStr = now.toLocaleDateString('en-CA'); // YYYY-MM-DD
-      
-      // Check if it's after 17:00 Kyiv (14:00 UTC)
-      const currentHourUTC = now.getUTCHours();
-      const isAfterTimeKyiv = currentHourUTC >= 14;
-
-      if (isAfterTimeKyiv && state.telegramState?.lastRosterNotifyDate !== todayStr) {
-        // We need the rosterRef to be ready
-        if (rosterRef.current) {
-          console.log("Auto-sending roster to Telegram...");
-          await sendRosterToTelegram(false);
-          
-          updateState(prev => ({
-            ...prev,
-            telegramState: {
-              ...(prev.telegramState || {}),
-              lastRosterNotifyDate: todayStr
-            }
-          }));
-        }
-      }
-    };
-
-    const timer = setTimeout(checkAutoNotify, 5000); // Wait 5s for initial render
-    return () => clearTimeout(timer);
-  }, [state.telegramState?.lastRosterNotifyDate, rosterRef.current]);
 
   // Models to show: designated models for this period OR models that have assigned shifts
   const allModels = useMemo(() => {
@@ -692,6 +701,44 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
 
   return (
     <div className="space-y-8 pb-20">
+      {/* Banner for correction requirement */}
+      <AnimatePresence>
+        {rosterNeedsFix && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="p-6 rounded-3xl bg-amber-500/10 border-2 border-amber-500/40 flex flex-col sm:flex-row items-center justify-between gap-4 text-amber-200 shadow-xl shadow-amber-500/10"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
+                <ICONS.Penalty size={24} />
+              </div>
+              <div>
+                <p className="text-base font-black uppercase tracking-tight text-amber-300">
+                  исправьте состав и подтвердите.
+                </p>
+                <p className="text-xs font-medium text-amber-400/80">
+                  {rosterStatusText || 'Администратор в Telegram отметил, что состав требует изменений.'} Внесите изменения и нажмите кнопкy "Подтвердить".
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => sendRosterToTelegram(true, true)}
+              disabled={isSendingTelegram}
+              className="px-6 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-amber-500/20 active:scale-95 disabled:opacity-50 shrink-0 flex items-center gap-2"
+            >
+              {isSendingTelegram ? (
+                <span className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
+              ) : (
+                <ICONS.ShieldCheck size={18} />
+              )}
+              <span>Подтвердить</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
@@ -703,7 +750,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button 
-            onClick={() => sendRosterToTelegram(true)}
+            onClick={() => sendRosterToTelegram(true, rosterNeedsFix)}
             disabled={isSendingTelegram}
             className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white shadow-xl shadow-sky-600/20 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale"
           >

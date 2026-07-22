@@ -14,10 +14,66 @@ async function startServer() {
   const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
   const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1003748692600';
 
-  // In-memory state for approvals (in a real app, this should be in DB)
+  // Roster state management
+  interface RosterServerState {
+    status: 'ok' | 'needs_fix' | 'pending_approval';
+    needsFix: boolean;
+    rejectedBy?: string;
+    rejectedAt?: string;
+    confirmedBy?: string;
+    confirmedAt?: string;
+    lastMessageId?: number;
+  }
+
+  let rosterState: RosterServerState = {
+    status: 'ok',
+    needsFix: false
+  };
+
+  const scheduledSends: Record<string, boolean> = {};
+  let pendingScheduledSend: string | null = null;
+  let isSendingRosterLock = false;
+  let lastRosterSendTimestamp = 0;
+
+  // Kyiv time helper (Europe/Kyiv)
+  function getKyivTimeInfo() {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Kyiv",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    });
+    const parts = formatter.formatToParts(now);
+    const getPart = (type: string) => parts.find(p => p.type === type)?.value || "";
+    const dateStr = `${getPart("year")}-${getPart("month")}-${getPart("day")}`;
+    const hour = parseInt(getPart("hour"), 10);
+    const minute = parseInt(getPart("minute"), 10);
+    return { dateStr, hour, minute };
+  }
+
+  // Interval checking 10:00 and 20:00 Kyiv time daily
+  setInterval(() => {
+    const kyiv = getKyivTimeInfo();
+    const is10am = kyiv.hour === 10 && kyiv.minute >= 0 && kyiv.minute <= 3;
+    const is8pm = kyiv.hour === 20 && kyiv.minute >= 0 && kyiv.minute <= 3;
+
+    if (is10am || is8pm) {
+      const slot = `${kyiv.dateStr}_${is10am ? '10:00' : '20:00'}`;
+      if (!scheduledSends[slot] && pendingScheduledSend !== slot) {
+        console.log(`[Kyiv Schedule] Triggering scheduled roster notification for slot: ${slot}`);
+        pendingScheduledSend = slot;
+      }
+    }
+  }, 15000);
+
+  // In-memory state for approvals
   const rosterApprovals: Record<string, string[]> = {};
 
-  // Terminal state for polling
+  // Telegram polling
   let isPolling = false;
 
   async function pollTelegram() {
@@ -39,37 +95,30 @@ async function startServer() {
             if (update.callback_query) {
               const query = update.callback_query;
               const msg = query.message;
-              const data = query.data;
+              const cbData = query.data;
               const user = query.from;
-              const userName = user.first_name || user.username || `User_${user.id}`;
+              const userName = user.first_name || user.username || `Admin_${user.id}`;
 
-              if (data === 'confirm_roster') {
-                const msgId = msg.message_id.toString();
-                if (!rosterApprovals[msgId]) rosterApprovals[msgId] = [];
-                
-                if (!rosterApprovals[msgId].includes(userName)) {
-                  rosterApprovals[msgId].push(userName);
-                }
+              if (cbData === 'roster_actual' || cbData === 'confirm_roster') {
+                rosterState = {
+                  status: 'ok',
+                  needsFix: false,
+                  confirmedBy: userName,
+                  confirmedAt: new Date().toISOString(),
+                  lastMessageId: msg.message_id
+                };
 
-                const count = rosterApprovals[msgId].length;
-                let newText = msg.caption || msg.text || '';
-                let newMarkup = msg.reply_markup;
+                const origCaption = (msg.caption || msg.text || '').split('\n\n<b>СОСТАВ АКТУАЛЕН?</b>')[0];
+                const newCaption = `${origCaption}\n\n✅ <b>СОСТАВ ПОДТВЕРЖДЕН КАК АКТУАЛЬНЫЙ!</b>\nПодтвердил: ${userName}`;
 
-                if (count >= 2) {
-                  newText += `\n\n✅ <b>СОСТАВ ПОДТВЕРЖДЕН!</b>\nПодтвердили: ${rosterApprovals[msgId].join(', ')}`;
-                  newMarkup = { inline_keyboard: [] };
-                } else {
-                  newMarkup.inline_keyboard[0][0].text = `✅ АКТУАЛЬНО (${count}/2)`;
-                }
-
-                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessage${msg.photo ? 'Caption' : 'Text'}`, {
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageCaption`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     chat_id: CHAT_ID,
                     message_id: msg.message_id,
-                    [msg.photo ? 'caption' : 'text']: newText,
-                    reply_markup: newMarkup,
+                    caption: newCaption,
+                    reply_markup: { inline_keyboard: [] },
                     parse_mode: 'HTML'
                   })
                 });
@@ -77,23 +126,46 @@ async function startServer() {
                 await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ callback_query_id: query.id, text: `Ваш голос учтен: ${userName}` })
+                  body: JSON.stringify({ callback_query_id: query.id, text: 'Состав подтвержден как актуальный!' })
                 });
-              } else if (data === 'edit_roster') {
-                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+
+              } else if (cbData === 'roster_not_actual' || cbData === 'edit_roster') {
+                rosterState = {
+                  status: 'needs_fix',
+                  needsFix: true,
+                  rejectedBy: userName,
+                  rejectedAt: new Date().toISOString(),
+                  lastMessageId: msg.message_id
+                };
+
+                const origCaption = (msg.caption || msg.text || '').split('\n\n<b>СОСТАВ АКТУАЛЕН?</b>')[0];
+                const newCaption = `${origCaption}\n\n❌ <b>СОСТАВ НЕ АКТУАЛЕН!</b>\nОтклонил: ${userName}\n\nПожалуйста, исправьте состав на сайте и нажмите "Подтвердить".`;
+
+                const appUrl = process.env.APP_URL || 'https://ais-dev-7xz7xwj4qktl4ynp4sez7n-38906691745.europe-west2.run.app';
+                const rosterUrl = `${appUrl.replace(/\/$/, '')}/#roster`;
+
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageCaption`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     chat_id: CHAT_ID,
-                    text: `⚠️ <b>ТРЕБУЕТСЯ КОРРЕКТИРОВКА СОСТАВА</b>\nОтправил: ${userName}`,
+                    message_id: msg.message_id,
+                    caption: newCaption,
+                    reply_markup: {
+                      inline_keyboard: [
+                        [
+                          { text: 'перейти в СОСТАВ и исправить', url: rosterUrl }
+                        ]
+                      ]
+                    },
                     parse_mode: 'HTML'
                   })
                 });
-                
+
                 await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ callback_query_id: query.id, text: 'Уведомление отправлено!' })
+                  body: JSON.stringify({ callback_query_id: query.id, text: 'Уведомление отправлено! Ожидаем исправления.' })
                 });
               }
             }
@@ -107,11 +179,108 @@ async function startServer() {
     }
   }
 
-  if (process.env.NODE_ENV !== "production") {
-    pollTelegram().catch(console.error);
-  }
+  // Always run telegram polling
+  pollTelegram().catch(console.error);
 
-  // Endpoint to send Telegram message or photo
+  // Endpoint to get roster state
+  app.get("/api/roster/status", (req, res) => {
+    res.json({
+      success: true,
+      rosterState,
+      pendingScheduledSend
+    });
+  });
+
+  // Endpoint to update roster state manually
+  app.post("/api/roster/status", (req, res) => {
+    const { status, needsFix } = req.body;
+    if (status !== undefined) rosterState.status = status;
+    if (needsFix !== undefined) rosterState.needsFix = needsFix;
+    res.json({ success: true, rosterState });
+  });
+
+  // Dedicated endpoint to send roster screenshot with anti-spam lock
+  app.post("/api/telegram/send-roster", async (req, res) => {
+    const now = Date.now();
+    if (isSendingRosterLock || (now - lastRosterSendTimestamp < 3000)) {
+      return res.status(429).json({ error: "Отправка уже выполняется. Пожалуйста, подождите..." });
+    }
+
+    isSendingRosterLock = true;
+    lastRosterSendTimestamp = now;
+
+    try {
+      const { image, periodLabel, isCorrection, scheduledSlot } = req.body;
+
+      if (!image) {
+        isSendingRosterLock = false;
+        return res.status(400).json({ error: "Отсутствует изображение состава" });
+      }
+
+      const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
+      const buffer = Buffer.from(base64Data, 'base64');
+
+      const dateDisplay = new Date().toLocaleDateString('ru-RU');
+
+      const headerText = isCorrection 
+        ? `📊 <b>СОСТАВ КОМАНДЫ (актуальный состав после исправления)</b>`
+        : `📊 <b>СОСТАВ КОМАНДЫ</b>`;
+
+      const caption = `${headerText}\nПериод: ${periodLabel || 'Текущий'}\nДата: ${dateDisplay}\n\n<b>СОСТАВ АКТУАЛЕН?</b>\n\n🔔 <a href="tg://user?id=8679682362">@adm_viksi_viii [Adm]Vi</a> <a href="tg://user?id=6537516111">@adm_rctr Rector</a>`;
+
+      const replyMarkup = {
+        inline_keyboard: [
+          [
+            { text: 'АКТУАЛЕН', callback_data: 'roster_actual' },
+            { text: 'НЕТ', callback_data: 'roster_not_actual' }
+          ]
+        ]
+      };
+
+      const form = new FormData();
+      form.append('chat_id', CHAT_ID);
+      form.append('photo', buffer, { filename: 'roster.png' });
+      form.append('caption', caption);
+      form.append('parse_mode', 'HTML');
+      form.append('reply_markup', JSON.stringify(replyMarkup));
+
+      const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+        method: 'POST',
+        headers: form.getHeaders(),
+        body: form
+      });
+
+      const result: any = await response.json();
+
+      if (response.ok) {
+        rosterState = {
+          status: 'pending_approval',
+          needsFix: false,
+          lastMessageId: result.result?.message_id
+        };
+
+        if (scheduledSlot) {
+          scheduledSends[scheduledSlot] = true;
+          if (pendingScheduledSend === scheduledSlot) {
+            pendingScheduledSend = null;
+          }
+        }
+
+        isSendingRosterLock = false;
+        return res.json({ success: true, result });
+      } else {
+        isSendingRosterLock = false;
+        console.error("Telegram error result:", result);
+        return res.status(500).json({ error: result.description || "Ошибка при отправке в Telegram" });
+      }
+    } catch (err: any) {
+      isSendingRosterLock = false;
+      console.error("Error in send-roster:", err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Generic endpoint to send Telegram message or photo
   app.post("/api/telegram/send", async (req, res) => {
     if (!BOT_TOKEN || !CHAT_ID) {
       return res.status(500).json({ error: "Telegram configuration missing" });
