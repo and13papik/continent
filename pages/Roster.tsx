@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import html2canvas from 'html2canvas';
 import { AppState, RosterEntry, ShiftType, AccountingPeriod, OperatorStatus, OperatorAssessment } from '../types';
 import { ICONS } from '../constants';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -142,14 +143,26 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
   }, [isSendingTelegram]);
 
   const sendRosterToTelegram = async (isManual = false, isCorrection = false, scheduledSlot?: string) => {
-    if (!rosterRef.current) return;
+    if (!rosterRef.current) {
+      if (isManual) alert('Ошибка: Таблица состава не найдена');
+      return;
+    }
     if (isSendingTelegram) return;
 
     setIsSendingTelegram(true);
 
     try {
+      let h2c = html2canvas;
+      if (typeof h2c !== 'function') {
+        h2c = (window as any).html2canvas;
+      }
+
+      if (typeof h2c !== 'function') {
+        throw new Error('Модуль html2canvas недоступен');
+      }
+
       // Capture the roster as image
-      const canvas = await (window as any).html2canvas(rosterRef.current, {
+      const canvas = await h2c(rosterRef.current, {
         backgroundColor: '#020617', // Match slate-950
         scale: 2,
         logging: false,
@@ -185,8 +198,10 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         console.error('Ошибка при отправке в Telegram:', errMsg);
       }
     } catch (error: any) {
-      console.error(error);
-      if (isManual) alert('Ошибка при генерации скриншота');
+      console.error('Error generating roster screenshot or sending to Telegram:', error);
+      if (isManual) {
+        alert(`Ошибка при генерации скриншота: ${error?.message || error}`);
+      }
     } finally {
       setIsSendingTelegram(false);
     }
