@@ -9,6 +9,7 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // Telegram Configuration
   const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
@@ -201,7 +202,7 @@ async function startServer() {
   // Dedicated endpoint to send roster screenshot with anti-spam lock
   app.post("/api/telegram/send-roster", async (req, res) => {
     const now = Date.now();
-    if (isSendingRosterLock || (now - lastRosterSendTimestamp < 3000)) {
+    if (isSendingRosterLock && (now - lastRosterSendTimestamp < 10000)) {
       return res.status(429).json({ error: "Отправка уже выполняется. Пожалуйста, подождите..." });
     }
 

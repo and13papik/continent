@@ -386,10 +386,11 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       
       const canvas = await h2c(tableRef.current, {
         backgroundColor: '#020617',
-        scale: 3,
+        scale: 2,
         logging: false,
         useCORS: true,
-        allowTaint: true,
+        allowTaint: false,
+        imageTimeout: 8000,
         scrollX: 0,
         scrollY: 0,
         onclone: (clonedDoc: Document) => {
@@ -496,6 +497,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       }
 
       let sentSuccessfully = false;
+      let backendError = '';
 
       // 1. Try sending via backend proxy
       try {
@@ -508,11 +510,16 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
             text: captionToSend
           })
         });
-        if (res.ok) {
+
+        const resData = await res.json().catch(() => ({}));
+        if (res.ok && (resData.ok !== false)) {
           sentSuccessfully = true;
+        } else {
+          backendError = resData.error || resData.description || `HTTP ${res.status}`;
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn('Backend send failed, falling back to direct Telegram API:', err);
+        backendError = err.message || String(err);
       }
 
       // 2. Direct fallback if backend proxy failed
@@ -531,11 +538,11 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
           body: formData
         });
 
-        if (res.ok) {
+        const resultData = await res.json().catch(() => ({}));
+        if (res.ok && resultData.ok) {
           sentSuccessfully = true;
         } else {
-          const resultData = await res.json().catch(() => ({}));
-          throw new Error(`Ошибка Telegram: ${resultData.description || 'Неизвестная ошибка'}`);
+          throw new Error(`Ошибка Telegram: ${resultData.description || backendError || 'Неизвестная ошибка'}`);
         }
       }
 

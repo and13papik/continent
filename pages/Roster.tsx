@@ -167,7 +167,8 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         scale: 2,
         logging: false,
         useCORS: true,
-        allowTaint: true
+        allowTaint: false,
+        imageTimeout: 8000
       });
       
       const dataUrl = canvas.toDataURL('image/png');
