@@ -161,17 +161,24 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         throw new Error('Модуль html2canvas недоступен');
       }
 
-      // Capture the roster as image
-      const canvas = await h2c(rosterRef.current, {
+      // Capture the roster as image with a 10s safety timeout to prevent infinite hanging
+      const canvasPromise = h2c(rosterRef.current, {
         backgroundColor: '#020617', // Match slate-950
         scale: 2,
         logging: false,
         useCORS: true,
         allowTaint: false,
-        imageTimeout: 8000
+        imageTimeout: 5000
       });
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Рендеринг состава превысил время ожидания. Обновите страницу и попробуйте снова.")), 10000);
+      });
+
+      const canvas = await Promise.race([canvasPromise, timeoutPromise]);
       
-      const dataUrl = canvas.toDataURL('image/png');
+      // JPEG compressed 0.85 (300KB instead of 15MB PNG)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
       const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
       const DEFAULT_CHAT_ID = '-1003748692600';
@@ -194,8 +201,11 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       let sentSuccessfully = false;
       let lastErrMsg = '';
 
-      // 1. Try sending via backend proxy
+      // 1. Try sending via backend proxy with 12s timeout
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+
         const response = await fetch('/api/telegram/send-roster', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -204,8 +214,10 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
             periodLabel: currentPeriod?.label || 'Текущий',
             isCorrection: isCorrection || rosterNeedsFix,
             scheduledSlot
-          })
+          }),
+          signal: controller.signal
         });
+        clearTimeout(timeoutId);
 
         const responseText = await response.text();
         let result: any = null;
@@ -218,29 +230,34 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         if (response.ok && result?.success) {
           sentSuccessfully = true;
         } else {
-          lastErrMsg = result?.error || 'Ошибка backend сервера';
+          lastErrMsg = result?.error || `HTTP ${response.status}: Ошибка сервера`;
         }
       } catch (apiErr: any) {
         console.warn("Backend API call failed, falling back to direct Telegram send:", apiErr);
-        lastErrMsg = apiErr?.message || String(apiErr);
+        lastErrMsg = apiErr.name === 'AbortError' ? 'Таймаут запроса к серверу' : (apiErr?.message || String(apiErr));
       }
 
       // 2. Fallback to direct Telegram API if backend failed
       if (!sentSuccessfully) {
-        const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
+        const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
         if (!blob) throw new Error('Не удалось сформировать изображение');
 
         const formData = new FormData();
         formData.append('chat_id', DEFAULT_CHAT_ID);
-        formData.append('photo', blob, 'roster.png');
+        formData.append('photo', blob, 'roster.jpg');
         formData.append('caption', captionText);
         formData.append('parse_mode', 'HTML');
         formData.append('reply_markup', JSON.stringify(replyMarkup));
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+
         const directRes = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
           method: 'POST',
-          body: formData
+          body: formData,
+          signal: controller.signal
         });
+        clearTimeout(timeoutId);
 
         const directText = await directRes.text();
         let directResult: any = null;
