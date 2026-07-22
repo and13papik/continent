@@ -161,23 +161,17 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         throw new Error('Модуль html2canvas недоступен');
       }
 
-      // Capture the roster as image with a 10s safety timeout to prevent infinite hanging
-      const canvasPromise = h2c(rosterRef.current, {
+      // Capture the roster as image
+      const canvas = await h2c(rosterRef.current, {
         backgroundColor: '#020617', // Match slate-950
         scale: 2,
         logging: false,
         useCORS: true,
         allowTaint: false,
-        imageTimeout: 5000
+        imageTimeout: 10000
       });
-
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Рендеринг состава превысил время ожидания. Обновите страницу и попробуйте снова.")), 10000);
-      });
-
-      const canvas = await Promise.race([canvasPromise, timeoutPromise]);
       
-      // JPEG compressed 0.85 (300KB instead of 15MB PNG)
+      // JPEG compressed 0.85
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
       const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
@@ -201,11 +195,8 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       let sentSuccessfully = false;
       let lastErrMsg = '';
 
-      // 1. Try sending via backend proxy with 12s timeout
+      // 1. Try sending via backend proxy
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000);
-
         const response = await fetch('/api/telegram/send-roster', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -214,10 +205,8 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
             periodLabel: currentPeriod?.label || 'Текущий',
             isCorrection: isCorrection || rosterNeedsFix,
             scheduledSlot
-          }),
-          signal: controller.signal
+          })
         });
-        clearTimeout(timeoutId);
 
         const responseText = await response.text();
         let result: any = null;
@@ -234,7 +223,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         }
       } catch (apiErr: any) {
         console.warn("Backend API call failed, falling back to direct Telegram send:", apiErr);
-        lastErrMsg = apiErr.name === 'AbortError' ? 'Таймаут запроса к серверу' : (apiErr?.message || String(apiErr));
+        lastErrMsg = apiErr?.message || String(apiErr);
       }
 
       // 2. Fallback to direct Telegram API if backend failed
@@ -249,15 +238,10 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         formData.append('parse_mode', 'HTML');
         formData.append('reply_markup', JSON.stringify(replyMarkup));
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000);
-
         const directRes = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
           method: 'POST',
-          body: formData,
-          signal: controller.signal
+          body: formData
         });
-        clearTimeout(timeoutId);
 
         const directText = await directRes.text();
         let directResult: any = null;

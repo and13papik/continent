@@ -384,14 +384,14 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         throw new Error("Модуль html2canvas недоступен");
       }
       
-      // Render canvas with a 10s safety timeout to prevent infinite hanging
-      const canvasPromise = h2c(tableRef.current, {
+      // Render canvas
+      const canvas = await h2c(tableRef.current, {
         backgroundColor: '#020617',
         scale: 2,
         logging: false,
         useCORS: true,
         allowTaint: false,
-        imageTimeout: 5000,
+        imageTimeout: 10000,
         scrollX: 0,
         scrollY: 0,
         onclone: (clonedDoc: Document) => {
@@ -431,14 +431,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
           }
         }
       });
-
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Рендеринг таблицы превысил время ожидания. Обновите страницу и попробуйте снова.")), 10000);
-      });
-
-      const canvas = await Promise.race([canvasPromise, timeoutPromise]);
       
-      // Use JPEG with 0.85 quality for drastically smaller payload size (300KB vs 15MB PNG)
+      // Use JPEG with 0.85 quality for drastically smaller payload size
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
       let message = `<b>📊 ОТЧЕТ: ${shiftInfo.label.toUpperCase()} ${shiftInfo.icon}</b>\n`;
@@ -507,11 +501,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       let sentSuccessfully = false;
       let backendError = '';
 
-      // 1. Try sending via backend proxy with 12s timeout
+      // 1. Try sending via backend proxy
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000);
-
         const res = await fetch('/api/telegram/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -519,10 +510,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
             type: 'photo',
             image: dataUrl,
             text: captionToSend
-          }),
-          signal: controller.signal
+          })
         });
-        clearTimeout(timeoutId);
 
         const resData = await res.json().catch(() => ({}));
         if (res.ok && (resData.ok !== false)) {
@@ -532,7 +521,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         }
       } catch (err: any) {
         console.warn('Backend send failed, falling back to direct Telegram API:', err);
-        backendError = err.name === 'AbortError' ? 'Таймаут запроса к серверу' : (err.message || String(err));
+        backendError = err.message || String(err);
       }
 
       // 2. Direct fallback if backend proxy failed
@@ -546,15 +535,10 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         formData.append('caption', captionToSend);
         formData.append('parse_mode', 'HTML');
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000);
-
         const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
           method: 'POST',
-          body: formData,
-          signal: controller.signal
+          body: formData
         });
-        clearTimeout(timeoutId);
 
         const resultData = await res.json().catch(() => ({}));
         if (res.ok && resultData.ok) {
