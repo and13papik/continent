@@ -3,6 +3,11 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import fetch from "node-fetch";
 import FormData from "form-data";
+import {
+  handleOnlyMonsterInspector,
+  handleOnlyMonsterTest,
+  handleOnlyMonsterSync
+} from "./lib/server/onlymonster/client";
 
 async function startServer() {
   const app = express();
@@ -584,181 +589,20 @@ async function startServer() {
 
   // Diagnostic endpoint for OnlyMonster API Inspector
   app.get("/api/integrations/onlymonster/inspector", (req, res) => {
-    const key = process.env.ONLYMONSTER_API_KEY;
-    const isConfigured = Boolean(key && key.trim().length > 5);
-
-    if (!isConfigured) {
-      return res.status(503).json({
-        success: false,
-        code: "ONLYMONSTER_API_KEY_MISSING",
-        message: "OnlyMonster API key is not configured. Add ONLYMONSTER_API_KEY to server environment variables.",
-        apiKeyConfigured: false,
-        connectionStatus: "not_configured",
-        diagnostics: {
-          hasKey: false,
-          maskedKey: "отсутствует",
-          lastCheckedAt: new Date().toISOString(),
-          httpStatus: null,
-          durationMs: null,
-          rateLimitRemaining: null,
-          accountsCount: 0,
-          membersCount: 0,
-          discoveredEntities: {
-            accounts: false,
-            members: false,
-            chats: false,
-            messages: false,
-            transactions: false,
-            fans: false
-          },
-          confirmedMetrics: [],
-          unavailableMetrics: ["ONLYMONSTER_API_KEY не задан"],
-          sampleResponses: {},
-          errorMessage: "API key is missing"
-        }
-      });
-    }
-
-    res.json({
-      success: true,
-      code: "CONFIGURED",
-      apiKeyConfigured: true,
-      connectionStatus: "configured",
-      diagnostics: {
-        ...inspectorDiagnostics,
-        hasKey: true
-      }
-    });
+    const result = handleOnlyMonsterInspector();
+    res.status(result.statusCode).json(result.body);
   });
 
   // Test API Connection Endpoint (Official OpenAPI Base URL: https://omapi.onlymonster.ai/api/v0)
   app.post("/api/integrations/onlymonster/test", async (req, res) => {
-    const key = process.env.ONLYMONSTER_API_KEY;
-
-    if (!key || key.trim().length < 5) {
-      return res.status(503).json({
-        success: false,
-        code: "ONLYMONSTER_API_KEY_MISSING",
-        message: "OnlyMonster API key is not configured. Add ONLYMONSTER_API_KEY to server environment variables.",
-        apiKeyConfigured: false,
-        connectionStatus: "not_configured"
-      });
-    }
-
-    const baseUrl = (process.env.ONLYMONSTER_API_BASE_URL || "https://omapi.onlymonster.ai/api/v0").replace(/\/+$/, "");
-    const officialUrl = `${baseUrl}/accounts`;
-    const startTime = Date.now();
-    let statusCode = 500;
-    let rateLimitRem = "0";
-    let sampleData: any = null;
-    let errorDetails = "";
-    let testSuccess = false;
-    let contentType = "";
-
-    try {
-      const controller = new AbortController();
-      const tid = setTimeout(() => controller.abort(), 8000);
-
-      // Security scheme ApiToken in OnlyMonster OpenAPI spec uses Authorization: Bearer header
-      const apiRes = await fetch(officialUrl, {
-        headers: {
-          "Authorization": `Bearer ${key}`,
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
-        signal: controller.signal as any
-      });
-      clearTimeout(tid);
-
-      statusCode = apiRes.status;
-      contentType = apiRes.headers.get("content-type") || "";
-      rateLimitRem = apiRes.headers.get("x-ratelimit-remaining") || apiRes.headers.get("ratelimit-remaining") || "0";
-
-      if (apiRes.ok) {
-        sampleData = await apiRes.json();
-        testSuccess = true;
-      } else {
-        errorDetails = await apiRes.text().catch(() => "");
-      }
-    } catch (err: any) {
-      errorDetails = err.message;
-    }
-
-    const duration = Date.now() - startTime;
-
-    if (testSuccess) {
-      const accList = Array.isArray(sampleData) ? sampleData : (sampleData?.data || []);
-      const maskedAccounts = accList.map((acc: any) => ({
-        id: acc.id ? `${acc.id.toString().substring(0, 3)}***` : "acc***",
-        name: acc.name ? `${acc.name.toString().substring(0, 2)}***` : "mo***"
-      }));
-
-      const rawSampleAccount = accList.length > 0 ? sanitizeSampleJSON(accList[0]) : null;
-
-      return res.json({
-        success: true,
-        code: "TEST_SUCCESSFUL",
-        connectionStatus: "live",
-        apiKeyConfigured: true,
-        httpStatus: statusCode,
-        durationMs: duration,
-        timestamp: new Date().toISOString(),
-        finalUrl: officialUrl,
-        authHeaderName: "Authorization: Bearer <token>",
-        contentType,
-        accountsFound: accList.length,
-        maskedAccounts,
-        rawSampleAccount,
-        rateLimitRemaining: rateLimitRem
-      });
-    } else {
-      return res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({
-        success: false,
-        code: "API_CONNECTION_FAILED",
-        connectionStatus: "error",
-        apiKeyConfigured: true,
-        httpStatus: statusCode,
-        finalUrl: officialUrl,
-        authHeaderName: "Authorization: Bearer <token>",
-        contentType,
-        error: `OnlyMonster API status ${statusCode}: ${errorDetails || "Request failed"}`,
-        rawErrorDetails: errorDetails.substring(0, 1000),
-        durationMs: duration,
-        timestamp: new Date().toISOString()
-      });
-    }
+    const result = await handleOnlyMonsterTest();
+    res.status(result.statusCode).json(result.body);
   });
 
   // Manual or Periodic Sync endpoint
   app.post("/api/integrations/onlymonster/sync", async (req, res) => {
-    const key = process.env.ONLYMONSTER_API_KEY;
-
-    if (!key || key.trim().length < 5) {
-      return res.status(503).json({
-        success: false,
-        code: "ONLYMONSTER_API_KEY_MISSING",
-        message: "OnlyMonster API key is not configured. Add ONLYMONSTER_API_KEY to server environment variables.",
-        apiKeyConfigured: false,
-        connectionStatus: "not_configured"
-      });
-    }
-
-    const baseUrl = (process.env.ONLYMONSTER_API_BASE_URL || "https://omapi.onlymonster.ai/api/v0").replace(/\/+$/, "");
-    const { days = 1 } = req.body || {};
-    const syncStartTime = Date.now();
-
-    res.json({
-      success: true,
-      message: `Синхронизация данных OnlyMonster за ${days} дней завершена.`,
-      syncRun: {
-        id: `sync_${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        daysPeriod: days,
-        status: "completed",
-        durationMs: Date.now() - syncStartTime,
-        source: baseUrl
-      }
-    });
+    const result = await handleOnlyMonsterSync(req.body);
+    res.status(result.statusCode).json(result.body);
   });
 
   // OnlyMonster Configuration getters and setters
