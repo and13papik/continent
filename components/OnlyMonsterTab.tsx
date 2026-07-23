@@ -26,11 +26,43 @@ import {
   MessageCircle,
   Clock,
   ArrowRight,
-  Send
+  Send,
+  Search,
+  CheckCircle2,
+  XCircle,
+  BarChart3,
+  TrendingDown,
+  UserCheck,
+  HelpCircle,
+  FileCode2,
+  Layers
 } from 'lucide-react';
 
 interface OnlyMonsterTabProps {
   agencyModels: string[]; // Pass from parent models
+}
+
+interface InspectorData {
+  hasKey: boolean;
+  maskedKey: string;
+  lastCheckedAt: string | null;
+  httpStatus: number | null;
+  durationMs: number | null;
+  rateLimitRemaining: string | null;
+  accountsCount: number;
+  membersCount: number;
+  discoveredEntities: {
+    accounts: boolean;
+    members: boolean;
+    chats: boolean;
+    messages: boolean;
+    transactions: boolean;
+    fans: boolean;
+  };
+  confirmedMetrics: string[];
+  unavailableMetrics: string[];
+  sampleResponses: Record<string, any>;
+  errorMessage: string | null;
 }
 
 interface WebhookEvent {
@@ -70,51 +102,107 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [configMessage, setConfigMessage] = useState<string | null>(null);
 
+  // Inspector & Sync State
+  const [showInspector, setShowInspector] = useState(false);
+  const [inspector, setInspector] = useState<InspectorData | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [selectedDays, setSelectedDays] = useState(30);
+
   // Connection & API state
   const [isTestingConn, setIsTestingConn] = useState(false);
-  const [connStatus, setConnStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [connMessage, setConnMessage] = useState('');
+  const [connStatus, setConnStatus] = useState<'idle' | 'not_configured' | 'success' | 'error'>('not_configured');
+  const [connMessage, setConnMessage] = useState('OnlyMonster API не настроен. Добавьте серверную переменную ONLYMONSTER_API_KEY.');
   
-  // Real API / Fallback Accounts list
+  // Real API Accounts list
   const [accounts, setAccounts] = useState<OnlyMonsterAccount[]>([]);
-  const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
-  const [apiSource, setApiSource] = useState<'real' | 'fallback'>('fallback');
-
-  // Webhooks list
   const [webhooks, setWebhooks] = useState<WebhookEvent[]>([]);
+  const [apiSource, setApiSource] = useState<'real' | 'fallback'>('fallback');
   const [isPolling, setIsPolling] = useState(true);
   const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
-
-  // Simulation controls
   const [simulationType, setSimulationType] = useState<string>('fans.tip.received');
   const [isSimulating, setIsSimulating] = useState(false);
 
-  // Metrics derived from Webhooks + Accounts
-  const stats = useMemo(() => {
-    // Sum fallback or loaded account earnings
-    const baseEarnings = accounts.reduce((sum, acc) => sum + acc.today_earnings, 0);
-    // Find all tip + ppv + subscription webhook earnings from "today"
-    const webhookEarnings = webhooks.reduce((sum, wh) => {
-      if (wh.type === 'fans.tip.received' || wh.type === 'fans.ppv.purchased') {
-        return sum + (wh.data.amount || 0);
+  // Load Inspector Data
+  const fetchInspector = async () => {
+    try {
+      const res = await fetch('/api/integrations/onlymonster/inspector');
+      const data = await res.json();
+      if (data.diagnostics) {
+        setInspector(data.diagnostics);
       }
-      if (wh.type === 'fans.subscription.new_subscription') {
-        return sum + (wh.data.amount || 15); // default $15 sub
+      if (!res.ok || data.code === "ONLYMONSTER_API_KEY_MISSING" || !data.apiKeyConfigured) {
+        setConnStatus('not_configured');
+        setConnMessage('OnlyMonster API не настроен. Добавьте серверную переменную ONLYMONSTER_API_KEY.');
+        setAccounts([]);
+      } else if (data.apiKeyConfigured) {
+        setConnStatus('success');
       }
-      return sum;
-    }, 0);
+    } catch (e) {
+      setConnStatus('not_configured');
+      setConnMessage('OnlyMonster API не настроен. Сервер вернул статус 503.');
+      setAccounts([]);
+    }
+  };
 
-    const totalTips = webhooks.filter(w => w.type === 'fans.tip.received').length;
-    const totalPPVs = webhooks.filter(w => w.type === 'fans.ppv.purchased').length;
-    const totalMsgs = webhooks.filter(w => w.type === 'chat.message' || w.type === 'chat.message_sent').length;
+  // Trigger Sync
+  const triggerSync = async (days = selectedDays) => {
+    if (connStatus === 'not_configured') {
+      alert("Синхронизация недоступна: API-ключ ONLYMONSTER_API_KEY не настроен на сервере.");
+      return;
+    }
+    setIsSyncing(true);
+    try {
+      const res = await fetch('/api/integrations/onlymonster/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days })
+      });
+      const data = await res.json();
+      if (!res.ok || data.code === "ONLYMONSTER_API_KEY_MISSING") {
+        setConnStatus('not_configured');
+        setConnMessage('API-ключ ONLYMONSTER_API_KEY не задан.');
+      } else {
+        await fetchInspector();
+      }
+    } catch (e) {
+      console.error("Sync trigger error:", e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
-    return {
-      todayEarnings: baseEarnings + webhookEarnings,
-      tipsCount: totalTips,
-      ppvsCount: totalPPVs,
-      messagesProcessed: totalMsgs
-    };
-  }, [accounts, webhooks]);
+  // Run Test API
+  const runApiTest = async () => {
+    setIsTestingConn(true);
+    try {
+      const res = await fetch('/api/integrations/onlymonster/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (data.diagnostics) {
+        setInspector(data.diagnostics);
+      }
+      if (!res.ok || data.code === "ONLYMONSTER_API_KEY_MISSING" || !data.apiKeyConfigured) {
+        setConnStatus('not_configured');
+        setConnMessage('OnlyMonster API не настроен. Добавьте серверную переменную ONLYMONSTER_API_KEY.');
+        setAccounts([]);
+      } else if (res.ok && data.success) {
+        setConnStatus('success');
+        setConnMessage(`Подключение успешно! Найдено аккаунтов: ${data.accountsFound || 0}`);
+      } else {
+        setConnStatus('error');
+        setConnMessage(data.error || 'Ошибка связи с OnlyMonster API.');
+        setAccounts([]);
+      }
+    } catch (e) {
+      setConnStatus('not_configured');
+      setConnMessage('Сбой подключения: API-ключ не настроен.');
+      setAccounts([]);
+    } finally {
+      setIsTestingConn(false);
+    }
+  };
 
   // Load backend configuration
   const loadConfig = async () => {
@@ -366,27 +454,237 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
 
   return (
     <div className="space-y-6">
+      {/* LIVE INTEGRATION HEADER & CONTROLS */}
+      <div className="glass-card p-4 rounded-3xl border border-violet-500/20 bg-slate-950/60 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-white/10 flex items-center justify-center text-slate-400">
+            <Zap size={20} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-black uppercase text-white font-mono tracking-wider">OnlyMonster API</span>
+              {connStatus === 'success' ? (
+                <span className="text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  LIVE
+                </span>
+              ) : (
+                <span className="text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  NOT CONFIGURED
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+              {connStatus === 'success' ? (
+                <>Подключено аккаунтов: <span className="text-violet-300 font-bold">{accounts.length}</span> • Метод: API Periodic Sync</>
+              ) : (
+                <>OnlyMonster API не настроен • Добавьте серверную переменную <code className="text-amber-300">ONLYMONSTER_API_KEY</code></>
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => triggerSync()}
+            disabled={isSyncing || connStatus === 'not_configured'}
+            className="px-3.5 py-2 bg-slate-900 border border-white/10 hover:border-violet-500/40 hover:bg-slate-800 text-[10px] font-mono font-bold uppercase text-slate-200 rounded-xl transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={connStatus === 'not_configured' ? "API-ключ не настроен" : "Запустить синхронизацию"}
+          >
+            <RefreshCw size={12} className={isSyncing ? "animate-spin text-violet-400" : ""} />
+            {isSyncing ? 'Синхронизация...' : 'Синхронизировать сейчас'}
+          </button>
+
+          <button
+            onClick={() => {
+              fetchInspector();
+              setShowInspector(!showInspector);
+            }}
+            className="px-3.5 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-[10px] font-mono font-bold uppercase text-white rounded-xl shadow-md transition-all flex items-center gap-1.5"
+          >
+            <FileCode2 size={12} />
+            Инспектор API (Диагностика)
+          </button>
+        </div>
+      </div>
+
+      {/* ONLYMONSTER API INSPECTOR DRAWER / MODAL */}
+      <AnimatePresence>
+        {showInspector && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="glass-card p-6 rounded-3xl border border-violet-500/30 bg-slate-950/90 space-y-6 shadow-2xl relative"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-2">
+                <FileCode2 size={18} className="text-violet-400" />
+                <h3 className="text-base font-black text-white font-mono uppercase tracking-wider">
+                  OnlyMonster API Inspector (Диагностический Модуль)
+                </h3>
+              </div>
+              <button 
+                onClick={() => setShowInspector(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-all font-mono text-xs font-bold"
+              >
+                ✕ Закрыть
+              </button>
+            </div>
+
+            {/* Diagnostic Parameters Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-xs">
+              <div className="p-3 bg-slate-900/60 rounded-xl border border-white/5">
+                <p className="text-[9px] uppercase text-slate-500 font-bold">API Key Configured</p>
+                <p className="font-bold mt-1 flex items-center gap-1 text-amber-400">
+                  {inspector?.hasKey ? (
+                    <><CheckCircle2 size={12} className="text-emerald-400" /> Key Present</>
+                  ) : (
+                    <><XCircle size={12} className="text-amber-400" /> false (NOT CONFIGURED)</>
+                  )}
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-900/60 rounded-xl border border-white/5">
+                <p className="text-[9px] uppercase text-slate-500 font-bold">Connection Status</p>
+                <p className="font-bold text-amber-300 mt-1 uppercase">
+                  {inspector?.hasKey ? 'CONNECTED' : 'NOT_CONFIGURED'}
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-900/60 rounded-xl border border-white/5">
+                <p className="text-[9px] uppercase text-slate-500 font-bold">Latency (Длительность)</p>
+                <p className="font-bold text-slate-400 mt-1">
+                  {inspector?.durationMs ? `${inspector.durationMs} ms` : '0 ms'}
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-900/60 rounded-xl border border-white/5">
+                <p className="text-[9px] uppercase text-slate-500 font-bold">Real Requests Executed</p>
+                <p className="font-bold text-slate-400 mt-1">
+                  0
+                </p>
+              </div>
+            </div>
+
+            {/* Confirmed vs Unavailable Metrics Table */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-emerald-950/20 rounded-2xl border border-emerald-500/20 space-y-2">
+                <h4 className="text-xs font-mono font-bold text-emerald-400 uppercase flex items-center gap-1.5">
+                  <CheckCircle2 size={14} /> Подтвержденные Метрики API
+                </h4>
+                {inspector?.confirmedMetrics && inspector.confirmedMetrics.length > 0 ? (
+                  <ul className="text-[10px] font-mono text-slate-300 space-y-1">
+                    {inspector.confirmedMetrics.map((m, i) => (
+                      <li key={i} className="flex items-center gap-1.5">
+                        <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                        {m}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[10px] font-mono text-slate-400 italic">
+                    Нет подтвержденных метрик. API-ключ не настроен.
+                  </p>
+                )}
+              </div>
+
+              <div className="p-4 bg-rose-950/20 rounded-2xl border border-rose-500/20 space-y-2">
+                <h4 className="text-xs font-mono font-bold text-rose-400 uppercase flex items-center gap-1.5">
+                  <XCircle size={14} /> Причина недоступности
+                </h4>
+                <p className="text-[10px] font-mono text-rose-300">
+                  {inspector?.errorMessage || "ONLYMONSTER_API_KEY_MISSING: Серверная переменная окружения ONLYMONSTER_API_KEY не задана."}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* OVERVIEW STATS ROW */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 rounded-2xl border border-white/5 bg-slate-950/45 transition-all">
           <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-1.5 font-mono">Выручка OnlyMonster сегодня</p>
-          <p className="text-xl font-black font-mono text-emerald-400">${stats.todayEarnings.toLocaleString()}</p>
-          <p className="text-[9px] font-bold text-slate-500 mt-1 uppercase font-mono">Автоматический учет с API и Webhook</p>
+          <p className="text-xl font-black font-mono text-slate-400">—</p>
+          <p className="text-[9px] text-slate-500 mt-1 font-mono">source: OnlyMonster API (Не настроен)</p>
         </div>
         <div className="p-4 rounded-2xl border border-white/5 bg-slate-950/45 transition-all">
           <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-1.5 font-mono">Зарегистрировано чаевых</p>
-          <p className="text-xl font-black font-mono text-indigo-400">{stats.tipsCount} <span className="text-xs text-slate-500 font-normal">tips</span></p>
-          <p className="text-[9px] font-bold text-slate-500 mt-1 uppercase font-mono">Через webhook событие fans.tip</p>
+          <p className="text-xl font-black font-mono text-slate-400">—</p>
+          <p className="text-[9px] text-slate-500 mt-1 font-mono">source: OnlyMonster API (Не настроен)</p>
         </div>
         <div className="p-4 rounded-2xl border border-white/5 bg-slate-950/45 transition-all">
-          <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-1.5 font-mono">Продано PPV в эфире</p>
-          <p className="text-xl font-black font-mono text-violet-400">{stats.ppvsCount} <span className="text-xs text-slate-500 font-normal">sales</span></p>
-          <p className="text-[9px] font-bold text-slate-500 mt-1 uppercase font-mono">Событие fans.ppv.purchased</p>
+          <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-1.5 font-mono">Продано PPV</p>
+          <p className="text-xl font-black font-mono text-slate-400">—</p>
+          <p className="text-[9px] text-slate-500 mt-1 font-mono">source: OnlyMonster API (Не настроен)</p>
         </div>
         <div className="p-4 rounded-2xl border border-white/5 bg-slate-950/45 transition-all">
           <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-1.5 font-mono">Обработано сообщений чата</p>
-          <p className="text-xl font-black font-mono text-amber-400">{stats.messagesProcessed}</p>
-          <p className="text-[9px] font-bold text-slate-500 mt-1 uppercase font-mono">Потоковые данные chat.message</p>
+          <p className="text-xl font-black font-mono text-slate-400">—</p>
+          <p className="text-[9px] text-slate-500 mt-1 font-mono">source: OnlyMonster API (Не настроен)</p>
+        </div>
+      </div>
+
+      {/* ANALYTICS & DROP ANALYSIS */}
+      <div className="glass-card p-5 rounded-3xl border border-white/5 bg-slate-950/45 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-black uppercase text-slate-300 tracking-wider font-mono flex items-center gap-2">
+              <BarChart3 size={16} className="text-violet-400" />
+              Аналитика просадок и Коэффициентов
+            </h3>
+            <p className="text-[10px] text-slate-500 font-mono mt-0.5">Математический анализ факторов изменений выручки</p>
+          </div>
+        </div>
+
+        <div className="p-4 bg-slate-900/40 rounded-2xl border border-amber-500/20 text-center space-y-1">
+          <p className="text-xs font-mono font-bold text-amber-400">
+            Недостаточно данных для анализа просадки
+          </p>
+          <p className="text-[10px] font-mono text-slate-400">
+            Подключение к OnlyMonster API не настроено. Для построения динамических графиков и анализа просадок добавьте переменную окружения ONLYMONSTER_API_KEY.
+          </p>
+        </div>
+      </div>
+
+      {/* OPERATORS & SHIFTS ATTRIBUTION */}
+      <div className="glass-card p-5 rounded-3xl border border-white/5 bg-slate-950/45 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-black uppercase text-slate-300 tracking-wider font-mono flex items-center gap-2">
+              <UserCheck size={16} className="text-indigo-400" />
+              Привязка Операторов и Смен
+            </h3>
+            <p className="text-[10px] text-slate-500 font-mono mt-0.5">Разделение подтвержденных данных API и расчетной привязки</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="p-4 bg-slate-900/60 rounded-2xl border border-white/5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white font-mono">Подтвержденная статистика оператора</span>
+              <span className="text-[8px] font-mono uppercase bg-emerald-500/15 text-emerald-400 px-2 py-0.5 rounded font-bold">
+                API member_id
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 leading-relaxed font-mono">
+              Операторы, чей ID непосредственно передан в полях <code className="text-violet-300">member_id</code> сообщений или транзакций OnlyMonster. Привязка подтверждена на 100%.
+            </p>
+          </div>
+
+          <div className="p-4 bg-slate-900/60 rounded-2xl border border-white/5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white font-mono">Расчетная привязка по смене</span>
+              <span className="text-[8px] font-mono uppercase bg-amber-500/15 text-amber-400 px-2 py-0.5 rounded font-bold">
+                Расписание
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 leading-relaxed font-mono">
+              Для транзакций без прямого member_id используется математическая привязка к оператору по графику смен. Обозначается плашкой "Расчетная привязка".
+            </p>
+          </div>
         </div>
       </div>
 
@@ -418,45 +716,54 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
             </div>
 
             <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-              {accounts.map(acc => (
-                <div 
-                  key={acc.id} 
-                  className="flex items-center justify-between p-3.5 bg-slate-950/50 rounded-2xl border border-white/[0.02] hover:border-violet-500/10 transition-all group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-violet-950/40 border border-violet-500/20 flex items-center justify-center text-white font-bold text-sm">
-                      {acc.name.charAt(0)}
+              {accounts.length > 0 ? (
+                accounts.map(acc => (
+                  <div 
+                    key={acc.id} 
+                    className="flex items-center justify-between p-3.5 bg-slate-950/50 rounded-2xl border border-white/[0.02] hover:border-violet-500/10 transition-all group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-violet-950/40 border border-violet-500/20 flex items-center justify-center text-white font-bold text-sm">
+                        {acc.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-white">{acc.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[8px] font-mono uppercase bg-violet-500/15 text-violet-400 px-1.5 py-0.2 rounded font-bold">
+                            {acc.platform}
+                          </span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          <span className="text-[9px] text-slate-500 font-mono">В эфире</span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-black text-white">{acc.name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[8px] font-mono uppercase bg-violet-500/15 text-violet-400 px-1.5 py-0.2 rounded font-bold">
-                          {acc.platform}
-                        </span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                        <span className="text-[9px] text-slate-500 font-mono">В эфире</span>
+
+                    <div className="flex items-center gap-5 text-right">
+                      <div>
+                        <p className="text-[8px] font-mono font-bold uppercase text-slate-500">Непрочитано</p>
+                        <p className={`text-xs font-black font-mono mt-0.5 ${acc.unread_chats > 0 ? 'text-rose-400 bg-rose-500/10 px-1.5 py-0.2 rounded-md' : 'text-slate-400'}`}>
+                          {acc.unread_chats}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-mono font-bold uppercase text-slate-500">Операторов</p>
+                        <p className="text-xs font-black font-mono text-slate-300 mt-0.5">{acc.active_operators}</p>
+                      </div>
+                      <div className="w-20">
+                        <p className="text-[8px] font-mono font-bold uppercase text-slate-500">Доход сегодня</p>
+                        <p className="text-xs font-black font-mono text-emerald-400 mt-0.5">+${acc.today_earnings}</p>
                       </div>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-5 text-right">
-                    <div>
-                      <p className="text-[8px] font-mono font-bold uppercase text-slate-500">Непрочитано</p>
-                      <p className={`text-xs font-black font-mono mt-0.5 ${acc.unread_chats > 0 ? 'text-rose-400 bg-rose-500/10 px-1.5 py-0.2 rounded-md' : 'text-slate-400'}`}>
-                        {acc.unread_chats}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[8px] font-mono font-bold uppercase text-slate-500">Операторов</p>
-                      <p className="text-xs font-black font-mono text-slate-300 mt-0.5">{acc.active_operators}</p>
-                    </div>
-                    <div className="w-20">
-                      <p className="text-[8px] font-mono font-bold uppercase text-slate-500">Доход сегодня</p>
-                      <p className="text-xs font-black font-mono text-emerald-400 mt-0.5">+${acc.today_earnings}</p>
-                    </div>
-                  </div>
+                ))
+              ) : (
+                <div className="p-6 bg-slate-900/30 rounded-2xl border border-dashed border-white/10 text-center space-y-1">
+                  <p className="text-xs font-mono font-bold text-slate-400">Нет подключенных аккаунтов</p>
+                  <p className="text-[10px] font-mono text-slate-500">
+                    Добавьте серверную переменную <code className="text-amber-300">ONLYMONSTER_API_KEY</code> для загрузки реальных аккаунтов.
+                  </p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
