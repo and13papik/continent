@@ -7,7 +7,7 @@ import {
   handleOnlyMonsterInspector,
   handleOnlyMonsterTest,
   handleOnlyMonsterSync
-} from "./lib/server/onlymonster/client";
+} from "./api/_lib/onlymonster-client";
 
 async function startServer() {
   const app = express();
@@ -40,6 +40,7 @@ async function startServer() {
   let pendingScheduledSend: string | null = null;
   let isSendingRosterLock = false;
   let lastRosterSendTimestamp = 0;
+  let lastRosterImageData: { image: string; periodLabel: string; isCorrection: boolean } | null = null;
 
   // Kyiv time helper (Europe/Kyiv)
   function getKyivTimeInfo() {
@@ -61,20 +62,68 @@ async function startServer() {
     return { dateStr, hour, minute };
   }
 
-  // Interval checking 10:00 and 20:00 Kyiv time daily
-  setInterval(() => {
+  // Interval checking 10:00 and 22:00 Kyiv time daily for automated Telegram send
+  setInterval(async () => {
     const kyiv = getKyivTimeInfo();
     const is10am = kyiv.hour === 10 && kyiv.minute >= 0 && kyiv.minute <= 3;
-    const is8pm = kyiv.hour === 20 && kyiv.minute >= 0 && kyiv.minute <= 3;
+    const is10pm = kyiv.hour === 22 && kyiv.minute >= 0 && kyiv.minute <= 3;
 
-    if (is10am || is8pm) {
-      const slot = `${kyiv.dateStr}_${is10am ? '10:00' : '20:00'}`;
+    if (is10am || is10pm) {
+      const timeTag = is10am ? '10:00' : '22:00';
+      const slot = `${kyiv.dateStr}_${timeTag}`;
       if (!scheduledSends[slot] && pendingScheduledSend !== slot) {
         console.log(`[Kyiv Schedule] Triggering scheduled roster notification for slot: ${slot}`);
         pendingScheduledSend = slot;
       }
+
+      // Fallback: Only after 3 minutes if client hasn't sent AND ONLY IF cached image exists (NEVER send text-only)
+      if (pendingScheduledSend === slot && kyiv.minute >= 3 && !scheduledSends[slot] && !isSendingRosterLock && lastRosterImageData?.image) {
+        console.log(`[Kyiv Schedule Fallback] Server auto-sending cached roster photo for slot: ${slot}`);
+        scheduledSends[slot] = true;
+        pendingScheduledSend = null;
+        isSendingRosterLock = true;
+
+        try {
+          const dateDisplay = new Date().toLocaleDateString('ru-RU');
+          const headerText = `📊 <b>СОСТАВ КОМАНДЫ</b>`;
+          const caption = `${headerText}\nПериод: ${lastRosterImageData.periodLabel || 'Текущий'}\nДата: ${dateDisplay}\n\n<b>СОСТАВ АКТУАЛЕН?</b>\n\n🔔 <a href="tg://user?id=8679682362">@adm_viksi_viii [Adm]Vi</a> <a href="tg://user?id=6537516111">@adm_rctr Rector</a>`;
+
+          const replyMarkup = {
+            inline_keyboard: [
+              [
+                { text: 'АКТУАЛЕН', callback_data: 'roster_actual' },
+                { text: 'НЕТ', callback_data: 'roster_not_actual' }
+              ]
+            ]
+          };
+
+          const base64Data = lastRosterImageData.image.replace(/^data:image\/\w+;base64,/, "");
+          const buffer = Buffer.from(base64Data, 'base64');
+          const form = new FormData();
+          form.append('chat_id', CHAT_ID);
+          form.append('photo', buffer, { filename: 'roster.png' });
+          form.append('caption', caption);
+          form.append('parse_mode', 'HTML');
+          form.append('reply_markup', JSON.stringify(replyMarkup));
+
+          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+            method: 'POST',
+            headers: form.getHeaders(),
+            body: form
+          });
+
+          rosterState = {
+            status: 'pending_approval',
+            needsFix: false
+          };
+        } catch (autoErr) {
+          console.error("Error in server auto-send fallback:", autoErr);
+        } finally {
+          isSendingRosterLock = false;
+        }
+      }
     }
-  }, 15000);
+  }, 10000);
 
   // In-memory state for approvals
   const rosterApprovals: Record<string, string[]> = {};
@@ -217,10 +266,24 @@ async function startServer() {
     try {
       const { image, periodLabel, isCorrection, scheduledSlot } = req.body;
 
+      if (scheduledSlot) {
+        scheduledSends[scheduledSlot] = true;
+        if (pendingScheduledSend === scheduledSlot) {
+          pendingScheduledSend = null;
+        }
+      }
+
       if (!image) {
         isSendingRosterLock = false;
         return res.status(400).json({ error: "Отсутствует изображение состава" });
       }
+
+      // Cache image for automated server fallback sends
+      lastRosterImageData = {
+        image,
+        periodLabel: periodLabel || 'Текущий',
+        isCorrection: !!isCorrection
+      };
 
       const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
       const buffer = Buffer.from(base64Data, 'base64');

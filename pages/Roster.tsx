@@ -121,7 +121,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
             setRosterStatusText(null);
           }
 
-          // Check for scheduled send trigger (10:00 / 20:00 Kyiv time)
+          // Check for scheduled send trigger (10:00 / 22:00 Kyiv time)
           if (data.pendingScheduledSend && !isAutoSendingRef.current && !isSendingTelegram) {
             isAutoSendingRef.current = true;
             console.log(`[Scheduled Send] Executing scheduled send for slot: ${data.pendingScheduledSend}`);
@@ -832,7 +832,13 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-4xl font-black text-white tracking-tight">Состав</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-4xl font-black text-white tracking-tight">Состав</h1>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
+              <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+              Авто в TG: 10:00 и 22:00 (Киев)
+            </span>
+          </div>
           <div className="flex items-center gap-3 mt-1">
             <PeriodBadge state={state} />
             <p className="text-slate-400 font-medium">Управление сменами и распределение операторов</p>
