@@ -2,25 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Zap, 
-  Settings, 
   RefreshCw, 
   AlertCircle, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  Check, 
   Search, 
   Users, 
   CheckCircle2, 
   XCircle, 
-  ExternalLink,
-  HelpCircle,
-  Copy,
-  ChevronDown,
-  ChevronUp,
-  Globe,
-  Sparkles,
-  Layers
+  Lock
 } from 'lucide-react';
 
 interface OnlyMonsterTabProps {
@@ -39,24 +27,24 @@ interface OnlyMonsterAccount {
   avatar_url?: string;
 }
 
-export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) => {
-  // Config state
-  const [apiKey, setApiKey] = useState('');
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+function decodeHtmlEntities(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, '<')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+}
 
+export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) => {
   // Accounts & API state
   const [accounts, setAccounts] = useState<OnlyMonsterAccount[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [connStatus, setConnStatus] = useState<'idle' | 'testing' | 'live' | 'not_configured' | 'error'>('idle');
   const [statusMessage, setStatusMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showHelp, setShowHelp] = useState(true);
-  const [copiedUrl, setCopiedUrl] = useState(false);
-
-  // Webhook URL
-  const webhookUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhook`;
 
   // Load current configuration from server
   const loadConfig = async () => {
@@ -66,7 +54,6 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
         const data = await res.json();
         const activeToken = data.token || (data.apiKeyConfigured ? 'env_configured' : '');
         if (data.apiKeyConfigured || (activeToken && !activeToken.startsWith('om_token_fc269e0'))) {
-          setApiKey(activeToken || 'env_configured');
           fetchAccounts(activeToken || 'env_configured');
         } else {
           setConnStatus('not_configured');
@@ -110,16 +97,19 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
         }
 
         if (rawList.length > 0) {
-          const parsedAccounts: OnlyMonsterAccount[] = rawList.map((acc: any, index: number) => ({
-            id: String(acc.id || acc.account_id || `acc_${index + 1}`),
-            name: acc.name || acc.title || acc.model_name || agencyModels[index] || `Модель ${index + 1}`,
-            handle: acc.username || acc.handle || acc.of_handle || '',
-            platform: acc.platform || 'OnlyFans',
-            status: acc.status === 'inactive' ? 'inactive' : 'active',
-            unread_chats: typeof acc.unread_chats === 'number' ? acc.unread_chats : (acc.unread_count || 0),
-            active_operators: typeof acc.active_operators === 'number' ? acc.active_operators : (acc.operators_count || 1),
-            today_earnings: typeof acc.today_earnings === 'number' ? acc.today_earnings : (acc.earnings_today || 0)
-          }));
+          const parsedAccounts: OnlyMonsterAccount[] = rawList.map((acc: any, index: number) => {
+            const rawName = acc.name || acc.title || acc.model_name || agencyModels[index] || `Модель ${index + 1}`;
+            return {
+              id: String(acc.id || acc.account_id || `acc_${index + 1}`),
+              name: decodeHtmlEntities(String(rawName)),
+              handle: acc.username || acc.handle || acc.of_handle || '',
+              platform: acc.platform || 'OnlyFans',
+              status: acc.status === 'inactive' ? 'inactive' : 'active',
+              unread_chats: typeof acc.unread_chats === 'number' ? acc.unread_chats : (acc.unread_count || 0),
+              active_operators: typeof acc.active_operators === 'number' ? acc.active_operators : (acc.operators_count || 1),
+              today_earnings: typeof acc.today_earnings === 'number' ? acc.today_earnings : (acc.earnings_today || 0)
+            };
+          });
 
           setAccounts(parsedAccounts);
           setConnStatus('live');
@@ -142,43 +132,6 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Save config and immediately test connection
-  const handleSaveAndConnect = async () => {
-    const cleanKey = apiKey.trim();
-    if (!cleanKey || cleanKey.length < 5) {
-      setSaveMessage({ type: 'error', text: 'Пожалуйста, введите корректный API-ключ OnlyMonster' });
-      return;
-    }
-
-    setIsSaving(true);
-    setSaveMessage(null);
-
-    try {
-      const res = await fetch('/api/onlymonster/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: cleanKey })
-      });
-
-      if (res.ok) {
-        setSaveMessage({ type: 'success', text: 'Ключ сохранён! Проверяем подключение...' });
-        await fetchAccounts(cleanKey);
-      } else {
-        setSaveMessage({ type: 'error', text: 'Ошибка сохранения настроек на сервере' });
-      }
-    } catch (e) {
-      setSaveMessage({ type: 'error', text: 'Ошибка сети при сохранении настроек' });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedUrl(true);
-    setTimeout(() => setCopiedUrl(false), 2000);
   };
 
   useEffect(() => {
@@ -228,7 +181,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
               {connStatus === 'live' ? (
                 <>Подключенные модели: <span className="text-violet-300 font-bold">{accounts.length}</span> • Прямой режим (без симуляции)</>
               ) : (
-                <>Синхронизация с Vercel (ONLYMONSTER_API_KEY)</>
+                <>Прямое подключение к OnlyMonster</>
               )}
             </p>
           </div>
@@ -263,26 +216,6 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
         </div>
       )}
 
-      {/* WEBHOOK LINK CARD */}
-      <div className="glass-card p-4 rounded-2xl border border-white/10 bg-slate-950/60 font-mono text-xs">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-slate-400">
-            <Globe size={14} className="text-indigo-400" />
-            <span>Webhook URL для синхронизации транзакций:</span>
-            <code className="text-indigo-300 bg-slate-950 px-2 py-0.5 rounded border border-white/5 text-[11px]">
-              {webhookUrl}
-            </code>
-          </div>
-          <button
-            onClick={() => copyToClipboard(webhookUrl)}
-            className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-xl text-[10px] uppercase font-bold flex items-center gap-1.5 transition-all"
-          >
-            {copiedUrl ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-            {copiedUrl ? 'Скопировано' : 'Копировать Ссылку'}
-          </button>
-        </div>
-      </div>
-
       {/* SECTION 2: CONNECTED MODEL ACCOUNTS LIST */}
       <div className="glass-card p-6 rounded-3xl border border-white/10 bg-slate-950/60 space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/5 pb-4">
@@ -315,9 +248,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
             <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mx-auto">
               <Lock size={20} />
             </div>
-            <h4 className="text-sm font-black text-slate-200 font-mono uppercase">API-Ключ не введён</h4>
+            <h4 className="text-sm font-black text-slate-200 font-mono uppercase">API-Ключ не настроен</h4>
             <p className="text-xs font-mono text-slate-400 max-w-md mx-auto leading-relaxed">
-              Для отображения ваших подключенных аккаунтов из OnlyMonster Browser, пожалуйста, укажите ваш API-ключ в поле выше и нажмите <strong className="text-white">Сохранить и подключить API</strong>.
+              Укажите переменную окружения <strong className="text-white">ONLYMONSTER_API_KEY</strong> в настройках проекта Vercel.
             </p>
           </div>
         ) : isLoading ? (
@@ -394,3 +327,4 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
     </div>
   );
 };
+
