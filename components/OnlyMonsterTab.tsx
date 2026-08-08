@@ -64,17 +64,13 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
       const res = await fetch('/api/onlymonster/config');
       if (res.ok) {
         const data = await res.json();
-        if (data.token && !data.token.startsWith('om_token_fc269e0')) {
-          setApiKey(data.token);
-          if (data.apiKeyConfigured) {
-            fetchAccounts(data.token);
-          } else {
-            setConnStatus('not_configured');
-            setStatusMessage('API-ключ не настроен. Введите токен из вашего кабинета OnlyMonster.');
-          }
+        const activeToken = data.token || (data.apiKeyConfigured ? 'env_configured' : '');
+        if (data.apiKeyConfigured || (activeToken && !activeToken.startsWith('om_token_fc269e0'))) {
+          setApiKey(activeToken || 'env_configured');
+          fetchAccounts(activeToken || 'env_configured');
         } else {
           setConnStatus('not_configured');
-          setStatusMessage('API-ключ не настроен. Введите токен из вашего кабинета OnlyMonster.');
+          setStatusMessage('API-ключ не настроен. Укажите переменную ONLYMONSTER_API_KEY в Vercel Dashboard.');
         }
       }
     } catch (e) {
@@ -85,26 +81,18 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
 
   // Fetch real accounts from OnlyMonster API
   const fetchAccounts = async (keyOverride?: string) => {
-    const keyToUse = keyOverride || apiKey;
-    if (!keyToUse || keyToUse.trim().length < 5 || keyToUse.startsWith('om_token_fc269e0')) {
-      setConnStatus('not_configured');
-      setStatusMessage('Введите действующий API-ключ OnlyMonster.');
-      setAccounts([]);
-      return;
-    }
-
     setIsLoading(true);
     setConnStatus('testing');
-    setStatusMessage('Запрос к OnlyMonster Browser API (https://omapi.onlymonster.ai/api/v0/accounts)...');
+    setStatusMessage('Запрос к OnlyMonster Browser API...');
 
     try {
       const res = await fetch('/api/onlymonster/proxy?path=accounts');
       if (res.ok) {
         const data = await res.json();
 
-        if (data && (data.not_configured || data.success === false && data.error)) {
+        if (data && (data.not_configured || (data.success === false && data.error))) {
           setConnStatus('error');
-          setStatusMessage(data.error || 'Ошибка авторизации. Проверьте ваш API-ключ.');
+          setStatusMessage(data.error || 'Ошибка авторизации. Проверьте ваш API-ключ в Vercel.');
           setAccounts([]);
           return;
         }
@@ -240,7 +228,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
               {connStatus === 'live' ? (
                 <>Подключенные модели: <span className="text-violet-300 font-bold">{accounts.length}</span> • Прямой режим (без симуляции)</>
               ) : (
-                <>Настройте Ваш API-ключ ниже для прямой загрузки моделей из OnlyMonster</>
+                <>Синхронизация с Vercel (ONLYMONSTER_API_KEY)</>
               )}
             </p>
           </div>
@@ -249,7 +237,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
         <div className="flex items-center gap-2">
           <button
             onClick={() => fetchAccounts()}
-            disabled={isLoading || !apiKey}
+            disabled={isLoading}
             className="px-4 py-2.5 bg-slate-900 border border-white/10 hover:border-violet-500/40 hover:bg-slate-800 text-xs font-mono font-bold uppercase text-slate-200 rounded-xl transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-md"
             title="Обновить список моделей из OnlyMonster API"
           >
@@ -259,147 +247,39 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
         </div>
       </div>
 
-      {/* SECTION 1: API KEY & CONFIGURATION PANEL */}
-      <div className="glass-card p-6 rounded-3xl border border-white/10 bg-slate-950/60 space-y-5">
-        <div className="flex items-center justify-between border-b border-white/5 pb-4">
-          <div className="flex items-center gap-2.5">
-            <Settings size={18} className="text-violet-400" />
-            <h3 className="text-sm font-black uppercase text-white font-mono tracking-wider">
-              Настройка API-Ключа OnlyMonster
-            </h3>
+      {/* STATUS & FEEDBACK NOTIFICATION */}
+      {statusMessage && connStatus !== 'live' && (
+        <div className={`p-4 rounded-2xl border flex gap-3 items-start font-mono text-xs ${
+          connStatus === 'error'
+            ? 'bg-rose-950/30 border-rose-500/30 text-rose-300'
+            : 'bg-amber-950/20 border-amber-500/30 text-amber-300'
+        }`}>
+          {connStatus === 'error' ? (
+            <XCircle size={16} className="text-rose-400 shrink-0 mt-0.5" />
+          ) : (
+            <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+          )}
+          <p className="leading-relaxed font-medium">{statusMessage}</p>
+        </div>
+      )}
+
+      {/* WEBHOOK LINK CARD */}
+      <div className="glass-card p-4 rounded-2xl border border-white/10 bg-slate-950/60 font-mono text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-slate-400">
+            <Globe size={14} className="text-indigo-400" />
+            <span>Webhook URL для синхронизации транзакций:</span>
+            <code className="text-indigo-300 bg-slate-950 px-2 py-0.5 rounded border border-white/5 text-[11px]">
+              {webhookUrl}
+            </code>
           </div>
           <button
-            onClick={() => setShowHelp(!showHelp)}
-            className="text-xs font-mono text-violet-400 hover:text-violet-300 flex items-center gap-1 bg-violet-500/10 hover:bg-violet-500/20 px-3 py-1.5 rounded-xl border border-violet-500/20 transition-all"
+            onClick={() => copyToClipboard(webhookUrl)}
+            className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-xl text-[10px] uppercase font-bold flex items-center gap-1.5 transition-all"
           >
-            <HelpCircle size={14} />
-            {showHelp ? 'Скрыть инструкцию' : 'Как получить ключ?'}
+            {copiedUrl ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+            {copiedUrl ? 'Скопировано' : 'Копировать Ссылку'}
           </button>
-        </div>
-
-        {/* STEP BY STEP INSTRUCTION BANNER */}
-        <AnimatePresence>
-          {showHelp && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="p-4 bg-violet-950/20 border border-violet-500/25 rounded-2xl space-y-3 font-mono text-xs">
-                <div className="flex items-center gap-2 text-violet-300 font-bold uppercase tracking-wider text-[11px]">
-                  <Sparkles size={14} className="text-violet-400" />
-                  Пошаговая инструкция для подключения вашей агенции:
-                </div>
-                <ol className="list-decimal list-inside space-y-2 text-slate-300 leading-relaxed text-[11px]">
-                  <li>
-                    Откройте панель управления <strong className="text-white">OnlyMonster Browser / Dashboard</strong>.
-                  </li>
-                  <li>
-                    Перейдите в раздел <strong className="text-white">Settings (Настройки) → API & Webhooks</strong>.
-                  </li>
-                  <li>
-                    Скопируйте ваш персональный <strong className="text-violet-300">API Key / Token</strong> и вставьте его в поле ниже.
-                  </li>
-                  <li>
-                    (Опционально) Скопируйте ссылку Webhook и укажите её в OnlyMonster для мгновенного получения уведомлений.
-                  </li>
-                </ol>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* INPUT FORM */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
-          <div className="lg:col-span-8 space-y-2">
-            <label className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-              <Lock size={13} className="text-violet-400" />
-              API Key OnlyMonster (Bearer Token)
-            </label>
-            <div className="relative flex items-center bg-slate-900/90 border border-white/10 rounded-2xl px-3.5 py-3 focus-within:border-violet-500/50 transition-all">
-              <input 
-                type={showApiKey ? "text" : "password"} 
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Вставьте ваш API токен (например: om_token_... или om_key_...)" 
-                className="bg-transparent border-none text-xs text-white focus:outline-none focus:ring-0 w-full font-mono placeholder-slate-600"
-              />
-              <button 
-                onClick={() => setShowApiKey(!showApiKey)}
-                className="p-1.5 hover:bg-white/[0.08] rounded-xl text-slate-400 transition-all shrink-0"
-                title={showApiKey ? "Скрыть ключ" : "Показать ключ"}
-              >
-                {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-          </div>
-
-          <div className="lg:col-span-4">
-            <button 
-              onClick={handleSaveAndConnect}
-              disabled={isSaving || !apiKey.trim()}
-              className="w-full py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 text-xs font-mono font-bold uppercase text-white rounded-2xl shadow-lg shadow-violet-950/50 transition-all flex items-center justify-center gap-2"
-            >
-              {isSaving ? (
-                <>
-                  <RefreshCw size={14} className="animate-spin" />
-                  Сохранение...
-                </>
-              ) : (
-                <>
-                  <Check size={14} />
-                  Сохранить и подключить API
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* STATUS & FEEDBACK NOTIFICATION */}
-        {saveMessage && (
-          <p className={`text-xs font-mono font-bold ${saveMessage.type === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {saveMessage.text}
-          </p>
-        )}
-
-        {statusMessage && (
-          <div className={`p-3.5 rounded-2xl border flex gap-3 items-start ${
-            connStatus === 'live' 
-              ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300' 
-              : connStatus === 'error'
-              ? 'bg-rose-950/20 border-rose-500/30 text-rose-300'
-              : 'bg-slate-900/60 border-white/10 text-slate-300'
-          }`}>
-            {connStatus === 'live' ? (
-              <CheckCircle2 size={16} className="text-emerald-400 shrink-0 mt-0.5" />
-            ) : connStatus === 'error' ? (
-              <XCircle size={16} className="text-rose-400 shrink-0 mt-0.5" />
-            ) : (
-              <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
-            )}
-            <p className="text-xs leading-relaxed font-mono font-medium">{statusMessage}</p>
-          </div>
-        )}
-
-        {/* WEBHOOK LINK CARD */}
-        <div className="pt-2">
-          <div className="p-3.5 bg-slate-900/40 rounded-2xl border border-white/5 flex flex-wrap items-center justify-between gap-3 font-mono text-xs">
-            <div className="flex items-center gap-2 text-slate-400">
-              <Globe size={14} className="text-indigo-400" />
-              <span>Webhook URL для синхронизации транзакций:</span>
-              <code className="text-indigo-300 bg-slate-950 px-2 py-0.5 rounded border border-white/5 text-[11px]">
-                {webhookUrl}
-              </code>
-            </div>
-            <button
-              onClick={() => copyToClipboard(webhookUrl)}
-              className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-xl text-[10px] uppercase font-bold flex items-center gap-1.5 transition-all"
-            >
-              {copiedUrl ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-              {copiedUrl ? 'Скопировано' : 'Копировать Ссылку'}
-            </button>
-          </div>
         </div>
       </div>
 
