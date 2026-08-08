@@ -33,6 +33,8 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [modelFilterSearch, setModelFilterSearch] = useState('');
   const [opFilterSearch, setOpFilterSearch] = useState('');
+  const [selectedPlatform, setSelectedPlatform] = useState<'all' | 'onlyFans' | 'paypal' | 'crypto'>('all');
+  const [copiedReport, setCopiedReport] = useState(false);
 
   const inactiveModelsSet = useMemo(() => {
     return new Set((state.inactiveModels || []).map(m => m.trim().toLowerCase()));
@@ -113,13 +115,19 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
       { name: 'Crypto', value: currentCR, percent: currentTotal > 0 ? (currentCR / currentTotal) * 100 : 0, color: METRICS_COLORS.amber }
     ].filter(p => p.value > 0);
 
-    // Daily stats for current month
-    const dailyRevenue: Record<string, number> = {};
+    // Daily stats for current month with platform breakdown
+    const dailyRevenue: Record<string, { total: number; onlyFans: number; paypal: number; crypto: number }> = {};
     currentRecords.forEach(r => {
-      dailyRevenue[r.date] = (dailyRevenue[r.date] || 0) + r.total;
+      if (!dailyRevenue[r.date]) {
+        dailyRevenue[r.date] = { total: 0, onlyFans: 0, paypal: 0, crypto: 0 };
+      }
+      dailyRevenue[r.date].total += (r.total || 0);
+      dailyRevenue[r.date].onlyFans += (r.onlyFans || 0);
+      dailyRevenue[r.date].paypal += (r.paypal || 0);
+      dailyRevenue[r.date].crypto += (r.crypto || 0);
     });
 
-    const dailyEntries: { date: string; value: number }[] = [];
+    const dailyEntries: { date: string; value: number; total: number; onlyFans: number; paypal: number; crypto: number }[] = [];
     const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
     
     const maxDayToInclude = isLatestPeriod
@@ -138,9 +146,17 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       if (d <= maxDayToInclude) {
+        const dayData = dailyRevenue[dateStr] || { total: 0, onlyFans: 0, paypal: 0, crypto: 0 };
+        const val = selectedPlatform === 'onlyFans' ? dayData.onlyFans :
+                    selectedPlatform === 'paypal' ? dayData.paypal :
+                    selectedPlatform === 'crypto' ? dayData.crypto : dayData.total;
         dailyEntries.push({
           date: dateStr,
-          value: dailyRevenue[dateStr] || 0
+          value: val,
+          total: dayData.total,
+          onlyFans: dayData.onlyFans,
+          paypal: dayData.paypal,
+          crypto: dayData.crypto
         });
       }
     }
@@ -223,7 +239,11 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
     const projectedTotal = Math.max(currentTotal, runRate * daysInMonth);
 
     // Cumulative plans
-    const activeModelsList = state.models.filter(m => m.trim() !== '' && !inactiveModelsSet.has(m.trim().toLowerCase()));
+    const currentPeriodModels = (currentPeriod?.models && currentPeriod.models.length > 0)
+      ? currentPeriod.models
+      : state.models;
+
+    const activeModelsList = currentPeriodModels.filter(m => m.trim() !== '' && !inactiveModelsSet.has(m.trim().toLowerCase()));
     const totalCombinedPlan = activeModelsList.reduce((sum, name) => {
       return sum + (currentPeriod?.modelMonthlyPlans?.[name] || state.modelMonthlyPlans?.[name] || 0);
     }, 0);
@@ -231,12 +251,15 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
     const planFulfillmentForecast = totalCombinedPlan > 0 ? (projectedTotal / totalCombinedPlan) * 100 : 0;
 
     // Model metrics
-    const modelMetrics = state.models
+    const modelMetrics = currentPeriodModels
       .filter(m => m.trim() !== '')
       .map(name => {
         const mRecords = currentRecords.filter(r => r.model.trim().toLowerCase() === name.trim().toLowerCase());
         const mTotal = mRecords.reduce((sum, r) => sum + (r.total || 0), 0);
         const mOnlyFansTotal = mRecords.reduce((sum, r) => sum + (r.onlyFans || 0), 0);
+        const mPrevRecords = prevRecords.filter(r => r.model.trim().toLowerCase() === name.trim().toLowerCase());
+        const mPrevTotal = mPrevRecords.reduce((sum, r) => sum + (r.total || 0), 0);
+        const mGrowth = mPrevTotal > 0 ? ((mTotal - mPrevTotal) / mPrevTotal) * 100 : mTotal > 0 ? 100 : 0;
         const mGoal = currentPeriod?.modelMonthlyPlans?.[name] || state.modelMonthlyPlans?.[name] || 0;
         
         const mProgress = mGoal > 0 ? (mOnlyFansTotal / mGoal) * 100 : 0;
@@ -273,6 +296,7 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
           goal: mGoal,
           progress: mProgress,
           forecast: mForecast,
+          growth: mGrowth,
           status,
           bestDay: mBestDay,
           daily: mDailyFull,
@@ -526,7 +550,7 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
       formatDate: formatDayString,
       formatShortDate: formatShortDayString
     };
-  }, [incomeData, state.modelMonthlyPlans, state.selectedPeriodId, state.accountingPeriods, state.models, inactiveModelsSet]);
+  }, [incomeData, state.modelMonthlyPlans, state.selectedPeriodId, state.accountingPeriods, state.models, inactiveModelsSet, selectedPlatform]);
 
   const selectedModelData = useMemo(() => {
     if (!selectedModel) return null;
@@ -545,6 +569,34 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
       op.name.toLowerCase().includes(opFilterSearch.toLowerCase())
     );
   }, [metrics.topOperatorsMonth, opFilterSearch]);
+
+  const generateTelegramReport = () => {
+    const activePeriod = state.accountingPeriods.find(p => p.id === state.selectedPeriodId);
+    const periodName = activePeriod ? activePeriod.label : 'Текущий период';
+    const topModel = metrics.modelMetrics[0];
+    const topOp = metrics.topOperatorsMonth[0];
+    const mainRisk = metrics.diagnostics.warnings[0]?.text;
+    const mainInsight = metrics.diagnostics.achievements[0]?.text;
+
+    let reportText = '📊 *Сводный отчет по метрикам агентства*\n';
+    reportText += '🗓 *Период:* ' + periodName + '\n\n';
+    reportText += '💵 *Общая выручка:* $' + metrics.currentTotal.toLocaleString() + ' (' + (metrics.growth >= 0 ? '+' : '') + metrics.growth.toFixed(1) + '% vs прошлый период)\n';
+    reportText += '📈 *Прогноз на период:* $' + metrics.projectedTotal.toLocaleString(undefined, { maximumFractionDigits: 0 }) + '\n';
+    reportText += '🎯 *Выполнение плана:* ' + metrics.planFulfillmentForecast.toFixed(1) + '%\n\n';
+    reportText += '⭐ *Топ модель:* ' + (topModel ? topModel.name + ' ($' + topModel.total.toLocaleString() + ', ' + topModel.progress.toFixed(0) + '% от плана)' : '—') + '\n';
+    reportText += '⚡ *Топ оператор:* ' + (topOp ? topOp.name + ' ($' + topOp.total.toLocaleString() + ', $' + topOp.avgPerShift.toFixed(0) + '/смена)' : '—') + '\n';
+    if (mainInsight) reportText += '\n✅ *Успех:* ' + mainInsight + '\n';
+    if (mainRisk) reportText += '\n⚠️ *Внимание:* ' + mainRisk + '\n';
+    reportText += '\n_Сформировано автоматически из Аналитического Центра_';
+
+    try {
+      navigator.clipboard.writeText(reportText);
+      setCopiedReport(true);
+      setTimeout(() => setCopiedReport(false), 3000);
+    } catch (err) {
+      console.error('Failed to copy', err);
+    }
+  };
 
   return (
     <motion.div 
@@ -565,8 +617,19 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
           </div>
         </div>
         
-        {/* TOP GLANCE STATS */}
-        <div className="flex items-center gap-6 self-stretch md:self-auto justify-between md:justify-end border-t md:border-t-0 pt-3 md:pt-0 border-white/5">
+        {/* TOP GLANCE STATS & TELEGRAM SUMMARY */}
+        <div className="flex flex-wrap items-center gap-4 self-stretch md:self-auto justify-between md:justify-end border-t md:border-t-0 pt-3 md:pt-0 border-white/5">
+          <button
+            onClick={generateTelegramReport}
+            className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-indigo-500/20 to-violet-500/20 hover:from-indigo-500/30 hover:to-violet-500/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold font-mono transition-all duration-200 shadow-lg shadow-indigo-950/30 active:scale-95 shrink-0"
+            title="Скопировать отформатированный отчет в буфер"
+          >
+            {copiedReport ? <ICONS.Check size={14} className="text-emerald-400 animate-bounce" /> : <ICONS.Send size={14} />}
+            <span>{copiedReport ? 'Скопировано!' : 'Сводка в Telegram'}</span>
+          </button>
+          
+          <div className="w-px h-8 bg-white/10 hidden sm:block" />
+
           <div className="text-right">
             <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest font-mono">Выручка периода</p>
             <div className="flex items-center gap-1.5 justify-end">
@@ -644,11 +707,35 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* MAIN CHART */}
                   <div className="lg:col-span-2 glass-card p-5 rounded-3xl border border-white/5 bg-slate-950/45 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-black uppercase text-slate-300 tracking-wider font-mono flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                        Динамика выручки по дням
-                      </h3>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-sm font-black uppercase text-slate-300 tracking-wider font-mono flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                          Динамика выручки
+                        </h3>
+
+                        <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-white/5">
+                          {[
+                            { id: 'all', label: 'Все' },
+                            { id: 'onlyFans', label: 'OF' },
+                            { id: 'paypal', label: 'PayPal' },
+                            { id: 'crypto', label: 'Crypto' }
+                          ].map(p => (
+                            <button
+                              key={p.id}
+                              onClick={() => setSelectedPlatform(p.id as any)}
+                              className={`px-2 py-0.5 text-[9px] font-black font-mono uppercase rounded-lg transition-all ${
+                                selectedPlatform === p.id 
+                                  ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm' 
+                                  : 'text-slate-500 hover:text-slate-300'
+                              }`}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
                       <span className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">
                         Дней пройдено: {metrics.daysPassed} из {metrics.daysInMonth}
                       </span>
@@ -950,7 +1037,16 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
                               <span className="text-[7.5px] font-mono font-bold bg-slate-800 text-slate-500 px-1 py-0.5 rounded uppercase">Inact</span>
                             )}
                           </h4>
-                          <span className="text-[8px] font-mono font-bold text-slate-500 uppercase tracking-widest block mt-0.5">OF Target Plan</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[8px] font-mono font-bold text-slate-500 uppercase tracking-widest block">OF Target Plan</span>
+                            {model.growth !== 0 && (
+                              <span className={`text-[7.5px] font-mono font-bold px-1 py-0.2 rounded ${
+                                model.growth > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                              }`}>
+                                {model.growth > 0 ? '↑' : ''}{model.growth.toFixed(0)}%
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="text-right">
                           <span className="text-[8.5px] font-bold text-slate-500 uppercase block font-mono">Прогноз</span>
