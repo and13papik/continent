@@ -469,110 +469,74 @@ async function startServer() {
       return res.status(400).json({ error: "Missing path parameter" });
     }
 
+    if (!omToken || !omToken.trim() || omToken.startsWith("om_token_fc269e0")) {
+      return res.status(200).json({
+        success: false,
+        not_configured: true,
+        error: "API-ключ OnlyMonster не настроен. Укажите действующий токен в настройках."
+      });
+    }
+
     const cleanSubpath = subpath.replace(/^\//, "");
-    
-    // Multiple potential base URLs to try in case of Cloudflare 530 or other DNS/network errors.
-    // We prioritize the known working live endpoint first to make requests instant and avoid DNS timeouts.
-    const baseUrls = [
-      "https://onlymonster.ai/api/v0/",
-      "https://api.onlymonster.ai/v0/",
-      "https://onlymonster.com/api/v0/",
-      "https://api.onlymonster.com/v0/",
-      "https://onlymonster.co/api/v0/",
-      "https://api.onlymonster.co/v0/"
-    ];
+    const apiUrl = `https://omapi.onlymonster.ai/api/v0/${cleanSubpath}`;
 
-    let lastError: any = null;
-    let successResult: any = null;
-    let workedUrl = "";
+    try {
+      console.log(`Proxying OnlyMonster API request: ${apiUrl}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    for (const baseUrl of baseUrls) {
-      const apiUrl = `${baseUrl}${cleanSubpath}`;
-      try {
-        console.log(`Proxying OnlyMonster API request candidate: ${apiUrl}`);
-        const headers: Record<string, string> = {
+      const response = await fetch(apiUrl, {
+        method: "GET",
+        headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${omToken}`,
-          "X-API-Key": omToken,
-          "X-OM-Token": omToken
-        };
+          "x-om-auth-token": omToken.trim()
+        },
+        signal: controller.signal as any
+      });
 
-        // Use a timeout of 5 seconds to avoid hanging on unresponsive endpoints
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+      clearTimeout(timeoutId);
 
-        const response = await fetch(apiUrl, { 
-          headers,
-          signal: controller.signal as any
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (response.ok) {
-          successResult = await response.json();
-          workedUrl = apiUrl;
-          break; // Successfully got data, exit loop!
-        }
-
-        // Parse error text
-        let errorText = "";
-        try {
-          errorText = await response.text();
-        } catch (textErr) {
-          errorText = "Could not parse error response text";
-        }
-
-        console.log(`OnlyMonster API proxy candidate ${apiUrl} responded with status ${response.status}`);
-
-        // If it's 401 or 403, the server is live but the credentials are wrong.
-        // We should stop here instead of looping, because we reached the live API and it rejected us.
-        if (response.status === 401 || response.status === 403) {
-          lastError = {
-            error: `Ошибка авторизации (${response.status}): Проверьте правильность введенного API токена.`,
-            status: response.status,
-            details: errorText
-          };
-          break;
-        }
-
-        lastError = {
-          error: `API returned status ${response.status}`,
-          status: response.status,
-          details: errorText
-        };
-      } catch (err: any) {
-        console.log(`OnlyMonster API proxy candidate ${apiUrl} failed: ${err.message}`);
-        lastError = {
-          error: `API connection failed: ${err.message}`,
-          status: err.name === "AbortError" ? 504 : 500,
-          details: err.message
-        };
+      let parsed: any;
+      try {
+        parsed = await response.json();
+      } catch (e) {
+        parsed = null;
       }
-    }
 
-    if (successResult) {
-      console.log(`Successfully fetched from OnlyMonster API: ${workedUrl}`);
-      return res.json(successResult);
-    }
+      if (response.ok) {
+        return res.json(parsed);
+      }
 
-    if (lastError?.status === 401 || lastError?.status === 403) {
-      console.log(`OnlyMonster API returned client authorization error (${lastError.status}). Ready for user token configuration.`);
-    } else {
-      console.log("All OnlyMonster API proxy candidates failed or timed out.");
-    }
-    
-    let friendlyMsg = lastError?.error || "Не удалось связаться с серверами OnlyMonster API.";
-    if (lastError?.status === 530 || (lastError?.details && (lastError.details.includes("DNS") || lastError.details.includes("Cloudflare")))) {
-      friendlyMsg = `Сервер OnlyMonster API в данный момент испытывает технические неполадки с DNS у Cloudflare (Error 530: Origin DNS error). Мы попытались подключиться по альтернативным адресам, но все они временно недоступны.`;
-    }
+      let friendlyMsg = `Ошибка API OnlyMonster (код ${response.status})`;
+      if (response.status === 401) {
+        friendlyMsg = "Неверный API-ключ OnlyMonster (401 Unauthorized). Проверьте токен в настройках.";
+      } else if (response.status === 403) {
+        friendlyMsg = "Доступ запрещен (403 Forbidden). Проверьте права вашего API-ключа.";
+      } else if (response.status === 404) {
+        friendlyMsg = "Запрашиваемый ресурс не найден (404 Not Found).";
+      } else if (response.status === 429) {
+        friendlyMsg = "Превышен лимит запросов к OnlyMonster API (429 Too Many Requests). Попробуйте позже.";
+      }
 
-    return res.status(200).json({ 
-      success: false,
-      error: friendlyMsg, 
-      status: lastError?.status || 500,
-      details: lastError?.details?.length > 500 ? lastError.details.substring(0, 500) + "..." : lastError?.details || "",
-      fallback: true 
-    });
+      return res.status(200).json({
+        success: false,
+        error: friendlyMsg,
+        status: response.status,
+        details: parsed
+      });
+    } catch (err: any) {
+      console.error(`OnlyMonster API proxy error for ${apiUrl}:`, err.message);
+      let errorMsg = `Ошибка сетевого подключения к OnlyMonster API: ${err.message}`;
+      if (err.name === "AbortError") {
+        errorMsg = "Превышено время ожидания ответа от OnlyMonster API (таймаут 10 секунд).";
+      }
+      return res.status(200).json({
+        success: false,
+        error: errorMsg,
+        status: err.name === "AbortError" ? 504 : 500,
+        details: err.message
+      });
+    }
   });
 
   // OnlyMonster API Inspector & Database storage state
