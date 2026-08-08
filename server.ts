@@ -8,6 +8,8 @@ import {
   handleOnlyMonsterTest,
   handleOnlyMonsterSync
 } from "./api/_lib/onlymonster-client";
+import onlyMonsterConfigHandler from "./api/onlymonster/config";
+import onlyMonsterProxyHandler from "./api/onlymonster/proxy";
 
 async function startServer() {
   const app = express();
@@ -463,81 +465,7 @@ async function startServer() {
   });
 
   // OnlyMonster API Proxy
-  app.get("/api/onlymonster/proxy", async (req, res) => {
-    const subpath = req.query.path as string;
-    if (!subpath) {
-      return res.status(400).json({ error: "Missing path parameter" });
-    }
-
-    if (!omToken || !omToken.trim() || omToken.startsWith("om_token_fc269e0")) {
-      return res.status(200).json({
-        success: false,
-        not_configured: true,
-        error: "API-ключ OnlyMonster не настроен. Укажите действующий токен в настройках."
-      });
-    }
-
-    const cleanSubpath = subpath.replace(/^\//, "");
-    const apiUrl = `https://omapi.onlymonster.ai/api/v0/${cleanSubpath}`;
-
-    try {
-      console.log(`Proxying OnlyMonster API request: ${apiUrl}`);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-      const response = await fetch(apiUrl, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "x-om-auth-token": omToken.trim()
-        },
-        signal: controller.signal as any
-      });
-
-      clearTimeout(timeoutId);
-
-      let parsed: any;
-      try {
-        parsed = await response.json();
-      } catch (e) {
-        parsed = null;
-      }
-
-      if (response.ok) {
-        return res.json(parsed);
-      }
-
-      let friendlyMsg = `Ошибка API OnlyMonster (код ${response.status})`;
-      if (response.status === 401) {
-        friendlyMsg = "Неверный API-ключ OnlyMonster (401 Unauthorized). Проверьте токен в настройках.";
-      } else if (response.status === 403) {
-        friendlyMsg = "Доступ запрещен (403 Forbidden). Проверьте права вашего API-ключа.";
-      } else if (response.status === 404) {
-        friendlyMsg = "Запрашиваемый ресурс не найден (404 Not Found).";
-      } else if (response.status === 429) {
-        friendlyMsg = "Превышен лимит запросов к OnlyMonster API (429 Too Many Requests). Попробуйте позже.";
-      }
-
-      return res.status(200).json({
-        success: false,
-        error: friendlyMsg,
-        status: response.status,
-        details: parsed
-      });
-    } catch (err: any) {
-      console.error(`OnlyMonster API proxy error for ${apiUrl}:`, err.message);
-      let errorMsg = `Ошибка сетевого подключения к OnlyMonster API: ${err.message}`;
-      if (err.name === "AbortError") {
-        errorMsg = "Превышено время ожидания ответа от OnlyMonster API (таймаут 10 секунд).";
-      }
-      return res.status(200).json({
-        success: false,
-        error: errorMsg,
-        status: err.name === "AbortError" ? 504 : 500,
-        details: err.message
-      });
-    }
-  });
+  app.get("/api/onlymonster/proxy", (req, res) => onlyMonsterProxyHandler(req, res));
 
   // OnlyMonster API Inspector & Database storage state
   interface InspectorDiagnostics {
@@ -633,34 +561,7 @@ async function startServer() {
   });
 
   // OnlyMonster Configuration getters and setters
-  app.get("/api/onlymonster/config", (req, res) => {
-    const activeKey = process.env.ONLYMONSTER_API_KEY || omToken || "";
-    const isCustomKey = Boolean(activeKey && activeKey.trim().length > 5 && !activeKey.startsWith("om_token_fc269e0"));
-    res.json({
-      success: true,
-      token: activeKey,
-      apiKeyConfigured: isCustomKey,
-      webhookId: omWebhookId
-    });
-  });
-
-  app.post("/api/onlymonster/config", (req, res) => {
-    const { token, apiKey, webhookId } = req.body;
-    const keyToUse = (token || apiKey || "").trim();
-    if (keyToUse) {
-      omToken = keyToUse;
-      process.env.ONLYMONSTER_API_KEY = keyToUse;
-      process.env.ONLYMONSTER_TOKEN = keyToUse;
-    }
-    if (webhookId) omWebhookId = webhookId;
-    res.json({
-      success: true,
-      message: "Конфигурация OnlyMonster успешно обновлена",
-      token: omToken,
-      apiKeyConfigured: Boolean(omToken && omToken.trim().length > 5),
-      webhookId: omWebhookId
-    });
-  });
+  app.all("/api/onlymonster/config", (req, res) => onlyMonsterConfigHandler(req, res));
 
   // Vite middleware
   if (process.env.NODE_ENV !== "production") {
