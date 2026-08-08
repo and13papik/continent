@@ -38,6 +38,23 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
   const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
 
   const [adminPaidInputs, setAdminPaidInputs] = useState<Record<string, string>>({});
+  const [expandedAdminInputs, setExpandedAdminInputs] = useState<Record<string, boolean>>({});
+  const [paymentSuccessAdmin, setPaymentSuccessAdmin] = useState<string | null>(null);
+  const [quickExpenseSuccess, setQuickExpenseSuccess] = useState(false);
+
+  const toggleAdminInput = (adminName: string) => {
+    setExpandedAdminInputs(prev => ({ ...prev, [adminName]: !prev[adminName] }));
+  };
+
+  const handleQuickExpenseSubmit = () => {
+    const amt = parseFloat(expenseAmount);
+    if (isNaN(amt) || amt <= 0) return;
+    addBusinessExpense();
+    setQuickExpenseSuccess(true);
+    setTimeout(() => {
+      setQuickExpenseSuccess(false);
+    }, 1500);
+  };
 
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId)!;
@@ -154,6 +171,12 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
 
     updateState(prev => ({ ...prev, operationsData: [newOp, ...prev.operationsData] }));
     setAdminPaidInputs(prev => ({ ...prev, [adminName]: '' }));
+    setExpandedAdminInputs(prev => ({ ...prev, [adminName]: false }));
+
+    setPaymentSuccessAdmin(adminName);
+    setTimeout(() => {
+      setPaymentSuccessAdmin(null);
+    }, 450);
   };
 
   const addBusinessExpense = () => {
@@ -504,339 +527,624 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
          </div>
       </div>
 
-      {/* GLOBAL PAYROLL & ADMINISTRATOR HUB - ОРГПОЛИТИКА И ВЫПЛАТЫ */}
-      <section className="glass-card rounded-[2.5rem] border border-white/5 shadow-2xl bg-gradient-to-b from-slate-950 via-slate-950/90 to-slate-900/50 relative overflow-hidden backdrop-blur-2xl">
-         <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/[0.02] rounded-full blur-3xl pointer-events-none" />
-         
-         <div className="p-5 sm:p-6 flex flex-col lg:flex-row gap-6">
-            {/* Global Payroll (Компактная сводка) */}
-            <div className="lg:w-[35%] flex flex-col justify-between gap-5 border-b lg:border-b-0 lg:border-r border-white/[0.04] pb-5 lg:pb-0 lg:pr-6">
+      {/* GLOBAL PAYROLL & ADMINISTRATOR HUB - РАВНОВЕСНАЯ ВЕДОМОСТЬ КОМАНДЫ */}
+      <section className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-b from-[#0B0F19] via-[#0D1322] to-[#070A12] border border-slate-800/80 p-4 sm:p-5 shadow-2xl backdrop-blur-2xl">
+         {/* Subtle Ambient Background Glows */}
+         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-indigo-500/[0.03] rounded-full blur-[140px] pointer-events-none" />
+         <div className="absolute -top-20 -right-20 w-80 h-80 bg-violet-500/[0.03] rounded-full blur-[120px] pointer-events-none" />
+
+         <div className="relative z-10 flex flex-col lg:flex-row gap-5 lg:gap-6 items-stretch">
+            {/* LEFT COLUMN: ВЫПЛАТЫ КОМАНДЫ (~38-40% width) */}
+            <div className="lg:w-[39%] xl:w-[38%] flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-white/[0.06] pb-5 lg:pb-0 lg:pr-6 xl:pr-7">
                <div>
-                  <div className="flex items-center gap-2.5 mb-4">
+                  {/* Header */}
+                  <div className="flex items-center gap-2.5 mb-3">
                      <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-inner">
                         <ICONS.Salary size={15} />
                      </div>
-                     <div>
-                        <h2 className="text-base font-black font-outfit text-white uppercase tracking-tight">ВЫПЛАТЫ КОМАНДЫ</h2>
+                     <h2 className="text-xs sm:text-sm font-black font-outfit text-white uppercase tracking-wider">
+                        ВЫПЛАТЫ КОМАНДЫ
+                     </h2>
+                  </div>
+
+                  {/* Unified Top Summary Panel */}
+                  <div className="relative p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-indigo-500/[0.06] via-slate-950/80 to-slate-950/95 border border-indigo-500/20 shadow-lg mb-3 backdrop-blur-md overflow-hidden group">
+                     <div className="absolute -top-10 -right-10 w-32 h-32 bg-indigo-500/[0.08] rounded-full blur-2xl pointer-events-none group-hover:bg-indigo-500/[0.12] transition-all" />
+                     
+                     <div className="flex items-center justify-between gap-3 relative z-10">
+                        <div>
+                           <span className="text-[9px] font-extrabold font-mono uppercase tracking-widest text-indigo-300/90 flex items-center gap-1.5 mb-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse shadow-[0_0_8px_rgba(129,140,248,0.8)]"></span>
+                              Осталось выплатить
+                           </span>
+                           <div className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight drop-shadow-[0_0_12px_rgba(129,140,248,0.25)]">
+                              ${stats.totalRemainderGlobal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                           </div>
+                        </div>
+
+                        <div className="text-right border-l border-white/10 pl-4 py-0.5">
+                           <span className="text-[9px] font-extrabold font-mono uppercase tracking-widest text-slate-400 block mb-1">
+                              Выплачено
+                           </span>
+                           <div className="text-base sm:text-lg font-bold font-mono text-emerald-400">
+                              ${stats.totalPaidGlobal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                           </div>
+                        </div>
                      </div>
                   </div>
 
-                  {/* Сводные KPI карты платежей */}
-                  <div className="grid grid-cols-2 gap-2.5 mb-4">
-                     <div className="p-3 rounded-xl bg-slate-950/45 border border-white/[0.03] flex flex-col justify-between">
-                        <span className="text-[7.5px] font-bold text-slate-500 uppercase tracking-widest block">Выплачено всего</span>
-                        <p className="text-base font-black text-white font-mono mt-0.5">${stats.totalPaidGlobal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                     </div>
-
-                     <div className="p-3 rounded-xl bg-indigo-500/[0.02] border border-indigo-500/15 flex flex-col justify-between">
-                        <span className="text-[7.5px] font-bold text-indigo-400 uppercase tracking-widest block flex items-center gap-1">
-                           <span className="w-1 h-1 rounded-full bg-indigo-400 animate-pulse"></span>
-                           Остаток долга
-                        </span>
-                        <p className="text-base font-black text-indigo-400 font-mono mt-0.5">${stats.totalRemainderGlobal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                     </div>
-                  </div>
-
-                  {/* Ссылки на категории начислений */}
+                  {/* 3 Compact Category Rows */}
                   <div className="space-y-2">
-                     <PayrollCategoryRow title="Администраторы" accrued={stats.adminAccrued} paid={stats.adminPaid} color="indigo" />
-                     <PayrollCategoryRow title="Модели" accrued={stats.modelAccrued} paid={stats.modelPaid} color="emerald" />
-                     <PayrollCategoryRow title="Операторы" accrued={stats.staffAccrued} paid={stats.staffPaid} color="sky" />
+                     <PayrollCategoryRow 
+                        title="Администраторы" 
+                        accrued={stats.adminAccrued} 
+                        paid={stats.adminPaid} 
+                        iconBg="bg-indigo-500"
+                        borderColor="border-indigo-500/20"
+                        hoverBorder="hover:border-indigo-500/40 hover:bg-indigo-500/[0.03]"
+                        progressGradient="bg-gradient-to-r from-indigo-500 to-violet-400"
+                     />
+                     <PayrollCategoryRow 
+                        title="Модели" 
+                        accrued={stats.modelAccrued} 
+                        paid={stats.modelPaid} 
+                        iconBg="bg-emerald-400"
+                        borderColor="border-emerald-500/20"
+                        hoverBorder="hover:border-emerald-500/40 hover:bg-emerald-500/[0.03]"
+                        progressGradient="bg-gradient-to-r from-emerald-500 to-teal-400"
+                     />
+                     <PayrollCategoryRow 
+                        title="Операторы" 
+                        accrued={stats.staffAccrued} 
+                        paid={stats.staffPaid} 
+                        iconBg="bg-sky-400"
+                        borderColor="border-sky-500/20"
+                        hoverBorder="hover:border-sky-500/40 hover:bg-sky-500/[0.03]"
+                        progressGradient="bg-gradient-to-r from-sky-500 to-blue-400"
+                     />
                   </div>
                </div>
 
-               {/* Прогресс-бар пропорции */}
+               {/* Bottom Segmented Bar: РАСПРЕДЕЛЕНИЕ ОБЯЗАТЕЛЬСТВ */}
                {totalPayrollAccrued > 0 && (
-                  <div className="mt-2 pt-3 border-t border-white/[0.03]">
-                     <div className="flex justify-between items-center text-[7.5px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                        <span>Пропорция расходов</span>
-                        <span>${totalPayrollAccrued.toLocaleString(undefined, { maximumFractionDigits: 0 })} всего</span>
+                  <div className="pt-2.5 mt-3 border-t border-white/[0.06]">
+                     <div className="flex justify-between items-center text-[9px] font-extrabold font-mono text-slate-400 uppercase tracking-wider mb-1.5">
+                        <span>Распределение обязательств</span>
+                        <span className="text-slate-300">${totalPayrollAccrued.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                      </div>
-                     <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden flex p-[1px] border border-white/5 shadow-inner">
-                        <div className="h-full bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-l-full" style={{ width: `${adminPct}%` }} title={`Админы: ${adminPct.toFixed(0)}%`} />
-                        <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-500" style={{ width: `${modelPct}%` }} title={`Модели: ${modelPct.toFixed(0)}%`} />
-                        <div className="h-full bg-gradient-to-r from-sky-600 to-sky-500 rounded-r-full" style={{ width: `${staffPct}%` }} title={`Операторы: ${staffPct.toFixed(0)}%`} />
+                     
+                     <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden flex p-[1px] border border-white/10 shadow-inner mb-2">
+                        <div className="h-full bg-indigo-500 rounded-l-full transition-all duration-500" style={{ width: `${adminPct}%` }} title={`Админы: $${stats.adminAccrued.toLocaleString()} (${adminPct.toFixed(0)}%)`} />
+                        <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${modelPct}%` }} title={`Модели: $${stats.modelAccrued.toLocaleString()} (${modelPct.toFixed(0)}%)`} />
+                        <div className="h-full bg-sky-500 rounded-r-full transition-all duration-500" style={{ width: `${staffPct}%` }} title={`Операторы: $${stats.staffAccrued.toLocaleString()} (${staffPct.toFixed(0)}%)`} />
+                     </div>
+
+                     {/* Legend below bar */}
+                     <div className="flex items-center justify-between text-[8.5px] font-mono text-slate-400">
+                        <div className="flex items-center gap-1">
+                           <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                           <span>Админы: <strong className="text-white">${stats.adminAccrued.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> ({adminPct.toFixed(0)}%)</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                           <span>Модели: <strong className="text-white">${stats.modelAccrued.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> ({modelPct.toFixed(0)}%)</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                           <span className="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                           <span>Оп: <strong className="text-white">${stats.staffAccrued.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> ({staffPct.toFixed(0)}%)</span>
+                        </div>
                      </div>
                   </div>
                )}
             </div>
 
-            {/* Ведомость Админов (подключена напрямую) */}
-            <div className="lg:w-[65%] flex flex-col justify-between pl-0 lg:pl-2">
+            {/* RIGHT COLUMN: ВЕДОМОСТЬ АДМИНОВ (~60-62% width) */}
+            <div className="lg:w-[61%] xl:w-[62%] flex flex-col justify-between pl-0 lg:pl-2">
                <div>
-                  <div className="flex items-center gap-2.5 mb-4">
+                  {/* Header */}
+                  <div className="flex items-center gap-2.5 mb-3">
                      <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
                         <ICONS.Users size={14} />
                      </div>
-                     <div>
-                        <h3 className="text-base font-black font-outfit text-white uppercase tracking-tight">Ведомость Админов</h3>
-                     </div>
+                     <h3 className="text-xs sm:text-sm font-black font-outfit text-white uppercase tracking-wider">
+                        ВЕДОМОСТЬ АДМИНОВ
+                     </h3>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                     {stats.adminDetails.map(admin => (
-                        <div 
-                           key={admin.id} 
-                           className="relative group p-3.5 rounded-2xl bg-slate-950/45 border border-white/[0.04] hover:border-indigo-500/30 transition-all duration-300 flex flex-col justify-between overflow-hidden shadow-lg backdrop-blur-sm"
-                        >
-                           {/* Micro background gradient glow on hover */}
-                           <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/[0.01] group-hover:bg-indigo-500/[0.03] rounded-full blur-xl pointer-events-none transition-colors duration-500" />
-                           
-                           {/* Header row: ID/Name & Rate */}
-                           <div className="flex items-center justify-between gap-2 mb-2.5 z-10">
-                              <div className="flex items-center gap-2 min-w-0">
-                                 <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500/15 to-violet-500/5 border border-indigo-500/15 flex items-center justify-center text-indigo-400 font-extrabold text-[9px] tracking-wide font-mono shadow-inner shrink-0 leading-none">
-                                    {admin.name.slice(0, 2).toUpperCase()}
+                  {/* Admin Cards Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-2">
+                     {stats.adminDetails.map(admin => {
+                        const isExpanded = !!expandedAdminInputs[admin.name];
+                        const isSuccess = paymentSuccessAdmin === admin.name;
+                        const repaymentProgress = admin.accrued > 0 ? (admin.paid / admin.accrued) * 100 : 0;
+
+                        return (
+                           <div 
+                              key={admin.id}
+                              className={`relative group p-3.5 rounded-2xl bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-indigo-500/[0.04] via-slate-900/85 to-slate-950/95 border transition-all duration-300 flex flex-col justify-between overflow-hidden shadow-lg backdrop-blur-md ${
+                                 isSuccess 
+                                    ? 'border-emerald-500/60 shadow-[0_0_20px_rgba(52,211,153,0.3)] bg-emerald-500/[0.08]' 
+                                    : 'border-indigo-500/15 hover:border-indigo-500/40 hover:bg-indigo-500/[0.06] hover:shadow-[0_0_20px_rgba(99,102,241,0.15)]'
+                              }`}
+                           >
+                              {/* Subtle Background Glow */}
+                              <div className="absolute top-0 right-0 w-28 h-28 bg-indigo-500/[0.03] group-hover:bg-indigo-500/[0.07] rounded-full blur-xl pointer-events-none transition-all" />
+
+                              {/* Top Row: Avatar + Admin Name + Rate + Status Badge */}
+                              <div className="flex items-center justify-between gap-2 z-10 mb-1.5">
+                                 <div className="flex items-center gap-2 min-w-0">
+                                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500/20 to-violet-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-300 font-black text-xs font-outfit shadow-md shrink-0">
+                                       {admin.name.slice(0, 2).toUpperCase()}
+                                    </div>
+                                    <div className="min-w-0">
+                                       <div className="flex items-center gap-1.5">
+                                          <h4 className="font-extrabold text-xs text-white tracking-tight truncate">{admin.name}</h4>
+                                          <span className="px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-300 text-[8.5px] font-bold font-mono border border-indigo-500/20">
+                                             {admin.rate}%
+                                          </span>
+                                       </div>
+                                       <span className="text-[9px] text-slate-400 font-medium">Ставка от дохода</span>
+                                    </div>
                                  </div>
-                                 <div className="min-w-0">
-                                    <div className="font-extrabold text-xs text-white tracking-tight truncate">{admin.name}</div>
-                                    <div className="text-[7.5px] font-bold text-slate-500 uppercase font-mono mt-0.5">Ставка: <span className="text-indigo-400">{admin.rate}%</span></div>
+
+                                 {admin.accrued === 0 ? (
+                                    <span className="text-[7.5px] font-bold font-mono uppercase bg-slate-800/80 text-slate-400 px-2 py-0.5 rounded-md border border-slate-700/50 shrink-0">
+                                       НЕТ НАЧИСЛЕНИЙ
+                                    </span>
+                                 ) : admin.remainder > 0 ? (
+                                    <span className="text-[7.5px] font-bold font-mono uppercase bg-indigo-500/10 text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-500/25 shrink-0">
+                                       ДОЛГ
+                                    </span>
+                                 ) : (
+                                    <span className="text-[7.5px] font-bold font-mono uppercase bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-md border border-emerald-500/25 shrink-0">
+                                       ОПЛАЧЕНО
+                                    </span>
+                                 )}
+                              </div>
+
+                              {/* Center Metrics Grid: Начислено | Выплачено | Осталось (Main metric) */}
+                              <div className="my-2 p-2 rounded-xl bg-slate-950/70 border border-white/[0.04] grid grid-cols-3 gap-1 z-10 font-mono text-center">
+                                 <div className="flex flex-col items-center justify-center">
+                                    <span className="text-[7.5px] font-extrabold uppercase text-slate-400 tracking-wider mb-0.5">Начислено</span>
+                                    <span className="text-xs font-bold text-slate-200">
+                                       ${admin.accrued.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    </span>
+                                 </div>
+                                 <div className="flex flex-col items-center justify-center border-x border-white/[0.06] px-1">
+                                    <span className="text-[7.5px] font-extrabold uppercase text-slate-400 tracking-wider mb-0.5">Выплачено</span>
+                                    <span className="text-xs font-bold text-emerald-400">
+                                       ${admin.paid.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    </span>
+                                 </div>
+                                 <div className="flex flex-col items-center justify-center">
+                                    <span className="text-[7.5px] font-extrabold uppercase text-indigo-300 tracking-wider mb-0.5">Осталось</span>
+                                    <span className="text-base sm:text-lg font-black text-indigo-200 drop-shadow-[0_0_10px_rgba(165,180,252,0.4)]">
+                                       ${admin.remainder.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    </span>
                                  </div>
                               </div>
 
-                              {/* Small status pill */}
-                              {admin.remainder > 0 ? (
-                                 <span className="text-[6.5px] font-black font-mono uppercase bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-md border border-indigo-500/20 animate-pulse shrink-0">
-                                    долг
-                                 </span>
-                              ) : (
-                                 <span className="text-[6.5px] font-black font-mono uppercase bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded-md border border-emerald-500/10 shrink-0">
-                                    Full
-                                 </span>
+                              {/* Repayment Progress Bar (only if accrued > 0) */}
+                              {admin.accrued > 0 && (
+                                 <div className="mb-2 z-10">
+                                    <div className="flex justify-between items-center text-[8.5px] font-mono text-slate-400 mb-1">
+                                       <span>Выплачено</span>
+                                       <span className="font-bold text-emerald-400">{repaymentProgress.toFixed(0)}%</span>
+                                    </div>
+                                    <div className="w-full h-1 bg-slate-900 rounded-full overflow-hidden border border-white/5">
+                                       <div className="h-full bg-gradient-to-r from-emerald-500 to-indigo-500 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, repaymentProgress)}%` }} />
+                                    </div>
+                                 </div>
                               )}
+
+                              {/* Action area: Button "ВНЕСТИ ВЫПЛАТУ" or expanded input */}
+                              <div className="z-10 mt-auto pt-1">
+                                 {!isExpanded ? (
+                                    <button
+                                       disabled={admin.remainder <= 0}
+                                       onClick={() => toggleAdminInput(admin.name)}
+                                       className={`w-full py-1.5 px-3 rounded-xl text-[10px] font-bold font-mono uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-sm ${
+                                          admin.remainder <= 0 
+                                             ? 'bg-slate-900/50 text-slate-600 border border-slate-800/80 cursor-not-allowed opacity-40'
+                                             : 'bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-200 border border-indigo-500/35 hover:border-indigo-500/50 hover:shadow-[0_0_12px_rgba(99,102,241,0.2)] active:scale-95'
+                                       }`}
+                                    >
+                                       <ICONS.Plus size={11} />
+                                       Внести выплату
+                                    </button>
+                                 ) : (
+                                    <div className="flex items-center gap-1.5 animate-in fade-in zoom-in-95 duration-200">
+                                       <div className="relative flex-1">
+                                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-mono text-[10px] text-slate-400 pointer-events-none select-none">$</span>
+                                          <input 
+                                             type="number" 
+                                             autoFocus
+                                             className="w-full bg-slate-950 border border-indigo-500/40 rounded-xl pl-5 pr-2 py-1 text-[11px] text-white font-mono outline-none focus:ring-1 focus:ring-indigo-400 placeholder-slate-500" 
+                                             placeholder="Сумма"
+                                             value={adminPaidInputs[admin.name] || ''}
+                                             onChange={e => setAdminPaidInputs(prev => ({...prev, [admin.name]: e.target.value}))}
+                                             onKeyDown={e => e.key === 'Enter' && addAdminPayment(admin.name)}
+                                          />
+                                       </div>
+                                       <button 
+                                          onClick={() => addAdminPayment(admin.name)} 
+                                          className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl h-[28px] px-2.5 transition-all active:scale-95 shadow-md flex items-center justify-center shrink-0 text-[11px] font-mono"
+                                          title="Подтвердить выплату"
+                                       >
+                                          ✓
+                                       </button>
+                                       <button 
+                                          onClick={() => toggleAdminInput(admin.name)} 
+                                          className="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl h-[28px] w-[28px] transition-all active:scale-95 flex items-center justify-center shrink-0 text-xs font-bold"
+                                          title="Отмена"
+                                       >
+                                          ✕
+                                       </button>
+                                    </div>
+                                 )}
+                              </div>
+                           </div>
+                        );
+                     })}
+                  </div>
+               </div>
+
+               {/* БЫСТРЫЙ РАСХОД (Quick Expense Block) */}
+               {(() => {
+                  const categoryTint = {
+                     traffic: 'bg-amber-500/[0.03] border-amber-500/20 hover:border-amber-500/35',
+                     infra: 'bg-sky-500/[0.03] border-sky-500/20 hover:border-sky-500/35',
+                     items: 'bg-rose-500/[0.03] border-rose-500/20 hover:border-rose-500/35',
+                     commission: 'bg-indigo-500/[0.03] border-indigo-500/20 hover:border-indigo-500/35',
+                     bonus: 'bg-emerald-500/[0.03] border-emerald-500/20 hover:border-emerald-500/35',
+                     other: 'bg-slate-500/[0.03] border-slate-500/20 hover:border-slate-500/35',
+                  }[expenseCategory] || 'bg-slate-950/60 border-white/[0.08]';
+
+                  return (
+                     <div className={`p-3 sm:p-3.5 rounded-2xl border transition-all duration-300 relative overflow-hidden backdrop-blur-md mt-2 ${categoryTint}`}>
+                        {/* Upper row: Title + Metric */}
+                        <div className="flex items-center justify-between gap-2 mb-2.5">
+                           <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
+                                 <ICONS.Wallet size={13} />
+                              </div>
+                              <div>
+                                 <div className="flex items-center gap-2">
+                                    <h4 className="text-xs font-black font-outfit text-white uppercase tracking-wider">
+                                       БЫСТРЫЙ РАСХОД
+                                    </h4>
+                                    {quickExpenseSuccess && (
+                                       <span className="text-[8.5px] font-mono font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.2 rounded-md animate-in fade-in zoom-in-90 duration-200">
+                                          ✓ Добавлено
+                                       </span>
+                                    )}
+                                 </div>
+                                 <span className="text-[9px] font-medium text-slate-400">Добавить операционный расход</span>
+                              </div>
                            </div>
 
-                           {/* Micro Bento metrics table */}
-                           <div className="grid grid-cols-3 gap-0.5 bg-slate-950/70 border border-white/[0.03] p-1.5 rounded-xl text-[9px] font-mono mb-2.5 z-10">
-                              <div className="text-center">
-                                 <span className="block text-[6.5px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">Начислено</span>
-                                 <span className="font-bold text-slate-200">${admin.accrued.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                              </div>
-                              <div className="text-center border-x border-white/[0.03]">
-                                 <span className="block text-[6.5px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">Выплачено</span>
-                                 <span className="font-bold text-emerald-400">${admin.paid.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                              </div>
-                              <div className="text-center">
-                                 <span className="block text-[6.5px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">Остаток</span>
-                                 <span className={`font-black ${admin.remainder > 0 ? 'text-indigo-400 animate-pulse' : 'text-slate-500'}`}>
-                                    ${admin.remainder.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                 </span>
-                              </div>
+                           <div className="text-right font-mono">
+                              <span className="text-[9px] text-slate-400 uppercase mr-1">Расходы периода:</span>
+                              <span className="text-xs font-extrabold text-white">
+                                 ${stats.bizExpenses.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                              </span>
                            </div>
+                        </div>
 
-                           {/* Interactive payment input bottom drawer */}
-                           <div className="flex items-center gap-1.5 w-full z-10">
-                              <div className="relative flex-1">
-                                 <span className="absolute left-2 top-1/2 -translate-y-1/2 font-mono text-[8.5px] text-slate-600 pointer-events-none select-none">$</span>
-                                 <input 
-                                    type="number" 
-                                    className="w-full bg-slate-950/85 border border-white/5 rounded-lg pl-4.5 pr-1.5 py-1 text-[9.5px] text-white font-mono outline-none focus:border-indigo-500/40 placeholder-slate-600 transition-all duration-300 hover:border-white/10" 
+                        {/* Form in 2 compact rows */}
+                        <div className="space-y-2">
+                           {/* Row 1: Category Selector + Amount Input */}
+                           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                              {/* Horizontal Segmented Category Selector */}
+                              <div className="flex-1 flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-slate-950/90 border border-white/[0.06] no-scrollbar">
+                                 {Object.entries(CATEGORIES).map(([key, cat]) => (
+                                    <button
+                                       key={key}
+                                       type="button"
+                                       onClick={() => setExpenseCategory(key as any)}
+                                       className={`px-2 py-1 rounded-lg text-[9.5px] font-mono font-bold whitespace-nowrap transition-all ${
+                                          expenseCategory === key 
+                                             ? `${cat.bg} ${cat.color} ${cat.border} border shadow-sm` 
+                                             : 'text-slate-400 hover:text-slate-200'
+                                       }`}
+                                    >
+                                       {key === 'items' ? 'Покупки' : cat.label}
+                                    </button>
+                                 ))}
+                              </div>
+
+                              {/* Amount Input */}
+                              <div className="w-full sm:w-32 relative shrink-0">
+                                 <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-mono text-xs text-slate-400">$</span>
+                                 <input
+                                    type="number"
                                     placeholder="Сумма"
-                                    value={adminPaidInputs[admin.name] || ''}
-                                    onChange={e => setAdminPaidInputs(prev => ({...prev, [admin.name]: e.target.value}))}
-                                    onKeyDown={e => e.key === 'Enter' && addAdminPayment(admin.name)}
+                                    value={expenseAmount}
+                                    onChange={(e) => setExpenseAmount(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleQuickExpenseSubmit()}
+                                    className="w-full bg-slate-950/90 border border-white/10 rounded-xl pl-6 pr-2 py-1.5 text-xs font-mono font-bold text-white outline-none focus:border-indigo-500/50 placeholder-slate-500"
                                  />
                               </div>
-                              <button 
-                                 onClick={() => addAdminPayment(admin.name)} 
-                                 className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg h-[22px] w-[22px] transition-all active:scale-95 shadow-md shadow-indigo-600/10 flex items-center justify-center shrink-0 border border-indigo-500/30"
-                                 title="Внести выплату"
+                           </div>
+
+                           {/* Row 2: Description + Submit Button */}
+                           <div className="flex items-center gap-2">
+                              <input
+                                 type="text"
+                                 placeholder="Описание / комментарий (необязательно)"
+                                 value={expenseComment}
+                                 onChange={(e) => setExpenseComment(e.target.value)}
+                                 onKeyDown={(e) => e.key === 'Enter' && handleQuickExpenseSubmit()}
+                                 className="flex-1 bg-slate-950/90 border border-white/10 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-200 outline-none focus:border-indigo-500/50 placeholder-slate-500"
+                              />
+                              <button
+                                 type="button"
+                                 onClick={handleQuickExpenseSubmit}
+                                 disabled={!expenseAmount || parseFloat(expenseAmount) <= 0}
+                                 className={`px-3.5 py-1.5 rounded-xl font-mono text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+                                    !expenseAmount || parseFloat(expenseAmount) <= 0
+                                       ? 'bg-slate-900/60 text-slate-600 border border-slate-800/80 cursor-not-allowed opacity-40'
+                                       : 'bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500/30 shadow-md shadow-indigo-600/20 active:scale-95'
+                                 }`}
                               >
-                                 <ICONS.Plus size={9}/>
+                                 <ICONS.Plus size={12} />
+                                 Добавить расход
                               </button>
                            </div>
                         </div>
-                     ))}
-                  </div>
-               </div>
+                     </div>
+                  );
+               })()}
             </div>
          </div>
       </section>
 
-      {/* ФОРМЫ ВВОДОВ С ВАУ ЭФФЕКТОМ - ОПЕРАЦИОННЫЙ ПУЛЬТ */}
+      {/* РАСХОДЫ: АНАЛИТИКА И ИСТОРИЯ ОПЕРАЦИЙ */}
       <div className="flex flex-col gap-6">
             <section className="glass-card rounded-[2.5rem] border border-white/5 shadow-2xl bg-gradient-to-b from-slate-950 via-slate-950/95 to-slate-900/60 relative overflow-hidden backdrop-blur-2xl">
                {/* Ambient glowing fields */}
-               <div className="absolute top-0 right-0 w-96 h-96 bg-rose-500/[0.015] rounded-full blur-[100px] pointer-events-none" />
-               <div className="absolute bottom-0 left-0 w-96 h-96 bg-violet-500/[0.01] rounded-full blur-[100px] pointer-events-none" />
+               <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/[0.02] rounded-full blur-[100px] pointer-events-none" />
+               <div className="absolute bottom-0 left-0 w-96 h-96 bg-violet-500/[0.015] rounded-full blur-[100px] pointer-events-none" />
                
                {/* Шапка Бизнес расходов */}
                <div className="p-5 sm:p-6 border-b border-white/[0.04] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-10">
                   <div className="flex items-center gap-3">
-                     <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 shadow-md">
-                        <ICONS.Penalty size={18} />
+                     <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-md">
+                        <ICONS.Wallet size={18} />
                      </div>
                      <div>
                         <h2 className="text-xl font-black font-outfit text-white uppercase tracking-tight">РАСХОДЫ</h2>
+                        <p className="text-[10px] font-medium text-slate-400 mt-0.5">Аналитика и операции за выбранный период</p>
                      </div>
                   </div>
                   
                   {/* Общий итог компании */}
-                  <div className="bg-rose-500/[3%] border border-rose-500/15 px-4 py-2.5 rounded-xl shadow-inner shrink-0 text-center font-mono hover:scale-[1.02] transition-transform duration-300">
-                     <span className="text-[7.5px] font-bold text-rose-400 uppercase tracking-widest block mb-0.5">Всего расходов периода</span>
+                  <div className="bg-indigo-500/[4%] border border-indigo-500/15 px-4 py-2 rounded-xl text-right font-mono hover:border-indigo-500/30 transition-all duration-300">
+                     <span className="text-[8px] font-bold text-indigo-300 uppercase tracking-wider block mb-0.5">Всего расходов периода</span>
                      <span className="text-xl font-extrabold text-white">${stats.bizExpenses.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                   </div>
                </div>
 
-               <div className="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 relative z-10">
-                  {/* ЛЕВАЯ ЧАСТЬ: ИНТЕРАКТИВНЫЙ ВВОД РАСХОДА */}
-                  <div className="space-y-5">
-                     <div>
-                        <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-500 block mb-2.5">1. Выберите категорию:</span>
-                        <div className="grid grid-cols-2 gap-2">
-                           {Object.entries(CATEGORIES).map(([k, v]) => {
-                              const isSelected = expenseCategory === k;
-                              const Icon = v.icon;
-                              const amt = stats.currentExpenses.filter(e => e.category === k).reduce((s, e) => s + e.amount, 0);
-                              return (
-                                 <button
-                                    key={k}
-                                    type="button"
-                                    onClick={() => setExpenseCategory(k as any)}
-                                    className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all duration-300 min-h-[68px] ${
-                                       isSelected 
-                                          ? `${v.bg} ${v.border} ${v.color} shadow-lg ring-1 ring-white/10 scale-[1.01] translate-y-[-1px]` 
-                                          : 'bg-slate-950/45 border-white/[0.03] text-slate-500 hover:text-white hover:bg-slate-900/40 font-bold'
-                                    }`}
+               <div className="p-5 sm:p-6 space-y-6 relative z-10">
+                  {/* Верхняя аналитическая строка */}
+                  {(() => {
+                     const catTotals = Object.keys(CATEGORIES).map(k => {
+                        const sum = stats.currentExpenses.filter(e => e.category === k).reduce((s, e) => s + e.amount, 0);
+                        return { key: k, sum };
+                     });
+                     catTotals.sort((a, b) => b.sum - a.sum);
+                     const topCatObj = catTotals[0]?.sum > 0 ? CATEGORIES[catTotals[0].key as keyof typeof CATEGORIES] : null;
+                     const topCatLabel = topCatObj ? (catTotals[0].key === 'items' ? 'Покупки' : topCatObj.label) : '—';
+                     const topCatSum = topCatObj ? `$${catTotals[0].sum.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '';
+
+                     const opsCount = stats.currentExpenses.length;
+                     const avgExpense = opsCount > 0 ? Math.round(stats.bizExpenses / opsCount) : 0;
+                     const latestOp = opsCount > 0 ? stats.currentExpenses[0] : null;
+
+                     return (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                           {/* 1. Главная категория */}
+                           <div className="bg-slate-950/60 border border-white/[0.05] rounded-2xl p-3 flex flex-col justify-between">
+                              <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">Главная категория</span>
+                              <div className="flex items-baseline justify-between gap-1">
+                                 <span className="text-xs sm:text-sm font-extrabold text-white truncate font-outfit">{topCatLabel}</span>
+                                 {topCatSum && <span className="text-[10px] font-mono font-bold text-indigo-400 shrink-0">{topCatSum}</span>}
+                              </div>
+                           </div>
+
+                           {/* 2. Количество операций */}
+                           <div className="bg-slate-950/60 border border-white/[0.05] rounded-2xl p-3 flex flex-col justify-between">
+                              <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">Количество операций</span>
+                              <span className="text-xs sm:text-sm font-extrabold text-white font-mono">{opsCount} {opsCount === 1 ? 'операция' : (opsCount >= 2 && opsCount <= 4 ? 'операции' : 'операций')}</span>
+                           </div>
+
+                           {/* 3. Средний расход */}
+                           <div className="bg-slate-950/60 border border-white/[0.05] rounded-2xl p-3 flex flex-col justify-between">
+                              <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">Средний расход</span>
+                              <span className="text-xs sm:text-sm font-extrabold text-white font-mono">${avgExpense.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                           </div>
+
+                           {/* 4. Последняя операция */}
+                           <div className="bg-slate-950/60 border border-white/[0.05] rounded-2xl p-3 flex flex-col justify-between min-w-0">
+                              <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">Последняя операция</span>
+                              <span className="text-xs sm:text-sm font-extrabold text-white font-mono truncate">
+                                 {latestOp ? `$${latestOp.amount.toLocaleString()} (${CATEGORIES[latestOp.category as keyof typeof CATEGORIES]?.label || 'Прочее'})` : '—'}
+                              </span>
+                           </div>
+                        </div>
+                     );
+                  })()}
+
+                  {/* Основная область: При отсутствии данных аккуратное пустое состояние */}
+                  {stats.currentExpenses.length === 0 ? (
+                     <div className="py-10 px-4 rounded-2xl bg-slate-950/40 border border-white/[0.03] text-center flex flex-col items-center justify-center gap-2">
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mb-1 shadow-inner">
+                           <ICONS.Wallet size={22} />
+                        </div>
+                        <h3 className="text-sm font-black font-outfit text-white uppercase tracking-wider">
+                           Расходов за этот период пока нет
+                        </h3>
+                        <p className="text-xs font-medium text-slate-400 max-w-sm">
+                           Добавьте первую операцию через блок «Быстрый расход» выше.
+                        </p>
+                     </div>
+                  ) : (
+                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                        {/* Слева — распределение расходов */}
+                        <div className="lg:col-span-5 bg-slate-950/50 border border-white/[0.04] p-4 sm:p-5 rounded-2xl space-y-4">
+                           <div className="flex items-center justify-between pb-2 border-b border-white/[0.04]">
+                              <h3 className="text-xs font-black font-outfit text-white uppercase tracking-wider">
+                                 Распределение расходов
+                              </h3>
+                              <span className="text-[10px] font-mono text-slate-400">
+                                 По категориям
+                              </span>
+                           </div>
+
+                           <div className="space-y-3">
+                              {(() => {
+                                 const sortedCats = Object.entries(CATEGORIES).map(([k, v]) => {
+                                    const total = stats.currentExpenses.filter(e => e.category === k).reduce((s, e) => s + e.amount, 0);
+                                    const pct = stats.bizExpenses > 0 ? (total / stats.bizExpenses) * 100 : 0;
+                                    return { key: k, category: v, total, pct };
+                                 });
+                                 sortedCats.sort((a, b) => b.total - a.total);
+
+                                 return sortedCats.map(({ key, category, total, pct }) => {
+                                    const isItems = key === 'items';
+                                    const label = isItems ? 'Покупки' : category.label;
+
+                                    return (
+                                       <div key={key} className="space-y-1.5 p-2 rounded-xl hover:bg-white/[0.02] transition-colors">
+                                          <div className="flex items-center justify-between text-xs font-mono">
+                                             <div className="flex items-center gap-2 min-w-0">
+                                                <span className={`w-2 h-2 rounded-full ${category.color.replace('text-', 'bg-')} shrink-0`} />
+                                                <span className="text-slate-200 font-bold truncate">{label}</span>
+                                             </div>
+                                             <div className="flex items-center gap-2 shrink-0">
+                                                <span className="text-[10px] font-semibold text-slate-500">({pct.toFixed(0)}%)</span>
+                                                <span className="text-white font-black">${total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                             </div>
+                                          </div>
+                                          <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden p-[0.5px]">
+                                             <div 
+                                                className={`h-full rounded-full transition-all duration-500 ${category.color.replace('text-', 'bg-')}`} 
+                                                style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} 
+                                             />
+                                          </div>
+                                       </div>
+                                    );
+                                 });
+                              })()}
+                           </div>
+                        </div>
+
+                        {/* Справа — журнал операций */}
+                        <div className="lg:col-span-7 bg-slate-950/50 border border-white/[0.04] p-4 sm:p-5 rounded-2xl space-y-4">
+                           <div className="flex items-center justify-between pb-2 border-b border-white/[0.04]">
+                              <h3 className="text-xs font-black font-outfit text-white uppercase tracking-wider">
+                                 Журнал операций
+                              </h3>
+                              <span className="text-[10px] font-mono text-slate-400">
+                                 Записи периода ({stats.currentExpenses.length})
+                              </span>
+                           </div>
+
+                           <div className="space-y-2.5">
+                              <div className="relative">
+                                 <ICONS.Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                                 <input 
+                                    type="text" 
+                                    placeholder="Поиск по расходам..." 
+                                    className="bg-slate-950 border border-white/10 rounded-xl pl-8.5 pr-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50 w-full placeholder-slate-500 font-mono transition-colors"
+                                    value={expenseSearch}
+                                    onChange={e => setExpenseSearch(e.target.value)}
+                                 />
+                              </div>
+
+                              <div className="flex flex-wrap gap-1 overflow-x-auto no-scrollbar pb-0.5">
+                                 <button 
+                                    onClick={() => setExpenseFilter('all')}
+                                    className={`px-2.5 py-1 rounded-lg text-[9.5px] font-mono font-bold uppercase tracking-wider transition-all border ${expenseFilter === 'all' ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm' : 'bg-slate-950 text-slate-400 border-white/5 hover:border-white/15'}`}
                                  >
-                                    <div className="flex items-center justify-between w-full">
-                                       <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${isSelected ? 'bg-white/15' : 'bg-slate-950/80'} ${v.color}`}>
-                                          <Icon size={12} />
-                                       </div>
-                                       {amt > 0 && (
-                                          <span className="text-[8.5px] font-mono font-black opacity-80">
-                                             ${amt.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                          </span>
-                                       )}
-                                    </div>
-                                    <span className="text-[9.5px] font-extrabold uppercase tracking-wider truncate mt-2">{v.label}</span>
+                                    Все
                                  </button>
-                              );
-                           })}
-                        </div>
-                     </div>
-
-                     {/* Поля ввода суммы и заметки */}
-                     <div className="space-y-3.5 pt-0.5">
-                        <div className="relative">
-                           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-xs text-slate-500 select-none">$</span>
-                           <input 
-                              type="number" 
-                              className="w-full bg-slate-950/75 border border-white/5 rounded-xl pl-7 pr-3 py-3 text-xs text-white font-mono outline-none focus:border-rose-500/40 placeholder-slate-600 transition-all duration-300" 
-                              placeholder="Сумма расхода" 
-                              value={expenseAmount} 
-                              onChange={e => setExpenseAmount(e.target.value)} 
-                           />
-                        </div>
-
-                        <div className="relative">
-                           <input 
-                              type="text" 
-                              className="w-full bg-slate-950/75 border border-white/5 rounded-xl px-3.5 py-3 text-xs text-white outline-none focus:border-rose-500/40 placeholder-slate-600 transition-all duration-300" 
-                              placeholder="Детализированное описание..." 
-                              value={expenseComment} 
-                              onChange={e => setExpenseComment(e.target.value)} 
-                           />
-                        </div>
-
-                        <button 
-                           onClick={addBusinessExpense} 
-                           className="w-full bg-gradient-to-r from-rose-500 via-pink-500 to-amber-500 hover:opacity-95 text-white font-black py-3 rounded-xl shadow-lg shadow-rose-600/10 active:scale-98 transition-all duration-300 uppercase tracking-wider text-[10px] font-mono flex items-center justify-center gap-1.5"
-                        >
-                           <ICONS.Plus size={11} />
-                           Провести транзакцию расхода
-                        </button>
-                     </div>
-                  </div>
-
-                  {/* ПРАВАЯ ЧАСТЬ: ИСТОРИЯ, ПОИСК И КАТЕГОРИИ (С ВЕЛИКОЛЕПНЫМИ ПРОГРЕСС-БАРАМИ & ЛОГОМ ДАННЫХ) */}
-                  <div className="flex flex-col justify-between gap-5 border-t md:border-t-0 md:border-l border-white/[0.04] pt-5 md:pt-0 md:pl-6">
-                     <div>
-                        {/* Поиск и фильтрация */}
-                        <div className="space-y-2.5 mb-4">
-                           <div className="relative">
-                              <ICONS.Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                              <input 
-                                 type="text" 
-                                 placeholder="Поиск по расходам..." 
-                                 className="bg-slate-950/70 border border-white/5 rounded-lg pl-8.5 pr-3 py-1.5 text-[10px] text-white outline-none focus:border-rose-500/40 w-full placeholder-slate-600 transition-colors"
-                                 value={expenseSearch}
-                                 onChange={e => setExpenseSearch(e.target.value)}
-                              />
+                                 {Object.entries(CATEGORIES).map(([k, v]) => {
+                                    const isChosen = expenseFilter === k;
+                                    const label = k === 'items' ? 'Покупки' : v.label;
+                                    return (
+                                       <button 
+                                          key={k}
+                                          onClick={() => setExpenseFilter(k as any)}
+                                          className={`px-2.5 py-1 rounded-lg text-[9.5px] font-mono font-bold uppercase tracking-wider transition-all border ${isChosen ? `${v.bg} ${v.color} ${v.border} shadow-sm` : 'bg-slate-950 text-slate-400 border-white/5 hover:border-white/15'}`}
+                                       >
+                                          {label}
+                                       </button>
+                                    );
+                                 })}
+                              </div>
                            </div>
 
-                           <div className="flex flex-wrap gap-1">
-                              <button 
-                                 onClick={() => setExpenseFilter('all')}
-                                 className={`px-2 py-0.5 rounded-md text-[8.5px] font-bold uppercase tracking-wider transition-all border ${expenseFilter === 'all' ? 'bg-white text-black border-white shadow-md' : 'bg-slate-950 text-slate-500 border-white/5 hover:border-white/10'}`}
-                              >
-                                 Все
-                              </button>
-                              {Object.entries(CATEGORIES).map(([k, v]) => {
-                                 const isChosen = expenseFilter === k;
-                                 return (
-                                    <button 
-                                       key={k}
-                                       onClick={() => setExpenseFilter(k as any)}
-                                       className={`px-2 py-0.5 rounded-md text-[8.5px] font-bold uppercase tracking-wider transition-all border ${isChosen ? `${v.bg} ${v.color} ${v.border}` : 'bg-slate-950 text-slate-500 border-white/5 hover:border-white/10'}`}
-                                    >
-                                       {v.label}
-                                    </button>
-                                 );
-                              })}
-                           </div>
-                        </div>
+                           <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 scrollbar-hide">
+                              {(() => {
+                                 const filtered = stats.currentExpenses.filter(e => {
+                                    const matchesFilter = expenseFilter === 'all' || e.category === expenseFilter;
+                                    const matchesSearch = !expenseSearch || 
+                                       e.comment?.toLowerCase().includes(expenseSearch.toLowerCase()) ||
+                                       (CATEGORIES[e.category as keyof typeof CATEGORIES] as any)?.label.toLowerCase().includes(expenseSearch.toLowerCase());
+                                    return matchesFilter && matchesSearch;
+                                 });
 
-                        {/* Bento KPI расходов по категориям с визуальным заполнением */}
-                        <div className="space-y-2">
-                           <span className="text-[8.5px] font-mono font-bold uppercase tracking-widest text-slate-500 block">Метрики категорий (Доля расхода):</span>
-                           <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1 scrollbar-hide bg-slate-950/30 p-2.5 rounded-xl border border-white/[0.02]">
-                              {Object.entries(CATEGORIES).map(([k, v]) => {
-                                 const total = stats.currentExpenses.filter(e => e.category === k).reduce((s, e) => s + e.amount, 0);
-                                 const pct = stats.bizExpenses > 0 ? (total / stats.bizExpenses) * 100 : 0;
-                                 return (
-                                    <div key={k} className="space-y-1">
-                                       <div className="flex items-center justify-between text-[9px] font-mono font-bold">
-                                          <div className="flex items-center gap-1.5 min-w-0">
-                                             <span className={`w-1.5 h-1.5 rounded-full ${v.color.replace('text-', 'bg-')}`} />
-                                             <span className="text-slate-300 uppercase truncate">{v.label}</span>
+                                 if (filtered.length === 0) {
+                                    return (
+                                       <div className="text-center py-8 bg-slate-950/40 rounded-xl border border-white/[0.02]">
+                                          <p className="text-xs font-mono font-medium text-slate-500">Операции не найдены</p>
+                                       </div>
+                                    );
+                                 }
+
+                                 return filtered.map(item => {
+                                    const cat = CATEGORIES[item.category as keyof typeof CATEGORIES] || CATEGORIES.other;
+                                    const Icon = cat.icon;
+                                    const catLabel = item.category === 'items' ? 'Покупки' : cat.label;
+
+                                    return (
+                                       <div key={item.id} className="group relative bg-slate-950/80 hover:bg-slate-900/80 border border-white/[0.04] hover:border-white/10 rounded-xl p-3 flex items-center justify-between gap-3 transition-all duration-200">
+                                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${cat.bg} ${cat.color} border ${cat.border} shrink-0`}>
+                                                <Icon size={14} />
+                                             </div>
+                                             <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2">
+                                                   <span className="text-xs font-extrabold font-outfit text-white truncate">{catLabel}</span>
+                                                   <span className="text-[9px] font-mono text-slate-500 shrink-0">{item.date}</span>
+                                                </div>
+                                                <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
+                                                   {item.comment || 'Без описания'}
+                                                </p>
+                                             </div>
                                           </div>
-                                          <div className="flex items-center gap-1.5 shrink-0">
-                                             <span className="text-slate-500">({pct.toFixed(0)}%)</span>
-                                             <span className="text-white font-extrabold">${total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+
+                                          <div className="flex items-center gap-3 shrink-0">
+                                             <span className="text-xs font-mono font-black text-rose-400">
+                                                -${item.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                             </span>
+                                             <button 
+                                                onClick={() => { if(confirm('Вы действительно хотите удалить эту запись?')) updateState(p => ({...p, deletedIds: [...p.deletedIds, item.id], ownerExpenses: p.ownerExpenses.filter(e => e.id !== item.id)})); }} 
+                                                className="p-1.5 text-slate-500 hover:text-rose-400 bg-white/5 hover:bg-rose-500/10 rounded-lg transition-colors"
+                                                title="Удалить"
+                                             >
+                                                <ICONS.Trash size={12}/>
+                                             </button>
                                           </div>
                                        </div>
-                                       {/* Progress Line */}
-                                       <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden p-[0.5px]">
-                                          <div 
-                                             className={`h-full rounded-full ${v.color.replace('text-', 'bg-')}`} 
-                                             style={{ width: `${pct}%` }} 
-                                          />
-                                       </div>
-                                    </div>
-                                 );
-                              })}
+                                    );
+                                 });
+                              })()}
                            </div>
                         </div>
                      </div>
-
-                     {/* Список истории расходов в реальном времени */}
-                     <div className="border-t border-white/[0.04] pt-3.5">
-                        <HistoryList 
-                           items={stats.currentExpenses.filter(e => {
-                              const matchesFilter = expenseFilter === 'all' || e.category === expenseFilter;
-                              const matchesSearch = !expenseSearch || 
-                                 e.comment?.toLowerCase().includes(expenseSearch.toLowerCase()) ||
-                                 (CATEGORIES[e.category as keyof typeof CATEGORIES] as any)?.label.toLowerCase().includes(expenseSearch.toLowerCase());
-                              return matchesFilter && matchesSearch;
-                           })} 
-                           onRemove={(id: string) => updateState(p => ({...p, deletedIds: [...p.deletedIds, id], ownerExpenses: p.ownerExpenses.filter(e => e.id !== id)}))} 
-                           title="Лента операций расходов" 
-                           isExpenses 
-                           categories={CATEGORIES}
-                        />
-                     </div>
-                  </div>
+                  )}
                </div>
             </section>
 
@@ -999,42 +1307,30 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
   );
 };
 
-const PayrollCategoryRow = ({ title, accrued, paid, color }: any) => {
+const PayrollCategoryRow = ({ title, accrued, paid, iconBg, borderColor, hoverBorder, progressGradient }: any) => {
    const remaining = accrued - paid;
    const progress = accrued > 0 ? (paid / accrued) * 100 : 0;
-   
-   const colors = {
-      indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/10 hover:border-indigo-500/30',
-      emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/10 hover:border-emerald-500/30',
-      sky: 'bg-sky-500/10 text-sky-400 border-sky-500/10 hover:border-sky-500/30'
-   }[color as 'indigo' | 'emerald' | 'sky'] || '';
-
-   const barColors = {
-      indigo: 'bg-indigo-500',
-      emerald: 'bg-emerald-500',
-      sky: 'bg-sky-500'
-   }[color as 'indigo' | 'emerald' | 'sky'] || 'bg-slate-500';
 
    return (
-      <div className="bg-slate-950/40 border border-white/[0.03] hover:border-white/10 rounded-2xl p-3.5 transition-all duration-300 shadow-sm relative group overflow-hidden">
-         <div className="absolute top-0 right-0 w-16 h-16 bg-white/[0.01] rounded-full blur-xl pointer-events-none" />
-         <div className="flex justify-between items-center mb-1 relative z-10">
+      <div className={`p-3 rounded-2xl bg-slate-950/60 border ${borderColor} ${hoverBorder} transition-all duration-200 shadow-sm relative group overflow-hidden`}>
+         <div className="flex justify-between items-center mb-1.5 relative z-10">
             <div className="flex items-center gap-2">
-               <span className={`w-2 h-2 rounded-full ${barColors}`} />
-               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{title}</span>
+               <span className={`w-2 h-2 rounded-md ${iconBg} shadow-sm`} />
+               <span className="text-[11px] font-black font-outfit text-white uppercase tracking-wider">{title}</span>
             </div>
-            <span className="text-xs font-mono font-bold text-white">
-               ${accrued.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </span>
+            <div className="text-right font-mono">
+               <span className="text-[9px] font-semibold text-slate-400 uppercase mr-1">Начислено:</span>
+               <span className="text-xs font-bold text-white">${accrued.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+            </div>
          </div>
          
-         <div className="flex justify-between items-center text-[9px] text-slate-500 font-bold mb-2 uppercase font-mono relative z-10">
-            <span>Выплачено: <strong className="text-slate-300 font-bold">${paid.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
-            <span>Невыплачено: <strong className="text-rose-400/80 font-black">${remaining.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
+         <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono font-medium mb-2 relative z-10">
+            <span>Выплачено: <strong className="text-emerald-400 font-bold">${paid.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
+            <span>Осталось: <strong className="text-slate-200 font-bold">${remaining.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
          </div>
          
-         <div className="w-full h-1 bg-slate-900/60 rounded-full overflow-hidden border border-white/[0.03] relative z-10">
-            <div className={`h-full ${barColors} rounded-full transition-all duration-500`} style={{ width: `${Math.min(100, progress)}%` }} />
+         <div className="w-full h-1.5 bg-slate-900/80 rounded-full overflow-hidden border border-white/[0.04] relative z-10">
+            <div className={`h-full ${progressGradient} rounded-full transition-all duration-500`} style={{ width: `${Math.min(100, progress)}%` }} />
          </div>
       </div>
    );
