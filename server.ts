@@ -670,21 +670,30 @@ async function startServer() {
 
   // OnlyMonster Configuration getters and setters
   app.get("/api/onlymonster/config", (req, res) => {
+    const activeKey = process.env.ONLYMONSTER_API_KEY || omToken || "";
+    const isCustomKey = Boolean(activeKey && activeKey.trim().length > 5 && !activeKey.startsWith("om_token_fc269e0"));
     res.json({
       success: true,
-      token: omToken,
+      token: activeKey,
+      apiKeyConfigured: isCustomKey,
       webhookId: omWebhookId
     });
   });
 
   app.post("/api/onlymonster/config", (req, res) => {
-    const { token, webhookId } = req.body;
-    if (token) omToken = token;
+    const { token, apiKey, webhookId } = req.body;
+    const keyToUse = (token || apiKey || "").trim();
+    if (keyToUse) {
+      omToken = keyToUse;
+      process.env.ONLYMONSTER_API_KEY = keyToUse;
+      process.env.ONLYMONSTER_TOKEN = keyToUse;
+    }
     if (webhookId) omWebhookId = webhookId;
     res.json({
       success: true,
-      message: "Configuration updated successfully",
+      message: "Конфигурация OnlyMonster успешно обновлена",
       token: omToken,
+      apiKeyConfigured: Boolean(omToken && omToken.trim().length > 5),
       webhookId: omWebhookId
     });
   });
