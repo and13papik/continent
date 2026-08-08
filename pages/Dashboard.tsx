@@ -689,7 +689,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
                    </div>
                    <div className="space-y-1">
                      <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Остаток</p>
-                     <p className="text-xl font-black text-emerald-400 font-outfit tracking-tighter">${stats.remainder.toLocaleString()}</p>
+                     <p className="text-xl font-black text-emerald-400 font-outfit tracking-tighter">${Math.abs(stats.remainder).toLocaleString()}</p>
                    </div>
                 </div>
               </motion.div>
@@ -826,7 +826,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
                       </td>
                       <td className="px-4 py-4 text-center">
                         <div className={`text-base font-black font-outfit tracking-tighter px-3 py-1.5 rounded-xl transition-all duration-500 group-hover/row:scale-105 ${row.isPaid ? 'text-slate-600 bg-white/[0.01] border border-white/5 opacity-50' : (row.remainder >= 0 ? 'text-emerald-400 bg-emerald-400/5 border border-emerald-500/10' : 'text-rose-400 bg-rose-400/5 border border-rose-500/10')}`}>
-                          ${row.remainder.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          ${Math.abs(row.remainder).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                         </div>
                       </td>
                       <td className="px-4 py-4 text-right">

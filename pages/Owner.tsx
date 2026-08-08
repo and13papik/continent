@@ -438,7 +438,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                      <div className="flex items-center gap-1.5">
                         <span className="text-slate-400">Авансы:</span>
                         <span className={stats.andrey.advances > 0 ? "text-rose-400 font-bold" : "text-slate-500"}>
-                           {stats.andrey.advances > 0 ? formatUsd(-stats.andrey.advances) : '—'}
+                           {stats.andrey.advances > 0 ? formatUsd(stats.andrey.advances) : '—'}
                         </span>
                      </div>
                   </div>
@@ -491,7 +491,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                      <div className="flex items-center gap-1.5">
                         <span className="text-slate-400">Авансы:</span>
                         <span className={stats.anton.advances > 0 ? "text-rose-400 font-bold" : "text-slate-500"}>
-                           {stats.anton.advances > 0 ? formatUsd(-stats.anton.advances) : '—'}
+                           {stats.anton.advances > 0 ? formatUsd(stats.anton.advances) : '—'}
                         </span>
                      </div>
                   </div>
@@ -515,7 +515,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                <div className="flex items-center gap-1.5">
                   <span className="text-[10px] uppercase font-semibold text-slate-400">Авансы</span>
                   <span className={totalAdvances > 0 ? "text-xs font-bold text-rose-400" : "text-xs font-bold text-slate-400"}>
-                     {totalAdvances > 0 ? formatUsd(-totalAdvances) : '—'}
+                     {totalAdvances > 0 ? formatUsd(totalAdvances) : '—'}
                   </span>
                </div>
                <span className="text-slate-700 hidden sm:inline">•</span>
@@ -558,7 +558,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                               Осталось выплатить
                            </span>
                            <div className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight drop-shadow-[0_0_12px_rgba(129,140,248,0.25)]">
-                              ${stats.totalRemainderGlobal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                              ${Math.abs(stats.totalRemainderGlobal).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                            </div>
                         </div>
 
@@ -691,7 +691,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                                     <span className="text-[7.5px] font-bold font-mono uppercase bg-slate-800/80 text-slate-400 px-2 py-0.5 rounded-md border border-slate-700/50 shrink-0">
                                        НЕТ НАЧИСЛЕНИЙ
                                     </span>
-                                 ) : admin.remainder > 0 ? (
+                                 ) : Math.abs(admin.remainder) > 0 ? (
                                     <span className="text-[7.5px] font-bold font-mono uppercase bg-indigo-500/10 text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-500/25 shrink-0">
                                        ДОЛГ
                                     </span>
@@ -719,7 +719,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                                  <div className="flex flex-col items-center justify-center">
                                     <span className="text-[7.5px] font-extrabold uppercase text-indigo-300 tracking-wider mb-0.5">Осталось</span>
                                     <span className="text-base sm:text-lg font-black text-indigo-200 drop-shadow-[0_0_10px_rgba(165,180,252,0.4)]">
-                                       ${admin.remainder.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                       ${Math.abs(admin.remainder).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                     </span>
                                  </div>
                               </div>
@@ -741,10 +741,10 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                               <div className="z-10 mt-auto pt-1">
                                  {!isExpanded ? (
                                     <button
-                                       disabled={admin.remainder <= 0}
+                                       disabled={Math.abs(admin.remainder) === 0}
                                        onClick={() => toggleAdminInput(admin.name)}
                                        className={`w-full py-1.5 px-3 rounded-xl text-[10px] font-bold font-mono uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-sm ${
-                                          admin.remainder <= 0 
+                                          Math.abs(admin.remainder) === 0 
                                              ? 'bg-slate-900/50 text-slate-600 border border-slate-800/80 cursor-not-allowed opacity-40'
                                              : 'bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-200 border border-indigo-500/35 hover:border-indigo-500/50 hover:shadow-[0_0_12px_rgba(99,102,241,0.2)] active:scale-95'
                                        }`}
@@ -1326,7 +1326,7 @@ const PayrollCategoryRow = ({ title, accrued, paid, iconBg, borderColor, hoverBo
          
          <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono font-medium mb-2 relative z-10">
             <span>Выплачено: <strong className="text-emerald-400 font-bold">${paid.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
-            <span>Осталось: <strong className="text-slate-200 font-bold">${remaining.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
+            <span>Осталось: <strong className="text-slate-200 font-bold">${Math.abs(remaining).toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
          </div>
          
          <div className="w-full h-1.5 bg-slate-900/80 rounded-full overflow-hidden border border-white/[0.04] relative z-10">
