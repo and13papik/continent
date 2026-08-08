@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Zap, 
   RefreshCw, 
   AlertCircle, 
   Search, 
   Users, 
-  CheckCircle2, 
   XCircle, 
   Lock
 } from 'lucide-react';
@@ -146,60 +143,6 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
 
   return (
     <div className="space-y-6">
-      {/* INTEGRATION STATUS & HEADER */}
-      <div className="glass-card p-5 rounded-3xl border border-violet-500/20 bg-slate-950/70 flex flex-wrap items-center justify-between gap-4 shadow-xl">
-        <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 border border-violet-400/30 flex items-center justify-center text-white shadow-lg shadow-violet-950/50">
-            <Zap size={22} className="animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h2 className="text-base font-black uppercase text-white font-mono tracking-wider">Синхронизация OnlyMonster Browser</h2>
-              {connStatus === 'live' ? (
-                <span className="text-[9px] font-mono font-black uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 shadow-sm">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  ПОДКЛЮЧЕНО (LIVE)
-                </span>
-              ) : connStatus === 'testing' ? (
-                <span className="text-[9px] font-mono font-black uppercase px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5">
-                  <RefreshCw size={10} className="animate-spin text-indigo-400" />
-                  ПРОВЕРКА...
-                </span>
-              ) : connStatus === 'error' ? (
-                <span className="text-[9px] font-mono font-black uppercase px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1.5">
-                  <XCircle size={10} />
-                  ОШИБКА
-                </span>
-              ) : (
-                <span className="text-[9px] font-mono font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
-                  <AlertCircle size={10} />
-                  КЛЮЧ НЕ ВВЕДЕН
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-400 font-mono mt-0.5">
-              {connStatus === 'live' ? (
-                <>Подключенные модели: <span className="text-violet-300 font-bold">{accounts.length}</span> • Прямой режим (без симуляции)</>
-              ) : (
-                <>Прямое подключение к OnlyMonster</>
-              )}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => fetchAccounts()}
-            disabled={isLoading}
-            className="px-4 py-2.5 bg-slate-900 border border-white/10 hover:border-violet-500/40 hover:bg-slate-800 text-xs font-mono font-bold uppercase text-slate-200 rounded-xl transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-md"
-            title="Обновить список моделей из OnlyMonster API"
-          >
-            <RefreshCw size={14} className={isLoading ? "animate-spin text-violet-400" : ""} />
-            {isLoading ? 'Загрузка...' : 'Обновить данные'}
-          </button>
-        </div>
-      </div>
-
       {/* STATUS & FEEDBACK NOTIFICATION */}
       {statusMessage && connStatus !== 'live' && (
         <div className={`p-4 rounded-2xl border flex gap-3 items-start font-mono text-xs ${
@@ -216,7 +159,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
         </div>
       )}
 
-      {/* SECTION 2: CONNECTED MODEL ACCOUNTS LIST */}
+      {/* SECTION: CONNECTED MODEL ACCOUNTS LIST */}
       <div className="glass-card p-6 rounded-3xl border border-white/10 bg-slate-950/60 space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/5 pb-4">
           <div>
@@ -229,16 +172,28 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
             </p>
           </div>
 
-          {/* SEARCH FILTER */}
-          <div className="relative w-full sm:w-64">
-            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input 
-              type="text" 
-              placeholder="Поиск модели..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-slate-900/90 border border-white/10 rounded-xl pl-9.5 pr-3 py-2 text-xs text-white outline-none focus:border-violet-500/50 w-full font-mono placeholder-slate-600 transition-colors"
-            />
+          {/* CONTROLS: SEARCH & REFRESH */}
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="relative w-full sm:w-64">
+              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input 
+                type="text" 
+                placeholder="Поиск модели..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-slate-900/90 border border-white/10 rounded-xl pl-9.5 pr-3 py-2 text-xs text-white outline-none focus:border-violet-500/50 w-full font-mono placeholder-slate-600 transition-colors"
+              />
+            </div>
+
+            <button
+              onClick={() => fetchAccounts()}
+              disabled={isLoading}
+              className="px-3.5 py-2 bg-slate-900 border border-white/10 hover:border-violet-500/40 hover:bg-slate-800 text-xs font-mono font-bold uppercase text-slate-200 rounded-xl transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-md shrink-0"
+              title="Обновить список моделей из OnlyMonster API"
+            >
+              <RefreshCw size={14} className={isLoading ? "animate-spin text-violet-400" : ""} />
+              {isLoading ? 'Загрузка...' : 'Обновить'}
+            </button>
           </div>
         </div>
 
