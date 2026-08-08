@@ -31,7 +31,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     if (!selectedOperator) return null;
     
     const incomes = state.incomeData.filter(r => r.operator === selectedOperator && r.periodId === activePeriodId);
-    const ops = state.operationsData.filter(o => o.operator === selectedOperator && o.periodId === activePeriodId && !o.model);
+    const ops = state.operationsData.filter(o => o.operator === selectedOperator && o.periodId === activePeriodId);
     
     const rawG = incomes.reduce((sum, r) => sum + r.total, 0);
     const rawN = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);

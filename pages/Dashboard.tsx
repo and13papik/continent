@@ -219,12 +219,12 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
     });
 
     periodOps.forEach(op => {
-      const isOperator = !adminNames.includes(op.operator);
-      if (!op.model) {
-        if (op.type === 'bonus' && isOperator) totals.bonuses += op.amount;
-        else if ((op.type === 'penalty' || op.type === 'internship') && isOperator) totals.penalties += op.amount;
-        else if (op.type === 'advance' && isOperator) { totals.advances += op.amount; totals.paidOut += op.amount; }
-        else if (op.type === 'salary_payment' && isOperator) totals.paidOut += op.amount;
+      const isOperator = op.operator && !adminNames.includes(op.operator);
+      if (isOperator) {
+        if (op.type === 'bonus') totals.bonuses += op.amount;
+        else if (op.type === 'penalty' || op.type === 'internship') totals.penalties += op.amount;
+        else if (op.type === 'advance') { totals.advances += op.amount; totals.paidOut += op.amount; }
+        else if (op.type === 'salary_payment') totals.paidOut += op.amount;
       }
     });
 
@@ -236,7 +236,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
   const operatorRows = useMemo(() => {
     const raw = currentOperators.map(op => {
       const incomes = state.incomeData.filter(r => r.operator === op && r.periodId === activePeriodId);
-      const ops = state.operationsData.filter(o => o.operator === op && o.periodId === activePeriodId && !o.model);
+      const ops = state.operationsData.filter(o => o.operator === op && o.periodId === activePeriodId);
       
       const rawG = incomes.reduce((sum, r) => sum + r.total, 0);
       const rawN = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);

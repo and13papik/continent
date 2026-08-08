@@ -62,7 +62,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     const avgOpRate = rawPlatformGross > 0 ? rawStaffNet / rawPlatformGross : 0.20;
     
     const staffAccrued = (rawStaffNet - (totalRefundAmount * avgOpRate)) + ops.reduce((sum, o) => {
-      if (!o.model && !currentAdmins.some(a => a.name === o.operator)) {
+      if (o.operator && !currentAdmins.some(a => a.name === o.operator)) {
         if (o.type === 'bonus') return sum + o.amount;
         if (['penalty', 'internship'].includes(o.type)) return sum - o.amount;
       }
@@ -70,7 +70,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     }, 0);
 
     const staffPaid = ops.reduce((sum, o) => {
-      if (!o.model && !currentAdmins.some(a => a.name === o.operator)) {
+      if (o.operator && !currentAdmins.some(a => a.name === o.operator)) {
         if (['advance', 'salary_payment'].includes(o.type)) return sum + o.amount;
       }
       return sum;
@@ -97,7 +97,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     // 3. АДМИНЫ
     const adminDetails = currentAdmins.map(admin => {
       const accrued = grossTotal * (admin.rate / 100);
-      const paid = ops.filter(o => o.operator === admin.name && !o.model && ['salary_payment', 'advance'].includes(o.type)).reduce((s, o) => s + o.amount, 0);
+      const paid = ops.filter(o => o.operator === admin.name && ['salary_payment', 'advance'].includes(o.type)).reduce((s, o) => s + o.amount, 0);
       return { ...admin, accrued, paid, remainder: accrued - paid };
     });
 
@@ -219,141 +219,233 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
   const modelPct = totalPayrollAccrued > 0 ? (stats.modelAccrued / totalPayrollAccrued) * 100 : 0;
   const staffPct = totalPayrollAccrued > 0 ? (stats.staffAccrued / totalPayrollAccrued) * 100 : 0;
 
+  const formatUsd = (num: number) => {
+    const rounded = Math.round(num);
+    const formatted = Math.abs(rounded).toLocaleString('ru-RU');
+    return rounded < 0 ? `−$${formatted}` : `$${formatted}`;
+  };
+
+  const totalProfit = stats.netProfitTotal || (stats.sharePerOwner * 2);
+  const totalAdvances = stats.andrey.advances + stats.anton.advances;
+  const totalAvailable = totalProfit - totalAdvances;
+  const andreyAvailable = stats.sharePerOwner - stats.andrey.advances;
+  const antonAvailable = stats.sharePerOwner - stats.anton.advances;
+
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-20 select-none">
       {/* GLOWING AMBIENT WATERMARKS IN BACKGROUND */}
       <div className="absolute top-10 left-1/3 w-96 h-96 bg-indigo-500/[0.02] rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute top-1/2 right-10 w-96 h-96 bg-amber-500/[0.02] rounded-full blur-[120px] pointer-events-none" />
 
-      {/* HEADER WITH HIGH-TECH FINTECH TYPOGRAPHY & METRIC BADGES */}
-      <header className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-slate-950/20 p-6 rounded-[2.5rem] border border-white/[0.03] backdrop-blur-md">
-         <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/[0.01] rounded-full blur-2xl pointer-events-none" />
-         <div className="flex flex-col gap-1.5">
-            <h1 className="text-4xl font-extrabold font-outfit text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-slate-400 tracking-tight">Панель Владельца</h1>
-            <div className="flex items-center gap-2">
-               <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-               </span>
-               <span className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-500">Синхронизирован с БД</span>
+      {/* EQUILIBRIUM EQUITY BOARD - PREMIUM OWNER FINANCE DASHBOARD */}
+      <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-b from-[#0B0F19] via-[#0D1322] to-[#070A12] border border-slate-800/80 p-6 md:p-8 shadow-2xl backdrop-blur-2xl">
+         {/* Ambient Background Glows */}
+         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-emerald-500/[0.03] rounded-full blur-[130px] pointer-events-none" />
+         <div className="absolute -top-20 -left-20 w-80 h-80 bg-amber-500/[0.04] rounded-full blur-[110px] pointer-events-none" />
+         <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-sky-500/[0.04] rounded-full blur-[110px] pointer-events-none" />
+
+         {/* Subtle Background Financial Growth Chart Wave */}
+         <div className="absolute inset-0 pointer-events-none opacity-[0.05] flex items-end justify-center overflow-hidden">
+            <svg className="w-full h-48 text-emerald-400" viewBox="0 0 1000 200" preserveAspectRatio="none" fill="none">
+               <defs>
+                  <linearGradient id="chartGlow" x1="0" y1="0" x2="0" y2="1">
+                     <stop offset="0%" stopColor="currentColor" stopOpacity="0.4" />
+                     <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+                  </linearGradient>
+               </defs>
+               <path d="M0,160 Q150,140 300,110 T600,70 T900,30 L1000,20 L1000,200 L0,200 Z" fill="url(#chartGlow)" />
+               <path d="M0,160 Q150,140 300,110 T600,70 T900,30 L1000,20" stroke="currentColor" strokeWidth="3" fill="none" />
+            </svg>
+         </div>
+
+         {/* TOP HEADER ROW: Section Title + Sync indicator + Action Buttons */}
+         <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 border-b border-white/[0.06]">
+            <div className="flex items-center gap-3">
+               <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500/20 via-amber-400/10 to-amber-500/5 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.15)]">
+                  <ICONS.Owner size={18} className="text-amber-400" />
+               </div>
+               <div>
+                  <div className="flex items-center gap-2.5">
+                     <h2 className="text-sm font-black font-outfit text-white uppercase tracking-wider">
+                        РАСПРЕДЕЛЕНИЕ ПРИБЫЛИ
+                     </h2>
+                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        Синхронизирован с БД
+                     </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-medium">Финансовый результат владельцев Continental</p>
+               </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2.5 self-end sm:self-auto">
+               <button 
+                  onClick={() => setIsIncomeModalOpen(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/25 hover:border-emerald-500/40 text-[11px] font-bold uppercase font-mono tracking-wider transition-all active:scale-95 flex items-center gap-1.5 shadow-lg shadow-emerald-500/[0.03]"
+               >
+                  <ICONS.Plus size={12} />
+                  Внести доход
+               </button>
+               <button 
+                  onClick={() => setIsAdvanceModalOpen(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/25 hover:border-amber-500/40 text-[11px] font-bold uppercase font-mono tracking-wider transition-all active:scale-95 flex items-center gap-1.5 shadow-lg shadow-amber-500/[0.03]"
+               >
+                  <ICONS.Plus size={12} />
+                  Внести аванс
+               </button>
             </div>
          </div>
-      </header>
 
-      {/* EQUILIBRIUM EQUITY BOARD */}
-      <div className="bg-gradient-to-b from-slate-950/60 to-slate-900/20 p-5 rounded-[2rem] border border-white/10 backdrop-blur-md relative overflow-hidden shadow-xl">
-         <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-amber-500/5 to-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
-         
-         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-4 pb-4 border-b border-white/[0.05]">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full xl:w-auto justify-between sm:justify-start">
-               <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500/10 to-indigo-500/10 flex items-center justify-center border border-white/5 text-white">
-                     <ICONS.Owner size={14} className="text-amber-400" />
-                  </div>
-                  <span className="text-[10px] font-black font-outfit text-white uppercase tracking-wider">Распределение</span>
-               </div>
-               
-               {/* Action Buttons to open Modals */}
-               <div className="flex items-center gap-2">
+         {/* CENTER AREA: TWO EQUAL OWNER CARDS WITH CENTRAL 50/50 PARTNERSHIP MEDALLION */}
+         <div className="relative z-10 my-6">
+            {/* If Null / Empty State (grossTotal === 0 and totalProfit === 0) */}
+            {stats.grossTotal === 0 && totalProfit === 0 ? (
+               <div className="mb-4 p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20 text-center flex flex-col items-center justify-center gap-2 backdrop-blur-md">
+                  <p className="text-xs font-bold text-amber-300">Месяц ещё не начат</p>
+                  <p className="text-[11px] text-slate-400">Внесите первый доход, чтобы сформировать распределение</p>
                   <button 
                      onClick={() => setIsIncomeModalOpen(true)}
-                     className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:border-emerald-500/30 text-[10px] font-black uppercase font-mono tracking-wider transition-all active:scale-95 flex items-center gap-1.5 shadow-md shadow-emerald-500/[0.02]"
+                     className="mt-1 px-4 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-bold font-mono text-xs hover:bg-amber-400 transition-all shadow-md active:scale-95 flex items-center gap-1.5"
                   >
-                     <ICONS.Plus size={11} />
-                     Внести доход
-                  </button>
-                  <button 
-                     onClick={() => setIsAdvanceModalOpen(true)}
-                     className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 hover:border-amber-500/30 text-[10px] font-black uppercase font-mono tracking-wider transition-all active:scale-95 flex items-center gap-1.5 shadow-md shadow-amber-500/[0.02]"
-                  >
-                     <ICONS.Plus size={11} />
-                     Внести аванс
+                     <ICONS.Plus size={12} />
+                     Внести первый доход
                   </button>
                </div>
-            </div>
-            
-            {/* Partnership Totals in Mini Cards */}
-            <div className="flex items-center gap-2.5 flex-wrap bg-white/[0.01] border border-white/[0.03] p-1.5 rounded-2xl self-end xl:self-auto">
-               <div className="px-3 py-1 bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-amber-500/5 border border-amber-500/30 rounded-xl text-center shadow-[0_0_15px_rgba(245,158,11,0.1)]">
-                  <p className="text-[7.5px] font-black text-amber-400 uppercase tracking-widest font-mono">ОБЩИЙ ТОТАЛ МЕСЯЦА</p>
-                  <p className="text-xs font-black text-amber-300 font-mono mt-0.5">
-                     ${stats.grossTotal.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                  </p>
+            ) : null}
+
+            <div className="grid grid-cols-1 lg:grid-cols-21 gap-4 lg:gap-0 items-center">
+               {/* ANDREY CARD (Warm Amber Accent) */}
+               <div className="lg:col-span-10 group relative p-6 rounded-2xl bg-gradient-to-br from-amber-500/[0.06] via-slate-900/60 to-slate-950/80 border border-amber-500/20 hover:border-amber-500/40 hover:shadow-[0_0_35px_rgba(245,158,11,0.12)] transition-all duration-300 flex flex-col justify-between backdrop-blur-md">
+                  {/* Subtle internal warm glow */}
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/[0.04] rounded-full blur-3xl pointer-events-none group-hover:bg-amber-500/[0.08] transition-all" />
+
+                  {/* Header inside card */}
+                  <div className="flex items-center justify-between pb-4 border-b border-amber-500/10">
+                     <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 flex items-center justify-center font-black text-base shadow-md font-outfit">
+                           А
+                        </div>
+                        <div>
+                           <div className="flex items-center gap-2">
+                              <h3 className="text-sm font-black font-outfit text-white tracking-wider uppercase">АНДРЕЙ</h3>
+                              <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 text-[10px] font-bold font-mono border border-amber-500/25">50%</span>
+                           </div>
+                           <span className="text-[10px] text-amber-400/80 font-medium">Совладелец</span>
+                        </div>
+                     </div>
+                  </div>
+
+                  {/* PERSONAL PAYOUT AMOUNT - HIGHEST VISUAL PRIORITY */}
+                  <div className="py-5 flex flex-col">
+                     <span className="text-[10px] font-extrabold font-mono uppercase tracking-[0.2em] text-amber-400/90 mb-1">
+                        К ВЫПЛАТЕ
+                     </span>
+                     <div className="text-4xl sm:text-5xl lg:text-6xl font-black font-mono text-white tracking-tight drop-shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+                        {formatUsd(andreyAvailable)}
+                     </div>
+                  </div>
+
+                  {/* BREAKDOWN ROWS */}
+                  <div className="pt-3 border-t border-amber-500/10 space-y-1.5 text-xs font-mono">
+                     <div className="flex items-center justify-between text-slate-400">
+                        <span className="text-[11px]">Доля прибыли</span>
+                        <span className="text-slate-200 font-bold">{formatUsd(stats.sharePerOwner)}</span>
+                     </div>
+                     <div className="flex items-center justify-between text-slate-400">
+                        <span className="text-[11px]">Авансы</span>
+                        <span className={stats.andrey.advances > 0 ? "text-rose-400 font-bold" : "text-slate-500"}>
+                           {stats.andrey.advances > 0 ? formatUsd(-stats.andrey.advances) : '—'}
+                        </span>
+                     </div>
+                  </div>
                </div>
-               <div className="w-[1px] h-5 bg-white/5" />
-               <div className="px-2.5 py-0.5 text-center">
-                  <p className="text-[7.5px] font-bold text-slate-500 uppercase tracking-wider">ОБЩАЯ ПРИБЫЛЬ</p>
-                  <p className="text-xs font-black text-white font-mono">${(stats.sharePerOwner * 2).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+
+               {/* CENTRAL 50/50 PARTNERSHIP MEDALLION */}
+               <div className="lg:col-span-1 flex flex-col items-center justify-center py-2 lg:py-0 relative z-20">
+                  <div className="hidden lg:block w-[1px] h-8 bg-gradient-to-b from-transparent via-amber-500/30 to-sky-500/30" />
+                  <div className="px-3 py-1.5 rounded-full bg-[#0A0F1D] border border-white/10 shadow-xl flex flex-col items-center justify-center text-center backdrop-blur-xl">
+                     <span className="text-[11px] font-black font-mono text-white tracking-widest bg-gradient-to-r from-amber-400 to-sky-400 bg-clip-text text-transparent">
+                        50 / 50
+                     </span>
+                     <span className="text-[7px] font-extrabold uppercase font-mono tracking-widest text-slate-500">
+                        РАСПРЕДЕЛЕНИЕ
+                     </span>
+                  </div>
+                  <div className="hidden lg:block w-[1px] h-8 bg-gradient-to-b from-sky-500/30 via-amber-500/30 to-transparent" />
                </div>
-               <div className="w-[1px] h-4 bg-white/5" />
-               <div className="px-2.5 py-0.5 text-center">
-                  <p className="text-[7.5px] font-bold text-rose-400 uppercase tracking-wider font-mono">АВАНСЫ</p>
-                  <p className="text-xs font-black text-rose-400 font-mono">-${(stats.andrey.advances + stats.anton.advances).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-               </div>
-               <div className="w-[1px] h-4 bg-white/5" />
-               <div className="px-2.5 py-0.5 text-center">
-                  <p className="text-[7.5px] font-bold text-emerald-400 uppercase tracking-wider">Остаток к выплате</p>
-                  <p className="text-xs font-black text-emerald-400 font-mono">${((stats.sharePerOwner * 2) - (stats.andrey.advances + stats.anton.advances)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+
+               {/* ANTON CARD (Cool Blue Accent) */}
+               <div className="lg:col-span-10 group relative p-6 rounded-2xl bg-gradient-to-br from-sky-500/[0.06] via-slate-900/60 to-slate-950/80 border border-sky-500/20 hover:border-sky-500/40 hover:shadow-[0_0_35px_rgba(56,189,248,0.12)] transition-all duration-300 flex flex-col justify-between backdrop-blur-md">
+                  {/* Subtle internal cool glow */}
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-sky-500/[0.04] rounded-full blur-3xl pointer-events-none group-hover:bg-sky-500/[0.08] transition-all" />
+
+                  {/* Header inside card */}
+                  <div className="flex items-center justify-between pb-4 border-b border-sky-500/10">
+                     <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-600 text-white flex items-center justify-center font-black text-base shadow-md font-outfit">
+                           А
+                        </div>
+                        <div>
+                           <div className="flex items-center gap-2">
+                              <h3 className="text-sm font-black font-outfit text-white tracking-wider uppercase">АНТОН</h3>
+                              <span className="px-2 py-0.5 rounded-md bg-sky-500/15 text-sky-300 text-[10px] font-bold font-mono border border-sky-500/25">50%</span>
+                           </div>
+                           <span className="text-[10px] text-sky-400/80 font-medium">Совладелец</span>
+                        </div>
+                     </div>
+                  </div>
+
+                  {/* PERSONAL PAYOUT AMOUNT - HIGHEST VISUAL PRIORITY */}
+                  <div className="py-5 flex flex-col">
+                     <span className="text-[10px] font-extrabold font-mono uppercase tracking-[0.2em] text-sky-400/90 mb-1">
+                        К ВЫПЛАТЕ
+                     </span>
+                     <div className="text-4xl sm:text-5xl lg:text-6xl font-black font-mono text-white tracking-tight drop-shadow-[0_0_20px_rgba(56,189,248,0.2)]">
+                        {formatUsd(antonAvailable)}
+                     </div>
+                  </div>
+
+                  {/* BREAKDOWN ROWS */}
+                  <div className="pt-3 border-t border-sky-500/10 space-y-1.5 text-xs font-mono">
+                     <div className="flex items-center justify-between text-slate-400">
+                        <span className="text-[11px]">Доля прибыли</span>
+                        <span className="text-slate-200 font-bold">{formatUsd(stats.sharePerOwner)}</span>
+                     </div>
+                     <div className="flex items-center justify-between text-slate-400">
+                        <span className="text-[11px]">Авансы</span>
+                        <span className={stats.anton.advances > 0 ? "text-rose-400 font-bold" : "text-slate-500"}>
+                           {stats.anton.advances > 0 ? formatUsd(-stats.anton.advances) : '—'}
+                        </span>
+                     </div>
+                  </div>
                </div>
             </div>
          </div>
 
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Andrey Card */}
-            <div className="relative group p-4 rounded-xl bg-gradient-to-r from-amber-500/[0.02] to-transparent border border-amber-500/15 hover:border-amber-500/35 transition-all duration-300 flex flex-col justify-between">
-               <div className="flex items-center justify-between mb-3.5">
-                  <div className="flex items-center gap-2.5">
-                     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 flex items-center justify-center font-black text-xs shadow-md font-outfit">
-                        А
-                     </div>
-                     <div>
-                        <h3 className="text-xs font-black font-outfit text-white tracking-tight uppercase">Андрей</h3>
-                        <span className="text-[7.5px] font-bold uppercase text-amber-400/80 font-mono tracking-wider">50%</span>
-                     </div>
-                  </div>
-                  
-                  <div className="text-right">
-                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block font-mono">Авансы</span>
-                     <span className="text-[11px] font-bold font-mono text-rose-400">
-                        -${stats.andrey.advances.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                     </span>
-                  </div>
+         {/* BOTTOM COMPACT GENERAL FINANCIAL SUMMARY ROW */}
+         <div className="relative z-10 pt-4 border-t border-white/[0.06] flex items-center justify-between flex-wrap gap-4 text-xs font-mono">
+            <div className="flex items-center gap-3 sm:gap-6 flex-wrap w-full justify-between sm:justify-start">
+               <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">ОБЩИЙ ДОХОД</span>
+                  <span className="text-xs font-bold text-slate-200">{formatUsd(stats.grossTotal)}</span>
                </div>
-
-               <div className="bg-amber-500/[0.03] border border-amber-500/10 p-2.5 rounded-lg flex items-center justify-between">
-                  <span className="text-[8.5px] font-black text-amber-400 uppercase tracking-wider font-mono">К выплате (прибыль)</span>
-                  <span className="text-lg font-black font-mono text-white tracking-tight">
-                     ${(stats.sharePerOwner - stats.andrey.advances).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+               <span className="text-slate-800 hidden sm:inline">•</span>
+               <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">ОБЩАЯ ПРИБЫЛЬ</span>
+                  <span className="text-xs font-bold text-emerald-400">{formatUsd(totalProfit)}</span>
+               </div>
+               <span className="text-slate-800 hidden sm:inline">•</span>
+               <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">АВАНСЫ</span>
+                  <span className={totalAdvances > 0 ? "text-xs font-bold text-rose-400" : "text-xs font-bold text-slate-400"}>
+                     {totalAdvances > 0 ? formatUsd(-totalAdvances) : '—'}
                   </span>
                </div>
-            </div>
-
-            {/* Anton Card */}
-            <div className="relative group p-4 rounded-xl bg-gradient-to-r from-indigo-500/[0.02] to-transparent border border-indigo-500/15 hover:border-indigo-500/35 transition-all duration-300 flex flex-col justify-between">
-               <div className="flex items-center justify-between mb-3.5">
-                  <div className="flex items-center gap-2.5">
-                     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-sky-400 text-white flex items-center justify-center font-black text-xs shadow-md font-outfit">
-                        А
-                     </div>
-                     <div>
-                        <h3 className="text-xs font-black font-outfit text-white tracking-tight uppercase">Антон</h3>
-                        <span className="text-[7.5px] font-bold uppercase text-indigo-400/80 font-mono tracking-wider">50%</span>
-                     </div>
-                  </div>
-                  
-                  <div className="text-right">
-                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block font-mono">Авансы</span>
-                     <span className="text-[11px] font-bold font-mono text-rose-400">
-                        -${stats.anton.advances.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                     </span>
-                  </div>
-               </div>
-
-               <div className="bg-indigo-500/[0.03] border border-indigo-500/10 p-2.5 rounded-lg flex items-center justify-between">
-                  <span className="text-[8.5px] font-black text-indigo-400 uppercase tracking-wider font-mono">К выплате (прибыль)</span>
-                  <span className="text-lg font-black font-mono text-white tracking-tight">
-                     ${(stats.sharePerOwner - stats.anton.advances).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                  </span>
+               <span className="text-slate-800 hidden sm:inline">•</span>
+               <div className="flex items-center gap-2 bg-white/[0.02] px-3 py-1 rounded-xl border border-white/[0.05]">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">ОСТАТОК К ВЫПЛАТЕ</span>
+                  <span className="text-xs font-black text-emerald-300">{formatUsd(totalAvailable)}</span>
                </div>
             </div>
          </div>
