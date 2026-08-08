@@ -14,12 +14,13 @@ interface OnlyMonsterTabProps {
 
 interface OnlyMonsterAccount {
   id: string;
+  platform_account_id: string;
   name: string;
   platform: string;
   status: 'active' | 'inactive' | 'online' | string;
   unread_chats: number;
   active_operators: number;
-  today_earnings: number;
+  today_earnings?: number | null;
   handle?: string;
   avatar_url?: string;
 }
@@ -39,9 +40,41 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
   // Accounts & API state
   const [accounts, setAccounts] = useState<OnlyMonsterAccount[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isEarningsLoading, setIsEarningsLoading] = useState(false);
   const [connStatus, setConnStatus] = useState<'idle' | 'testing' | 'live' | 'not_configured' | 'error'>('idle');
   const [statusMessage, setStatusMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch today's earnings for all accounts
+  const fetchEarnings = async (accountsList: OnlyMonsterAccount[]) => {
+    const ids = accountsList.map(a => a.platform_account_id).filter(Boolean);
+    if (ids.length === 0) return;
+
+    setIsEarningsLoading(true);
+    try {
+      const res = await fetch(`/api/onlymonster/earnings?accounts=${encodeURIComponent(ids.join(','))}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.earnings) {
+          setAccounts(prev => prev.map(acc => {
+            const entry = data.earnings[acc.platform_account_id] || data.earnings[acc.id];
+            return {
+              ...acc,
+              today_earnings: (entry && typeof entry.today === 'number') ? Math.round(entry.today * 100) / 100 : null
+            };
+          }));
+        } else {
+          setAccounts(prev => prev.map(acc => ({ ...acc, today_earnings: null })));
+        }
+      } else {
+        setAccounts(prev => prev.map(acc => ({ ...acc, today_earnings: null })));
+      }
+    } catch (e) {
+      setAccounts(prev => prev.map(acc => ({ ...acc, today_earnings: null })));
+    } finally {
+      setIsEarningsLoading(false);
+    }
+  };
 
   // Load current configuration from server
   const loadConfig = async () => {
@@ -96,21 +129,24 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
         if (rawList.length > 0) {
           const parsedAccounts: OnlyMonsterAccount[] = rawList.map((acc: any, index: number) => {
             const rawName = acc.name || acc.title || acc.model_name || agencyModels[index] || `Модель ${index + 1}`;
+            const platformAccId = String(acc.platform_account_id || acc.id || acc.account_id || `acc_${index + 1}`);
             return {
               id: String(acc.id || acc.account_id || `acc_${index + 1}`),
+              platform_account_id: platformAccId,
               name: decodeHtmlEntities(String(rawName)),
               handle: acc.username || acc.handle || acc.of_handle || '',
               platform: acc.platform || 'OnlyFans',
               status: acc.status === 'inactive' ? 'inactive' : 'active',
               unread_chats: typeof acc.unread_chats === 'number' ? acc.unread_chats : (acc.unread_count || 0),
               active_operators: typeof acc.active_operators === 'number' ? acc.active_operators : (acc.operators_count || 1),
-              today_earnings: typeof acc.today_earnings === 'number' ? acc.today_earnings : (acc.earnings_today || 0)
+              today_earnings: undefined
             };
           });
 
           setAccounts(parsedAccounts);
           setConnStatus('live');
           setStatusMessage(`Успешно подключено! Синхронизировано моделей из OnlyMonster: ${parsedAccounts.length}`);
+          fetchEarnings(parsedAccounts);
         } else {
           setAccounts([]);
           setConnStatus('live');
@@ -269,9 +305,19 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
 
                   <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
                     <span className="text-[8px] uppercase text-slate-500 font-bold block">Доход сегодня</span>
-                    <span className="text-xs font-black text-emerald-400 block mt-0.5">
-                      +${acc.today_earnings}
-                    </span>
+                    {isEarningsLoading && acc.today_earnings === undefined ? (
+                      <span className="flex items-center justify-center mt-1">
+                        <RefreshCw size={12} className="animate-spin text-violet-400" />
+                      </span>
+                    ) : typeof acc.today_earnings === 'number' ? (
+                      <span className="text-xs font-black text-emerald-400 block mt-0.5">
+                        +${acc.today_earnings}
+                      </span>
+                    ) : (
+                      <span className="text-xs font-black text-slate-500 block mt-0.5">
+                        —
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
