@@ -7,9 +7,9 @@ import {
   handleOnlyMonsterInspector,
   handleOnlyMonsterTest,
   handleOnlyMonsterSync
-} from "./api/_lib/onlymonster-client";
-import onlyMonsterConfigHandler from "./api/onlymonster/config";
-import onlyMonsterProxyHandler from "./api/onlymonster/proxy";
+} from "./api/_lib/onlymonster-client.js";
+import onlyMonsterConfigHandler from "./api/onlymonster/config.js";
+import onlyMonsterProxyHandler from "./api/onlymonster/proxy.js";
 
 async function startServer() {
   const app = express();

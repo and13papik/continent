@@ -1,4 +1,4 @@
-import { getOmToken } from '../_lib/om-store';
+import { getOmToken } from '../_lib/om-store.js';
 
 function sendJson(res: any, status: number, data: any) {
   if (typeof res.status === 'function' && typeof res.json === 'function') {

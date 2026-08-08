@@ -1,4 +1,4 @@
-import { getOmToken, setOmToken, getOmWebhookId, setOmWebhookId, isKvConfigured } from '../_lib/om-store';
+import { getOmToken, setOmToken, getOmWebhookId, setOmWebhookId, isKvConfigured } from '../_lib/om-store.js';
 
 function sendJson(res: any, status: number, data: any) {
   if (typeof res.status === 'function' && typeof res.json === 'function') {
