@@ -444,8 +444,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
 
       {/* SUB-TAB 2: OPERATOR METRICS */}
       {activeSubTab === 'operator_metrics' && (
-        <div className="glass-card p-6 rounded-3xl border border-white/10 bg-slate-950/60 space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/5 pb-4">
+        <div className="glass-card p-6 rounded-3xl border border-white/15 bg-slate-900/60 space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
             <div>
               <div className="flex items-center gap-2.5">
                 <h3 className="text-base font-black uppercase text-white tracking-wider font-mono flex items-center gap-2.5">
@@ -459,7 +459,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-400 font-mono mt-1">
+              <p className="text-xs text-slate-300 font-mono mt-1">
                 Активность и объём отправленных сообщений операторов за текущую смену
               </p>
             </div>
@@ -467,7 +467,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
             <button
               onClick={() => fetchShiftOperators()}
               disabled={isOperatorsLoading}
-              className="px-3.5 py-2 bg-slate-900 border border-white/10 hover:border-violet-500/40 hover:bg-slate-800 text-xs font-mono font-bold uppercase text-slate-200 rounded-xl transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-md shrink-0"
+              className="px-3.5 py-2 bg-slate-900 border border-white/15 hover:border-violet-500/40 hover:bg-slate-800 text-xs font-mono font-bold uppercase text-slate-200 rounded-xl transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-md shrink-0"
               title="Обновить метрики операторов"
             >
               <RefreshCw size={14} className={isOperatorsLoading ? "animate-spin text-violet-400" : ""} />
@@ -490,10 +490,10 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
               </div>
             </div>
           ) : operators.length === 0 ? (
-            <div className="p-10 bg-slate-900/30 rounded-2xl border border-dashed border-white/10 text-center space-y-2">
-              <UserCheck size={32} className="text-slate-600 mx-auto mb-1" />
+            <div className="p-10 bg-slate-900/40 rounded-2xl border border-dashed border-white/15 text-center space-y-2">
+              <UserCheck size={32} className="text-slate-500 mx-auto mb-1" />
               <p className="text-sm font-mono font-bold text-slate-300">Нет активных операторов в текущую смену</p>
-              <p className="text-xs font-mono text-slate-500 max-w-md mx-auto">
+              <p className="text-xs font-mono text-slate-400 max-w-md mx-auto">
                 В текущую смену ({shiftInfo?.label || 'текущее время'}) операторы пока не отправляли сообщений.
               </p>
             </div>
@@ -511,12 +511,12 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                       key={op.user_id || index}
                       className={`p-4 rounded-2xl transition-all flex flex-col justify-between space-y-4 font-mono group ${
                         rank === 1
-                          ? 'bg-slate-900/80 border border-amber-500/40 shadow-lg shadow-amber-500/10 hover:border-amber-400/60 hover:bg-slate-900'
+                          ? 'bg-slate-900/90 border border-amber-500/50 shadow-lg shadow-amber-500/10 hover:border-amber-400/70 hover:bg-slate-900'
                           : rank === 2
-                          ? 'bg-slate-900/70 border border-slate-300/30 shadow-md shadow-slate-400/5 hover:border-slate-300/50 hover:bg-slate-900'
+                          ? 'bg-slate-900/85 border border-slate-300/40 shadow-md shadow-slate-400/5 hover:border-slate-300/60 hover:bg-slate-900'
                           : rank === 3
-                          ? 'bg-slate-900/70 border border-orange-700/30 shadow-md shadow-orange-700/5 hover:border-orange-600/50 hover:bg-slate-900'
-                          : 'bg-slate-900/60 border border-white/5 hover:border-violet-500/30 hover:bg-slate-900/90'
+                          ? 'bg-slate-900/85 border border-orange-600/40 shadow-md shadow-orange-700/5 hover:border-orange-500/60 hover:bg-slate-900'
+                          : 'bg-slate-900/80 border border-white/15 hover:border-violet-500/40 hover:bg-slate-800/90'
                       }`}
                     >
                       {/* TOP SECTION: RANK, AVATAR, NAME, ID */}
@@ -525,7 +525,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                           rank === 1 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
                           rank === 2 ? 'bg-slate-400/20 text-slate-300 border border-slate-400/40' :
                           rank === 3 ? 'bg-amber-700/20 text-amber-500 border border-amber-700/40' :
-                          'bg-slate-950 text-slate-400 border border-white/5'
+                          'bg-slate-950 text-slate-400 border border-white/10'
                         }`}>
                           {rank === 1 ? <Award size={16} /> : `#${rank}`}
                         </div>
@@ -534,7 +534,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                           <img 
                             src={op.avatar} 
                             alt={op.name}
-                            className="w-10 h-10 rounded-xl object-cover border border-white/10 shrink-0"
+                            className="w-10 h-10 rounded-xl object-cover border border-white/15 shrink-0"
                             onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                           />
                         ) : (
@@ -547,38 +547,38 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                           <h4 className="text-sm font-black text-white truncate group-hover:text-violet-300 transition-colors">
                             {op.name}
                           </h4>
-                          <span className="text-[10px] text-slate-500 block truncate">
+                          <span className="text-[10px] text-slate-400 block truncate">
                             ID: {op.user_id || '—'}
                           </span>
                         </div>
                       </div>
 
                       {/* BOTTOM SECTION: 4 METRICS GRID */}
-                      <div className="space-y-2 pt-3 border-t border-white/10">
+                      <div className="space-y-2 pt-3 border-t border-white/15">
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                          <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                            <span className="text-[8px] uppercase text-slate-500 font-bold block">Сообщения</span>
+                          <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
+                            <span className="text-[8px] uppercase text-slate-400 font-bold block">Сообщения</span>
                             <span className="text-xs font-black text-slate-200 block mt-0.5">
                               {op.messages_count}
                             </span>
                           </div>
 
-                          <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                            <span className="text-[8px] uppercase text-slate-500 font-bold block">Ср. время ответа</span>
+                          <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
+                            <span className="text-[8px] uppercase text-slate-400 font-bold block">Ср. время ответа</span>
                             <span className={`text-xs font-black block mt-0.5 ${getReplyTimeColorClass(op.reply_time_avg)}`}>
                               {formatDuration(op.reply_time_avg)}
                             </span>
                           </div>
 
-                          <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                            <span className="text-[8px] uppercase text-slate-500 font-bold block">PPV Отправлено</span>
+                          <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
+                            <span className="text-[8px] uppercase text-slate-400 font-bold block">PPV Отправлено</span>
                             <span className="text-xs font-black text-violet-300 block mt-0.5">
                               {op.paid_messages_count}
                             </span>
                           </div>
 
-                          <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                            <span className="text-[8px] uppercase text-slate-500 font-bold block">PPV Продано</span>
+                          <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
+                            <span className="text-[8px] uppercase text-slate-400 font-bold block">PPV Продано</span>
                             <span className="text-xs font-black text-emerald-400 block mt-0.5">
                               {op.sold_messages_count}
                             </span>
@@ -586,8 +586,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                         </div>
 
                         {ppvConversion !== null && (
-                          <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-400 pt-1 px-1">
-                            <span className="text-slate-500 uppercase text-[8px]">Конверсия PPV:</span>
+                          <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-300 pt-1 px-1">
+                            <span className="text-slate-400 uppercase text-[8px]">Конверсия PPV:</span>
                             <span className={`font-black ${
                               ppvConversion >= 25 ? 'text-emerald-400' : ppvConversion >= 10 ? 'text-amber-400' : 'text-slate-300'
                             }`}>
