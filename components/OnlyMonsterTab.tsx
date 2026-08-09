@@ -123,7 +123,6 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
   min,
   max,
   zones,
-  inverted = false,
   raceMode = false,
   raceColor = '#00f0ff'
 }) => {
@@ -172,11 +171,8 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
       const t = Math.min(Math.max(z.to, safeMin), safeMax);
       if (t <= f) return null;
 
-      const r1_raw = (f - safeMin) / (safeMax - safeMin);
-      const r2_raw = (t - safeMin) / (safeMax - safeMin);
-
-      const r1 = inverted ? 1 - r2_raw : r1_raw;
-      const r2 = inverted ? 1 - r1_raw : r2_raw;
+      const r1 = (f - safeMin) / (safeMax - safeMin);
+      const r2 = (t - safeMin) / (safeMax - safeMin);
 
       const a1 = 135 + r1 * 270;
       const a2 = 135 + r2 * 270;
@@ -210,9 +206,7 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
     const mainTicks = [];
     for (let i = 0; i < mainTicksCount; i++) {
       const ratio = i / (mainTicksCount - 1);
-      const tickVal = inverted
-        ? safeMax - ratio * (safeMax - safeMin)
-        : safeMin + ratio * (safeMax - safeMin);
+      const tickVal = safeMin + ratio * (safeMax - safeMin);
       const angleDeg = 135 + ratio * 270;
 
       const pInner = polarToCartesian(cx, cy, R - 6, angleDeg);
@@ -296,8 +290,7 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
     // Needle position
     let needleAngle = 135;
     if (clampedVal !== null) {
-      const fraction = (clampedVal - safeMin) / (safeMax - safeMin);
-      const r = inverted ? 1 - fraction : fraction;
+      const r = (clampedVal - safeMin) / (safeMax - safeMin);
       needleAngle = 135 + r * 270;
     }
     const needleEnd = polarToCartesian(cx, cy, R - 4, needleAngle);
@@ -407,11 +400,8 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
     const t = Math.min(Math.max(z.to, safeMin), safeMax);
     if (t <= f) return null;
 
-    const r1_raw = (f - safeMin) / (safeMax - safeMin);
-    const r2_raw = (t - safeMin) / (safeMax - safeMin);
-
-    const r1 = inverted ? 1 - r2_raw : r1_raw;
-    const r2 = inverted ? 1 - r1_raw : r2_raw;
+    const r1 = (f - safeMin) / (safeMax - safeMin);
+    const r2 = (t - safeMin) / (safeMax - safeMin);
 
     const a1 = (180 - r1 * 180) * (Math.PI / 180);
     const a2 = (180 - r2 * 180) * (Math.PI / 180);
@@ -439,8 +429,7 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
   let needleX = cx;
   let needleY = cy - 32;
   if (clampedVal !== null) {
-    const fraction = (clampedVal - safeMin) / (safeMax - safeMin);
-    const r = inverted ? 1 - fraction : fraction;
+    const r = (clampedVal - safeMin) / (safeMax - safeMin);
     const a = (180 - r * 180) * (Math.PI / 180);
     needleX = cx + 32 * Math.cos(a);
     needleY = cy - 32 * Math.sin(a);
