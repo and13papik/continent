@@ -1,5 +1,12 @@
 import { getOmToken } from '../_lib/om-store.js';
-import { getCurrentKyivShift } from '../_lib/shifts.js';
+import { 
+  getCurrentKyivShift, 
+  getCurrentKyivShiftIndex, 
+  getShiftRangeForDay, 
+  getWeekRange, 
+  getMonthRange,
+  KyivShift 
+} from '../_lib/shifts.js';
 
 function sendJson(res: any, status: number, data: any) {
   if (typeof res.status === 'function' && typeof res.json === 'function') {
@@ -43,7 +50,51 @@ export default async function handler(req: any, res: any) {
   }
 
   const token = omToken.trim();
-  const shift = getCurrentKyivShift();
+
+  // Parse query parameters
+  let queryParams: Record<string, string> = {};
+  if (req.query && typeof req.query === 'object') {
+    queryParams = req.query as Record<string, string>;
+  } else if (req.url) {
+    try {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      parsedUrl.searchParams.forEach((val, key) => {
+        queryParams[key] = val;
+      });
+    } catch (e) {}
+  }
+
+  const period = (queryParams.period || 'shift').toLowerCase();
+  const day = (queryParams.day || 'today').toLowerCase();
+  const shiftParam = queryParams.shift;
+
+  let range: KyivShift;
+
+  if (period === 'week') {
+    range = getWeekRange();
+  } else if (period === 'month') {
+    range = getMonthRange();
+  } else {
+    // period === 'shift'
+    if (day === 'yesterday') {
+      if (!shiftParam || !['1', '2', '3', '4'].includes(String(shiftParam))) {
+        return sendJson(res, 400, {
+          success: false,
+          error: 'Укажите номер смены для вчерашнего дня'
+        });
+      }
+      const shiftNum = Number(shiftParam) as 1 | 2 | 3 | 4;
+      range = getShiftRangeForDay('yesterday', shiftNum);
+    } else {
+      // day === 'today'
+      if (shiftParam && ['1', '2', '3', '4'].includes(String(shiftParam))) {
+        const shiftNum = Number(shiftParam) as 1 | 2 | 3 | 4;
+        range = getShiftRangeForDay('today', shiftNum);
+      } else {
+        range = getCurrentKyivShift();
+      }
+    }
+  }
 
   try {
     const headers = {
@@ -51,14 +102,14 @@ export default async function handler(req: any, res: any) {
       'x-om-auth-token': token
     };
 
-    // 1. Fetch User Metrics for the current shift
+    // 1. Fetch User Metrics for the calculated range
     let metricsItems: any[] = [];
     let metricsOffset = 0;
     const metricsLimit = 100;
     const maxMetricsPages = 5;
 
     for (let page = 0; page < maxMetricsPages; page++) {
-      const url = `https://omapi.onlymonster.ai/api/v0/users/metrics?from=${encodeURIComponent(shift.start)}&to=${encodeURIComponent(shift.end)}&offset=${metricsOffset}&limit=${metricsLimit}`;
+      const url = `https://omapi.onlymonster.ai/api/v0/users/metrics?from=${encodeURIComponent(range.start)}&to=${encodeURIComponent(range.end)}&offset=${metricsOffset}&limit=${metricsLimit}`;
       let response: Response;
       try {
         response = await fetchWithTimeout(url, headers);
@@ -194,10 +245,15 @@ export default async function handler(req: any, res: any) {
 
     return sendJson(res, 200, {
       success: true,
+      period: {
+        mode: period,
+        day: period === 'shift' ? day : undefined,
+        shift: period === 'shift' ? (shiftParam || getCurrentKyivShiftIndex()) : undefined
+      },
       shift: {
-        label: shift.label,
-        start: shift.start,
-        end: shift.end
+        label: range.label,
+        start: range.start,
+        end: range.end
       },
       operators
     });

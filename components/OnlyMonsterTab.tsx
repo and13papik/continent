@@ -94,18 +94,55 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
   const [searchQuery, setSearchQuery] = useState('');
 
   // Shift Operator Metrics state
+  const getClientKyivShiftIndex = (): 1 | 2 | 3 | 4 => {
+    try {
+      const hourFormatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Europe/Kyiv",
+        hour: "numeric",
+        hour12: false
+      });
+      const hour = parseInt(hourFormatter.format(new Date()), 10) || 0;
+      if (hour >= 2 && hour < 8) return 1;
+      if (hour >= 8 && hour < 14) return 2;
+      if (hour >= 14 && hour < 20) return 3;
+      return 4;
+    } catch (e) {
+      return 1;
+    }
+  };
+
+  const currentKyivShiftIndex = getClientKyivShiftIndex();
+
+  const [periodMode, setPeriodMode] = useState<'today' | 'yesterday' | 'week' | 'month'>('today');
+  const [selectedShiftIndex, setSelectedShiftIndex] = useState<1 | 2 | 3 | 4>(currentKyivShiftIndex);
+
   const [shiftInfo, setShiftInfo] = useState<{ label: string; start: string; end: string } | null>(null);
   const [operators, setOperators] = useState<ShiftOperator[]>([]);
   const [isOperatorsLoading, setIsOperatorsLoading] = useState(false);
   const [operatorsError, setOperatorsError] = useState<string | null>(null);
   const [hasLoadedOperators, setHasLoadedOperators] = useState(false);
 
-  // Fetch operator metrics for current shift
-  const fetchShiftOperators = async () => {
+  // Fetch operator metrics for current shift/period
+  const fetchShiftOperators = async (
+    pMode: 'today' | 'yesterday' | 'week' | 'month' = periodMode,
+    sIndex: 1 | 2 | 3 | 4 = selectedShiftIndex
+  ) => {
     setIsOperatorsLoading(true);
     setOperatorsError(null);
     try {
-      const res = await fetch('/api/onlymonster/shift-operators');
+      const params = new URLSearchParams();
+      if (pMode === 'today' || pMode === 'yesterday') {
+        params.append('period', 'shift');
+        params.append('day', pMode);
+        params.append('shift', String(sIndex));
+      } else if (pMode === 'week') {
+        params.append('period', 'week');
+      } else if (pMode === 'month') {
+        params.append('period', 'month');
+      }
+
+      const url = `/api/onlymonster/shift-operators?${params.toString()}`;
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
@@ -125,10 +162,20 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
     }
   };
 
+  const handlePeriodChange = (mode: 'today' | 'yesterday' | 'week' | 'month') => {
+    setPeriodMode(mode);
+    fetchShiftOperators(mode, selectedShiftIndex);
+  };
+
+  const handleShiftChange = (shiftIdx: 1 | 2 | 3 | 4) => {
+    setSelectedShiftIndex(shiftIdx);
+    fetchShiftOperators(periodMode, shiftIdx);
+  };
+
   const handleSubTabChange = (tab: 'accounts' | 'operator_metrics') => {
     setActiveSubTab(tab);
     if (tab === 'operator_metrics' && !hasLoadedOperators) {
-      fetchShiftOperators();
+      fetchShiftOperators(periodMode, selectedShiftIndex);
     }
   };
 
@@ -455,17 +502,20 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                 {shiftInfo && (
                   <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 flex items-center gap-1.5">
                     <Clock size={11} className="text-violet-400" />
-                    Смена: {shiftInfo.label} (Kyiv)
+                    {shiftInfo.label.includes('неделя') || shiftInfo.label.includes('месяц') ? shiftInfo.label : `Смена: ${shiftInfo.label}`} (Kyiv)
                   </span>
                 )}
               </div>
               <p className="text-xs text-slate-300 font-mono mt-1">
-                Активность и объём отправленных сообщений операторов за текущую смену
+                {periodMode === 'today' || periodMode === 'yesterday'
+                  ? `Активность и объём отправленных сообщений операторов за ${periodMode === 'today' ? 'текущую' : 'выбранную'} смену`
+                  : `Активность и объём отправленных сообщений операторов за ${shiftInfo?.label.toLowerCase() || 'выбранный период'}`
+                }
               </p>
             </div>
 
             <button
-              onClick={() => fetchShiftOperators()}
+              onClick={() => fetchShiftOperators(periodMode, selectedShiftIndex)}
               disabled={isOperatorsLoading}
               className="px-3.5 py-2 bg-slate-900 border border-white/15 hover:border-violet-500/40 hover:bg-slate-800 text-xs font-mono font-bold uppercase text-slate-200 rounded-xl transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-md shrink-0"
               title="Обновить метрики операторов"
@@ -475,11 +525,74 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
             </button>
           </div>
 
+          {/* PERIOD & SHIFT SELECTORS */}
+          <div className="space-y-3 pb-2 border-b border-white/10">
+            {/* ROW 1: PERIOD BUTTONS */}
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { id: 'today', label: 'Сегодня' },
+                { id: 'yesterday', label: 'Вчера' },
+                { id: 'week', label: 'Неделя' },
+                { id: 'month', label: 'Месяц' },
+              ].map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => handlePeriodChange(p.id as any)}
+                  className={`px-3.5 py-2 rounded-xl font-mono text-xs font-bold uppercase transition-all ${
+                    periodMode === p.id
+                      ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-950/50 border border-violet-400/30'
+                      : 'bg-slate-900/80 text-slate-400 border border-white/10 hover:bg-slate-800 hover:text-slate-200'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* ROW 2: SHIFT BUTTONS (ONLY IF TODAY OR YESTERDAY) */}
+            {(periodMode === 'today' || periodMode === 'yesterday') && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                {[
+                  { index: 1, label: '02:00–08:00' },
+                  { index: 2, label: '08:00–14:00' },
+                  { index: 3, label: '14:00–20:00' },
+                  { index: 4, label: '20:00–02:00' },
+                ].map((s) => {
+                  const isCurrentActive = periodMode === 'today' && currentKyivShiftIndex === s.index;
+                  const isDisabled = periodMode === 'today' && s.index > currentKyivShiftIndex;
+
+                  return (
+                    <button
+                      key={s.index}
+                      onClick={() => !isDisabled && handleShiftChange(s.index as any)}
+                      disabled={isDisabled}
+                      className={`px-3.5 py-1.5 rounded-xl font-mono text-xs font-bold transition-all flex items-center gap-2 ${
+                        isDisabled
+                          ? 'bg-slate-950/40 text-slate-600 border border-white/5 cursor-not-allowed opacity-50'
+                          : selectedShiftIndex === s.index
+                          ? 'bg-violet-500/20 text-violet-300 border border-violet-500/50 shadow-md'
+                          : 'bg-slate-900/70 text-slate-400 border border-white/10 hover:bg-slate-800 hover:text-slate-200'
+                      }`}
+                    >
+                      {isCurrentActive && (
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                      )}
+                      <span>{s.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* CONTENT */}
           {isOperatorsLoading && operators.length === 0 ? (
             <div className="p-10 text-center space-y-3">
               <RefreshCw size={24} className="animate-spin text-violet-400 mx-auto" />
-              <p className="text-xs font-mono text-slate-400">Загрузка метрик операторов за текущую смену...</p>
+              <p className="text-xs font-mono text-slate-400">Загрузка метрик операторов за выбранный период...</p>
             </div>
           ) : operatorsError ? (
             <div className="p-6 bg-rose-950/30 border border-rose-500/30 text-rose-300 rounded-2xl flex items-start gap-3 font-mono text-xs">
@@ -492,9 +605,14 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
           ) : operators.length === 0 ? (
             <div className="p-10 bg-slate-900/40 rounded-2xl border border-dashed border-white/15 text-center space-y-2">
               <UserCheck size={32} className="text-slate-500 mx-auto mb-1" />
-              <p className="text-sm font-mono font-bold text-slate-300">Нет активных операторов в текущую смену</p>
+              <p className="text-sm font-mono font-bold text-slate-300">
+                {periodMode === 'today' ? 'Нет активных операторов в текущую смену' : 'Нет данных за выбранный период'}
+              </p>
               <p className="text-xs font-mono text-slate-400 max-w-md mx-auto">
-                В текущую смену ({shiftInfo?.label || 'текущее время'}) операторы пока не отправляли сообщений.
+                {periodMode === 'today'
+                  ? `В текущую смену (${shiftInfo?.label || 'текущее время'}) операторы пока не отправляли сообщений.`
+                  : `За период (${shiftInfo?.label || 'выбранный период'}) активные сообщения операторов не зафиксированы.`
+                }
               </p>
             </div>
           ) : (

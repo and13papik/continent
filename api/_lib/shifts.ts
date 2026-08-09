@@ -4,7 +4,21 @@ export interface KyivShift {
   end: string;   // ISO 8601 UTC
 }
 
-function kyivWallTimeToUTC(dateStr: string, hour: number): string {
+export interface ShiftConfig {
+  index: 1 | 2 | 3 | 4;
+  label: string;
+  startHour: number;
+  endHour: number;
+}
+
+export const SHIFTS_CONFIG: ShiftConfig[] = [
+  { index: 1, label: "02:00–08:00", startHour: 2, endHour: 8 },
+  { index: 2, label: "08:00–14:00", startHour: 8, endHour: 14 },
+  { index: 3, label: "14:00–20:00", startHour: 14, endHour: 20 },
+  { index: 4, label: "20:00–02:00", startHour: 20, endHour: 2 }
+];
+
+export function kyivWallTimeToUTC(dateStr: string, hour: number): string {
   const paddedHour = String(hour).padStart(2, '0');
   const naiveUtc = new Date(`${dateStr}T${paddedHour}:00:00.000Z`);
 
@@ -23,69 +37,100 @@ function kyivWallTimeToUTC(dateStr: string, hour: number): string {
   return new Date(targetMs).toISOString();
 }
 
-export function getCurrentKyivShift(): KyivShift {
+export function getCurrentKyivShiftIndex(): 1 | 2 | 3 | 4 {
   const now = new Date();
+  const hourFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Kyiv",
+    hour: "numeric",
+    hour12: false
+  });
+  const kyivHour = parseInt(hourFormatter.format(now), 10) || 0;
 
+  if (kyivHour >= 2 && kyivHour < 8) return 1;
+  if (kyivHour >= 8 && kyivHour < 14) return 2;
+  if (kyivHour >= 14 && kyivHour < 20) return 3;
+  return 4;
+}
+
+export function getKyivDateStr(offsetDays: number = 0): string {
+  const targetDate = new Date(Date.now() + offsetDays * 24 * 3600 * 1000);
   const dateFormatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Kyiv",
     year: "numeric",
     month: "2-digit",
     day: "2-digit"
   });
+  return dateFormatter.format(targetDate);
+}
+
+export function getShiftRangeForDay(
+  day: 'today' | 'yesterday',
+  shiftIndex: 1 | 2 | 3 | 4
+): KyivShift {
+  const config = SHIFTS_CONFIG.find(s => s.index === shiftIndex) || SHIFTS_CONFIG[0];
+  const baseOffset = day === 'today' ? 0 : -1;
+  const baseDate = getKyivDateStr(baseOffset);
+
+  if (shiftIndex !== 4) {
+    const start = kyivWallTimeToUTC(baseDate, config.startHour);
+    const end = kyivWallTimeToUTC(baseDate, config.endHour);
+    return { label: config.label, start, end };
+  } else {
+    const nextDate = getKyivDateStr(baseOffset + 1);
+    const start = kyivWallTimeToUTC(baseDate, 20);
+    const end = kyivWallTimeToUTC(nextDate, 2);
+    return { label: config.label, start, end };
+  }
+}
+
+export function getWeekRange(): KyivShift {
+  const todayKyivStr = getKyivDateStr(0);
+  const utcDate = new Date(`${todayKyivStr}T00:00:00Z`);
+  const weekday = utcDate.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const daysSinceMonday = weekday === 0 ? 6 : weekday - 1;
+
+  const mondayMs = utcDate.getTime() - daysSinceMonday * 24 * 3600 * 1000;
+  const mondayDate = new Date(mondayMs);
+  const year = mondayDate.getUTCFullYear();
+  const month = String(mondayDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(mondayDate.getUTCDate()).padStart(2, '0');
+  const mondayDateStr = `${year}-${month}-${day}`;
+
+  const start = kyivWallTimeToUTC(mondayDateStr, 0);
+  const end = new Date().toISOString();
+
+  return { label: "Текущая неделя", start, end };
+}
+
+export function getMonthRange(): KyivShift {
+  const todayKyivStr = getKyivDateStr(0);
+  const monthStartDateStr = `${todayKyivStr.slice(0, 7)}-01`;
+
+  const start = kyivWallTimeToUTC(monthStartDateStr, 0);
+  const end = new Date().toISOString();
+
+  return { label: "Текущий месяц", start, end };
+}
+
+export function getCurrentKyivShift(): KyivShift {
+  const currentIndex = getCurrentKyivShiftIndex();
+  const now = new Date();
 
   const hourFormatter = new Intl.DateTimeFormat("en-US", {
     timeZone: "Europe/Kyiv",
     hour: "numeric",
     hour12: false
   });
-
-  const kyivDateStr = dateFormatter.format(now); // "YYYY-MM-DD"
   const kyivHour = parseInt(hourFormatter.format(now), 10) || 0;
 
-  const prevDayDateStr = dateFormatter.format(new Date(now.getTime() - 24 * 3600 * 1000));
-  const nextDayDateStr = dateFormatter.format(new Date(now.getTime() + 24 * 3600 * 1000));
-
-  let label = "";
-  let startDateStr = "";
-  let startHour = 0;
-  let endDateStr = "";
-  let endHour = 0;
-
-  if (kyivHour >= 2 && kyivHour < 8) {
-    label = "02:00–08:00";
-    startDateStr = kyivDateStr;
-    startHour = 2;
-    endDateStr = kyivDateStr;
-    endHour = 8;
-  } else if (kyivHour >= 8 && kyivHour < 14) {
-    label = "08:00–14:00";
-    startDateStr = kyivDateStr;
-    startHour = 8;
-    endDateStr = kyivDateStr;
-    endHour = 14;
-  } else if (kyivHour >= 14 && kyivHour < 20) {
-    label = "14:00–20:00";
-    startDateStr = kyivDateStr;
-    startHour = 14;
-    endDateStr = kyivDateStr;
-    endHour = 20;
-  } else if (kyivHour >= 20) {
-    label = "20:00–02:00";
-    startDateStr = kyivDateStr;
-    startHour = 20;
-    endDateStr = nextDayDateStr;
-    endHour = 2;
-  } else {
-    // kyivHour < 2 (00:00 - 01:59)
-    label = "20:00–02:00";
-    startDateStr = prevDayDateStr;
-    startHour = 20;
-    endDateStr = kyivDateStr;
-    endHour = 2;
+  // If hour is 00:00-01:59, we are in shift 4 which started yesterday at 20:00
+  if (kyivHour < 2) {
+    const prevDayStr = getKyivDateStr(-1);
+    const todayStr = getKyivDateStr(0);
+    const start = kyivWallTimeToUTC(prevDayStr, 20);
+    const end = kyivWallTimeToUTC(todayStr, 2);
+    return { label: "20:00–02:00", start, end };
   }
 
-  const start = kyivWallTimeToUTC(startDateStr, startHour);
-  const end = kyivWallTimeToUTC(endDateStr, endHour);
-
-  return { label, start, end };
+  return getShiftRangeForDay('today', currentIndex);
 }
