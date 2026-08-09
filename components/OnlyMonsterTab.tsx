@@ -1743,22 +1743,38 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                       <div className="space-y-2 pt-3 border-t border-white/15 transition-all duration-500">
                         {raceMode ? (
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                            {/* 1. MESSAGES */}
+                            {/* 1. MESSAGES (Hourly Rate) */}
                             {(() => {
-                              const g = op.gauges?.messages;
-                              const val = g?.value ?? op.messages_count;
-                              const target = g?.target || 50;
-                              const max = g?.max || Math.max(target * 2, 10);
+                              let shiftHours = 6;
+                              if (shiftInfo?.start && shiftInfo?.end) {
+                                const startMs = new Date(shiftInfo.start).getTime();
+                                const endMs = new Date(shiftInfo.end).getTime();
+                                const nowMs = Date.now();
+                                if (!isNaN(startMs) && !isNaN(endMs) && endMs > startMs) {
+                                  if (nowMs >= startMs && nowMs < endMs) {
+                                    shiftHours = Math.max(0.5, (nowMs - startMs) / 3600000);
+                                  } else {
+                                    shiftHours = Math.max(1, (endMs - startMs) / 3600000);
+                                  }
+                                }
+                              }
+                              const msgPerHour = op.messages_count / shiftHours;
+                              // Thresholds per hour:
+                              // < 50: КРИТИЧЕСКИ (red)
+                              // 50-64: СРЕДНЕ (orange)
+                              // 65-79: ОПТИМАЛЬНО (green)
+                              // 80+: УЛЬТРА (cyan)
+                              const max = Math.max(120, Math.ceil(msgPerHour * 1.2));
                               const zones = [
-                                { from: 0, to: Math.round(target * 0.5), color: 'red' },
-                                { from: Math.round(target * 0.5), to: Math.round(target * 0.85), color: 'orange' },
-                                { from: Math.round(target * 0.85), to: Math.round(target * 1.3), color: 'green' },
-                                { from: Math.round(target * 1.3), to: max, color: 'cyan' }
+                                { from: 0, to: 50, color: 'red' },
+                                { from: 50, to: 65, color: 'orange' },
+                                { from: 65, to: 80, color: 'green' },
+                                { from: 80, to: max, color: 'cyan' }
                               ];
                               return (
                                 <MetricGauge
                                   label="СООБЩЕНИЯ"
-                                  value={val}
+                                  value={msgPerHour}
                                   displayValue={String(op.messages_count)}
                                   min={0}
                                   max={max}
@@ -1770,16 +1786,18 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
 
                             {/* 2. REPLY TIME */}
                             {(() => {
-                              const g = op.gauges?.reply_time;
-                              const val = (g?.value !== undefined ? g.value : op.reply_time_avg) ?? null;
-                              const goodTh = g?.goodThreshold || 120;
-                              const okTh = g?.okThreshold || 300;
-                              const max = g?.max || 900;
+                              const val = op.reply_time_avg ?? null;
+                              // Thresholds (seconds):
+                              // < 1:50 (110s): УЛЬТРА (cyan)
+                              // 1:50-2:40 (110s-160s): ОПТИМАЛЬНО (green)
+                              // 2:40-5:00 (160s-300s): СРЕДНЕ (orange)
+                              // 5:00+ (300s+): КРИТИЧЕСКИ (red)
+                              const max = Math.max(600, val ? Math.ceil(val * 1.1) : 600);
                               const zones = [
-                                { from: 0, to: Math.round(goodTh * 0.5), color: 'cyan' },
-                                { from: Math.round(goodTh * 0.5), to: goodTh, color: 'green' },
-                                { from: goodTh, to: okTh, color: 'orange' },
-                                { from: okTh, to: max, color: 'red' }
+                                { from: 0, to: 110, color: 'cyan' },
+                                { from: 110, to: 160, color: 'green' },
+                                { from: 160, to: 300, color: 'orange' },
+                                { from: 300, to: max, color: 'red' }
                               ];
                               return (
                                 <MetricGauge
@@ -1823,24 +1841,26 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                             {/* 4. PPV SOLD / CONVERSION */}
                             {(() => {
                               const conversionPct = op.paid_messages_count > 0
-                                ? Math.round((op.sold_messages_count / op.paid_messages_count) * 100)
+                                ? (op.sold_messages_count / op.paid_messages_count) * 100
                                 : 0;
-                              const g = op.gauges?.ppv_sold;
-                              const val = g?.value ?? conversionPct;
-                              const okTh = g?.okThreshold || 8;
-                              const goodTh = g?.goodThreshold || 18;
-                              const max = g?.max || 40;
+                              const displayConversionPct = Math.round(conversionPct);
+                              // Thresholds (%):
+                              // < 12%: КРИТИЧЕСКИ (red)
+                              // 12-20%: СРЕДНЕ (orange)
+                              // 20-34%: ОПТИМАЛЬНО (green)
+                              // 35-50%+: УЛЬТРА (cyan)
+                              const max = 100;
                               const zones = [
-                                { from: 0, to: okTh, color: 'red' },
-                                { from: okTh, to: goodTh, color: 'orange' },
-                                { from: goodTh, to: Math.round(goodTh * 1.5), color: 'green' },
-                                { from: Math.round(goodTh * 1.5), to: max, color: 'cyan' }
+                                { from: 0, to: 12, color: 'red' },
+                                { from: 12, to: 20, color: 'orange' },
+                                { from: 20, to: 35, color: 'green' },
+                                { from: 35, to: max, color: 'cyan' }
                               ];
                               return (
                                 <MetricGauge
                                   label="PPV ПРОДАНО"
-                                  value={val}
-                                  displayValue={`${op.sold_messages_count} (${conversionPct}%)`}
+                                  value={conversionPct}
+                                  displayValue={`${op.sold_messages_count} (${displayConversionPct}%)`}
                                   min={0}
                                   max={max}
                                   zones={zones}

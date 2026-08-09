@@ -341,14 +341,14 @@ export default async function handler(req: any, res: any) {
         gauges: {
           messages: {
             value: op.messages_count,
-            target: avgMessages,
-            max: Math.max(Math.round(avgMessages * 2), Math.round(maxMessagesInList * 1.1), 10)
+            target: 80,
+            max: 120
           },
           reply_time: {
             value: op.reply_time_avg,
-            goodThreshold: 120,
+            goodThreshold: 110,
             okThreshold: 300,
-            max: 900
+            max: 600
           },
           ppv_sent: {
             value: op.paid_messages_count,
@@ -357,9 +357,10 @@ export default async function handler(req: any, res: any) {
           },
           ppv_sold: {
             value: conversionPct,
-            okThreshold: 8,
-            goodThreshold: 18,
-            max: 40
+            okThreshold: 12,
+            goodThreshold: 20,
+            ultraThreshold: 35,
+            max: 100
           }
         }
       };
