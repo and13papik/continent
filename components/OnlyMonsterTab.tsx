@@ -37,6 +37,7 @@ interface ShiftOperator {
   paid_messages_count: number;
   sold_messages_count: number;
   reply_time_avg?: number | null;
+  creator_ids?: string[];
 }
 
 function formatDuration(seconds?: number | null): string {
@@ -174,8 +175,13 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
 
   const handleSubTabChange = (tab: 'accounts' | 'operator_metrics') => {
     setActiveSubTab(tab);
-    if (tab === 'operator_metrics' && !hasLoadedOperators) {
-      fetchShiftOperators(periodMode, selectedShiftIndex);
+    if (tab === 'operator_metrics') {
+      if (accounts.length === 0 && !isLoading) {
+        fetchAccounts();
+      }
+      if (!hasLoadedOperators) {
+        fetchShiftOperators(periodMode, selectedShiftIndex);
+      }
     }
   };
 
@@ -273,7 +279,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
               status: acc.status === 'inactive' ? 'inactive' : 'active',
               unread_chats: typeof acc.unread_chats === 'number' ? acc.unread_chats : (acc.unread_count || 0),
               active_operators: typeof acc.active_operators === 'number' ? acc.active_operators : (acc.operators_count || 1),
-              today_earnings: undefined
+              today_earnings: undefined,
+              avatar_url: acc.avatar || acc.avatar_url || acc.photo || acc.image || ''
             };
           });
 
@@ -670,6 +677,61 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                           </span>
                         </div>
                       </div>
+
+                      {/* WORKED ON MODELS / CREATORS STACK */}
+                      {(() => {
+                        if (!op.creator_ids || op.creator_ids.length === 0) return null;
+
+                        const matchedAccounts = op.creator_ids
+                          .map(id => accounts.find(a => String(a.id) === String(id)))
+                          .filter(Boolean) as OnlyMonsterAccount[];
+
+                        if (matchedAccounts.length === 0) return null;
+
+                        const MAX_DISPLAY = 4;
+                        const showOverflow = matchedAccounts.length > MAX_DISPLAY;
+                        const visibleAccounts = showOverflow ? matchedAccounts.slice(0, MAX_DISPLAY - 1) : matchedAccounts;
+                        const remainingCount = matchedAccounts.length - visibleAccounts.length;
+
+                        return (
+                          <div className="flex items-center justify-between text-[10px] font-mono pt-2.5 border-t border-white/10">
+                            <span className="text-slate-400 font-bold uppercase text-[9px] shrink-0">
+                              Работал на:
+                            </span>
+                            <div className="flex items-center -space-x-2 py-0.5 pl-2 overflow-hidden">
+                              {visibleAccounts.map((acc) => (
+                                <div
+                                  key={acc.id}
+                                  title={`${acc.name}${acc.handle ? ` (@${acc.handle})` : ''}`}
+                                  className="relative w-6 h-6 rounded-full bg-gradient-to-br from-violet-700 to-indigo-900 border-2 border-slate-900 flex items-center justify-center text-white font-black text-[9px] shadow-sm shrink-0 overflow-hidden cursor-pointer"
+                                >
+                                  <span className="absolute inset-0 flex items-center justify-center text-white font-black text-[9px]">
+                                    {acc.name.charAt(0).toUpperCase()}
+                                  </span>
+                                  {acc.avatar_url && (
+                                    <img
+                                      src={acc.avatar_url}
+                                      alt={acc.name}
+                                      className="absolute inset-0 w-full h-full object-cover"
+                                      onError={(e) => {
+                                        (e.target as HTMLElement).style.display = 'none';
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              ))}
+                              {showOverflow && (
+                                <div
+                                  title={`Еще ${remainingCount} моделей: ${matchedAccounts.slice(MAX_DISPLAY - 1).map(a => a.name).join(', ')}`}
+                                  className="w-6 h-6 rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-slate-300 font-bold text-[9px] shadow-sm shrink-0 cursor-pointer"
+                                >
+                                  +{remainingCount}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* BOTTOM SECTION: 4 METRICS GRID */}
                       <div className="space-y-2 pt-3 border-t border-white/15">

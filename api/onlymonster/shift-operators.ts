@@ -189,15 +189,17 @@ export default async function handler(req: any, res: any) {
     }
 
     // 3. Process and format operator metrics
-    const operators: Array<{
+    const operatorsMap = new Map<string, {
       user_id: string;
       name: string;
       avatar: string;
       messages_count: number;
       paid_messages_count: number;
       sold_messages_count: number;
-      reply_time_avg: number | null;
-    }> = [];
+      reply_time_sum: number;
+      reply_time_count: number;
+      creator_ids: Set<string>;
+    }>();
 
     for (const item of metricsItems) {
       const messagesCount = typeof item.messages_count === 'number'
@@ -226,19 +228,61 @@ export default async function handler(req: any, res: any) {
           ? item.reply_time_avg
           : (typeof item.reply_time === 'number' ? item.reply_time : null);
 
-        // TODO: правильная агрегация reply_time_avg при нескольких аккаунтах на одного оператора
+        let rawCreatorIds: any[] = [];
+        if (Array.isArray(item.creator_ids)) {
+          rawCreatorIds = item.creator_ids;
+        } else if (Array.isArray(item.creators)) {
+          rawCreatorIds = item.creators;
+        } else if (item.creator_id !== undefined && item.creator_id !== null) {
+          rawCreatorIds = [item.creator_id];
+        }
 
-        operators.push({
-          user_id: userId,
-          name: displayName,
-          avatar,
-          messages_count: messagesCount,
-          paid_messages_count: paidMessagesCount,
-          sold_messages_count: soldMessagesCount,
-          reply_time_avg: replyTimeAvg
-        });
+        const existing = operatorsMap.get(userId);
+        if (existing) {
+          existing.messages_count += messagesCount;
+          existing.paid_messages_count += paidMessagesCount;
+          existing.sold_messages_count += soldMessagesCount;
+          if (replyTimeAvg !== null) {
+            existing.reply_time_sum += replyTimeAvg;
+            existing.reply_time_count += 1;
+          }
+          for (const cId of rawCreatorIds) {
+            if (cId !== undefined && cId !== null && cId !== '') {
+              existing.creator_ids.add(String(cId));
+            }
+          }
+        } else {
+          const creatorSet = new Set<string>();
+          for (const cId of rawCreatorIds) {
+            if (cId !== undefined && cId !== null && cId !== '') {
+              creatorSet.add(String(cId));
+            }
+          }
+          operatorsMap.set(userId, {
+            user_id: userId,
+            name: displayName,
+            avatar,
+            messages_count: messagesCount,
+            paid_messages_count: paidMessagesCount,
+            sold_messages_count: soldMessagesCount,
+            reply_time_sum: replyTimeAvg !== null ? replyTimeAvg : 0,
+            reply_time_count: replyTimeAvg !== null ? 1 : 0,
+            creator_ids: creatorSet
+          });
+        }
       }
     }
+
+    const operators = Array.from(operatorsMap.values()).map(op => ({
+      user_id: op.user_id,
+      name: op.name,
+      avatar: op.avatar,
+      messages_count: op.messages_count,
+      paid_messages_count: op.paid_messages_count,
+      sold_messages_count: op.sold_messages_count,
+      reply_time_avg: op.reply_time_count > 0 ? Math.round(op.reply_time_sum / op.reply_time_count) : null,
+      creator_ids: Array.from(op.creator_ids)
+    }));
 
     // 4. Sort operators by messages_count descending
     operators.sort((a, b) => b.messages_count - a.messages_count);
