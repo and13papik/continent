@@ -11,6 +11,7 @@ import {
 import onlyMonsterConfigHandler from "./api/onlymonster/config.js";
 import onlyMonsterProxyHandler from "./api/onlymonster/proxy.js";
 import onlyMonsterEarningsHandler from "./api/onlymonster/earnings.js";
+import onlyMonsterShiftOperatorsHandler from "./api/onlymonster/shift-operators.js";
 
 async function startServer() {
   const app = express();
@@ -561,10 +562,11 @@ async function startServer() {
     res.status(result.statusCode).json(result.body);
   });
 
-  // OnlyMonster Configuration, proxy, and earnings handlers
+  // OnlyMonster Configuration, proxy, earnings, and shift-operators handlers
   app.all("/api/onlymonster/config", (req, res) => onlyMonsterConfigHandler(req, res));
   app.all("/api/onlymonster/proxy", (req, res) => onlyMonsterProxyHandler(req, res));
   app.all("/api/onlymonster/earnings", (req, res) => onlyMonsterEarningsHandler(req, res));
+  app.all("/api/onlymonster/shift-operators", (req, res) => onlyMonsterShiftOperatorsHandler(req, res));
 
   // Vite middleware
   if (process.env.NODE_ENV !== "production") {
