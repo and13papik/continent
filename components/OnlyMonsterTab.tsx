@@ -57,6 +57,19 @@ function formatDuration(seconds?: number | null): string {
   return mins > 0 ? `${hours}ч ${mins}м` : `${hours}ч`;
 }
 
+function getReplyTimeColorClass(seconds?: number | null): string {
+  if (seconds === null || seconds === undefined || isNaN(seconds) || seconds <= 0) {
+    return 'text-slate-500';
+  }
+  if (seconds < 120) {
+    return 'text-emerald-400';
+  }
+  if (seconds <= 300) {
+    return 'text-amber-400';
+  }
+  return 'text-rose-400';
+}
+
 function decodeHtmlEntities(str: string): string {
   if (!str) return '';
   return str
@@ -489,10 +502,22 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {operators.map((op, index) => {
                   const rank = index + 1;
+                  const ppvConversion = op.paid_messages_count > 0 
+                    ? Math.round((op.sold_messages_count / op.paid_messages_count) * 100)
+                    : null;
+
                   return (
                     <div 
                       key={op.user_id || index}
-                      className="p-4 bg-slate-900/60 rounded-2xl border border-white/5 hover:border-violet-500/30 hover:bg-slate-900/90 transition-all flex flex-col justify-between space-y-4 font-mono group"
+                      className={`p-4 rounded-2xl transition-all flex flex-col justify-between space-y-4 font-mono group ${
+                        rank === 1
+                          ? 'bg-slate-900/80 border border-amber-500/40 shadow-lg shadow-amber-500/10 hover:border-amber-400/60 hover:bg-slate-900'
+                          : rank === 2
+                          ? 'bg-slate-900/70 border border-slate-300/30 shadow-md shadow-slate-400/5 hover:border-slate-300/50 hover:bg-slate-900'
+                          : rank === 3
+                          ? 'bg-slate-900/70 border border-orange-700/30 shadow-md shadow-orange-700/5 hover:border-orange-600/50 hover:bg-slate-900'
+                          : 'bg-slate-900/60 border border-white/5 hover:border-violet-500/30 hover:bg-slate-900/90'
+                      }`}
                     >
                       {/* TOP SECTION: RANK, AVATAR, NAME, ID */}
                       <div className="flex items-center gap-3">
@@ -529,34 +554,47 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                       </div>
 
                       {/* BOTTOM SECTION: 4 METRICS GRID */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-white/5 text-center">
-                        <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                          <span className="text-[8px] uppercase text-slate-500 font-bold block">Сообщения</span>
-                          <span className="text-xs font-black text-slate-200 block mt-0.5">
-                            {op.messages_count}
-                          </span>
+                      <div className="space-y-2 pt-3 border-t border-white/10">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                          <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                            <span className="text-[8px] uppercase text-slate-500 font-bold block">Сообщения</span>
+                            <span className="text-xs font-black text-slate-200 block mt-0.5">
+                              {op.messages_count}
+                            </span>
+                          </div>
+
+                          <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                            <span className="text-[8px] uppercase text-slate-500 font-bold block">Ср. время ответа</span>
+                            <span className={`text-xs font-black block mt-0.5 ${getReplyTimeColorClass(op.reply_time_avg)}`}>
+                              {formatDuration(op.reply_time_avg)}
+                            </span>
+                          </div>
+
+                          <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                            <span className="text-[8px] uppercase text-slate-500 font-bold block">PPV Отправлено</span>
+                            <span className="text-xs font-black text-violet-300 block mt-0.5">
+                              {op.paid_messages_count}
+                            </span>
+                          </div>
+
+                          <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                            <span className="text-[8px] uppercase text-slate-500 font-bold block">PPV Продано</span>
+                            <span className="text-xs font-black text-emerald-400 block mt-0.5">
+                              {op.sold_messages_count}
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                          <span className="text-[8px] uppercase text-slate-500 font-bold block">Ср. время ответа</span>
-                          <span className="text-xs font-black text-slate-200 block mt-0.5">
-                            {formatDuration(op.reply_time_avg)}
-                          </span>
-                        </div>
-
-                        <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                          <span className="text-[8px] uppercase text-slate-500 font-bold block">PPV Отправлено</span>
-                          <span className="text-xs font-black text-slate-200 block mt-0.5">
-                            {op.paid_messages_count}
-                          </span>
-                        </div>
-
-                        <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                          <span className="text-[8px] uppercase text-slate-500 font-bold block">PPV Продано</span>
-                          <span className="text-xs font-black text-emerald-400 block mt-0.5">
-                            {op.sold_messages_count}
-                          </span>
-                        </div>
+                        {ppvConversion !== null && (
+                          <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-400 pt-1 px-1">
+                            <span className="text-slate-500 uppercase text-[8px]">Конверсия PPV:</span>
+                            <span className={`font-black ${
+                              ppvConversion >= 25 ? 'text-emerald-400' : ppvConversion >= 10 ? 'text-amber-400' : 'text-slate-300'
+                            }`}>
+                              {ppvConversion}%
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
