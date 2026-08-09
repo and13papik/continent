@@ -111,7 +111,17 @@ async function getAccountEarningsToday(
 
       for (const tx of items) {
         const status = (tx.status || tx.tx_status || tx.state || '').toString().toLowerCase();
-        if (status === 'done') {
+        const isExcludedStatus =
+          status.includes('return') ||
+          status.includes('refund') ||
+          status.includes('chargeback') ||
+          status === 'pending return' ||
+          status === 'pending_return' ||
+          status === 'refund' ||
+          status === 'refunded' ||
+          status === 'chargeback';
+
+        if (!isExcludedStatus) {
           const rawAmt = tx.amount !== undefined ? tx.amount : tx.sum;
           const val = typeof rawAmt === 'number' ? rawAmt : parseFloat(rawAmt);
           if (!isNaN(val)) {
