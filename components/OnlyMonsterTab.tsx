@@ -70,6 +70,8 @@ interface MetricGaugeProps {
   max: number;
   zones: MetricGaugeZone[];
   inverted?: boolean;
+  raceMode?: boolean;
+  raceColor?: string;
 }
 
 const MetricGauge: React.FC<MetricGaugeProps> = ({
@@ -78,7 +80,9 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
   displayValue,
   min,
   max,
-  zones
+  zones,
+  raceMode = false,
+  raceColor = '#22ff88'
 }) => {
   const safeMin = min;
   const safeMax = max > min ? max : min + 1;
@@ -128,6 +132,33 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
     );
   });
 
+  // Tick marks for raceMode speedometer
+  const ticks = [];
+  if (raceMode) {
+    const numTicks = 11;
+    for (let i = 0; i < numTicks; i++) {
+      const angleDeg = 180 - (i / (numTicks - 1)) * 180;
+      const angleRad = angleDeg * (Math.PI / 180);
+      const innerR = R - 5;
+      const outerR = R + 4;
+      const x1 = cx + innerR * Math.cos(angleRad);
+      const y1 = cy - innerR * Math.sin(angleRad);
+      const x2 = cx + outerR * Math.cos(angleRad);
+      const y2 = cy - outerR * Math.sin(angleRad);
+      ticks.push(
+        <line
+          key={`tick-${i}`}
+          x1={x1.toFixed(2)}
+          y1={y1.toFixed(2)}
+          x2={x2.toFixed(2)}
+          y2={y2.toFixed(2)}
+          stroke="rgba(255, 255, 255, 0.35)"
+          strokeWidth="1"
+        />
+      );
+    }
+  }
+
   let needleX = cx;
   let needleY = cy - 32;
   if (clampedVal !== null) {
@@ -138,22 +169,56 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
   }
 
   return (
-    <div className="p-2 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner flex flex-col items-center justify-between text-center font-mono">
-      <span className="text-[8px] uppercase text-slate-400 font-bold block tracking-wider truncate w-full">
+    <div
+      className={`p-2 rounded-2xl border flex flex-col items-center justify-between text-center font-mono transition-all duration-500 ${
+        raceMode
+          ? 'bg-slate-950/80 border-cyan-500/30 shadow-[0_0_12px_rgba(56,189,248,0.12)]'
+          : 'bg-slate-800/60 border-white/10 shadow-inner'
+      }`}
+    >
+      <span
+        className={`text-[8px] uppercase font-bold block tracking-wider truncate w-full transition-all duration-500 ${
+          raceMode ? 'text-cyan-300/90' : 'text-slate-400'
+        }`}
+      >
         {label}
       </span>
 
       <div className="relative w-full max-w-[110px] aspect-[120/58] flex items-center justify-center my-1 overflow-visible">
         <svg viewBox="0 0 120 58" className="w-full h-full overflow-visible">
+          <defs>
+            <radialGradient id="chromeHub" cx="35%" cy="35%" r="65%">
+              <stop offset="0%" stopColor="#ffffff" />
+              <stop offset="50%" stopColor="#94a3b8" />
+              <stop offset="100%" stopColor="#0f172a" />
+            </radialGradient>
+          </defs>
+
           {/* Background Track Arc */}
           <path
             d={`M ${cx - R} ${cy} A ${R} ${R} 0 0 1 ${cx + R} ${cy}`}
             fill="none"
-            stroke="rgba(255, 255, 255, 0.08)"
+            stroke={raceMode ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.08)"}
             strokeWidth="7"
           />
-          {/* Color Zone Arcs */}
-          {renderedZones}
+
+          {/* Color Zone Arcs or Race Neon Arc */}
+          {raceMode ? (
+            <path
+              d={`M ${cx - R} ${cy} A ${R} ${R} 0 0 1 ${cx + R} ${cy}`}
+              fill="none"
+              stroke={raceColor}
+              strokeWidth="6"
+              strokeOpacity={isNull ? 0.3 : 0.95}
+              style={{ filter: `drop-shadow(0 0 6px ${raceColor})` }}
+            />
+          ) : (
+            renderedZones
+          )}
+
+          {/* Tick marks for race mode */}
+          {raceMode && ticks}
+
           {/* Needle */}
           {clampedVal !== null && (
             <>
@@ -162,17 +227,34 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
                 y1={cy}
                 x2={needleX.toFixed(2)}
                 y2={needleY.toFixed(2)}
-                stroke="#f8fafc"
+                stroke="#ffffff"
                 strokeWidth="2.5"
                 strokeLinecap="round"
+                style={raceMode ? { filter: 'drop-shadow(0 0 4px #ffffff)' } : undefined}
               />
-              <circle cx={cx} cy={cy} r="3.5" fill="#f8fafc" stroke="#0f172a" strokeWidth="2" />
+              {raceMode ? (
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r="4.5"
+                  fill="url(#chromeHub)"
+                  stroke="#38bdf8"
+                  strokeWidth="1.2"
+                />
+              ) : (
+                <circle cx={cx} cy={cy} r="3.5" fill="#f8fafc" stroke="#0f172a" strokeWidth="2" />
+              )}
             </>
           )}
         </svg>
       </div>
 
-      <span className="text-[11px] font-black text-slate-100 block tracking-tight truncate w-full">
+      <span
+        className={`text-[11px] sm:text-[12px] font-black block tracking-tight truncate w-full transition-all duration-500 ${
+          raceMode ? 'font-mono tracking-wider' : 'text-slate-100'
+        }`}
+        style={raceMode ? { color: raceColor, textShadow: `0 0 8px ${raceColor}` } : undefined}
+      >
         {displayValue}
       </span>
     </div>
@@ -257,6 +339,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
 
   const [periodMode, setPeriodMode] = useState<'today' | 'yesterday' | 'week' | 'month'>('today');
   const [selectedShiftIndex, setSelectedShiftIndex] = useState<1 | 2 | 3 | 4>(currentKyivShiftIndex);
+
+  // Race Mode toggle state
+  const [raceMode, setRaceMode] = useState(false);
 
   // Sorting state
   const [sortBy, setSortBy] = useState<'messages' | 'reply_time' | 'ppv_sent' | 'ppv_sold' | 'earnings'>('messages');
@@ -918,7 +1003,13 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
 
       {/* SUB-TAB 2: OPERATOR METRICS */}
       {activeSubTab === 'operator_metrics' && (
-        <div className="glass-card p-6 rounded-3xl border border-white/15 bg-slate-900/60 space-y-5">
+        <div
+          className={`glass-card p-6 rounded-3xl transition-all duration-500 space-y-5 ${
+            raceMode
+              ? 'border border-cyan-500/30 bg-gradient-to-b from-slate-950 via-blue-950/40 to-slate-950 shadow-[0_0_30px_rgba(15,23,42,0.8),inset_0_0_60px_rgba(56,189,248,0.06)]'
+              : 'border border-white/15 bg-slate-900/60'
+          }`}
+        >
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
             <div>
               <div className="flex items-center gap-2.5">
@@ -941,18 +1032,33 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
               </p>
             </div>
 
-            <button
-              onClick={() => {
-                fetchShiftOperators(periodMode, selectedShiftIndex, sortBy, sortDir);
-                fetchShiftComparison(shiftCompMode);
-              }}
-              disabled={isOperatorsLoading || isShiftCompLoading}
-              className="px-3.5 py-2 bg-slate-900 border border-white/15 hover:border-violet-500/40 hover:bg-slate-800 text-xs font-mono font-bold uppercase text-slate-200 rounded-xl transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-md shrink-0"
-              title="Обновить метрики операторов и сравнение смен"
-            >
-              <RefreshCw size={14} className={(isOperatorsLoading || isShiftCompLoading) ? "animate-spin text-violet-400" : ""} />
-              {(isOperatorsLoading || isShiftCompLoading) ? 'Загрузка...' : 'Обновить'}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setRaceMode(!raceMode)}
+                className={`px-3.5 py-2 text-xs font-mono font-bold uppercase rounded-xl transition-all duration-300 flex items-center gap-2 shadow-md ${
+                  raceMode
+                    ? 'bg-gradient-to-r from-blue-900 via-cyan-900 to-blue-900 text-cyan-300 border-2 border-cyan-400 shadow-[0_0_15px_rgba(56,189,248,0.5)] animate-pulse'
+                    : 'bg-slate-900 border border-white/15 hover:border-violet-500/40 hover:bg-slate-800 text-slate-200'
+                }`}
+                title="Переключить визуальный режим гоночной приборной панели"
+              >
+                <span className="text-sm">🏁</span>
+                <span>ГОНКА</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  fetchShiftOperators(periodMode, selectedShiftIndex, sortBy, sortDir);
+                  fetchShiftComparison(shiftCompMode);
+                }}
+                disabled={isOperatorsLoading || isShiftCompLoading}
+                className="px-3.5 py-2 bg-slate-900 border border-white/15 hover:border-violet-500/40 hover:bg-slate-800 text-xs font-mono font-bold uppercase text-slate-200 rounded-xl transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-md shrink-0"
+                title="Обновить метрики операторов и сравнение смен"
+              >
+                <RefreshCw size={14} className={(isOperatorsLoading || isShiftCompLoading) ? "animate-spin text-violet-400" : ""} />
+                {(isOperatorsLoading || isShiftCompLoading) ? 'Загрузка...' : 'Обновить'}
+              </button>
+            </div>
           </div>
 
           {/* SUB-BLOCK: SHIFT COMPARISON */}
@@ -1205,8 +1311,10 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                   return (
                     <div 
                       key={op.user_id || index}
-                      className={`p-4 rounded-2xl transition-all flex flex-col justify-between space-y-4 font-mono group ${
-                        rank === 1
+                      className={`p-4 rounded-2xl transition-all duration-500 flex flex-col justify-between space-y-4 font-mono group ${
+                        raceMode
+                          ? 'bg-blue-950/30 border border-cyan-400/40 shadow-[0_0_20px_rgba(56,189,248,0.15)] hover:border-cyan-300 hover:shadow-[0_0_25px_rgba(56,189,248,0.3)]'
+                          : rank === 1
                           ? 'bg-slate-900/90 border border-amber-500/50 shadow-lg shadow-amber-500/10 hover:border-amber-400/70 hover:bg-slate-900'
                           : rank === 2
                           ? 'bg-slate-900/85 border border-slate-300/40 shadow-md shadow-slate-400/5 hover:border-slate-300/60 hover:bg-slate-900'
@@ -1218,11 +1326,13 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                       {/* TOP SECTION: RANK, MODEL AVATARS STACK, NAME, ID, EARNINGS BADGE */}
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                          <div className={`w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shrink-0 shadow-md ${
-                            rank === 1 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
-                            rank === 2 ? 'bg-slate-400/20 text-slate-300 border border-slate-400/40' :
-                            rank === 3 ? 'bg-amber-700/20 text-amber-500 border border-amber-700/40' :
-                            'bg-slate-950 text-slate-400 border border-white/10'
+                          <div className={`w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shrink-0 shadow-md transition-all duration-500 ${
+                            raceMode
+                              ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-400/50 shadow-[0_0_10px_rgba(56,189,248,0.3)]'
+                              : rank === 1 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
+                              rank === 2 ? 'bg-slate-400/20 text-slate-300 border border-slate-400/40' :
+                              rank === 3 ? 'bg-amber-700/20 text-amber-500 border border-amber-700/40' :
+                              'bg-slate-950 text-slate-400 border border-white/10'
                           }`}>
                             {rank === 1 ? <Award size={16} /> : `#${rank}`}
                           </div>
@@ -1256,7 +1366,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                                     key={acc.id}
                                     onClick={(e) => handleModelAvatarClick(e, op.user_id, op.name, acc.id, acc.name, acc.avatar_url)}
                                     title={`Кликни для метрик по модели: ${acc.name}`}
-                                    className="relative w-10 h-10 rounded-full bg-gradient-to-br from-violet-700 to-indigo-900 border-2 border-slate-900 flex items-center justify-center text-white font-black text-xs shadow-md shrink-0 overflow-hidden cursor-pointer hover:scale-105 hover:border-violet-400 transition-all"
+                                    className={`relative w-10 h-10 rounded-full bg-gradient-to-br from-violet-700 to-indigo-900 border-2 flex items-center justify-center text-white font-black text-xs shadow-md shrink-0 overflow-hidden cursor-pointer hover:scale-105 transition-all ${
+                                      raceMode ? 'border-cyan-400/80 shadow-[0_0_8px_rgba(56,189,248,0.4)]' : 'border-slate-900 hover:border-violet-400'
+                                    }`}
                                   >
                                     <span className="absolute inset-0 flex items-center justify-center text-white font-black text-xs">
                                       {acc.name.charAt(0).toUpperCase()}
@@ -1297,7 +1409,11 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
 
                         {/* ACCENT EARNINGS BADGE */}
                         <div className="shrink-0">
-                          <div className="px-2.5 py-1 rounded-xl bg-emerald-950/20 border border-emerald-500/30 text-emerald-400 font-black text-xs sm:text-sm tracking-tight shadow-sm whitespace-nowrap">
+                          <div className={`px-2.5 py-1 rounded-xl font-black text-xs sm:text-sm tracking-tight shadow-sm whitespace-nowrap transition-all duration-500 ${
+                            raceMode
+                              ? 'bg-blue-950/80 border border-cyan-400/50 text-cyan-300 shadow-[0_0_10px_rgba(56,189,248,0.2)]'
+                              : 'bg-emerald-950/20 border border-emerald-500/30 text-emerald-400'
+                          }`}>
                             {op.earnings && op.earnings > 0 ? `+$${op.earnings}` : `$${op.earnings ?? 0}`}
                           </div>
                         </div>
@@ -1325,6 +1441,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                                 min={0}
                                 max={max}
                                 zones={zones}
+                                raceMode={raceMode}
+                                raceColor="#22ff88"
                               />
                             );
                           })()}
@@ -1350,6 +1468,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                                 max={max}
                                 zones={zones}
                                 inverted={true}
+                                raceMode={raceMode}
+                                raceColor="#38bdf8"
                               />
                             );
                           })()}
@@ -1373,6 +1493,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                                 min={0}
                                 max={max}
                                 zones={zones}
+                                raceMode={raceMode}
+                                raceColor="#ff3860"
                               />
                             );
                           })()}
@@ -1400,6 +1522,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                                 min={0}
                                 max={max}
                                 zones={zones}
+                                raceMode={raceMode}
+                                raceColor="#ffa726"
                               />
                             );
                           })()}
