@@ -4,6 +4,7 @@ import {
   AlertCircle, 
   Search, 
   Users, 
+  User,
   XCircle, 
   Lock,
   UserCheck,
@@ -783,7 +784,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                           : 'bg-slate-900/80 border border-white/15 hover:border-violet-500/40 hover:bg-slate-800/90'
                       }`}
                     >
-                      {/* TOP SECTION: RANK, AVATAR, NAME, ID */}
+                      {/* TOP SECTION: RANK, MODEL AVATARS STACK, NAME, ID */}
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shrink-0 shadow-md ${
                           rank === 1 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
@@ -794,57 +795,37 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                           {rank === 1 ? <Award size={16} /> : `#${rank}`}
                         </div>
 
-                        {op.avatar ? (
-                          <img 
-                            src={op.avatar} 
-                            alt={op.name}
-                            className="w-10 h-10 rounded-xl object-cover border border-white/15 shrink-0"
-                            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-900 to-violet-950 border border-indigo-500/30 flex items-center justify-center text-white font-black text-sm shrink-0 shadow-md">
-                            {op.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
+                        {/* MODEL AVATARS STACK INSTEAD OF OPERATOR LETTER AVATAR */}
+                        {(() => {
+                          const matchedAccounts = (op.creator_ids || [])
+                            .map(id => accounts.find(a => String(a.id) === String(id)))
+                            .filter(Boolean) as OnlyMonsterAccount[];
 
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-sm font-black text-white truncate group-hover:text-violet-300 transition-colors">
-                            {op.name}
-                          </h4>
-                          <span className="text-[10px] text-slate-400 block truncate">
-                            ID: {op.user_id || '—'}
-                          </span>
-                        </div>
-                      </div>
+                          if (matchedAccounts.length === 0) {
+                            return (
+                              <div 
+                                title="Нет привязанных моделей"
+                                className="w-10 h-10 rounded-full bg-slate-950 border border-white/10 flex items-center justify-center text-slate-500 shrink-0 shadow-sm"
+                              >
+                                <User size={18} className="text-slate-500" />
+                              </div>
+                            );
+                          }
 
-                      {/* WORKED ON MODELS / CREATORS STACK */}
-                      {(() => {
-                        if (!op.creator_ids || op.creator_ids.length === 0) return null;
+                          const MAX_DISPLAY = 4;
+                          const showOverflow = matchedAccounts.length > MAX_DISPLAY;
+                          const visibleAccounts = showOverflow ? matchedAccounts.slice(0, MAX_DISPLAY - 1) : matchedAccounts;
+                          const remainingCount = matchedAccounts.length - visibleAccounts.length;
 
-                        const matchedAccounts = op.creator_ids
-                          .map(id => accounts.find(a => String(a.id) === String(id)))
-                          .filter(Boolean) as OnlyMonsterAccount[];
-
-                        if (matchedAccounts.length === 0) return null;
-
-                        const MAX_DISPLAY = 4;
-                        const showOverflow = matchedAccounts.length > MAX_DISPLAY;
-                        const visibleAccounts = showOverflow ? matchedAccounts.slice(0, MAX_DISPLAY - 1) : matchedAccounts;
-                        const remainingCount = matchedAccounts.length - visibleAccounts.length;
-
-                        return (
-                          <div className="flex items-center justify-between text-[10px] font-mono pt-2.5 border-t border-white/10">
-                            <span className="text-slate-400 font-bold uppercase text-[9px] shrink-0">
-                              Работал на:
-                            </span>
-                            <div className="flex items-center -space-x-2 py-0.5 pl-2 overflow-hidden">
+                          return (
+                            <div className="flex items-center -space-x-3 shrink-0 py-0.5">
                               {visibleAccounts.map((acc) => (
                                 <div
                                   key={acc.id}
                                   title={`${acc.name}${acc.handle ? ` (@${acc.handle})` : ''}`}
-                                  className="relative w-6 h-6 rounded-full bg-gradient-to-br from-violet-700 to-indigo-900 border-2 border-slate-900 flex items-center justify-center text-white font-black text-[9px] shadow-sm shrink-0 overflow-hidden cursor-pointer"
+                                  className="relative w-10 h-10 rounded-full bg-gradient-to-br from-violet-700 to-indigo-900 border-2 border-slate-900 flex items-center justify-center text-white font-black text-xs shadow-md shrink-0 overflow-hidden cursor-pointer"
                                 >
-                                  <span className="absolute inset-0 flex items-center justify-center text-white font-black text-[9px]">
+                                  <span className="absolute inset-0 flex items-center justify-center text-white font-black text-xs">
                                     {acc.name.charAt(0).toUpperCase()}
                                   </span>
                                   {acc.avatar_url && (
@@ -862,15 +843,24 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                               {showOverflow && (
                                 <div
                                   title={`Еще ${remainingCount} моделей: ${matchedAccounts.slice(MAX_DISPLAY - 1).map(a => a.name).join(', ')}`}
-                                  className="w-6 h-6 rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-slate-300 font-bold text-[9px] shadow-sm shrink-0 cursor-pointer"
+                                  className="w-10 h-10 rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-slate-300 font-bold text-xs shadow-md shrink-0 cursor-pointer"
                                 >
                                   +{remainingCount}
                                 </div>
                               )}
                             </div>
-                          </div>
-                        );
-                      })()}
+                          );
+                        })()}
+
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-sm font-black text-white truncate group-hover:text-violet-300 transition-colors">
+                            {op.name}
+                          </h4>
+                          <span className="text-[10px] text-slate-400 block truncate">
+                            ID: {op.user_id || '—'}
+                          </span>
+                        </div>
+                      </div>
 
                       {/* BOTTOM SECTION: 4 METRICS GRID */}
                       <div className="space-y-2 pt-3 border-t border-white/15">
