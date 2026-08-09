@@ -1419,115 +1419,160 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                         </div>
                       </div>
 
-                      {/* BOTTOM SECTION: 4 METRIC GAUGES */}
-                      <div className="space-y-2 pt-3 border-t border-white/15">
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                          {/* 1. MESSAGES */}
-                          {(() => {
-                            const g = op.gauges?.messages;
-                            const val = g?.value ?? op.messages_count;
-                            const target = g?.target || 50;
-                            const max = g?.max || Math.max(target * 2, 10);
-                            const zones = [
-                              { from: 0, to: Math.round(target * 0.7), color: 'red' },
-                              { from: Math.round(target * 0.7), to: Math.round(target * 1.3), color: 'amber' },
-                              { from: Math.round(target * 1.3), to: max, color: 'emerald' }
-                            ];
-                            return (
-                              <MetricGauge
-                                label="СООБЩЕНИЯ"
-                                value={val}
-                                displayValue={String(op.messages_count)}
-                                min={0}
-                                max={max}
-                                zones={zones}
-                                raceMode={raceMode}
-                                raceColor="#22ff88"
-                              />
-                            );
-                          })()}
+                      {/* BOTTOM SECTION: METRICS (FLAT CELLS WHEN NORMAL, GAUGES WHEN RACE MODE) */}
+                      <div className="space-y-2 pt-3 border-t border-white/15 transition-all duration-500">
+                        {raceMode ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                            {/* 1. MESSAGES */}
+                            {(() => {
+                              const g = op.gauges?.messages;
+                              const val = g?.value ?? op.messages_count;
+                              const target = g?.target || 50;
+                              const max = g?.max || Math.max(target * 2, 10);
+                              const zones = [
+                                { from: 0, to: Math.round(target * 0.7), color: 'red' },
+                                { from: Math.round(target * 0.7), to: Math.round(target * 1.3), color: 'amber' },
+                                { from: Math.round(target * 1.3), to: max, color: 'emerald' }
+                              ];
+                              return (
+                                <MetricGauge
+                                  label="СООБЩЕНИЯ"
+                                  value={val}
+                                  displayValue={String(op.messages_count)}
+                                  min={0}
+                                  max={max}
+                                  zones={zones}
+                                  raceMode={raceMode}
+                                  raceColor="#22ff88"
+                                />
+                              );
+                            })()}
 
-                          {/* 2. REPLY TIME */}
-                          {(() => {
-                            const g = op.gauges?.reply_time;
-                            const val = (g?.value !== undefined ? g.value : op.reply_time_avg) ?? null;
-                            const goodTh = g?.goodThreshold || 120;
-                            const okTh = g?.okThreshold || 300;
-                            const max = g?.max || 900;
-                            const zones = [
-                              { from: 0, to: goodTh, color: 'emerald' },
-                              { from: goodTh, to: okTh, color: 'amber' },
-                              { from: okTh, to: max, color: 'red' }
-                            ];
-                            return (
-                              <MetricGauge
-                                label="СР. ВРЕМЯ ОТВЕТА"
-                                value={val}
-                                displayValue={formatDuration(op.reply_time_avg)}
-                                min={0}
-                                max={max}
-                                zones={zones}
-                                inverted={true}
-                                raceMode={raceMode}
-                                raceColor="#38bdf8"
-                              />
-                            );
-                          })()}
+                            {/* 2. REPLY TIME */}
+                            {(() => {
+                              const g = op.gauges?.reply_time;
+                              const val = (g?.value !== undefined ? g.value : op.reply_time_avg) ?? null;
+                              const goodTh = g?.goodThreshold || 120;
+                              const okTh = g?.okThreshold || 300;
+                              const max = g?.max || 900;
+                              const zones = [
+                                { from: 0, to: goodTh, color: 'emerald' },
+                                { from: goodTh, to: okTh, color: 'amber' },
+                                { from: okTh, to: max, color: 'red' }
+                              ];
+                              return (
+                                <MetricGauge
+                                  label="СР. ВРЕМЯ ОТВЕТА"
+                                  value={val}
+                                  displayValue={formatDuration(op.reply_time_avg)}
+                                  min={0}
+                                  max={max}
+                                  zones={zones}
+                                  inverted={true}
+                                  raceMode={raceMode}
+                                  raceColor="#38bdf8"
+                                />
+                              );
+                            })()}
 
-                          {/* 3. PPV SENT */}
-                          {(() => {
-                            const g = op.gauges?.ppv_sent;
-                            const val = g?.value ?? op.paid_messages_count;
-                            const target = g?.target || 20;
-                            const max = g?.max || Math.max(target * 2, 10);
-                            const zones = [
-                              { from: 0, to: Math.round(target * 0.6), color: 'red' },
-                              { from: Math.round(target * 0.6), to: Math.round(target * 1.4), color: 'amber' },
-                              { from: Math.round(target * 1.4), to: max, color: 'emerald' }
-                            ];
-                            return (
-                              <MetricGauge
-                                label="PPV ОТПРАВЛЕНО"
-                                value={val}
-                                displayValue={String(op.paid_messages_count)}
-                                min={0}
-                                max={max}
-                                zones={zones}
-                                raceMode={raceMode}
-                                raceColor="#ff3860"
-                              />
-                            );
-                          })()}
+                            {/* 3. PPV SENT */}
+                            {(() => {
+                              const g = op.gauges?.ppv_sent;
+                              const val = g?.value ?? op.paid_messages_count;
+                              const target = g?.target || 20;
+                              const max = g?.max || Math.max(target * 2, 10);
+                              const zones = [
+                                { from: 0, to: Math.round(target * 0.6), color: 'red' },
+                                { from: Math.round(target * 0.6), to: Math.round(target * 1.4), color: 'amber' },
+                                { from: Math.round(target * 1.4), to: max, color: 'emerald' }
+                              ];
+                              return (
+                                <MetricGauge
+                                  label="PPV ОТПРАВЛЕНО"
+                                  value={val}
+                                  displayValue={String(op.paid_messages_count)}
+                                  min={0}
+                                  max={max}
+                                  zones={zones}
+                                  raceMode={raceMode}
+                                  raceColor="#ff3860"
+                                />
+                              );
+                            })()}
 
-                          {/* 4. PPV SOLD / CONVERSION */}
-                          {(() => {
-                            const conversionPct = op.paid_messages_count > 0
-                              ? Math.round((op.sold_messages_count / op.paid_messages_count) * 100)
-                              : 0;
-                            const g = op.gauges?.ppv_sold;
-                            const val = g?.value ?? conversionPct;
-                            const okTh = g?.okThreshold || 8;
-                            const goodTh = g?.goodThreshold || 18;
-                            const max = g?.max || 40;
-                            const zones = [
-                              { from: 0, to: okTh, color: 'red' },
-                              { from: okTh, to: goodTh, color: 'amber' },
-                              { from: goodTh, to: max, color: 'emerald' }
-                            ];
-                            return (
-                              <MetricGauge
-                                label="PPV ПРОДАНО"
-                                value={val}
-                                displayValue={`${op.sold_messages_count} (${conversionPct}%)`}
-                                min={0}
-                                max={max}
-                                zones={zones}
-                                raceMode={raceMode}
-                                raceColor="#ffa726"
-                              />
-                            );
-                          })()}
-                        </div>
+                            {/* 4. PPV SOLD / CONVERSION */}
+                            {(() => {
+                              const conversionPct = op.paid_messages_count > 0
+                                ? Math.round((op.sold_messages_count / op.paid_messages_count) * 100)
+                                : 0;
+                              const g = op.gauges?.ppv_sold;
+                              const val = g?.value ?? conversionPct;
+                              const okTh = g?.okThreshold || 8;
+                              const goodTh = g?.goodThreshold || 18;
+                              const max = g?.max || 40;
+                              const zones = [
+                                { from: 0, to: okTh, color: 'red' },
+                                { from: okTh, to: goodTh, color: 'amber' },
+                                { from: goodTh, to: max, color: 'emerald' }
+                              ];
+                              return (
+                                <MetricGauge
+                                  label="PPV ПРОДАНО"
+                                  value={val}
+                                  displayValue={`${op.sold_messages_count} (${conversionPct}%)`}
+                                  min={0}
+                                  max={max}
+                                  zones={zones}
+                                  raceMode={raceMode}
+                                  raceColor="#ffa726"
+                                />
+                              );
+                            })()}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                              <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
+                                <span className="text-[8px] uppercase text-slate-400 font-bold block">Сообщения</span>
+                                <span className="text-xs font-black text-slate-200 block mt-0.5">
+                                  {op.messages_count}
+                                </span>
+                              </div>
+
+                              <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
+                                <span className="text-[8px] uppercase text-slate-400 font-bold block">Ср. время</span>
+                                <span className={`text-xs font-black block mt-0.5 ${getReplyTimeColorClass(op.reply_time_avg)}`}>
+                                  {formatDuration(op.reply_time_avg)}
+                                </span>
+                              </div>
+
+                              <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
+                                <span className="text-[8px] uppercase text-slate-400 font-bold block">PPV Отпр.</span>
+                                <span className="text-xs font-black text-violet-300 block mt-0.5">
+                                  {op.paid_messages_count}
+                                </span>
+                              </div>
+
+                              <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
+                                <span className="text-[8px] uppercase text-slate-400 font-bold block">PPV Прод.</span>
+                                <span className="text-xs font-black text-emerald-400 block mt-0.5">
+                                  {op.sold_messages_count}
+                                </span>
+                              </div>
+                            </div>
+
+                            {ppvConversion !== null && (
+                              <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-300 pt-1 px-1">
+                                <span className="text-slate-400 uppercase text-[8px]">Конверсия PPV:</span>
+                                <span className={`font-black ${
+                                  ppvConversion >= 25 ? 'text-emerald-400' : ppvConversion >= 10 ? 'text-amber-400' : 'text-slate-300'
+                                }`}>
+                                  {ppvConversion}%
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
                   );
