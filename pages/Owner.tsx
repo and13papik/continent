@@ -75,23 +75,44 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     const grossTotal = (rawPlatformGross + manualGross) - totalRefundAmount;
 
     // 1. ОПЕРАТОРЫ (STAFF)
-    const rawStaffNet = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
-    const avgOpRate = rawPlatformGross > 0 ? rawStaffNet / rawPlatformGross : 0.20;
-    
-    const staffAccrued = (rawStaffNet - (totalRefundAmount * avgOpRate)) + ops.reduce((sum, o) => {
-      if (o.operator && o.operator !== 'SYSTEM' && !o.model && !currentAdmins.some(a => a.name === o.operator)) {
-        if (o.type === 'bonus') return sum + o.amount;
-        if (['penalty', 'internship'].includes(o.type)) return sum - o.amount;
-      }
-      return sum;
-    }, 0);
+    const currentOperators = activePeriod.operators || state.operators;
+    const allPeriodOperators = Array.from(new Set([
+      ...currentOperators,
+      ...incomes.map(i => i.operator).filter(Boolean),
+      ...ops.map(o => o.operator).filter(Boolean)
+    ])).filter(name => name !== 'SYSTEM' && !currentAdmins.some(a => a.name === name) && !currentModels.includes(name));
 
-    const staffPaid = ops.reduce((sum, o) => {
-      if (o.operator && o.operator !== 'SYSTEM' && !o.model && !currentAdmins.some(a => a.name === o.operator)) {
-        if (['advance', 'salary_payment'].includes(o.type)) return sum + o.amount;
+    let staffAccrued = 0;
+    let staffPaid = 0;
+    let staffRemainder = 0;
+
+    allPeriodOperators.forEach(op => {
+      const opIncomes = incomes.filter(r => r.operator === op);
+      const opOps = ops.filter(o => o.operator === op && o.operator !== 'SYSTEM' && !o.model);
+
+      const rawG = opIncomes.reduce((sum, r) => sum + r.total, 0);
+      const rawN = opIncomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
+      const opRefunds = ops.filter(o => o.type === 'refund' && o.operator === op).reduce((sum, o) => sum + o.amount, 0);
+
+      const avgRate = rawG > 0 ? rawN / rawG : 0.20;
+      const totalNet = rawN - (opRefunds * avgRate);
+
+      const bns = opOps.filter(o => o.type === 'bonus').reduce((sum, o) => sum + o.amount, 0);
+      const pnl = opOps.filter(o => o.type === 'penalty' || o.type === 'internship').reduce((sum, o) => sum + o.amount, 0);
+      const adv = opOps.filter(o => o.type === 'advance').reduce((sum, o) => sum + o.amount, 0);
+      const pay = opOps.filter(o => o.type === 'salary_payment').reduce((sum, o) => sum + o.amount, 0);
+
+      const accrued = totalNet + bns - pnl;
+      const paid = adv + pay;
+      const remainder = accrued - paid;
+      const isPaid = state.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
+
+      staffAccrued += accrued;
+      staffPaid += paid;
+      if (!isPaid && remainder > 0) {
+        staffRemainder += remainder;
       }
-      return sum;
-    }, 0);
+    });
 
     // 2. МОДЕЛИ
     const modelSummary = currentModels.reduce((acc, model) => {
@@ -106,20 +127,30 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       const mAvgRate = records.length > 0 ? (mOF + mPP + mCR) / records.reduce((s,r) => s+r.total, 1) : (currentRates.of / 100);
       
       const accrued = (mOF + mPP + mCR + mBonuses) - (mRefunds * mAvgRate);
+      const paid = mAdvances + mSalaries;
+      const remainder = accrued - paid;
+      const isPaid = state.paidStatuses.some(s => s.entityName === model && s.entityType === 'model' && s.periodId === activePeriodId);
+
       acc.accrued += accrued;
-      acc.paid += (mAdvances + mSalaries);
+      acc.paid += paid;
+      if (!isPaid && remainder > 0) {
+        acc.remainder += remainder;
+      }
       return acc;
-    }, { accrued: 0, paid: 0 });
+    }, { accrued: 0, paid: 0, remainder: 0 });
 
     // 3. АДМИНЫ
     const adminDetails = currentAdmins.map(admin => {
       const accrued = grossTotal * (admin.rate / 100);
       const paid = ops.filter(o => o.operator === admin.name && ['salary_payment', 'advance'].includes(o.type)).reduce((s, o) => s + o.amount, 0);
-      return { ...admin, accrued, paid, remainder: accrued - paid };
+      const remainder = accrued - paid;
+      const isPaid = state.paidStatuses.some(s => s.entityName === admin.name && s.entityType === 'admin' && s.periodId === activePeriodId);
+      return { ...admin, accrued, paid, remainder: isPaid ? 0 : Math.max(0, remainder) };
     });
 
     const totalAdminAccrued = adminDetails.reduce((s, a) => s + a.accrued, 0);
     const totalAdminPaid = adminDetails.reduce((s, a) => s + a.paid, 0);
+    const adminRemainder = adminDetails.reduce((s, a) => s + a.remainder, 0);
 
     const currentExpenses = state.ownerExpenses.filter(e => e.periodId === activePeriodId);
     const bizExpenses = currentExpenses.reduce((s,e) => s + e.amount, 0);
@@ -131,9 +162,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     const netProfitTotal = grossTotal - (staffAccrued + modelSummary.accrued + totalAdminAccrued + bizExpenses);
     const sharePerOwner = netProfitTotal / 2;
 
-    const staffRemainder = Math.max(0, staffAccrued - staffPaid);
-    const modelRemainder = Math.max(0, modelSummary.accrued - modelSummary.paid);
-    const adminRemainder = Math.max(0, totalAdminAccrued - totalAdminPaid);
+    const modelRemainder = modelSummary.remainder;
 
     const totalPaidGlobal = staffPaid + modelSummary.paid + totalAdminPaid;
     const totalRemainderGlobal = staffRemainder + modelRemainder + adminRemainder;

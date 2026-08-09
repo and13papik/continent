@@ -679,7 +679,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
                 <div className="flex items-center justify-between mb-6 relative z-10">
                    <div className="space-y-1">
                      <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">Зарплаты операторов</p>
-                     <p className="text-4xl font-black text-white font-outfit tracking-tighter leading-none">${stats.netEarned.toLocaleString()}</p>
+                     <p className="text-4xl font-black text-white font-outfit tracking-tighter leading-none">${(stats.netEarned + stats.bonuses - stats.penalties).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                    </div>
                    <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/20 shadow-inner group-hover:rotate-6 transition-transform duration-500">
                       <SalaryIcon size={24} />
@@ -689,11 +689,11 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
                 <div className="grid grid-cols-2 gap-6 pt-6 border-t border-white/[0.05] relative z-10">
                    <div className="space-y-1">
                      <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Выплачено</p>
-                     <p className="text-xl font-black text-sky-400 font-outfit tracking-tighter">${stats.paidOut.toLocaleString()}</p>
+                     <p className="text-xl font-black text-sky-400 font-outfit tracking-tighter">${stats.paidOut.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                    </div>
                    <div className="space-y-1">
                      <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Остаток</p>
-                     <p className="text-xl font-black text-emerald-400 font-outfit tracking-tighter">${totalRemainingToPay.toLocaleString()}</p>
+                     <p className="text-xl font-black text-emerald-400 font-outfit tracking-tighter">${totalRemainingToPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                    </div>
                 </div>
               </motion.div>
