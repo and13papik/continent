@@ -44,10 +44,140 @@ interface ShiftOperator {
   messages_count: number;
   paid_messages_count: number;
   sold_messages_count: number;
+  fans_count?: number;
   earnings?: number;
   reply_time_avg?: number | null;
   creator_ids?: string[];
+  gauges?: {
+    messages?: { value: number; target: number; max: number };
+    reply_time?: { value: number | null; goodThreshold: number; okThreshold: number; max: number };
+    ppv_sent?: { value: number; target: number; max: number };
+    ppv_sold?: { value: number; okThreshold: number; goodThreshold: number; max: number };
+  };
 }
+
+interface MetricGaugeZone {
+  from: number;
+  to: number;
+  color: string;
+}
+
+interface MetricGaugeProps {
+  label: string;
+  value: number | null;
+  displayValue: string;
+  min: number;
+  max: number;
+  zones: MetricGaugeZone[];
+  inverted?: boolean;
+}
+
+const MetricGauge: React.FC<MetricGaugeProps> = ({
+  label,
+  value,
+  displayValue,
+  min,
+  max,
+  zones
+}) => {
+  const safeMin = min;
+  const safeMax = max > min ? max : min + 1;
+
+  const isNull = value === null || value === undefined;
+  const clampedVal = isNull ? null : Math.min(Math.max(value, safeMin), safeMax);
+
+  const cx = 60;
+  const cy = 50;
+  const R = 40;
+
+  const getColorHex = (c: string) => {
+    if (c === 'red' || c === 'rose') return '#ef4444';
+    if (c === 'amber' || c === 'yellow') return '#f59e0b';
+    if (c === 'emerald' || c === 'green') return '#10b981';
+    return c;
+  };
+
+  const renderedZones = zones.map((z, idx) => {
+    const f = Math.min(Math.max(z.from, safeMin), safeMax);
+    const t = Math.min(Math.max(z.to, safeMin), safeMax);
+    if (t <= f) return null;
+
+    const r1 = (f - safeMin) / (safeMax - safeMin);
+    const r2 = (t - safeMin) / (safeMax - safeMin);
+
+    const a1 = (180 - r1 * 180) * (Math.PI / 180);
+    const a2 = (180 - r2 * 180) * (Math.PI / 180);
+
+    const x1 = cx + R * Math.cos(a1);
+    const y1 = cy - R * Math.sin(a1);
+    const x2 = cx + R * Math.cos(a2);
+    const y2 = cy - R * Math.sin(a2);
+
+    const d = `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${R} ${R} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+
+    return (
+      <path
+        key={idx}
+        d={d}
+        fill="none"
+        stroke={getColorHex(z.color)}
+        strokeWidth="7"
+        strokeOpacity={isNull ? 0.25 : 0.85}
+        strokeLinecap="butt"
+      />
+    );
+  });
+
+  let needleX = cx;
+  let needleY = cy - 32;
+  if (clampedVal !== null) {
+    const r = (clampedVal - safeMin) / (safeMax - safeMin);
+    const a = (180 - r * 180) * (Math.PI / 180);
+    needleX = cx + 32 * Math.cos(a);
+    needleY = cy - 32 * Math.sin(a);
+  }
+
+  return (
+    <div className="p-2 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner flex flex-col items-center justify-between text-center font-mono">
+      <span className="text-[8px] uppercase text-slate-400 font-bold block tracking-wider truncate w-full">
+        {label}
+      </span>
+
+      <div className="relative w-full max-w-[110px] aspect-[120/58] flex items-center justify-center my-1 overflow-visible">
+        <svg viewBox="0 0 120 58" className="w-full h-full overflow-visible">
+          {/* Background Track Arc */}
+          <path
+            d={`M ${cx - R} ${cy} A ${R} ${R} 0 0 1 ${cx + R} ${cy}`}
+            fill="none"
+            stroke="rgba(255, 255, 255, 0.08)"
+            strokeWidth="7"
+          />
+          {/* Color Zone Arcs */}
+          {renderedZones}
+          {/* Needle */}
+          {clampedVal !== null && (
+            <>
+              <line
+                x1={cx}
+                y1={cy}
+                x2={needleX.toFixed(2)}
+                y2={needleY.toFixed(2)}
+                stroke="#f8fafc"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+              <circle cx={cx} cy={cy} r="3.5" fill="#f8fafc" stroke="#0f172a" strokeWidth="2" />
+            </>
+          )}
+        </svg>
+      </div>
+
+      <span className="text-[11px] font-black text-slate-100 block tracking-tight truncate w-full">
+        {displayValue}
+      </span>
+    </div>
+  );
+};
 
 function formatDuration(seconds?: number | null): string {
   if (seconds === null || seconds === undefined || isNaN(seconds) || seconds <= 0) {
@@ -1173,48 +1303,107 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                         </div>
                       </div>
 
-                      {/* BOTTOM SECTION: 4 METRICS GRID */}
+                      {/* BOTTOM SECTION: 4 METRIC GAUGES */}
                       <div className="space-y-2 pt-3 border-t border-white/15">
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                          <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
-                            <span className="text-[8px] uppercase text-slate-400 font-bold block">Сообщения</span>
-                            <span className="text-xs font-black text-slate-200 block mt-0.5">
-                              {op.messages_count}
-                            </span>
-                          </div>
+                          {/* 1. MESSAGES */}
+                          {(() => {
+                            const g = op.gauges?.messages;
+                            const val = g?.value ?? op.messages_count;
+                            const target = g?.target || 50;
+                            const max = g?.max || Math.max(target * 2, 10);
+                            const zones = [
+                              { from: 0, to: Math.round(target * 0.7), color: 'red' },
+                              { from: Math.round(target * 0.7), to: Math.round(target * 1.3), color: 'amber' },
+                              { from: Math.round(target * 1.3), to: max, color: 'emerald' }
+                            ];
+                            return (
+                              <MetricGauge
+                                label="СООБЩЕНИЯ"
+                                value={val}
+                                displayValue={String(op.messages_count)}
+                                min={0}
+                                max={max}
+                                zones={zones}
+                              />
+                            );
+                          })()}
 
-                          <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
-                            <span className="text-[8px] uppercase text-slate-400 font-bold block">Ср. время</span>
-                            <span className={`text-xs font-black block mt-0.5 ${getReplyTimeColorClass(op.reply_time_avg)}`}>
-                              {formatDuration(op.reply_time_avg)}
-                            </span>
-                          </div>
+                          {/* 2. REPLY TIME */}
+                          {(() => {
+                            const g = op.gauges?.reply_time;
+                            const val = (g?.value !== undefined ? g.value : op.reply_time_avg) ?? null;
+                            const goodTh = g?.goodThreshold || 120;
+                            const okTh = g?.okThreshold || 300;
+                            const max = g?.max || 900;
+                            const zones = [
+                              { from: 0, to: goodTh, color: 'emerald' },
+                              { from: goodTh, to: okTh, color: 'amber' },
+                              { from: okTh, to: max, color: 'red' }
+                            ];
+                            return (
+                              <MetricGauge
+                                label="СР. ВРЕМЯ ОТВЕТА"
+                                value={val}
+                                displayValue={formatDuration(op.reply_time_avg)}
+                                min={0}
+                                max={max}
+                                zones={zones}
+                                inverted={true}
+                              />
+                            );
+                          })()}
 
-                          <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
-                            <span className="text-[8px] uppercase text-slate-400 font-bold block">PPV Отпр.</span>
-                            <span className="text-xs font-black text-violet-300 block mt-0.5">
-                              {op.paid_messages_count}
-                            </span>
-                          </div>
+                          {/* 3. PPV SENT */}
+                          {(() => {
+                            const g = op.gauges?.ppv_sent;
+                            const val = g?.value ?? op.paid_messages_count;
+                            const target = g?.target || 20;
+                            const max = g?.max || Math.max(target * 2, 10);
+                            const zones = [
+                              { from: 0, to: Math.round(target * 0.6), color: 'red' },
+                              { from: Math.round(target * 0.6), to: Math.round(target * 1.4), color: 'amber' },
+                              { from: Math.round(target * 1.4), to: max, color: 'emerald' }
+                            ];
+                            return (
+                              <MetricGauge
+                                label="PPV ОТПРАВЛЕНО"
+                                value={val}
+                                displayValue={String(op.paid_messages_count)}
+                                min={0}
+                                max={max}
+                                zones={zones}
+                              />
+                            );
+                          })()}
 
-                          <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
-                            <span className="text-[8px] uppercase text-slate-400 font-bold block">PPV Прод.</span>
-                            <span className="text-xs font-black text-emerald-400 block mt-0.5">
-                              {op.sold_messages_count}
-                            </span>
-                          </div>
+                          {/* 4. PPV SOLD / CONVERSION */}
+                          {(() => {
+                            const conversionPct = op.paid_messages_count > 0
+                              ? Math.round((op.sold_messages_count / op.paid_messages_count) * 100)
+                              : 0;
+                            const g = op.gauges?.ppv_sold;
+                            const val = g?.value ?? conversionPct;
+                            const okTh = g?.okThreshold || 8;
+                            const goodTh = g?.goodThreshold || 18;
+                            const max = g?.max || 40;
+                            const zones = [
+                              { from: 0, to: okTh, color: 'red' },
+                              { from: okTh, to: goodTh, color: 'amber' },
+                              { from: goodTh, to: max, color: 'emerald' }
+                            ];
+                            return (
+                              <MetricGauge
+                                label="PPV ПРОДАНО"
+                                value={val}
+                                displayValue={`${op.sold_messages_count} (${conversionPct}%)`}
+                                min={0}
+                                max={max}
+                                zones={zones}
+                              />
+                            );
+                          })()}
                         </div>
-
-                        {ppvConversion !== null && (
-                          <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-300 pt-1 px-1">
-                            <span className="text-slate-400 uppercase text-[8px]">Конверсия PPV:</span>
-                            <span className={`font-black ${
-                              ppvConversion >= 25 ? 'text-emerald-400' : ppvConversion >= 10 ? 'text-amber-400' : 'text-slate-300'
-                            }`}>
-                              {ppvConversion}%
-                            </span>
-                          </div>
-                        )}
                       </div>
                     </div>
                   );

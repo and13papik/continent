@@ -208,6 +208,7 @@ export default async function handler(req: any, res: any) {
       earnings: number;
       reply_time_sum: number;
       reply_time_count: number;
+      fans_count: number;
       creator_ids: Set<string>;
     }>();
 
@@ -233,6 +234,10 @@ export default async function handler(req: any, res: any) {
         const soldMessagesCount = typeof item.sold_messages_count === 'number'
           ? item.sold_messages_count
           : (item.sold_messages || 0);
+
+        const fansCount = typeof item.fans_count === 'number'
+          ? item.fans_count
+          : (typeof item.fans === 'number' ? item.fans : (typeof item.dialogs_count === 'number' ? item.dialogs_count : 0));
 
         const soldMessagesPrice = typeof item.sold_messages_price_sum === 'number'
           ? item.sold_messages_price_sum
@@ -267,6 +272,7 @@ export default async function handler(req: any, res: any) {
           existing.paid_messages_count += paidMessagesCount;
           existing.sold_messages_count += soldMessagesCount;
           existing.earnings += itemEarnings;
+          existing.fans_count += fansCount;
           if (replyTimeAvg !== null) {
             existing.reply_time_sum += replyTimeAvg;
             existing.reply_time_count += 1;
@@ -293,23 +299,71 @@ export default async function handler(req: any, res: any) {
             earnings: itemEarnings,
             reply_time_sum: replyTimeAvg !== null ? replyTimeAvg : 0,
             reply_time_count: replyTimeAvg !== null ? 1 : 0,
+            fans_count: fansCount,
             creator_ids: creatorSet
           });
         }
       }
     }
 
-    const operators = Array.from(operatorsMap.values()).map(op => ({
+    const rawOperators = Array.from(operatorsMap.values()).map(op => ({
       user_id: op.user_id,
       name: op.name,
       avatar: op.avatar,
       messages_count: op.messages_count,
       paid_messages_count: op.paid_messages_count,
       sold_messages_count: op.sold_messages_count,
+      fans_count: op.fans_count,
       earnings: Math.round(op.earnings * 100) / 100,
       reply_time_avg: op.reply_time_count > 0 ? Math.round(op.reply_time_sum / op.reply_time_count) : null,
       creator_ids: Array.from(op.creator_ids)
     }));
+
+    // Benchmark targets calculations for gauges
+    const activeWithMsg = rawOperators.filter(op => op.messages_count > 0);
+    const avgMessages = activeWithMsg.length > 0
+      ? Math.round(activeWithMsg.reduce((acc, op) => acc + op.messages_count, 0) / activeWithMsg.length)
+      : 0;
+
+    const totalPaidMsg = rawOperators.reduce((acc, op) => acc + op.paid_messages_count, 0);
+    const totalFans = rawOperators.reduce((acc, op) => acc + op.fans_count, 0);
+    const teamPpvPerFanRatio = totalPaidMsg / Math.max(totalFans, 1);
+    const maxMessagesInList = Math.max(...rawOperators.map(op => op.messages_count), 0);
+
+    const operators = rawOperators.map(op => {
+      const targetPpvSent = Math.round((op.fans_count || 0) * teamPpvPerFanRatio);
+      const conversionPct = op.paid_messages_count > 0
+        ? Math.round((op.sold_messages_count / op.paid_messages_count) * 100)
+        : 0;
+
+      return {
+        ...op,
+        gauges: {
+          messages: {
+            value: op.messages_count,
+            target: avgMessages,
+            max: Math.max(Math.round(avgMessages * 2), Math.round(maxMessagesInList * 1.1), 10)
+          },
+          reply_time: {
+            value: op.reply_time_avg,
+            goodThreshold: 120,
+            okThreshold: 300,
+            max: 900
+          },
+          ppv_sent: {
+            value: op.paid_messages_count,
+            target: targetPpvSent,
+            max: Math.max(Math.round(targetPpvSent * 2), Math.round(op.paid_messages_count * 1.1), 10)
+          },
+          ppv_sold: {
+            value: conversionPct,
+            okThreshold: 8,
+            goodThreshold: 18,
+            max: 40
+          }
+        }
+      };
+    });
 
     // 4. Sort operators by requested field and direction
     operators.sort((a, b) => {
