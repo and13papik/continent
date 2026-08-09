@@ -133,9 +133,9 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
   const clampedVal = isNull ? null : Math.min(Math.max(value, safeMin), safeMax);
 
   const getColorHex = (c: string) => {
-    if (c === 'red' || c === 'rose') return '#ef4444';
-    if (c === 'orange' || c === 'amber' || c === 'yellow') return '#f97316';
-    if (c === 'green' || c === 'emerald') return '#10b981';
+    if (c === 'red' || c === 'rose') return '#ff2a5f';
+    if (c === 'orange' || c === 'amber' || c === 'yellow') return '#ffb703';
+    if (c === 'green' || c === 'emerald') return '#00e676';
     if (c === 'cyan' || c === 'cyan-super' || c === 'blue') return '#00f0ff';
     return c;
   };
@@ -153,17 +153,34 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
 
     if (matchingZone) {
       activeColor = getColorHex(matchingZone.color);
-      if (matchingZone.color === 'cyan' || matchingZone.color === 'cyan-super') {
+      if (matchingZone.color === 'cyan' || matchingZone.color === 'cyan-super' || activeColor === '#00f0ff') {
         isCyanSuper = true;
       }
     }
   }
+
+  const getModeInfo = (color: string) => {
+    if (color === '#ff2a5f') return { label: 'CRITICAL', tag: '🔴', bg: 'bg-rose-950/80', border: 'border-rose-500/50', text: 'text-rose-400' };
+    if (color === '#ffb703') return { label: 'WARM UP', tag: '🟡', bg: 'bg-amber-950/80', border: 'border-amber-500/50', text: 'text-amber-400' };
+    if (color === '#00e676') return { label: 'OPTIMAL', tag: '🟢', bg: 'bg-emerald-950/80', border: 'border-emerald-500/50', text: 'text-emerald-400' };
+    return { label: '⚡ TURBO', tag: '🚀', bg: 'bg-cyan-950/90', border: 'border-cyan-400', text: 'text-cyan-300' };
+  };
+
+  const modeInfo = getModeInfo(activeColor);
 
   // RACE MODE HIGH-TECH 270 DEGREE SPEEDOMETER
   if (raceMode) {
     const cx = 100;
     const cy = 88;
     const R = 62;
+
+    // Needle position calculation
+    let needleAngle = 135;
+    if (clampedVal !== null) {
+      const r = (clampedVal - safeMin) / (safeMax - safeMin);
+      needleAngle = 135 + r * 270;
+    }
+    const needleEnd = polarToCartesian(cx, cy, R - 4, needleAngle);
 
     // Render 4-zone arcs along the 270° sweep (135° to 405°)
     const rendered270Zones = zones.map((z, idx) => {
@@ -189,17 +206,16 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
           d={d}
           fill="none"
           stroke={zColor}
-          strokeWidth={isThisActive ? "8" : "6"}
-          strokeOpacity={isNull ? 0.3 : (isThisActive ? 1 : 0.65)}
+          strokeWidth="6"
+          strokeOpacity={isNull ? 0.2 : 0.35}
           strokeLinecap="butt"
-          style={{
-            filter: isThisActive
-              ? `drop-shadow(0 0 ${zColor === '#00f0ff' ? '10px' : '6px'} ${zColor})`
-              : undefined
-          }}
         />
       );
     });
+
+    // Active Filled Arc running from 135° to needleAngle
+    const activeArcPath = describeArc(cx, cy, R, 135, Math.max(135.5, needleAngle));
+    const activeOuterGlowPath = describeArc(cx, cy, R + 6, 135, Math.max(135.5, needleAngle));
 
     // Main Ticks & Labels (6 ticks)
     const mainTicksCount = 6;
@@ -212,6 +228,8 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
       const pInner = polarToCartesian(cx, cy, R - 6, angleDeg);
       const pOuter = polarToCartesian(cx, cy, R + 2, angleDeg);
       const pText = polarToCartesian(cx, cy, R - 16, angleDeg);
+
+      const isTickLit = angleDeg <= needleAngle && !isNull;
 
       let formattedVal = '';
       if (safeMax >= 1000) {
@@ -227,8 +245,9 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
             y1={pInner.y.toFixed(2)}
             x2={pOuter.x.toFixed(2)}
             y2={pOuter.y.toFixed(2)}
-            stroke="rgba(255, 255, 255, 0.75)"
-            strokeWidth="1.5"
+            stroke={isTickLit ? activeColor : "rgba(255, 255, 255, 0.4)"}
+            strokeWidth={isTickLit ? "2" : "1.2"}
+            style={isTickLit ? { filter: `drop-shadow(0 0 4px ${activeColor})` } : undefined}
           />
           <text
             x={pText.x.toFixed(2)}
@@ -236,8 +255,8 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
             textAnchor="middle"
             dominantBaseline="central"
             fontSize="7"
-            fill="rgba(255, 255, 255, 0.65)"
-            fontWeight="bold"
+            fill={isTickLit ? "#ffffff" : "rgba(255, 255, 255, 0.5)"}
+            fontWeight={isTickLit ? "bold" : "normal"}
             fontFamily="monospace"
           >
             {formattedVal}
@@ -255,6 +274,7 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
         const angleDeg = 135 + ratio * 270;
         const pInner = polarToCartesian(cx, cy, R - 4, angleDeg);
         const pOuter = polarToCartesian(cx, cy, R, angleDeg);
+        const isLit = angleDeg <= needleAngle && !isNull;
         subTicks.push(
           <line
             key={`s-tick-${j}`}
@@ -262,8 +282,9 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
             y1={pInner.y.toFixed(2)}
             x2={pOuter.x.toFixed(2)}
             y2={pOuter.y.toFixed(2)}
-            stroke="rgba(255, 255, 255, 0.3)"
-            strokeWidth="1"
+            stroke={isLit ? activeColor : "rgba(255, 255, 255, 0.2)"}
+            strokeWidth={isLit ? "1.2" : "0.8"}
+            opacity={isLit ? 0.9 : 0.4}
           />
         );
       }
@@ -274,58 +295,84 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
       const angle = 135 + pt.aOff;
       const r = R + pt.rOff;
       const p = polarToCartesian(cx, cy, r, angle);
+      const isParticleActive = angle <= needleAngle + 20;
+      const partColor = isParticleActive ? activeColor : 'rgba(255, 255, 255, 0.3)';
       return (
         <circle
           key={`part-${idx}`}
           cx={p.x.toFixed(2)}
           cy={p.y.toFixed(2)}
-          r={pt.size}
-          fill={activeColor}
-          opacity={pt.opacity}
-          style={{ filter: `drop-shadow(0 0 3px ${activeColor})` }}
+          r={isParticleActive ? pt.size * 1.2 : pt.size * 0.8}
+          fill={partColor}
+          opacity={isParticleActive ? pt.opacity : pt.opacity * 0.3}
+          style={isParticleActive ? { filter: `drop-shadow(0 0 4px ${activeColor})` } : undefined}
         />
       );
     });
 
-    // Needle position
-    let needleAngle = 135;
-    if (clampedVal !== null) {
-      const r = (clampedVal - safeMin) / (safeMax - safeMin);
-      needleAngle = 135 + r * 270;
-    }
-    const needleEnd = polarToCartesian(cx, cy, R - 4, needleAngle);
-
     return (
-      <div className="relative p-2 rounded-2xl border flex flex-col items-center justify-between text-center font-mono transition-all duration-500 bg-slate-950/80 border-cyan-500/30 shadow-[0_0_15px_rgba(15,23,42,0.9)]">
-        {/* Label */}
-        <span className="text-[8px] uppercase font-bold block tracking-wider truncate w-full text-cyan-300/90 mb-1">
-          {label}
-        </span>
+      <div
+        className="relative p-2.5 rounded-2xl border flex flex-col items-center justify-between text-center font-mono transition-all duration-500 bg-slate-950/90 overflow-hidden"
+        style={{
+          borderColor: isCyanSuper ? '#00f0ff' : `${activeColor}60`,
+          boxShadow: isCyanSuper
+            ? '0 0 22px rgba(0,240,255,0.35), inset 0 0 15px rgba(0,240,255,0.1)'
+            : `0 0 16px ${activeColor}25, inset 0 0 10px ${activeColor}08`
+        }}
+      >
+        {/* Background Ambient Glow Halo */}
+        <div
+          className="absolute -top-10 -bottom-10 -left-10 -right-10 pointer-events-none opacity-20 blur-2xl transition-all duration-700"
+          style={{ background: `radial-gradient(circle, ${activeColor} 0%, transparent 70%)` }}
+        />
+
+        {/* Header: Label + Status Tag */}
+        <div className="relative z-10 w-full flex items-center justify-between gap-1 mb-1 px-0.5">
+          <span className="text-[8px] sm:text-[9px] uppercase font-black tracking-wider truncate text-slate-300">
+            {label}
+          </span>
+          <span
+            className={`text-[7px] font-extrabold px-1.5 py-0.5 rounded-md border tracking-widest uppercase flex items-center gap-0.5 ${modeInfo.bg} ${modeInfo.border} ${modeInfo.text}`}
+            style={{ textShadow: `0 0 6px ${activeColor}` }}
+          >
+            {modeInfo.label}
+          </span>
+        </div>
 
         {/* 270 Degree Gauge SVG Container */}
-        <div className="relative w-full max-w-[140px] aspect-[200/170] flex items-center justify-center my-0.5 overflow-visible">
+        <div className="relative z-10 w-full max-w-[150px] aspect-[200/170] flex items-center justify-center my-0.5 overflow-visible">
           <svg viewBox="0 0 200 170" className="w-full h-full overflow-visible">
             <defs>
               <radialGradient id={`dialGrad-${label.replace(/\s+/g, '-')}`} cx="50%" cy="50%" r="50%">
                 <stop offset="0%" stopColor="#1e293b" />
-                <stop offset="70%" stopColor="#0f172a" />
+                <stop offset="60%" stopColor="#0f172a" />
                 <stop offset="100%" stopColor="#020617" />
               </radialGradient>
               <radialGradient id={`chromeHub-${label.replace(/\s+/g, '-')}`} cx="35%" cy="35%" r="65%">
                 <stop offset="0%" stopColor="#ffffff" />
-                <stop offset="45%" stopColor="#cbd5e1" />
-                <stop offset="85%" stopColor="#334155" />
-                <stop offset="100%" stopColor="#0f172a" />
+                <stop offset="40%" stopColor="#cbd5e1" />
+                <stop offset="80%" stopColor="#334155" />
+                <stop offset="100%" stopColor="#020617" />
               </radialGradient>
             </defs>
 
-            {/* Dark Dial Circle Background */}
+            {/* Dark Dial Circle Background with Chrome Bevel */}
             <circle
               cx={cx}
               cy={cy}
-              r={R - 2}
+              r={R + 8}
               fill={`url(#dialGrad-${label.replace(/\s+/g, '-')})`}
-              stroke="rgba(255, 255, 255, 0.08)"
+              stroke="rgba(255, 255, 255, 0.12)"
+              strokeWidth="1.5"
+            />
+
+            {/* Inner Ring Accent */}
+            <circle
+              cx={cx}
+              cy={cy}
+              r={R - 12}
+              fill="none"
+              stroke="rgba(255, 255, 255, 0.05)"
               strokeWidth="1"
             />
 
@@ -333,57 +380,112 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
             <path
               d={describeArc(cx, cy, R, 135, 405)}
               fill="none"
-              stroke="rgba(255, 255, 255, 0.12)"
-              strokeWidth="7"
+              stroke="rgba(255, 255, 255, 0.08)"
+              strokeWidth="8"
             />
 
-            {/* 4-Zone Colored Arcs */}
+            {/* 4-Zone Background Arcs */}
             {rendered270Zones}
+
+            {/* ACTIVE Dynamic Filled Arc */}
+            {clampedVal !== null && activeArcPath && (
+              <>
+                {/* Outer Glow Line */}
+                {activeOuterGlowPath && (
+                  <path
+                    d={activeOuterGlowPath}
+                    fill="none"
+                    stroke={activeColor}
+                    strokeWidth="2"
+                    strokeOpacity="0.8"
+                    strokeLinecap="round"
+                    style={{ filter: `drop-shadow(0 0 6px ${activeColor})` }}
+                  />
+                )}
+
+                {/* Main Dynamic Active Arc */}
+                <path
+                  d={activeArcPath}
+                  fill="none"
+                  stroke={activeColor}
+                  strokeWidth="8"
+                  strokeLinecap="round"
+                  style={{
+                    filter: `drop-shadow(0 0 ${isCyanSuper ? '12px' : '8px'} ${activeColor})`
+                  }}
+                />
+              </>
+            )}
 
             {/* Sub-ticks and Main Ticks */}
             {subTicks}
             {mainTicks}
 
-            {/* Particles */}
+            {/* Sparks & Particles */}
             {particles}
 
-            {/* Needle */}
+            {/* Needle with Laser Glow */}
             {clampedVal !== null && (
-              <>
+              <g>
+                {/* Blur Backlight Glow Line */}
+                <line
+                  x1={cx}
+                  y1={cy}
+                  x2={needleEnd.x.toFixed(2)}
+                  y2={needleEnd.y.toFixed(2)}
+                  stroke={activeColor}
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  opacity="0.75"
+                  style={{ filter: `drop-shadow(0 0 8px ${activeColor})` }}
+                />
+
+                {/* Sharp White Needle Core */}
                 <line
                   x1={cx}
                   y1={cy}
                   x2={needleEnd.x.toFixed(2)}
                   y2={needleEnd.y.toFixed(2)}
                   stroke="#ffffff"
-                  strokeWidth="2.5"
+                  strokeWidth="2.2"
                   strokeLinecap="round"
-                  style={{ filter: `drop-shadow(0 0 ${isCyanSuper ? '8px' : '5px'} ${activeColor})` }}
                 />
+
+                {/* Laser Tip Marker */}
+                <circle
+                  cx={needleEnd.x.toFixed(2)}
+                  cy={needleEnd.y.toFixed(2)}
+                  r="2.5"
+                  fill="#ffffff"
+                  style={{ filter: `drop-shadow(0 0 6px ${activeColor})` }}
+                />
+
+                {/* Metallic Hub */}
                 <circle
                   cx={cx}
                   cy={cy}
-                  r="6"
+                  r="7"
                   fill={`url(#chromeHub-${label.replace(/\s+/g, '-')})`}
                   stroke={activeColor}
-                  strokeWidth="1.5"
-                  style={{ filter: `drop-shadow(0 0 4px ${activeColor})` }}
+                  strokeWidth="1.8"
+                  style={{ filter: `drop-shadow(0 0 6px ${activeColor})` }}
                 />
-              </>
+              </g>
             )}
           </svg>
 
           {/* Value Capsule Pill Overlay */}
           <div
-            className="absolute bottom-0 px-2.5 py-0.5 rounded-full bg-slate-950/90 border backdrop-blur-md shadow-lg transition-all duration-300 font-mono text-[10px] sm:text-[11px] font-black tracking-wider whitespace-nowrap"
+            className="absolute -bottom-1 px-3 py-0.5 rounded-full bg-slate-950/95 border-2 backdrop-blur-md transition-all duration-300 font-mono text-[11px] sm:text-[12px] font-black tracking-wider whitespace-nowrap flex items-center gap-1 shadow-lg"
             style={{
               borderColor: activeColor,
               color: activeColor,
-              boxShadow: `0 0 ${isCyanSuper ? '12px' : '6px'} ${activeColor}60`,
-              textShadow: `0 0 6px ${activeColor}`
+              boxShadow: `0 0 ${isCyanSuper ? '16px' : '8px'} ${activeColor}80`,
+              textShadow: `0 0 8px ${activeColor}`
             }}
           >
-            {displayValue}
+            {isCyanSuper && <span className="animate-pulse">⚡</span>}
+            <span>{displayValue}</span>
           </div>
         </div>
       </div>
