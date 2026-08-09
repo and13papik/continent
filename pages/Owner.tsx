@@ -612,6 +612,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                         title="Администраторы" 
                         accrued={stats.adminAccrued} 
                         paid={stats.adminPaid} 
+                        remainder={stats.adminRemainder}
                         iconBg="bg-indigo-500"
                         borderColor="border-indigo-500/20"
                         hoverBorder="hover:border-indigo-500/40 hover:bg-indigo-500/[0.03]"
@@ -621,6 +622,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                         title="Модели" 
                         accrued={stats.modelAccrued} 
                         paid={stats.modelPaid} 
+                        remainder={stats.modelRemainder}
                         iconBg="bg-emerald-400"
                         borderColor="border-emerald-500/20"
                         hoverBorder="hover:border-emerald-500/40 hover:bg-emerald-500/[0.03]"
@@ -630,6 +632,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                         title="Операторы" 
                         accrued={stats.staffAccrued} 
                         paid={stats.staffPaid} 
+                        remainder={stats.staffRemainder}
                         iconBg="bg-sky-400"
                         borderColor="border-sky-500/20"
                         hoverBorder="hover:border-sky-500/40 hover:bg-sky-500/[0.03]"
@@ -1342,9 +1345,8 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
   );
 };
 
-const PayrollCategoryRow = ({ title, accrued, paid, iconBg, borderColor, hoverBorder, progressGradient }: any) => {
-   const rawRemaining = accrued - paid;
-   const displayRemaining = Math.max(0, rawRemaining);
+const PayrollCategoryRow = ({ title, accrued, paid, remainder, iconBg, borderColor, hoverBorder, progressGradient }: any) => {
+   const displayRemaining = remainder !== undefined ? Math.max(0, remainder) : Math.max(0, accrued - paid);
    const totalRequired = Math.max(accrued, paid);
    const progress = totalRequired > 0 ? Math.min((paid / totalRequired) * 100, 100) : 0;
 
