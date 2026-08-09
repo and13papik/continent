@@ -29,7 +29,7 @@ const METRICS_COLORS = {
 
 const Metrics: React.FC<MetricsProps> = ({ state }) => {
   const incomeData = state.incomeData || [];
-  const [activeTab, setActiveTab] = useState<'overview' | 'diagnostics' | 'models' | 'operators' | 'calendar' | 'onlymonster'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'diagnostics' | 'models' | 'operators' | 'calendar' | 'onlymonster'>('onlymonster');
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [modelFilterSearch, setModelFilterSearch] = useState('');
   const [opFilterSearch, setOpFilterSearch] = useState('');
@@ -604,51 +604,6 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-6 pb-20"
     >
-      {/* HEADER BAR */}
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-950/40 p-5 rounded-[2rem] border border-white/[0.03]">
-        <div>
-          <h1 className="text-2xl font-black font-outfit text-white uppercase tracking-tight flex items-center gap-2">
-            <ICONS.Chart className="text-indigo-400" size={24} />
-            Аналитический Центр
-          </h1>
-          <div className="flex items-center gap-2.5 mt-1">
-            <PeriodBadge state={state} />
-            <p className="text-xs text-slate-400 font-medium">Метрики, диагностика и эффективность агентства</p>
-          </div>
-        </div>
-        
-        {/* TOP GLANCE STATS & TELEGRAM SUMMARY */}
-        <div className="flex flex-wrap items-center gap-4 self-stretch md:self-auto justify-between md:justify-end border-t md:border-t-0 pt-3 md:pt-0 border-white/5">
-          <button
-            onClick={generateTelegramReport}
-            className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-indigo-500/20 to-violet-500/20 hover:from-indigo-500/30 hover:to-violet-500/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold font-mono transition-all duration-200 shadow-lg shadow-indigo-950/30 active:scale-95 shrink-0"
-            title="Скопировать отформатированный отчет в буфер"
-          >
-            {copiedReport ? <ICONS.Check size={14} className="text-emerald-400 animate-bounce" /> : <ICONS.Send size={14} />}
-            <span>{copiedReport ? 'Скопировано!' : 'Сводка в Telegram'}</span>
-          </button>
-          
-          <div className="w-px h-8 bg-white/10 hidden sm:block" />
-
-          <div className="text-right">
-            <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest font-mono">Выручка периода</p>
-            <div className="flex items-center gap-1.5 justify-end">
-              <p className="text-xl font-black text-white font-mono">${metrics.currentTotal.toLocaleString()}</p>
-              {metrics.growth !== 0 && (
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md font-mono ${metrics.growth > 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'}`}>
-                  {metrics.growth > 0 ? '+' : ''}{metrics.growth.toFixed(1)}%
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="w-px h-8 bg-white/10" />
-          <div className="text-right">
-            <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest font-mono">Прогноз</p>
-            <p className="text-xl font-black text-indigo-400 font-mono">${metrics.projectedTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-          </div>
-        </div>
-      </header>
-
       {/* METRICS SUB-TABS */}
       <div className="flex flex-wrap gap-1 bg-slate-950/60 p-1 rounded-2xl border border-white/[0.03]">
         {[
