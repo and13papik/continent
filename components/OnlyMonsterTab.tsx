@@ -74,6 +74,48 @@ interface MetricGaugeProps {
   raceColor?: string;
 }
 
+const polarToCartesian = (cx: number, cy: number, r: number, angleInDegrees: number) => {
+  const angleInRadians = (angleInDegrees * Math.PI) / 180.0;
+  return {
+    x: cx + r * Math.cos(angleInRadians),
+    y: cy + r * Math.sin(angleInRadians)
+  };
+};
+
+const describeArc = (cx: number, cy: number, r: number, startAngleDeg: number, endAngleDeg: number) => {
+  if (endAngleDeg <= startAngleDeg) return '';
+  const start = polarToCartesian(cx, cy, r, startAngleDeg);
+  const end = polarToCartesian(cx, cy, r, endAngleDeg);
+  const arcSweep = endAngleDeg - startAngleDeg;
+  const largeArcFlag = arcSweep > 180 ? 1 : 0;
+  return [
+    "M", start.x.toFixed(2), start.y.toFixed(2),
+    "A", r, r, 0, largeArcFlag, 1, end.x.toFixed(2), end.y.toFixed(2)
+  ].join(" ");
+};
+
+const STATIC_PARTICLES = [
+  { aOff: -10, rOff: 8, opacity: 0.6, size: 1.5 },
+  { aOff: 15, rOff: -12, opacity: 0.4, size: 2.0 },
+  { aOff: 35, rOff: 10, opacity: 0.7, size: 1.2 },
+  { aOff: 50, rOff: -8, opacity: 0.5, size: 2.2 },
+  { aOff: 75, rOff: 12, opacity: 0.8, size: 1.0 },
+  { aOff: 95, rOff: -10, opacity: 0.3, size: 1.8 },
+  { aOff: 120, rOff: 9, opacity: 0.6, size: 2.5 },
+  { aOff: 140, rOff: -11, opacity: 0.5, size: 1.2 },
+  { aOff: 165, rOff: 11, opacity: 0.7, size: 1.6 },
+  { aOff: 185, rOff: -9, opacity: 0.4, size: 2.0 },
+  { aOff: 205, rOff: 10, opacity: 0.8, size: 1.4 },
+  { aOff: 225, rOff: -12, opacity: 0.5, size: 1.8 },
+  { aOff: 245, rOff: 8, opacity: 0.6, size: 2.2 },
+  { aOff: 260, rOff: -8, opacity: 0.7, size: 1.2 },
+  { aOff: 275, rOff: 12, opacity: 0.4, size: 1.5 },
+  { aOff: 5, rOff: -15, opacity: 0.5, size: 1.0 },
+  { aOff: 110, rOff: 14, opacity: 0.6, size: 1.8 },
+  { aOff: 190, rOff: 13, opacity: 0.7, size: 1.3 },
+  { aOff: 250, rOff: -14, opacity: 0.5, size: 2.0 },
+];
+
 const MetricGauge: React.FC<MetricGaugeProps> = ({
   label,
   value,
@@ -82,7 +124,7 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
   max,
   zones,
   raceMode = false,
-  raceColor = '#22ff88'
+  raceColor = '#00f0ff'
 }) => {
   const safeMin = min;
   const safeMax = max > min ? max : min + 1;
@@ -90,16 +132,268 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
   const isNull = value === null || value === undefined;
   const clampedVal = isNull ? null : Math.min(Math.max(value, safeMin), safeMax);
 
+  const getColorHex = (c: string) => {
+    if (c === 'red' || c === 'rose') return '#ef4444';
+    if (c === 'orange' || c === 'amber' || c === 'yellow') return '#f97316';
+    if (c === 'green' || c === 'emerald') return '#10b981';
+    if (c === 'cyan' || c === 'cyan-super' || c === 'blue') return '#00f0ff';
+    return c;
+  };
+
+  // Find active zone and color based on current value
+  let activeColor = raceColor || '#00f0ff';
+  let isCyanSuper = false;
+
+  if (clampedVal !== null && zones && zones.length > 0) {
+    const matchingZone = zones.find(z => {
+      const f = Math.min(Math.max(z.from, safeMin), safeMax);
+      const t = Math.min(Math.max(z.to, safeMin), safeMax);
+      return clampedVal >= f && clampedVal <= t;
+    }) || zones[zones.length - 1];
+
+    if (matchingZone) {
+      activeColor = getColorHex(matchingZone.color);
+      if (matchingZone.color === 'cyan' || matchingZone.color === 'cyan-super') {
+        isCyanSuper = true;
+      }
+    }
+  }
+
+  // RACE MODE HIGH-TECH 270 DEGREE SPEEDOMETER
+  if (raceMode) {
+    const cx = 100;
+    const cy = 88;
+    const R = 62;
+
+    // Render 4-zone arcs along the 270° sweep (135° to 405°)
+    const rendered270Zones = zones.map((z, idx) => {
+      const f = Math.min(Math.max(z.from, safeMin), safeMax);
+      const t = Math.min(Math.max(z.to, safeMin), safeMax);
+      if (t <= f) return null;
+
+      const r1 = (f - safeMin) / (safeMax - safeMin);
+      const r2 = (t - safeMin) / (safeMax - safeMin);
+
+      const a1 = 135 + r1 * 270;
+      const a2 = 135 + r2 * 270;
+
+      const d = describeArc(cx, cy, R, a1, a2);
+      if (!d) return null;
+
+      const zColor = getColorHex(z.color);
+      const isThisActive = !isNull && clampedVal >= f && clampedVal <= t;
+
+      return (
+        <path
+          key={idx}
+          d={d}
+          fill="none"
+          stroke={zColor}
+          strokeWidth={isThisActive ? "8" : "6"}
+          strokeOpacity={isNull ? 0.3 : (isThisActive ? 1 : 0.65)}
+          strokeLinecap="butt"
+          style={{
+            filter: isThisActive
+              ? `drop-shadow(0 0 ${zColor === '#00f0ff' ? '10px' : '6px'} ${zColor})`
+              : undefined
+          }}
+        />
+      );
+    });
+
+    // Main Ticks & Labels (6 ticks)
+    const mainTicksCount = 6;
+    const mainTicks = [];
+    for (let i = 0; i < mainTicksCount; i++) {
+      const ratio = i / (mainTicksCount - 1);
+      const tickVal = safeMin + ratio * (safeMax - safeMin);
+      const angleDeg = 135 + ratio * 270;
+
+      const pInner = polarToCartesian(cx, cy, R - 6, angleDeg);
+      const pOuter = polarToCartesian(cx, cy, R + 2, angleDeg);
+      const pText = polarToCartesian(cx, cy, R - 16, angleDeg);
+
+      let formattedVal = '';
+      if (safeMax >= 1000) {
+        formattedVal = (tickVal / 1000).toFixed(1) + 'k';
+      } else {
+        formattedVal = String(Math.round(tickVal));
+      }
+
+      mainTicks.push(
+        <g key={`m-tick-${i}`}>
+          <line
+            x1={pInner.x.toFixed(2)}
+            y1={pInner.y.toFixed(2)}
+            x2={pOuter.x.toFixed(2)}
+            y2={pOuter.y.toFixed(2)}
+            stroke="rgba(255, 255, 255, 0.75)"
+            strokeWidth="1.5"
+          />
+          <text
+            x={pText.x.toFixed(2)}
+            y={pText.y.toFixed(2)}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize="7"
+            fill="rgba(255, 255, 255, 0.65)"
+            fontWeight="bold"
+            fontFamily="monospace"
+          >
+            {formattedVal}
+          </text>
+        </g>
+      );
+    }
+
+    // Sub-ticks (16 divisions -> 3 sub-divisions between main ticks)
+    const subTicksCount = 16;
+    const subTicks = [];
+    for (let j = 0; j < subTicksCount; j++) {
+      if (j % 3 !== 0) {
+        const ratio = j / (subTicksCount - 1);
+        const angleDeg = 135 + ratio * 270;
+        const pInner = polarToCartesian(cx, cy, R - 4, angleDeg);
+        const pOuter = polarToCartesian(cx, cy, R, angleDeg);
+        subTicks.push(
+          <line
+            key={`s-tick-${j}`}
+            x1={pInner.x.toFixed(2)}
+            y1={pInner.y.toFixed(2)}
+            x2={pOuter.x.toFixed(2)}
+            y2={pOuter.y.toFixed(2)}
+            stroke="rgba(255, 255, 255, 0.3)"
+            strokeWidth="1"
+          />
+        );
+      }
+    }
+
+    // Particles / Sparks around the gauge
+    const particles = STATIC_PARTICLES.map((pt, idx) => {
+      const angle = 135 + pt.aOff;
+      const r = R + pt.rOff;
+      const p = polarToCartesian(cx, cy, r, angle);
+      return (
+        <circle
+          key={`part-${idx}`}
+          cx={p.x.toFixed(2)}
+          cy={p.y.toFixed(2)}
+          r={pt.size}
+          fill={activeColor}
+          opacity={pt.opacity}
+          style={{ filter: `drop-shadow(0 0 3px ${activeColor})` }}
+        />
+      );
+    });
+
+    // Needle position
+    let needleAngle = 135;
+    if (clampedVal !== null) {
+      const r = (clampedVal - safeMin) / (safeMax - safeMin);
+      needleAngle = 135 + r * 270;
+    }
+    const needleEnd = polarToCartesian(cx, cy, R - 4, needleAngle);
+
+    return (
+      <div className="relative p-2 rounded-2xl border flex flex-col items-center justify-between text-center font-mono transition-all duration-500 bg-slate-950/80 border-cyan-500/30 shadow-[0_0_15px_rgba(15,23,42,0.9)]">
+        {/* Label */}
+        <span className="text-[8px] uppercase font-bold block tracking-wider truncate w-full text-cyan-300/90 mb-1">
+          {label}
+        </span>
+
+        {/* 270 Degree Gauge SVG Container */}
+        <div className="relative w-full max-w-[140px] aspect-[200/170] flex items-center justify-center my-0.5 overflow-visible">
+          <svg viewBox="0 0 200 170" className="w-full h-full overflow-visible">
+            <defs>
+              <radialGradient id={`dialGrad-${label.replace(/\s+/g, '-')}`} cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#1e293b" />
+                <stop offset="70%" stopColor="#0f172a" />
+                <stop offset="100%" stopColor="#020617" />
+              </radialGradient>
+              <radialGradient id={`chromeHub-${label.replace(/\s+/g, '-')}`} cx="35%" cy="35%" r="65%">
+                <stop offset="0%" stopColor="#ffffff" />
+                <stop offset="45%" stopColor="#cbd5e1" />
+                <stop offset="85%" stopColor="#334155" />
+                <stop offset="100%" stopColor="#0f172a" />
+              </radialGradient>
+            </defs>
+
+            {/* Dark Dial Circle Background */}
+            <circle
+              cx={cx}
+              cy={cy}
+              r={R - 2}
+              fill={`url(#dialGrad-${label.replace(/\s+/g, '-')})`}
+              stroke="rgba(255, 255, 255, 0.08)"
+              strokeWidth="1"
+            />
+
+            {/* Background Track Arc 270° */}
+            <path
+              d={describeArc(cx, cy, R, 135, 405)}
+              fill="none"
+              stroke="rgba(255, 255, 255, 0.12)"
+              strokeWidth="7"
+            />
+
+            {/* 4-Zone Colored Arcs */}
+            {rendered270Zones}
+
+            {/* Sub-ticks and Main Ticks */}
+            {subTicks}
+            {mainTicks}
+
+            {/* Particles */}
+            {particles}
+
+            {/* Needle */}
+            {clampedVal !== null && (
+              <>
+                <line
+                  x1={cx}
+                  y1={cy}
+                  x2={needleEnd.x.toFixed(2)}
+                  y2={needleEnd.y.toFixed(2)}
+                  stroke="#ffffff"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  style={{ filter: `drop-shadow(0 0 ${isCyanSuper ? '8px' : '5px'} ${activeColor})` }}
+                />
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r="6"
+                  fill={`url(#chromeHub-${label.replace(/\s+/g, '-')})`}
+                  stroke={activeColor}
+                  strokeWidth="1.5"
+                  style={{ filter: `drop-shadow(0 0 4px ${activeColor})` }}
+                />
+              </>
+            )}
+          </svg>
+
+          {/* Value Capsule Pill Overlay */}
+          <div
+            className="absolute bottom-0 px-2.5 py-0.5 rounded-full bg-slate-950/90 border backdrop-blur-md shadow-lg transition-all duration-300 font-mono text-[10px] sm:text-[11px] font-black tracking-wider whitespace-nowrap"
+            style={{
+              borderColor: activeColor,
+              color: activeColor,
+              boxShadow: `0 0 ${isCyanSuper ? '12px' : '6px'} ${activeColor}60`,
+              textShadow: `0 0 6px ${activeColor}`
+            }}
+          >
+            {displayValue}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // STANDARD 180 DEGREE SEMI-CIRCLE GAUGE
   const cx = 60;
   const cy = 50;
   const R = 40;
-
-  const getColorHex = (c: string) => {
-    if (c === 'red' || c === 'rose') return '#ef4444';
-    if (c === 'amber' || c === 'yellow') return '#f59e0b';
-    if (c === 'emerald' || c === 'green') return '#10b981';
-    return c;
-  };
 
   const renderedZones = zones.map((z, idx) => {
     const f = Math.min(Math.max(z.from, safeMin), safeMax);
@@ -132,33 +426,6 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
     );
   });
 
-  // Tick marks for raceMode speedometer
-  const ticks = [];
-  if (raceMode) {
-    const numTicks = 11;
-    for (let i = 0; i < numTicks; i++) {
-      const angleDeg = 180 - (i / (numTicks - 1)) * 180;
-      const angleRad = angleDeg * (Math.PI / 180);
-      const innerR = R - 5;
-      const outerR = R + 4;
-      const x1 = cx + innerR * Math.cos(angleRad);
-      const y1 = cy - innerR * Math.sin(angleRad);
-      const x2 = cx + outerR * Math.cos(angleRad);
-      const y2 = cy - outerR * Math.sin(angleRad);
-      ticks.push(
-        <line
-          key={`tick-${i}`}
-          x1={x1.toFixed(2)}
-          y1={y1.toFixed(2)}
-          x2={x2.toFixed(2)}
-          y2={y2.toFixed(2)}
-          stroke="rgba(255, 255, 255, 0.35)"
-          strokeWidth="1"
-        />
-      );
-    }
-  }
-
   let needleX = cx;
   let needleY = cy - 32;
   if (clampedVal !== null) {
@@ -169,57 +436,20 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
   }
 
   return (
-    <div
-      className={`p-2 rounded-2xl border flex flex-col items-center justify-between text-center font-mono transition-all duration-500 ${
-        raceMode
-          ? 'bg-slate-950/80 border-cyan-500/30 shadow-[0_0_12px_rgba(56,189,248,0.12)]'
-          : 'bg-slate-800/60 border-white/10 shadow-inner'
-      }`}
-    >
-      <span
-        className={`text-[8px] uppercase font-bold block tracking-wider truncate w-full transition-all duration-500 ${
-          raceMode ? 'text-cyan-300/90' : 'text-slate-400'
-        }`}
-      >
+    <div className="p-2 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner flex flex-col items-center justify-between text-center font-mono">
+      <span className="text-[8px] uppercase font-bold block tracking-wider truncate w-full text-slate-400">
         {label}
       </span>
 
       <div className="relative w-full max-w-[110px] aspect-[120/58] flex items-center justify-center my-1 overflow-visible">
         <svg viewBox="0 0 120 58" className="w-full h-full overflow-visible">
-          <defs>
-            <radialGradient id="chromeHub" cx="35%" cy="35%" r="65%">
-              <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="50%" stopColor="#94a3b8" />
-              <stop offset="100%" stopColor="#0f172a" />
-            </radialGradient>
-          </defs>
-
-          {/* Background Track Arc */}
           <path
             d={`M ${cx - R} ${cy} A ${R} ${R} 0 0 1 ${cx + R} ${cy}`}
             fill="none"
-            stroke={raceMode ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.08)"}
+            stroke="rgba(255, 255, 255, 0.08)"
             strokeWidth="7"
           />
-
-          {/* Color Zone Arcs or Race Neon Arc */}
-          {raceMode ? (
-            <path
-              d={`M ${cx - R} ${cy} A ${R} ${R} 0 0 1 ${cx + R} ${cy}`}
-              fill="none"
-              stroke={raceColor}
-              strokeWidth="6"
-              strokeOpacity={isNull ? 0.3 : 0.95}
-              style={{ filter: `drop-shadow(0 0 6px ${raceColor})` }}
-            />
-          ) : (
-            renderedZones
-          )}
-
-          {/* Tick marks for race mode */}
-          {raceMode && ticks}
-
-          {/* Needle */}
+          {renderedZones}
           {clampedVal !== null && (
             <>
               <line
@@ -230,31 +460,14 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
                 stroke="#ffffff"
                 strokeWidth="2.5"
                 strokeLinecap="round"
-                style={raceMode ? { filter: 'drop-shadow(0 0 4px #ffffff)' } : undefined}
               />
-              {raceMode ? (
-                <circle
-                  cx={cx}
-                  cy={cy}
-                  r="4.5"
-                  fill="url(#chromeHub)"
-                  stroke="#38bdf8"
-                  strokeWidth="1.2"
-                />
-              ) : (
-                <circle cx={cx} cy={cy} r="3.5" fill="#f8fafc" stroke="#0f172a" strokeWidth="2" />
-              )}
+              <circle cx={cx} cy={cy} r="3.5" fill="#f8fafc" stroke="#0f172a" strokeWidth="2" />
             </>
           )}
         </svg>
       </div>
 
-      <span
-        className={`text-[11px] sm:text-[12px] font-black block tracking-tight truncate w-full transition-all duration-500 ${
-          raceMode ? 'font-mono tracking-wider' : 'text-slate-100'
-        }`}
-        style={raceMode ? { color: raceColor, textShadow: `0 0 8px ${raceColor}` } : undefined}
-      >
+      <span className="text-[11px] sm:text-[12px] font-black block tracking-tight truncate w-full text-slate-100 font-mono">
         {displayValue}
       </span>
     </div>
@@ -1430,9 +1643,10 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                               const target = g?.target || 50;
                               const max = g?.max || Math.max(target * 2, 10);
                               const zones = [
-                                { from: 0, to: Math.round(target * 0.7), color: 'red' },
-                                { from: Math.round(target * 0.7), to: Math.round(target * 1.3), color: 'amber' },
-                                { from: Math.round(target * 1.3), to: max, color: 'emerald' }
+                                { from: 0, to: Math.round(target * 0.5), color: 'red' },
+                                { from: Math.round(target * 0.5), to: Math.round(target * 0.85), color: 'orange' },
+                                { from: Math.round(target * 0.85), to: Math.round(target * 1.3), color: 'green' },
+                                { from: Math.round(target * 1.3), to: max, color: 'cyan' }
                               ];
                               return (
                                 <MetricGauge
@@ -1443,7 +1657,6 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                                   max={max}
                                   zones={zones}
                                   raceMode={raceMode}
-                                  raceColor="#22ff88"
                                 />
                               );
                             })()}
@@ -1456,8 +1669,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                               const okTh = g?.okThreshold || 300;
                               const max = g?.max || 900;
                               const zones = [
-                                { from: 0, to: goodTh, color: 'emerald' },
-                                { from: goodTh, to: okTh, color: 'amber' },
+                                { from: 0, to: Math.round(goodTh * 0.5), color: 'cyan' },
+                                { from: Math.round(goodTh * 0.5), to: goodTh, color: 'green' },
+                                { from: goodTh, to: okTh, color: 'orange' },
                                 { from: okTh, to: max, color: 'red' }
                               ];
                               return (
@@ -1470,7 +1684,6 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                                   zones={zones}
                                   inverted={true}
                                   raceMode={raceMode}
-                                  raceColor="#38bdf8"
                                 />
                               );
                             })()}
@@ -1482,9 +1695,10 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                               const target = g?.target || 20;
                               const max = g?.max || Math.max(target * 2, 10);
                               const zones = [
-                                { from: 0, to: Math.round(target * 0.6), color: 'red' },
-                                { from: Math.round(target * 0.6), to: Math.round(target * 1.4), color: 'amber' },
-                                { from: Math.round(target * 1.4), to: max, color: 'emerald' }
+                                { from: 0, to: Math.round(target * 0.5), color: 'red' },
+                                { from: Math.round(target * 0.5), to: Math.round(target * 0.85), color: 'orange' },
+                                { from: Math.round(target * 0.85), to: Math.round(target * 1.3), color: 'green' },
+                                { from: Math.round(target * 1.3), to: max, color: 'cyan' }
                               ];
                               return (
                                 <MetricGauge
@@ -1495,7 +1709,6 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                                   max={max}
                                   zones={zones}
                                   raceMode={raceMode}
-                                  raceColor="#ff3860"
                                 />
                               );
                             })()}
@@ -1512,8 +1725,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                               const max = g?.max || 40;
                               const zones = [
                                 { from: 0, to: okTh, color: 'red' },
-                                { from: okTh, to: goodTh, color: 'amber' },
-                                { from: goodTh, to: max, color: 'emerald' }
+                                { from: okTh, to: goodTh, color: 'orange' },
+                                { from: goodTh, to: Math.round(goodTh * 1.5), color: 'green' },
+                                { from: Math.round(goodTh * 1.5), to: max, color: 'cyan' }
                               ];
                               return (
                                 <MetricGauge
@@ -1524,7 +1738,6 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                                   max={max}
                                   zones={zones}
                                   raceMode={raceMode}
-                                  raceColor="#ffa726"
                                 />
                               );
                             })()}
