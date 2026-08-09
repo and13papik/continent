@@ -155,6 +155,64 @@ async function getAccountEarnings(
   }
 }
 
+export async function getAllAccountsShiftEarnings(
+  token: string,
+  day: 'today' | 'yesterday'
+): Promise<{ 1: number; 2: number; 3: number; 4: number }> {
+  const shiftTotals = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  try {
+    const accRes = await fetch('https://omapi.onlymonster.ai/api/v0/platforms/onlyfans/accounts', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-om-auth-token': token
+      }
+    });
+
+    if (!accRes.ok) return shiftTotals;
+
+    const body: any = await accRes.json();
+    let accountsList: any[] = [];
+    if (Array.isArray(body)) {
+      accountsList = body;
+    } else if (body && typeof body === 'object') {
+      accountsList = body.accounts || body.items || body.data || [];
+    }
+
+    const platformAccountIds = accountsList
+      .map((a: any) => a.platform_account_id || a.id)
+      .filter(Boolean);
+
+    if (platformAccountIds.length === 0) return shiftTotals;
+
+    const range = getOperationalDayRange(day);
+
+    const results = await Promise.all(
+      platformAccountIds.map((id: string) =>
+        getAccountEarnings(id, token, range.start, range.end, true, range.label)
+      )
+    );
+
+    for (const resData of results) {
+      if (resData && resData.breakdown) {
+        shiftTotals[1] += resData.breakdown[1] || 0;
+        shiftTotals[2] += resData.breakdown[2] || 0;
+        shiftTotals[3] += resData.breakdown[3] || 0;
+        shiftTotals[4] += resData.breakdown[4] || 0;
+      }
+    }
+
+    return {
+      1: Math.round(shiftTotals[1] * 100) / 100,
+      2: Math.round(shiftTotals[2] * 100) / 100,
+      3: Math.round(shiftTotals[3] * 100) / 100,
+      4: Math.round(shiftTotals[4] * 100) / 100
+    };
+  } catch (e) {
+    return shiftTotals;
+  }
+}
+
 export default async function handler(req: any, res: any) {
   const method = req.method || 'GET';
   if (method !== 'GET') {

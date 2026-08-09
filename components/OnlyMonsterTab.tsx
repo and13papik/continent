@@ -919,6 +919,17 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                           </span>
                         </div>
                       </div>
+
+                      {/* Diagnostic comparison line for Today */}
+                      {shiftCompMode === 'today' && !s.isFuture && s.accountEarnings !== undefined && s.accountEarnings !== null && (
+                        <div className="mt-2 pt-2 border-t border-white/10 text-[9px] text-slate-500 leading-tight space-y-0.5">
+                          <div>Доход по аккаунтам: <span className="text-slate-300 font-bold">${s.accountEarnings}</span></div>
+                          <div>Доход по операторам: <span className="text-slate-300 font-bold">${s.totalEarnings ?? 0}</span></div>
+                          <div>
+                            Разница: <span className={s.diff > 0 ? 'text-amber-400 font-black' : s.diff < 0 ? 'text-rose-400 font-black' : 'text-slate-400 font-bold'}>${s.diff > 0 ? `+${s.diff}` : s.diff}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1074,88 +1085,97 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                           : 'bg-slate-900/80 border border-white/15 hover:border-violet-500/40 hover:bg-slate-800/90'
                       }`}
                     >
-                      {/* TOP SECTION: RANK, MODEL AVATARS STACK, NAME, ID */}
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shrink-0 shadow-md ${
-                          rank === 1 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
-                          rank === 2 ? 'bg-slate-400/20 text-slate-300 border border-slate-400/40' :
-                          rank === 3 ? 'bg-amber-700/20 text-amber-500 border border-amber-700/40' :
-                          'bg-slate-950 text-slate-400 border border-white/10'
-                        }`}>
-                          {rank === 1 ? <Award size={16} /> : `#${rank}`}
-                        </div>
+                      {/* TOP SECTION: RANK, MODEL AVATARS STACK, NAME, ID, EARNINGS BADGE */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <div className={`w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shrink-0 shadow-md ${
+                            rank === 1 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
+                            rank === 2 ? 'bg-slate-400/20 text-slate-300 border border-slate-400/40' :
+                            rank === 3 ? 'bg-amber-700/20 text-amber-500 border border-amber-700/40' :
+                            'bg-slate-950 text-slate-400 border border-white/10'
+                          }`}>
+                            {rank === 1 ? <Award size={16} /> : `#${rank}`}
+                          </div>
 
-                        {/* MODEL AVATARS STACK */}
-                        {(() => {
-                          const matchedAccounts = (op.creator_ids || [])
-                            .map(id => accounts.find(a => String(a.id) === String(id)))
-                            .filter(Boolean) as OnlyMonsterAccount[];
+                          {/* MODEL AVATARS STACK */}
+                          {(() => {
+                            const matchedAccounts = (op.creator_ids || [])
+                              .map(id => accounts.find(a => String(a.id) === String(id)))
+                              .filter(Boolean) as OnlyMonsterAccount[];
 
-                          if (matchedAccounts.length === 0) {
+                            if (matchedAccounts.length === 0) {
+                              return (
+                                <div 
+                                  title="Нет привязанных моделей"
+                                  className="w-10 h-10 rounded-full bg-slate-950 border border-white/10 flex items-center justify-center text-slate-500 shrink-0 shadow-sm"
+                                >
+                                  <User size={18} className="text-slate-500" />
+                                </div>
+                              );
+                            }
+
+                            const MAX_DISPLAY = 4;
+                            const showOverflow = matchedAccounts.length > MAX_DISPLAY;
+                            const visibleAccounts = showOverflow ? matchedAccounts.slice(0, MAX_DISPLAY - 1) : matchedAccounts;
+                            const remainingCount = matchedAccounts.length - visibleAccounts.length;
+
                             return (
-                              <div 
-                                title="Нет привязанных моделей"
-                                className="w-10 h-10 rounded-full bg-slate-950 border border-white/10 flex items-center justify-center text-slate-500 shrink-0 shadow-sm"
-                              >
-                                <User size={18} className="text-slate-500" />
+                              <div className="flex items-center -space-x-3 shrink-0 py-0.5">
+                                {visibleAccounts.map((acc) => (
+                                  <div
+                                    key={acc.id}
+                                    onClick={(e) => handleModelAvatarClick(e, op.user_id, op.name, acc.id, acc.name, acc.avatar_url)}
+                                    title={`Кликни для метрик по модели: ${acc.name}`}
+                                    className="relative w-10 h-10 rounded-full bg-gradient-to-br from-violet-700 to-indigo-900 border-2 border-slate-900 flex items-center justify-center text-white font-black text-xs shadow-md shrink-0 overflow-hidden cursor-pointer hover:scale-105 hover:border-violet-400 transition-all"
+                                  >
+                                    <span className="absolute inset-0 flex items-center justify-center text-white font-black text-xs">
+                                      {acc.name.charAt(0).toUpperCase()}
+                                    </span>
+                                    {acc.avatar_url && (
+                                      <img
+                                        src={acc.avatar_url}
+                                        alt={acc.name}
+                                        className="absolute inset-0 w-full h-full object-cover"
+                                        onError={(e) => {
+                                          (e.target as HTMLElement).style.display = 'none';
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                ))}
+                                {showOverflow && (
+                                  <div
+                                    title={`Еще ${remainingCount} моделей: ${matchedAccounts.slice(MAX_DISPLAY - 1).map(a => a.name).join(', ')}`}
+                                    className="w-10 h-10 rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-slate-300 font-bold text-xs shadow-md shrink-0 cursor-pointer"
+                                  >
+                                    +{remainingCount}
+                                  </div>
+                                )}
                               </div>
                             );
-                          }
+                          })()}
 
-                          const MAX_DISPLAY = 4;
-                          const showOverflow = matchedAccounts.length > MAX_DISPLAY;
-                          const visibleAccounts = showOverflow ? matchedAccounts.slice(0, MAX_DISPLAY - 1) : matchedAccounts;
-                          const remainingCount = matchedAccounts.length - visibleAccounts.length;
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-sm font-black text-white truncate group-hover:text-violet-300 transition-colors">
+                              {op.name}
+                            </h4>
+                            <span className="text-[10px] text-slate-400 block truncate">
+                              ID: {op.user_id || '—'}
+                            </span>
+                          </div>
+                        </div>
 
-                          return (
-                            <div className="flex items-center -space-x-3 shrink-0 py-0.5">
-                              {visibleAccounts.map((acc) => (
-                                <div
-                                  key={acc.id}
-                                  onClick={(e) => handleModelAvatarClick(e, op.user_id, op.name, acc.id, acc.name, acc.avatar_url)}
-                                  title={`Кликни для метрик по модели: ${acc.name}`}
-                                  className="relative w-10 h-10 rounded-full bg-gradient-to-br from-violet-700 to-indigo-900 border-2 border-slate-900 flex items-center justify-center text-white font-black text-xs shadow-md shrink-0 overflow-hidden cursor-pointer hover:scale-105 hover:border-violet-400 transition-all"
-                                >
-                                  <span className="absolute inset-0 flex items-center justify-center text-white font-black text-xs">
-                                    {acc.name.charAt(0).toUpperCase()}
-                                  </span>
-                                  {acc.avatar_url && (
-                                    <img
-                                      src={acc.avatar_url}
-                                      alt={acc.name}
-                                      className="absolute inset-0 w-full h-full object-cover"
-                                      onError={(e) => {
-                                        (e.target as HTMLElement).style.display = 'none';
-                                      }}
-                                    />
-                                  )}
-                                </div>
-                              ))}
-                              {showOverflow && (
-                                <div
-                                  title={`Еще ${remainingCount} моделей: ${matchedAccounts.slice(MAX_DISPLAY - 1).map(a => a.name).join(', ')}`}
-                                  className="w-10 h-10 rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-slate-300 font-bold text-xs shadow-md shrink-0 cursor-pointer"
-                                >
-                                  +{remainingCount}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
-
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-sm font-black text-white truncate group-hover:text-violet-300 transition-colors">
-                            {op.name}
-                          </h4>
-                          <span className="text-[10px] text-slate-400 block truncate">
-                            ID: {op.user_id || '—'}
-                          </span>
+                        {/* ACCENT EARNINGS BADGE */}
+                        <div className="shrink-0">
+                          <div className="px-2.5 py-1 rounded-xl bg-emerald-950/20 border border-emerald-500/30 text-emerald-400 font-black text-xs sm:text-sm tracking-tight shadow-sm whitespace-nowrap">
+                            {op.earnings && op.earnings > 0 ? `+$${op.earnings}` : `$${op.earnings ?? 0}`}
+                          </div>
                         </div>
                       </div>
 
-                      {/* BOTTOM SECTION: 5 METRICS GRID */}
+                      {/* BOTTOM SECTION: 4 METRICS GRID */}
                       <div className="space-y-2 pt-3 border-t border-white/15">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-center">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                           <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
                             <span className="text-[8px] uppercase text-slate-400 font-bold block">Сообщения</span>
                             <span className="text-xs font-black text-slate-200 block mt-0.5">
@@ -1181,13 +1201,6 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                             <span className="text-[8px] uppercase text-slate-400 font-bold block">PPV Прод.</span>
                             <span className="text-xs font-black text-emerald-400 block mt-0.5">
                               {op.sold_messages_count}
-                            </span>
-                          </div>
-
-                          <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
-                            <span className="text-[8px] uppercase text-slate-400 font-bold block">Доход</span>
-                            <span className="text-xs font-black text-emerald-300 block mt-0.5">
-                              ${op.earnings ?? 0}
                             </span>
                           </div>
                         </div>

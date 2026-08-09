@@ -1,4 +1,5 @@
 import { getOmToken } from '../_lib/om-store.js';
+import { getAllAccountsShiftEarnings } from './earnings.js';
 import { 
   getCurrentKyivShiftIndex, 
   getShiftRangeForDay, 
@@ -145,6 +146,11 @@ export default async function handler(req: any, res: any) {
       const currentShiftIdx = getCurrentKyivShiftIndex();
       const shiftsRes: any[] = [];
 
+      let accountShiftTotals: { 1: number; 2: number; 3: number; 4: number } = { 1: 0, 2: 0, 3: 0, 4: 0 };
+      try {
+        accountShiftTotals = await getAllAccountsShiftEarnings(token, day);
+      } catch (errAcc) {}
+
       for (let s = 1; s <= 4; s++) {
         const isFuture = day === 'today' && s > currentShiftIdx;
         const config = SHIFTS_CONFIG[s - 1];
@@ -155,6 +161,8 @@ export default async function handler(req: any, res: any) {
             label: config.label,
             totalMessages: null,
             totalEarnings: null,
+            accountEarnings: null,
+            diff: null,
             operatorCount: 0,
             isFuture: true
           });
@@ -165,11 +173,18 @@ export default async function handler(req: any, res: any) {
         const url = `https://omapi.onlymonster.ai/api/v0/users/metrics?from=${encodeURIComponent(range.start)}&to=${encodeURIComponent(range.end)}`;
 
         const data = await fetchShiftMetrics(url, headers);
+
+        const accountEarnings = accountShiftTotals[s as 1 | 2 | 3 | 4] ?? 0;
+        const operatorEarnings = data.totalEarnings ?? 0;
+        const diff = Math.round((accountEarnings - operatorEarnings) * 100) / 100;
+
         shiftsRes.push({
           index: s,
           label: range.label,
           totalMessages: data.totalMessages,
-          totalEarnings: data.totalEarnings,
+          totalEarnings: operatorEarnings,
+          accountEarnings,
+          diff,
           operatorCount: data.operatorCount,
           isFuture: false
         });
