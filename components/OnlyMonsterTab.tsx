@@ -25,6 +25,8 @@ interface OnlyMonsterAccount {
   unread_chats: number;
   active_operators: number;
   today_earnings?: number | null;
+  earnings_label?: string;
+  earnings_breakdown?: { 1: number; 2: number; 3: number; 4: number } | null;
   handle?: string;
   avatar_url?: string;
 }
@@ -93,6 +95,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
   const [connStatus, setConnStatus] = useState<'idle' | 'testing' | 'live' | 'not_configured' | 'error'>('idle');
   const [statusMessage, setStatusMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [accountsEarningsDay, setAccountsEarningsDay] = useState<'today' | 'yesterday'>('today');
+  const [showShiftBreakdown, setShowShiftBreakdown] = useState<boolean>(false);
 
   // Shift Operator Metrics state
   const getClientKyivShiftIndex = (): 1 | 2 | 3 | 4 => {
@@ -185,35 +189,69 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
     }
   };
 
-  // Fetch today's earnings for all accounts
-  const fetchEarnings = async (accountsList: OnlyMonsterAccount[]) => {
+  // Fetch earnings for all accounts with operational day range and shift breakdown
+  const fetchEarnings = async (
+    accountsList: OnlyMonsterAccount[] = accounts,
+    dayMode: 'today' | 'yesterday' = accountsEarningsDay,
+    breakdownMode: boolean = showShiftBreakdown
+  ) => {
     const ids = accountsList.map(a => a.platform_account_id).filter(Boolean);
     if (ids.length === 0) return;
 
     setIsEarningsLoading(true);
     try {
-      const res = await fetch(`/api/onlymonster/earnings?accounts=${encodeURIComponent(ids.join(','))}`);
+      const params = new URLSearchParams();
+      params.append('accounts', ids.join(','));
+      params.append('day', dayMode);
+      if (breakdownMode) {
+        params.append('breakdown', 'true');
+      }
+
+      const res = await fetch(`/api/onlymonster/earnings?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         if (data && data.success && data.earnings) {
           setAccounts(prev => prev.map(acc => {
             const entry = data.earnings[acc.platform_account_id] || data.earnings[acc.id];
+            if (!entry) {
+              return {
+                ...acc,
+                today_earnings: null,
+                earnings_label: dayMode === 'today' ? 'Сегодня' : 'Вчера',
+                earnings_breakdown: null
+              };
+            }
+
+            const rawTotal = typeof entry.total === 'number' ? entry.total : (typeof entry.today === 'number' ? entry.today : null);
             return {
               ...acc,
-              today_earnings: (entry && typeof entry.today === 'number') ? Math.round(entry.today * 100) / 100 : null
+              today_earnings: rawTotal !== null ? Math.round(rawTotal * 100) / 100 : null,
+              earnings_label: entry.label || (dayMode === 'today' ? 'Сегодня' : 'Вчера'),
+              earnings_breakdown: entry.breakdown || null
             };
           }));
         } else {
-          setAccounts(prev => prev.map(acc => ({ ...acc, today_earnings: null })));
+          setAccounts(prev => prev.map(acc => ({ ...acc, today_earnings: null, earnings_breakdown: null })));
         }
       } else {
-        setAccounts(prev => prev.map(acc => ({ ...acc, today_earnings: null })));
+        setAccounts(prev => prev.map(acc => ({ ...acc, today_earnings: null, earnings_breakdown: null })));
       }
     } catch (e) {
-      setAccounts(prev => prev.map(acc => ({ ...acc, today_earnings: null })));
+      setAccounts(prev => prev.map(acc => ({ ...acc, today_earnings: null, earnings_breakdown: null })));
     } finally {
       setIsEarningsLoading(false);
     }
+  };
+
+  const handleEarningsDayChange = (day: 'today' | 'yesterday') => {
+    setAccountsEarningsDay(day);
+    fetchEarnings(accounts, day, showShiftBreakdown);
+  };
+
+  const handleToggleShiftBreakdown = () => {
+    const next = !showShiftBreakdown;
+    setShowShiftBreakdown(next);
+    fetchEarnings(accounts, accountsEarningsDay, next);
   };
 
   // Load current configuration from server
@@ -368,18 +406,44 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
         <div className="glass-card p-6 rounded-3xl border border-white/10 bg-slate-950/60 space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/5 pb-4">
             <div>
-              <h3 className="text-base font-black uppercase text-white tracking-wider font-mono flex items-center gap-2.5">
-                <Users size={18} className="text-emerald-400" />
-                Подключенные Аккаунты Моделей
-              </h3>
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="text-base font-black uppercase text-white tracking-wider font-mono flex items-center gap-2.5">
+                  <Users size={18} className="text-emerald-400" />
+                  Подключенные Аккаунты Моделей
+                </h3>
+
+                {/* TODAY / YESTERDAY PERIOD SWITCHER */}
+                <div className="flex items-center p-0.5 bg-slate-900 border border-white/10 rounded-xl font-mono text-[10px]">
+                  <button
+                    onClick={() => handleEarningsDayChange('today')}
+                    className={`px-2.5 py-1 rounded-lg font-bold uppercase transition-all ${
+                      accountsEarningsDay === 'today'
+                        ? 'bg-violet-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Сегодня
+                  </button>
+                  <button
+                    onClick={() => handleEarningsDayChange('yesterday')}
+                    className={`px-2.5 py-1 rounded-lg font-bold uppercase transition-all ${
+                      accountsEarningsDay === 'yesterday'
+                        ? 'bg-violet-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Вчера
+                  </button>
+                </div>
+              </div>
               <p className="text-xs text-slate-400 font-mono mt-0.5">
                 Прямой список аккаунтов, синхронизированных из вашей панели OnlyMonster Browser
               </p>
             </div>
 
-            {/* CONTROLS: SEARCH & REFRESH */}
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <div className="relative w-full sm:w-64">
+            {/* CONTROLS: SEARCH, SHIFT BREAKDOWN TOGGLE & REFRESH */}
+            <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-64">
                 <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input 
                   type="text" 
@@ -390,14 +454,28 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                 />
               </div>
 
+              {/* TOGGLE SHIFT BREAKDOWN */}
+              <button
+                onClick={handleToggleShiftBreakdown}
+                className={`px-3 py-2 border rounded-xl transition-all flex items-center gap-1.5 text-xs font-mono font-bold uppercase ${
+                  showShiftBreakdown
+                    ? 'bg-violet-600/20 text-violet-300 border-violet-500/50 shadow-md'
+                    : 'bg-slate-900 border-white/10 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+                title="Показать или скрыть разбивку дохода по 4 сменам"
+              >
+                <Clock size={13} className={showShiftBreakdown ? 'text-violet-400' : 'text-slate-400'} />
+                <span>По сменам</span>
+              </button>
+
               <button
                 onClick={() => fetchAccounts()}
-                disabled={isLoading}
+                disabled={isLoading || isEarningsLoading}
                 className="px-3.5 py-2 bg-slate-900 border border-white/10 hover:border-violet-500/40 hover:bg-slate-800 text-xs font-mono font-bold uppercase text-slate-200 rounded-xl transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-md shrink-0"
                 title="Обновить список моделей из OnlyMonster API"
               >
-                <RefreshCw size={14} className={isLoading ? "animate-spin text-violet-400" : ""} />
-                {isLoading ? 'Загрузка...' : 'Обновить'}
+                <RefreshCw size={14} className={(isLoading || isEarningsLoading) ? "animate-spin text-violet-400" : ""} />
+                {isLoading || isEarningsLoading ? 'Загрузка...' : 'Обновить'}
               </button>
             </div>
           </div>
@@ -473,7 +551,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                     </div>
 
                     <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                      <span className="text-[8px] uppercase text-slate-500 font-bold block">Доход сегодня</span>
+                      <span className="text-[8px] uppercase text-slate-500 font-bold block truncate">
+                        Доход {acc.earnings_label ? acc.earnings_label.toLowerCase() : (accountsEarningsDay === 'today' ? 'сегодня' : 'вчера')}
+                      </span>
                       {isEarningsLoading && acc.today_earnings === undefined ? (
                         <span className="flex items-center justify-center mt-1">
                           <RefreshCw size={12} className="animate-spin text-violet-400" />
@@ -489,6 +569,65 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                       )}
                     </div>
                   </div>
+
+                  {/* OPTIONAL 4-SHIFT BREAKDOWN GRID */}
+                  {showShiftBreakdown && (
+                    <div className="pt-2 border-t border-white/10 space-y-1.5 font-mono">
+                      <div className="flex items-center justify-between text-[9px] uppercase font-bold text-slate-400 px-0.5">
+                        <span className="flex items-center gap-1 text-slate-300">
+                          <Clock size={11} className="text-violet-400" />
+                          Разбивка по сменам ({acc.earnings_label || (accountsEarningsDay === 'today' ? 'Сегодня' : 'Вчера')}):
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5 text-center">
+                        {[
+                          { idx: 1 as const, label: '02–08' },
+                          { idx: 2 as const, label: '08–14' },
+                          { idx: 3 as const, label: '14–20' },
+                          { idx: 4 as const, label: '20–02' },
+                        ].map(({ idx, label }) => {
+                          const isCurrentActive = accountsEarningsDay === 'today' && currentKyivShiftIndex === idx;
+                          const isFutureShift = accountsEarningsDay === 'today' && idx > currentKyivShiftIndex;
+                          const val = acc.earnings_breakdown ? acc.earnings_breakdown[idx] : undefined;
+
+                          return (
+                            <div
+                              key={idx}
+                              className={`p-1.5 rounded-lg border transition-all ${
+                                isCurrentActive
+                                  ? 'bg-violet-500/15 border-violet-500/40 shadow-sm'
+                                  : 'bg-slate-950/60 border-white/[0.03]'
+                              }`}
+                            >
+                              <div className="flex items-center justify-center gap-1 text-[8px] text-slate-400 font-bold uppercase">
+                                {isCurrentActive && (
+                                  <span className="relative flex h-1.5 w-1.5 shrink-0">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                  </span>
+                                )}
+                                <span>{label}</span>
+                              </div>
+
+                              <div className="text-[11px] font-black mt-0.5">
+                                {isEarningsLoading && val === undefined ? (
+                                  <RefreshCw size={10} className="animate-spin text-violet-400 mx-auto mt-0.5" />
+                                ) : isFutureShift ? (
+                                  <span className="text-slate-600 font-normal">—</span>
+                                ) : typeof val === 'number' ? (
+                                  <span className={val > 0 ? 'text-emerald-400' : 'text-slate-400'}>
+                                    ${val}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-500">—</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

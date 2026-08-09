@@ -1,4 +1,5 @@
 import { getOmToken } from '../_lib/om-store.js';
+import { getOperationalDayRange } from '../_lib/shifts.js';
 
 function sendJson(res: any, status: number, data: any) {
   if (typeof res.status === 'function' && typeof res.json === 'function') {
@@ -11,43 +12,23 @@ function sendJson(res: any, status: number, data: any) {
   return res.end(JSON.stringify(data));
 }
 
-function getKyivTimeRangeISO() {
-  const now = new Date();
-  const endISO = now.toISOString();
-
-  // Get current date in Europe/Kyiv timezone (YYYY-MM-DD)
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Kyiv",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  });
-
-  const dateParts = formatter.format(now); // "YYYY-MM-DD"
-  const utcMidnight = new Date(`${dateParts}T00:00:00.000Z`);
-
-  // Get local hour in Kyiv at UTC midnight to determine timezone offset
-  const hourFormatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Europe/Kyiv",
-    hour: "numeric",
-    hour12: false
-  });
-  const kyivHour = parseInt(hourFormatter.format(utcMidnight), 10) || 0;
-
-  // Subtract offset to get UTC start time corresponding to 00:00 in Europe/Kyiv
-  const startMs = utcMidnight.getTime() - (kyivHour * 3600000);
-  const startISO = new Date(startMs).toISOString();
-
-  return { start: startISO, end: endISO };
-}
-
-async function getAccountEarningsToday(
+async function getAccountEarnings(
   platformAccountId: string,
   token: string,
   startISO: string,
-  endISO: string
-): Promise<{ today: number | null; currency?: string; error?: string }> {
+  endISO: string,
+  includeBreakdown: boolean,
+  label: string
+): Promise<{
+  total: number | null;
+  today?: number | null;
+  currency: string;
+  label: string;
+  breakdown?: { 1: number; 2: number; 3: number; 4: number };
+  error?: string;
+}> {
   let totalAmount = 0;
+  const shiftTotals = { 1: 0, 2: 0, 3: 0, 4: 0 };
   let cursor: string | null = null;
   let page = 0;
   const maxPages = 5;
@@ -78,7 +59,7 @@ async function getAccountEarningsToday(
         let errBody: any = null;
         try { errBody = await response.json(); } catch (e) {}
         const errorMsg = (errBody && (errBody.error || errBody.message)) || `HTTP ${response.status}`;
-        return { today: null, error: errorMsg };
+        return { total: null, today: null, currency: 'USD', label, error: errorMsg };
       }
 
       const body: any = await response.json();
@@ -126,16 +107,51 @@ async function getAccountEarningsToday(
           const val = typeof rawAmt === 'number' ? rawAmt : parseFloat(rawAmt);
           if (!isNaN(val)) {
             totalAmount += val;
+
+            if (includeBreakdown) {
+              const rawTs = tx.timestamp || tx.created_at || tx.date || tx.createdAt || tx.time;
+              if (rawTs) {
+                const txDate = new Date(rawTs);
+                if (!isNaN(txDate.getTime())) {
+                  const hourFormatter = new Intl.DateTimeFormat("en-US", {
+                    timeZone: "Europe/Kyiv",
+                    hour: "numeric",
+                    hour12: false
+                  });
+                  const h = parseInt(hourFormatter.format(txDate), 10) || 0;
+                  if (h >= 2 && h < 8) shiftTotals[1] += val;
+                  else if (h >= 8 && h < 14) shiftTotals[2] += val;
+                  else if (h >= 14 && h < 20) shiftTotals[3] += val;
+                  else shiftTotals[4] += val;
+                }
+              }
+            }
           }
         }
       }
 
     } while (cursor && page < maxPages);
 
-    const rounded = Math.round(totalAmount * 100) / 100;
-    return { today: rounded, currency: 'USD' };
+    const roundedTotal = Math.round(totalAmount * 100) / 100;
+    const resObj: any = {
+      total: roundedTotal,
+      today: roundedTotal,
+      currency: 'USD',
+      label
+    };
+
+    if (includeBreakdown) {
+      resObj.breakdown = {
+        1: Math.round(shiftTotals[1] * 100) / 100,
+        2: Math.round(shiftTotals[2] * 100) / 100,
+        3: Math.round(shiftTotals[3] * 100) / 100,
+        4: Math.round(shiftTotals[4] * 100) / 100
+      };
+    }
+
+    return resObj;
   } catch (err: any) {
-    return { today: null, error: err.message || 'Network error' };
+    return { total: null, today: null, currency: 'USD', label, error: err.message || 'Network error' };
   }
 }
 
@@ -145,15 +161,19 @@ export default async function handler(req: any, res: any) {
     return sendJson(res, 405, { error: 'Method not allowed' });
   }
 
-  const query = req.query || {};
-  let accountsParam = query.accounts;
-  if (!accountsParam && req.url) {
+  let queryParams: Record<string, string> = {};
+  if (req.query && typeof req.query === 'object') {
+    queryParams = req.query as Record<string, string>;
+  } else if (req.url) {
     try {
       const parsedUrl = new URL(req.url, 'http://localhost');
-      accountsParam = parsedUrl.searchParams.get('accounts');
+      parsedUrl.searchParams.forEach((val, key) => {
+        queryParams[key] = val;
+      });
     } catch (e) {}
   }
 
+  const accountsParam = queryParams.accounts;
   if (!accountsParam || typeof accountsParam !== 'string' || !accountsParam.trim()) {
     return sendJson(res, 400, { success: false, error: "Missing required 'accounts' query parameter" });
   }
@@ -172,23 +192,40 @@ export default async function handler(req: any, res: any) {
     return sendJson(res, 400, { success: false, error: "No valid account IDs provided" });
   }
 
-  const { start, end } = getKyivTimeRangeISO();
+  const dayParam = (queryParams.day || 'today').toLowerCase();
+  const day = dayParam === 'yesterday' ? 'yesterday' : 'today';
+  const includeBreakdown = (queryParams.breakdown || '').toLowerCase() === 'true';
+
+  const range = getOperationalDayRange(day);
 
   try {
     const results = await Promise.all(
       accountIds.map(async (platformAccountId) => {
-        const resData = await getAccountEarningsToday(platformAccountId, omToken.trim(), start, end);
+        const resData = await getAccountEarnings(
+          platformAccountId,
+          omToken.trim(),
+          range.start,
+          range.end,
+          includeBreakdown,
+          range.label
+        );
         return { id: platformAccountId, resData };
       })
     );
 
-    const earnings: Record<string, { today: number | null; currency?: string; error?: string }> = {};
+    const earnings: Record<string, any> = {};
     for (const { id, resData } of results) {
       earnings[id] = resData;
     }
 
     return sendJson(res, 200, {
       success: true,
+      day,
+      label: range.label,
+      range: {
+        start: range.start,
+        end: range.end
+      },
       earnings
     });
   } catch (err: any) {

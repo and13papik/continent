@@ -134,3 +134,26 @@ export function getCurrentKyivShift(): KyivShift {
 
   return getShiftRangeForDay('today', currentIndex);
 }
+
+export function getOperationalDayRange(day: 'today' | 'yesterday' = 'today'): { start: string; end: string; label: string } {
+  const now = new Date();
+  const hourFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Kyiv",
+    hour: "numeric",
+    hour12: false
+  });
+  const kyivHour = parseInt(hourFormatter.format(now), 10) || 0;
+
+  // If hour >= 2, today's operational day anchor is today (0). If hour < 2, we are in yesterday's operational day (-1).
+  const anchorOffset = kyivHour >= 2 ? 0 : -1;
+  const baseOffset = day === 'today' ? anchorOffset : anchorOffset - 1;
+
+  const baseDateStr = getKyivDateStr(baseOffset);
+  const nextDateStr = getKyivDateStr(baseOffset + 1);
+
+  const start = kyivWallTimeToUTC(baseDateStr, 2);
+  const end = kyivWallTimeToUTC(nextDateStr, 2);
+  const label = day === 'today' ? 'Сегодня' : 'Вчера';
+
+  return { start, end, label };
+}
