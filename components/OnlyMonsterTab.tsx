@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LiveTrackModal } from './LiveTrackModal';
 import { 
   RefreshCw, 
   AlertCircle, 
@@ -693,6 +694,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
   const [isOperatorsLoading, setIsOperatorsLoading] = useState(false);
   const [operatorsError, setOperatorsError] = useState<string | null>(null);
   const [hasLoadedOperators, setHasLoadedOperators] = useState(false);
+  const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
 
   // Fetch operator metrics for current shift/period
   const fetchShiftOperators = async (
@@ -1367,6 +1369,15 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
               </button>
 
               <button
+                onClick={() => setIsTrackModalOpen(true)}
+                className="px-3.5 py-2 text-xs font-mono font-bold uppercase rounded-xl transition-all duration-300 flex items-center gap-2 shadow-md bg-gradient-to-r from-cyan-900 via-blue-900 to-cyan-900 text-cyan-300 border border-cyan-400/60 hover:border-cyan-300 hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]"
+                title="Открыть интерактивный живой трек гонки операторов"
+              >
+                <span className="text-sm">🏁</span>
+                <span>ТРЭК</span>
+              </button>
+
+              <button
                 onClick={() => {
                   fetchShiftOperators(periodMode, selectedShiftIndex, sortBy, sortDir);
                   fetchShiftComparison(shiftCompMode);
@@ -2016,6 +2027,20 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
           )}
         </div>
       )}
+
+      {/* LIVE TRACK MODAL */}
+      <LiveTrackModal
+        isOpen={isTrackModalOpen}
+        onClose={() => setIsTrackModalOpen(false)}
+        initialOperators={operators}
+        initialShiftInfo={shiftInfo}
+        periodMode={periodMode}
+        selectedShiftIndex={selectedShiftIndex}
+        sortBy={sortBy}
+        sortDir={sortDir}
+        accounts={accounts}
+        currentKyivShiftIndex={currentKyivShiftIndex}
+      />
     </div>
   );
 };
