@@ -79,7 +79,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     const avgOpRate = rawPlatformGross > 0 ? rawStaffNet / rawPlatformGross : 0.20;
     
     const staffAccrued = (rawStaffNet - (totalRefundAmount * avgOpRate)) + ops.reduce((sum, o) => {
-      if (o.operator && !currentAdmins.some(a => a.name === o.operator)) {
+      if (o.operator && o.operator !== 'SYSTEM' && !o.model && !currentAdmins.some(a => a.name === o.operator)) {
         if (o.type === 'bonus') return sum + o.amount;
         if (['penalty', 'internship'].includes(o.type)) return sum - o.amount;
       }
@@ -87,7 +87,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     }, 0);
 
     const staffPaid = ops.reduce((sum, o) => {
-      if (o.operator && !currentAdmins.some(a => a.name === o.operator)) {
+      if (o.operator && o.operator !== 'SYSTEM' && !o.model && !currentAdmins.some(a => a.name === o.operator)) {
         if (['advance', 'salary_payment'].includes(o.type)) return sum + o.amount;
       }
       return sum;
@@ -131,15 +131,19 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     const netProfitTotal = grossTotal - (staffAccrued + modelSummary.accrued + totalAdminAccrued + bizExpenses);
     const sharePerOwner = netProfitTotal / 2;
 
+    const staffRemainder = Math.max(0, staffAccrued - staffPaid);
+    const modelRemainder = Math.max(0, modelSummary.accrued - modelSummary.paid);
+    const adminRemainder = Math.max(0, totalAdminAccrued - totalAdminPaid);
+
     const totalPaidGlobal = staffPaid + modelSummary.paid + totalAdminPaid;
-    const totalRemainderGlobal = (staffAccrued - staffPaid) + (modelSummary.accrued - modelSummary.paid) + (totalAdminAccrued - totalAdminPaid);
+    const totalRemainderGlobal = staffRemainder + modelRemainder + adminRemainder;
 
     return { 
       grossTotal, rawPlatformGross, manualGross, totalRefundAmount,
       netProfitTotal, sharePerOwner,
-      staffAccrued, staffPaid, staffRemainder: staffAccrued - staffPaid,
-      modelAccrued: modelSummary.accrued, modelPaid: modelSummary.paid, modelRemainder: modelSummary.accrued - modelSummary.paid,
-      adminAccrued: totalAdminAccrued, adminPaid: totalAdminPaid, adminRemainder: totalAdminAccrued - totalAdminPaid,
+      staffAccrued, staffPaid, staffRemainder,
+      modelAccrued: modelSummary.accrued, modelPaid: modelSummary.paid, modelRemainder,
+      adminAccrued: totalAdminAccrued, adminPaid: totalAdminPaid, adminRemainder,
       adminDetails,
       totalPaidGlobal, totalRemainderGlobal,
       bizExpenses,
@@ -558,7 +562,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                               Осталось выплатить
                            </span>
                            <div className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight drop-shadow-[0_0_12px_rgba(129,140,248,0.25)]">
-                              ${Math.abs(stats.totalRemainderGlobal).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                              ${stats.totalRemainderGlobal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                            </div>
                         </div>
 
@@ -656,8 +660,8 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                      {stats.adminDetails.map(admin => {
                         const isExpanded = !!expandedAdminInputs[admin.name];
                         const isSuccess = paymentSuccessAdmin === admin.name;
-                        const displayRemaining = Math.abs(admin.remainder);
-   const totalRequired = admin.paid + displayRemaining;
+                        const displayRemaining = Math.max(0, admin.remainder);
+   const totalRequired = Math.max(admin.accrued, admin.paid);
    const repaymentProgress = totalRequired > 0 ? Math.min((admin.paid / totalRequired) * 100, 100) : 0;
 
                         return (
@@ -1311,8 +1315,8 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
 
 const PayrollCategoryRow = ({ title, accrued, paid, iconBg, borderColor, hoverBorder, progressGradient }: any) => {
    const rawRemaining = accrued - paid;
-   const displayRemaining = Math.abs(rawRemaining);
-   const totalRequired = paid + displayRemaining;
+   const displayRemaining = Math.max(0, rawRemaining);
+   const totalRequired = Math.max(accrued, paid);
    const progress = totalRequired > 0 ? Math.min((paid / totalRequired) * 100, 100) : 0;
 
    return (

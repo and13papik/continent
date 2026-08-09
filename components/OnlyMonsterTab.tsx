@@ -160,10 +160,10 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
   }
 
   const getModeInfo = (color: string) => {
-    if (color === '#ff2a5f') return { label: 'CRITICAL', tag: '🔴', bg: 'bg-rose-950/80', border: 'border-rose-500/50', text: 'text-rose-400' };
-    if (color === '#ffb703') return { label: 'WARM UP', tag: '🟡', bg: 'bg-amber-950/80', border: 'border-amber-500/50', text: 'text-amber-400' };
-    if (color === '#00e676') return { label: 'OPTIMAL', tag: '🟢', bg: 'bg-emerald-950/80', border: 'border-emerald-500/50', text: 'text-emerald-400' };
-    return { label: '⚡ TURBO', tag: '🚀', bg: 'bg-cyan-950/90', border: 'border-cyan-400', text: 'text-cyan-300' };
+    if (color === '#ff2a5f') return { label: 'КРИТИЧЕСНО', tag: '🔴', bg: 'bg-rose-950/90', border: 'border-rose-500/60', text: 'text-rose-400' };
+    if (color === '#ffb703') return { label: 'СРЕДНЕ', tag: '🟡', bg: 'bg-amber-950/90', border: 'border-amber-500/60', text: 'text-amber-400' };
+    if (color === '#00e676') return { label: 'ОПТИМАЛЬНО', tag: '🟢', bg: 'bg-emerald-950/90', border: 'border-emerald-500/60', text: 'text-emerald-400' };
+    return { label: 'ТУРБО', tag: '⚡', bg: 'bg-cyan-950/90', border: 'border-cyan-400', text: 'text-cyan-300' };
   };
 
   const modeInfo = getModeInfo(activeColor);
@@ -326,21 +326,15 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
           style={{ background: `radial-gradient(circle, ${activeColor} 0%, transparent 70%)` }}
         />
 
-        {/* Header: Label + Status Tag */}
-        <div className="relative z-10 w-full flex items-center justify-between gap-1 mb-1 px-0.5">
-          <span className="text-[8px] sm:text-[9px] uppercase font-black tracking-wider truncate text-slate-300">
+        {/* Header: Label ONLY - FULL CLEAR UNTRUNCATED TEXT */}
+        <div className="relative z-10 w-full text-center px-1 mb-1 min-h-[26px] flex items-center justify-center">
+          <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-100 block leading-tight text-center break-words">
             {label}
-          </span>
-          <span
-            className={`text-[7px] font-extrabold px-1.5 py-0.5 rounded-md border tracking-widest uppercase flex items-center gap-0.5 ${modeInfo.bg} ${modeInfo.border} ${modeInfo.text}`}
-            style={{ textShadow: `0 0 6px ${activeColor}` }}
-          >
-            {modeInfo.label}
           </span>
         </div>
 
         {/* 270 Degree Gauge SVG Container */}
-        <div className="relative z-10 w-full max-w-[150px] aspect-[200/170] flex items-center justify-center my-0.5 overflow-visible">
+        <div className="relative z-10 w-full max-w-[150px] aspect-[200/165] flex items-center justify-center my-0.5 overflow-visible">
           <svg viewBox="0 0 200 170" className="w-full h-full overflow-visible">
             <defs>
               <radialGradient id={`dialGrad-${label.replace(/\s+/g, '-')}`} cx="50%" cy="50%" r="50%">
@@ -487,6 +481,17 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
             {isCyanSuper && <span className="animate-pulse">⚡</span>}
             <span>{displayValue}</span>
           </div>
+        </div>
+
+        {/* Status Tag UNDER Speedometer */}
+        <div className="relative z-10 mt-3 mb-0.5 flex items-center justify-center w-full">
+          <span
+            className={`text-[8px] sm:text-[9px] font-black px-2.5 py-0.5 rounded-full border tracking-widest uppercase flex items-center gap-1 shadow-md ${modeInfo.bg} ${modeInfo.border} ${modeInfo.text}`}
+            style={{ textShadow: `0 0 6px ${activeColor}` }}
+          >
+            <span>{modeInfo.tag}</span>
+            <span>{modeInfo.label}</span>
+          </span>
         </div>
       </div>
     );

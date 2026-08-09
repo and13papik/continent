@@ -219,7 +219,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
     });
 
     periodOps.forEach(op => {
-      const isOperator = op.operator && !adminNames.includes(op.operator);
+      const isOperator = op.operator && op.operator !== 'SYSTEM' && !op.model && currentOperators.includes(op.operator) && !adminNames.includes(op.operator);
       if (isOperator) {
         if (op.type === 'bonus') totals.bonuses += op.amount;
         else if (op.type === 'penalty' || op.type === 'internship') totals.penalties += op.amount;
@@ -228,15 +228,15 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
       }
     });
 
-    totals.remainder = (totals.netEarned + totals.bonuses) - (totals.penalties + totals.paidOut);
+    totals.remainder = Math.max(0, (totals.netEarned + totals.bonuses) - (totals.penalties + totals.paidOut));
     currentAdmins.forEach(admin => { totals.adminDetails.push({ name: admin.name, amount: totalGross * (admin.rate / 100), rate: admin.rate }); });
     return totals;
-  }, [state.incomeData, state.ownerManualIncomes, state.operationsData, state.admins, activePeriodId, activePeriod, state.modelMonthlyPlans, state.accountingPeriods, state.models]);
+  }, [state.incomeData, state.ownerManualIncomes, state.operationsData, state.admins, activePeriodId, activePeriod, state.modelMonthlyPlans, state.accountingPeriods, state.models, currentOperators]);
 
   const operatorRows = useMemo(() => {
     const raw = currentOperators.map(op => {
       const incomes = state.incomeData.filter(r => r.operator === op && r.periodId === activePeriodId);
-      const ops = state.operationsData.filter(o => o.operator === op && o.periodId === activePeriodId);
+      const ops = state.operationsData.filter(o => o.operator === op && o.operator !== 'SYSTEM' && !o.model && o.periodId === activePeriodId);
       
       const rawG = incomes.reduce((sum, r) => sum + r.total, 0);
       const rawN = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
@@ -269,6 +269,10 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
     const maxGross = Math.max(...sorted.map(r => r.totalGross), 1);
     return sorted.map(r => ({ ...r, percentOfMax: (r.totalGross / maxGross) * 100 }));
   }, [state.incomeData, state.operationsData, currentOperators, activePeriodId, state.paidStatuses]);
+
+  const totalRemainingToPay = useMemo(() => {
+    return operatorRows.reduce((sum, r) => sum + (r.isPaid ? 0 : Math.max(0, r.remainder)), 0);
+  }, [operatorRows]);
 
   const toggleOperatorPaid = (op: string, currentRemainder: number) => {
     const existingStatus = state.paidStatuses.find(s => 
@@ -689,7 +693,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
                    </div>
                    <div className="space-y-1">
                      <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Остаток</p>
-                     <p className="text-xl font-black text-emerald-400 font-outfit tracking-tighter">${Math.abs(stats.remainder).toLocaleString()}</p>
+                     <p className="text-xl font-black text-emerald-400 font-outfit tracking-tighter">${totalRemainingToPay.toLocaleString()}</p>
                    </div>
                 </div>
               </motion.div>
@@ -825,8 +829,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
                         </div>
                       </td>
                       <td className="px-4 py-4 text-center">
-                        <div className={`text-base font-black font-outfit tracking-tighter px-3 py-1.5 rounded-xl transition-all duration-500 group-hover/row:scale-105 ${row.isPaid ? 'text-slate-600 bg-white/[0.01] border border-white/5 opacity-50' : (row.remainder >= 0 ? 'text-emerald-400 bg-emerald-400/5 border border-emerald-500/10' : 'text-rose-400 bg-rose-400/5 border border-rose-500/10')}`}>
-                          ${Math.abs(row.remainder).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        <div className={`text-base font-black font-outfit tracking-tighter px-3 py-1.5 rounded-xl transition-all duration-500 group-hover/row:scale-105 ${row.isPaid || row.remainder <= 0 ? 'text-slate-600 bg-white/[0.01] border border-white/5 opacity-50' : 'text-emerald-400 bg-emerald-400/5 border border-emerald-500/10'}`}>
+                          ${(row.isPaid ? 0 : Math.max(0, row.remainder)).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                         </div>
                       </td>
                       <td className="px-4 py-4 text-right">
