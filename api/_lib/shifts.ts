@@ -63,24 +63,37 @@ export function getKyivDateStr(offsetDays: number = 0): string {
   return dateFormatter.format(targetDate);
 }
 
+export function getShiftRangeForDate(
+  dateStr: string,
+  shiftIndex: 1 | 2 | 3 | 4
+): KyivShift {
+  const config = SHIFTS_CONFIG.find(s => s.index === shiftIndex) || SHIFTS_CONFIG[0];
+  if (shiftIndex !== 4) {
+    const start = kyivWallTimeToUTC(dateStr, config.startHour);
+    const end = kyivWallTimeToUTC(dateStr, config.endHour);
+    return { label: config.label, start, end };
+  } else {
+    // shift 4 goes from dateStr 20:00 to next day 02:00
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const nextDt = new Date(Date.UTC(y, m - 1, d + 1));
+    const nextYear = nextDt.getUTCFullYear();
+    const nextMonth = String(nextDt.getUTCMonth() + 1).padStart(2, '0');
+    const nextDay = String(nextDt.getUTCDate()).padStart(2, '0');
+    const nextDateStr = `${nextYear}-${nextMonth}-${nextDay}`;
+
+    const start = kyivWallTimeToUTC(dateStr, 20);
+    const end = kyivWallTimeToUTC(nextDateStr, 2);
+    return { label: config.label, start, end };
+  }
+}
+
 export function getShiftRangeForDay(
   day: 'today' | 'yesterday',
   shiftIndex: 1 | 2 | 3 | 4
 ): KyivShift {
-  const config = SHIFTS_CONFIG.find(s => s.index === shiftIndex) || SHIFTS_CONFIG[0];
   const baseOffset = day === 'today' ? 0 : -1;
   const baseDate = getKyivDateStr(baseOffset);
-
-  if (shiftIndex !== 4) {
-    const start = kyivWallTimeToUTC(baseDate, config.startHour);
-    const end = kyivWallTimeToUTC(baseDate, config.endHour);
-    return { label: config.label, start, end };
-  } else {
-    const nextDate = getKyivDateStr(baseOffset + 1);
-    const start = kyivWallTimeToUTC(baseDate, 20);
-    const end = kyivWallTimeToUTC(nextDate, 2);
-    return { label: config.label, start, end };
-  }
+  return getShiftRangeForDate(baseDate, shiftIndex);
 }
 
 export function getWeekRange(): KyivShift {

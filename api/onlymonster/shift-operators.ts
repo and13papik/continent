@@ -68,6 +68,15 @@ export default async function handler(req: any, res: any) {
   const day = (queryParams.day || 'today').toLowerCase();
   const shiftParam = queryParams.shift;
 
+  const sortByParam = (queryParams.sortBy || 'messages').toLowerCase();
+  const validSortBy = ['messages', 'reply_time', 'ppv_sent', 'ppv_sold', 'earnings'].includes(sortByParam)
+    ? sortByParam
+    : 'messages';
+
+  const defaultSortDir = validSortBy === 'reply_time' ? 'asc' : 'desc';
+  const sortDirParam = (queryParams.sortDir || defaultSortDir).toLowerCase();
+  const sortDir = sortDirParam === 'asc' ? 'asc' : 'desc';
+
   let range: KyivShift;
 
   if (period === 'week') {
@@ -196,6 +205,7 @@ export default async function handler(req: any, res: any) {
       messages_count: number;
       paid_messages_count: number;
       sold_messages_count: number;
+      earnings: number;
       reply_time_sum: number;
       reply_time_count: number;
       creator_ids: Set<string>;
@@ -224,6 +234,20 @@ export default async function handler(req: any, res: any) {
           ? item.sold_messages_count
           : (item.sold_messages || 0);
 
+        const soldMessagesPrice = typeof item.sold_messages_price_sum === 'number'
+          ? item.sold_messages_price_sum
+          : (parseFloat(item.sold_messages_price_sum) || 0);
+
+        const soldPostsPrice = typeof item.sold_posts_price_sum === 'number'
+          ? item.sold_posts_price_sum
+          : (parseFloat(item.sold_posts_price_sum) || 0);
+
+        const tipsAmount = typeof item.tips_amount_sum === 'number'
+          ? item.tips_amount_sum
+          : (parseFloat(item.tips_amount_sum) || 0);
+
+        const itemEarnings = soldMessagesPrice + soldPostsPrice + tipsAmount;
+
         const replyTimeAvg = typeof item.reply_time_avg === 'number'
           ? item.reply_time_avg
           : (typeof item.reply_time === 'number' ? item.reply_time : null);
@@ -242,6 +266,7 @@ export default async function handler(req: any, res: any) {
           existing.messages_count += messagesCount;
           existing.paid_messages_count += paidMessagesCount;
           existing.sold_messages_count += soldMessagesCount;
+          existing.earnings += itemEarnings;
           if (replyTimeAvg !== null) {
             existing.reply_time_sum += replyTimeAvg;
             existing.reply_time_count += 1;
@@ -265,6 +290,7 @@ export default async function handler(req: any, res: any) {
             messages_count: messagesCount,
             paid_messages_count: paidMessagesCount,
             sold_messages_count: soldMessagesCount,
+            earnings: itemEarnings,
             reply_time_sum: replyTimeAvg !== null ? replyTimeAvg : 0,
             reply_time_count: replyTimeAvg !== null ? 1 : 0,
             creator_ids: creatorSet
@@ -280,12 +306,45 @@ export default async function handler(req: any, res: any) {
       messages_count: op.messages_count,
       paid_messages_count: op.paid_messages_count,
       sold_messages_count: op.sold_messages_count,
+      earnings: Math.round(op.earnings * 100) / 100,
       reply_time_avg: op.reply_time_count > 0 ? Math.round(op.reply_time_sum / op.reply_time_count) : null,
       creator_ids: Array.from(op.creator_ids)
     }));
 
-    // 4. Sort operators by messages_count descending
-    operators.sort((a, b) => b.messages_count - a.messages_count);
+    // 4. Sort operators by requested field and direction
+    operators.sort((a, b) => {
+      let valA = 0;
+      let valB = 0;
+
+      if (validSortBy === 'reply_time') {
+        const rtA = a.reply_time_avg;
+        const rtB = b.reply_time_avg;
+        if (rtA === null && rtB === null) return 0;
+        if (rtA === null) return 1;
+        if (rtB === null) return -1;
+        valA = rtA;
+        valB = rtB;
+      } else if (validSortBy === 'ppv_sent') {
+        valA = a.paid_messages_count;
+        valB = b.paid_messages_count;
+      } else if (validSortBy === 'ppv_sold') {
+        valA = a.sold_messages_count;
+        valB = b.sold_messages_count;
+      } else if (validSortBy === 'earnings') {
+        valA = a.earnings;
+        valB = b.earnings;
+      } else {
+        // messages
+        valA = a.messages_count;
+        valB = b.messages_count;
+      }
+
+      if (sortDir === 'asc') {
+        return valA - valB;
+      } else {
+        return valB - valA;
+      }
+    });
 
     return sendJson(res, 200, {
       success: true,

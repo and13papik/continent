@@ -10,7 +10,12 @@ import {
   UserCheck,
   MessageSquare,
   Award,
-  Clock
+  Clock,
+  Flame,
+  DollarSign,
+  ArrowUp,
+  ArrowDown,
+  X
 } from 'lucide-react';
 
 interface OnlyMonsterTabProps {
@@ -39,6 +44,7 @@ interface ShiftOperator {
   messages_count: number;
   paid_messages_count: number;
   sold_messages_count: number;
+  earnings?: number;
   reply_time_avg?: number | null;
   creator_ids?: string[];
 }
@@ -122,6 +128,31 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
   const [periodMode, setPeriodMode] = useState<'today' | 'yesterday' | 'week' | 'month'>('today');
   const [selectedShiftIndex, setSelectedShiftIndex] = useState<1 | 2 | 3 | 4>(currentKyivShiftIndex);
 
+  // Sorting state
+  const [sortBy, setSortBy] = useState<'messages' | 'reply_time' | 'ppv_sent' | 'ppv_sold' | 'earnings'>('messages');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  // Shift Comparison state
+  const [shiftCompMode, setShiftCompMode] = useState<'today' | 'yesterday' | 'week'>('today');
+  const [shiftCompData, setShiftCompData] = useState<{
+    shifts: any[];
+    strongestIndex: number | null;
+    weakestIndex: number | null;
+    partial?: boolean;
+  } | null>(null);
+  const [isShiftCompLoading, setIsShiftCompLoading] = useState(false);
+  const [shiftCompError, setShiftCompError] = useState<string | null>(null);
+
+  // Model breakdown popover state
+  const [activeBreakdown, setActiveBreakdown] = useState<{
+    userId: string;
+    operatorName: string;
+    creatorId: string;
+    modelName: string;
+    avatarUrl?: string;
+  } | null>(null);
+  const [breakdownCache, setBreakdownCache] = useState<Record<string, { loading: boolean; error?: string; metrics?: any }>>({});
+
   const [shiftInfo, setShiftInfo] = useState<{ label: string; start: string; end: string } | null>(null);
   const [operators, setOperators] = useState<ShiftOperator[]>([]);
   const [isOperatorsLoading, setIsOperatorsLoading] = useState(false);
@@ -131,7 +162,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
   // Fetch operator metrics for current shift/period
   const fetchShiftOperators = async (
     pMode: 'today' | 'yesterday' | 'week' | 'month' = periodMode,
-    sIndex: 1 | 2 | 3 | 4 = selectedShiftIndex
+    sIndex: 1 | 2 | 3 | 4 = selectedShiftIndex,
+    sb: 'messages' | 'reply_time' | 'ppv_sent' | 'ppv_sold' | 'earnings' = sortBy,
+    sd: 'asc' | 'desc' = sortDir
   ) => {
     setIsOperatorsLoading(true);
     setOperatorsError(null);
@@ -146,6 +179,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
       } else if (pMode === 'month') {
         params.append('period', 'month');
       }
+
+      params.append('sortBy', sb);
+      params.append('sortDir', sd);
 
       const url = `/api/onlymonster/shift-operators?${params.toString()}`;
       const res = await fetch(url);
@@ -168,14 +204,125 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
     }
   };
 
+  const handleSortChange = (newSortBy: 'messages' | 'reply_time' | 'ppv_sent' | 'ppv_sold' | 'earnings') => {
+    let nextSortDir: 'asc' | 'desc' = sortDir;
+    if (sortBy === newSortBy) {
+      nextSortDir = sortDir === 'desc' ? 'asc' : 'desc';
+    } else {
+      nextSortDir = newSortBy === 'reply_time' ? 'asc' : 'desc';
+    }
+    setSortBy(newSortBy);
+    setSortDir(nextSortDir);
+    fetchShiftOperators(periodMode, selectedShiftIndex, newSortBy, nextSortDir);
+  };
+
   const handlePeriodChange = (mode: 'today' | 'yesterday' | 'week' | 'month') => {
     setPeriodMode(mode);
-    fetchShiftOperators(mode, selectedShiftIndex);
+    fetchShiftOperators(mode, selectedShiftIndex, sortBy, sortDir);
   };
 
   const handleShiftChange = (shiftIdx: 1 | 2 | 3 | 4) => {
     setSelectedShiftIndex(shiftIdx);
-    fetchShiftOperators(periodMode, shiftIdx);
+    fetchShiftOperators(periodMode, shiftIdx, sortBy, sortDir);
+  };
+
+  // Fetch shift comparison data
+  const fetchShiftComparison = async (mode: 'today' | 'yesterday' | 'week' = shiftCompMode) => {
+    setIsShiftCompLoading(true);
+    setShiftCompError(null);
+    try {
+      const params = new URLSearchParams();
+      if (mode === 'week') {
+        params.append('scope', 'week');
+      } else {
+        params.append('scope', 'day');
+        params.append('day', mode);
+      }
+
+      const res = await fetch(`/api/onlymonster/shift-comparison?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setShiftCompData(data);
+        } else {
+          setShiftCompError(data.error || 'Не удалось загрузить сравнение смен');
+        }
+      } else {
+        setShiftCompError(`Ошибка сервера (${res.status})`);
+      }
+    } catch (e: any) {
+      setShiftCompError('Ошибка соединения при запросе сравнения смен');
+    } finally {
+      setIsShiftCompLoading(false);
+    }
+  };
+
+  const handleShiftCompModeChange = (mode: 'today' | 'yesterday' | 'week') => {
+    setShiftCompMode(mode);
+    fetchShiftComparison(mode);
+  };
+
+  // Model breakdown click handler
+  const handleModelAvatarClick = async (
+    e: React.MouseEvent,
+    userId: string,
+    operatorName: string,
+    creatorId: string,
+    modelName: string,
+    avatarUrl?: string
+  ) => {
+    e.stopPropagation();
+
+    if (activeBreakdown && activeBreakdown.userId === userId && activeBreakdown.creatorId === creatorId) {
+      setActiveBreakdown(null);
+      return;
+    }
+
+    setActiveBreakdown({ userId, operatorName, creatorId, modelName, avatarUrl });
+
+    if (!shiftInfo?.start || !shiftInfo?.end) return;
+
+    const cacheKey = `${userId}_${creatorId}_${shiftInfo.start}_${shiftInfo.end}`;
+    if (breakdownCache[cacheKey]) return;
+
+    setBreakdownCache(prev => ({
+      ...prev,
+      [cacheKey]: { loading: true }
+    }));
+
+    try {
+      const params = new URLSearchParams();
+      params.append('user_id', userId);
+      params.append('creator_id', creatorId);
+      params.append('start', shiftInfo.start);
+      params.append('end', shiftInfo.end);
+
+      const res = await fetch(`/api/onlymonster/operator-model-breakdown?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setBreakdownCache(prev => ({
+            ...prev,
+            [cacheKey]: { loading: false, metrics: data.metrics }
+          }));
+        } else {
+          setBreakdownCache(prev => ({
+            ...prev,
+            [cacheKey]: { loading: false, error: data.error || 'Не удалось загрузить данные' }
+          }));
+        }
+      } else {
+        setBreakdownCache(prev => ({
+          ...prev,
+          [cacheKey]: { loading: false, error: `Ошибка API (${res.status})` }
+        }));
+      }
+    } catch (err: any) {
+      setBreakdownCache(prev => ({
+        ...prev,
+        [cacheKey]: { loading: false, error: 'Ошибка сети' }
+      }));
+    }
   };
 
   const handleSubTabChange = (tab: 'accounts' | 'operator_metrics') => {
@@ -185,7 +332,10 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
         fetchAccounts();
       }
       if (!hasLoadedOperators) {
-        fetchShiftOperators(periodMode, selectedShiftIndex);
+        fetchShiftOperators(periodMode, selectedShiftIndex, sortBy, sortDir);
+      }
+      if (!shiftCompData) {
+        fetchShiftComparison(shiftCompMode);
       }
     }
   };
@@ -662,18 +812,122 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
             </div>
 
             <button
-              onClick={() => fetchShiftOperators(periodMode, selectedShiftIndex)}
-              disabled={isOperatorsLoading}
+              onClick={() => {
+                fetchShiftOperators(periodMode, selectedShiftIndex, sortBy, sortDir);
+                fetchShiftComparison(shiftCompMode);
+              }}
+              disabled={isOperatorsLoading || isShiftCompLoading}
               className="px-3.5 py-2 bg-slate-900 border border-white/15 hover:border-violet-500/40 hover:bg-slate-800 text-xs font-mono font-bold uppercase text-slate-200 rounded-xl transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-md shrink-0"
-              title="Обновить метрики операторов"
+              title="Обновить метрики операторов и сравнение смен"
             >
-              <RefreshCw size={14} className={isOperatorsLoading ? "animate-spin text-violet-400" : ""} />
-              {isOperatorsLoading ? 'Загрузка...' : 'Обновить'}
+              <RefreshCw size={14} className={(isOperatorsLoading || isShiftCompLoading) ? "animate-spin text-violet-400" : ""} />
+              {(isOperatorsLoading || isShiftCompLoading) ? 'Загрузка...' : 'Обновить'}
             </button>
           </div>
 
+          {/* SUB-BLOCK: SHIFT COMPARISON */}
+          <div className="p-4 bg-slate-950/60 rounded-2xl border border-white/10 space-y-3 font-mono">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/5">
+              <div className="flex items-center gap-2">
+                <Clock size={15} className="text-violet-400" />
+                <h4 className="text-xs font-black uppercase text-slate-200 tracking-wider">
+                  Сравнение Смен
+                </h4>
+              </div>
+
+              <div className="flex items-center p-0.5 bg-slate-900 border border-white/10 rounded-xl text-[10px]">
+                {[
+                  { id: 'today', label: 'Сегодня' },
+                  { id: 'yesterday', label: 'Вчера' },
+                  { id: 'week', label: 'За неделю' },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => handleShiftCompModeChange(item.id as any)}
+                    className={`px-2.5 py-1 rounded-lg font-bold uppercase transition-all ${
+                      shiftCompMode === item.id
+                        ? 'bg-violet-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {isShiftCompLoading ? (
+              <div className="p-4 text-center">
+                <RefreshCw size={16} className="animate-spin text-violet-400 mx-auto" />
+                <span className="text-[10px] text-slate-400 mt-1 block">Расчёт данных по сменам...</span>
+              </div>
+            ) : shiftCompError ? (
+              <div className="p-3 bg-rose-950/30 border border-rose-500/20 text-rose-300 text-[11px] rounded-xl">
+                {shiftCompError}
+              </div>
+            ) : shiftCompData?.shifts ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                {shiftCompData.shifts.map((s: any) => {
+                  const isStrongest = shiftCompData.strongestIndex === s.index;
+                  const isWeakest = shiftCompData.weakestIndex === s.index && !isStrongest;
+
+                  return (
+                    <div
+                      key={s.index}
+                      className={`p-3 rounded-xl border transition-all relative overflow-hidden ${
+                        s.isFuture
+                          ? 'bg-slate-950/40 border-white/5 opacity-50'
+                          : isStrongest
+                          ? 'bg-emerald-950/30 border-emerald-500/50 shadow-md shadow-emerald-950/40'
+                          : isWeakest
+                          ? 'bg-rose-950/30 border-rose-500/40'
+                          : 'bg-slate-900/70 border-white/10'
+                      }`}
+                    >
+                      {isStrongest && (
+                        <div className="absolute top-1 right-2 flex items-center gap-0.5 text-[8px] font-black uppercase text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded-full border border-emerald-500/30">
+                          <Flame size={10} className="text-emerald-400 fill-emerald-400" />
+                          <span>Сильнее всех</span>
+                        </div>
+                      )}
+                      {isWeakest && (
+                        <div className="absolute top-1 right-2 flex items-center gap-0.5 text-[8px] font-black uppercase text-rose-400 bg-rose-500/20 px-1.5 py-0.5 rounded-full border border-rose-500/30">
+                          <span>Слабее всех</span>
+                        </div>
+                      )}
+
+                      <div className="text-[10px] font-bold text-slate-400 uppercase">
+                        {s.label}
+                      </div>
+
+                      <div className="mt-1.5 flex items-baseline justify-between">
+                        <div>
+                          <span className="text-[9px] uppercase text-slate-500 block font-bold">Доход</span>
+                          <span className={`text-sm font-black ${s.isFuture ? 'text-slate-600' : isStrongest ? 'text-emerald-300' : 'text-emerald-400'}`}>
+                            {s.isFuture
+                              ? '—'
+                              : shiftCompMode === 'week'
+                              ? `$${s.avgEarningsPerDay}/д`
+                              : `$${s.totalEarnings ?? 0}`}
+                          </span>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-[9px] uppercase text-slate-500 block font-bold">Сообщения</span>
+                          <span className="text-xs font-bold text-slate-200">
+                            {s.isFuture ? '—' : s.totalMessages ?? 0}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+
           {/* PERIOD & SHIFT SELECTORS */}
-          <div className="space-y-3 pb-2 border-b border-white/10">
+          <div className="space-y-3 pb-2 border-b border-white/10 font-mono">
             {/* ROW 1: PERIOD BUTTONS */}
             <div className="flex flex-wrap items-center gap-2">
               {[
@@ -685,7 +939,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                 <button
                   key={p.id}
                   onClick={() => handlePeriodChange(p.id as any)}
-                  className={`px-3.5 py-2 rounded-xl font-mono text-xs font-bold uppercase transition-all ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
                     periodMode === p.id
                       ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-950/50 border border-violet-400/30'
                       : 'bg-slate-900/80 text-slate-400 border border-white/10 hover:bg-slate-800 hover:text-slate-200'
@@ -713,7 +967,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                       key={s.index}
                       onClick={() => !isDisabled && handleShiftChange(s.index as any)}
                       disabled={isDisabled}
-                      className={`px-3.5 py-1.5 rounded-xl font-mono text-xs font-bold transition-all flex items-center gap-2 ${
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
                         isDisabled
                           ? 'bg-slate-950/40 text-slate-600 border border-white/5 cursor-not-allowed opacity-50'
                           : selectedShiftIndex === s.index
@@ -733,6 +987,42 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                 })}
               </div>
             )}
+
+            {/* SORTING CONTROLS */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-white/10">
+              <span className="text-[10px] uppercase font-bold text-slate-400">
+                Сортировка по:
+              </span>
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                {[
+                  { id: 'messages', label: 'Сообщения' },
+                  { id: 'reply_time', label: 'Время ответа' },
+                  { id: 'ppv_sent', label: 'PPV отправлено' },
+                  { id: 'ppv_sold', label: 'PPV продано' },
+                  { id: 'earnings', label: 'Доход' },
+                ].map((sortItem) => {
+                  const isActive = sortBy === sortItem.id;
+                  return (
+                    <button
+                      key={sortItem.id}
+                      onClick={() => handleSortChange(sortItem.id as any)}
+                      className={`px-3 py-1.5 rounded-xl font-bold uppercase transition-all flex items-center gap-1 ${
+                        isActive
+                          ? 'bg-violet-600 text-white shadow-md border border-violet-400/40'
+                          : 'bg-slate-900 border border-white/10 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                      }`}
+                    >
+                      <span>{sortItem.label}</span>
+                      {isActive && (
+                        <span className="text-[10px]">
+                          {sortDir === 'asc' ? '▲' : '▼'}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* CONTENT */}
@@ -750,12 +1040,12 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
               </div>
             </div>
           ) : operators.length === 0 ? (
-            <div className="p-10 bg-slate-900/40 rounded-2xl border border-dashed border-white/15 text-center space-y-2">
+            <div className="p-10 bg-slate-900/40 rounded-2xl border border-dashed border-white/15 text-center space-y-2 font-mono">
               <UserCheck size={32} className="text-slate-500 mx-auto mb-1" />
-              <p className="text-sm font-mono font-bold text-slate-300">
+              <p className="text-sm font-bold text-slate-300">
                 {periodMode === 'today' ? 'Нет активных операторов в текущую смену' : 'Нет данных за выбранный период'}
               </p>
-              <p className="text-xs font-mono text-slate-400 max-w-md mx-auto">
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
                 {periodMode === 'today'
                   ? `В текущую смену (${shiftInfo?.label || 'текущее время'}) операторы пока не отправляли сообщений.`
                   : `За период (${shiftInfo?.label || 'выбранный период'}) активные сообщения операторов не зафиксированы.`
@@ -795,7 +1085,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                           {rank === 1 ? <Award size={16} /> : `#${rank}`}
                         </div>
 
-                        {/* MODEL AVATARS STACK INSTEAD OF OPERATOR LETTER AVATAR */}
+                        {/* MODEL AVATARS STACK */}
                         {(() => {
                           const matchedAccounts = (op.creator_ids || [])
                             .map(id => accounts.find(a => String(a.id) === String(id)))
@@ -822,8 +1112,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                               {visibleAccounts.map((acc) => (
                                 <div
                                   key={acc.id}
-                                  title={`${acc.name}${acc.handle ? ` (@${acc.handle})` : ''}`}
-                                  className="relative w-10 h-10 rounded-full bg-gradient-to-br from-violet-700 to-indigo-900 border-2 border-slate-900 flex items-center justify-center text-white font-black text-xs shadow-md shrink-0 overflow-hidden cursor-pointer"
+                                  onClick={(e) => handleModelAvatarClick(e, op.user_id, op.name, acc.id, acc.name, acc.avatar_url)}
+                                  title={`Кликни для метрик по модели: ${acc.name}`}
+                                  className="relative w-10 h-10 rounded-full bg-gradient-to-br from-violet-700 to-indigo-900 border-2 border-slate-900 flex items-center justify-center text-white font-black text-xs shadow-md shrink-0 overflow-hidden cursor-pointer hover:scale-105 hover:border-violet-400 transition-all"
                                 >
                                   <span className="absolute inset-0 flex items-center justify-center text-white font-black text-xs">
                                     {acc.name.charAt(0).toUpperCase()}
@@ -862,9 +1153,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                         </div>
                       </div>
 
-                      {/* BOTTOM SECTION: 4 METRICS GRID */}
+                      {/* BOTTOM SECTION: 5 METRICS GRID */}
                       <div className="space-y-2 pt-3 border-t border-white/15">
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-center">
                           <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
                             <span className="text-[8px] uppercase text-slate-400 font-bold block">Сообщения</span>
                             <span className="text-xs font-black text-slate-200 block mt-0.5">
@@ -873,23 +1164,30 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                           </div>
 
                           <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
-                            <span className="text-[8px] uppercase text-slate-400 font-bold block">Ср. время ответа</span>
+                            <span className="text-[8px] uppercase text-slate-400 font-bold block">Ср. время</span>
                             <span className={`text-xs font-black block mt-0.5 ${getReplyTimeColorClass(op.reply_time_avg)}`}>
                               {formatDuration(op.reply_time_avg)}
                             </span>
                           </div>
 
                           <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
-                            <span className="text-[8px] uppercase text-slate-400 font-bold block">PPV Отправлено</span>
+                            <span className="text-[8px] uppercase text-slate-400 font-bold block">PPV Отпр.</span>
                             <span className="text-xs font-black text-violet-300 block mt-0.5">
                               {op.paid_messages_count}
                             </span>
                           </div>
 
                           <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
-                            <span className="text-[8px] uppercase text-slate-400 font-bold block">PPV Продано</span>
+                            <span className="text-[8px] uppercase text-slate-400 font-bold block">PPV Прод.</span>
                             <span className="text-xs font-black text-emerald-400 block mt-0.5">
                               {op.sold_messages_count}
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-white/10 shadow-inner">
+                            <span className="text-[8px] uppercase text-slate-400 font-bold block">Доход</span>
+                            <span className="text-xs font-black text-emerald-300 block mt-0.5">
+                              ${op.earnings ?? 0}
                             </span>
                           </div>
                         </div>
@@ -908,6 +1206,100 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* MODEL BREAKDOWN POPOVER MODAL */}
+          {activeBreakdown && (
+            <div
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 font-mono"
+              onClick={() => setActiveBreakdown(null)}
+            >
+              <div
+                className="glass-card p-5 rounded-2xl border border-white/20 bg-slate-900 text-white max-w-sm w-full space-y-4 shadow-2xl relative"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  onClick={() => setActiveBreakdown(null)}
+                  className="absolute top-3 right-3 text-slate-400 hover:text-white p-1 rounded-lg bg-slate-800/60 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+
+                <div className="flex items-center gap-3 pr-6">
+                  {activeBreakdown.avatarUrl ? (
+                    <img src={activeBreakdown.avatarUrl} alt={activeBreakdown.modelName} className="w-10 h-10 rounded-full object-cover border border-white/20 shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-violet-700 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      {activeBreakdown.modelName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-black text-white truncate">{activeBreakdown.modelName}</h4>
+                    <span className="text-[10px] text-slate-400 block truncate">
+                      Оператор: <strong className="text-violet-300">{activeBreakdown.operatorName}</strong>
+                    </span>
+                  </div>
+                </div>
+
+                {(() => {
+                  const cacheKey = `${activeBreakdown.userId}_${activeBreakdown.creatorId}_${shiftInfo?.start || ''}_${shiftInfo?.end || ''}`;
+                  const bState = breakdownCache[cacheKey];
+
+                  if (!bState || bState.loading) {
+                    return (
+                      <div className="p-6 text-center space-y-2">
+                        <RefreshCw size={20} className="animate-spin text-violet-400 mx-auto" />
+                        <span className="text-xs text-slate-400 block">Загрузка данных по модели...</span>
+                      </div>
+                    );
+                  }
+
+                  if (bState.error) {
+                    return (
+                      <div className="p-3 bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs rounded-xl">
+                        {bState.error}
+                      </div>
+                    );
+                  }
+
+                  const m = bState.metrics;
+                  return (
+                    <div className="space-y-3 pt-2 border-t border-white/10">
+                      <span className="text-[10px] font-bold text-violet-400 uppercase block">
+                        За период ({shiftInfo?.label || 'выбранный период'}):
+                      </span>
+
+                      <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                        <div className="p-2.5 bg-slate-800/60 rounded-xl border border-white/10">
+                          <span className="text-[8px] uppercase text-slate-400 block font-bold">Сообщения</span>
+                          <span className="font-black text-slate-100 text-sm mt-0.5 block">{m?.messages_count ?? 0}</span>
+                        </div>
+
+                        <div className="p-2.5 bg-slate-800/60 rounded-xl border border-white/10">
+                          <span className="text-[8px] uppercase text-slate-400 block font-bold">Ср. время ответа</span>
+                          <span className="font-black text-violet-300 text-sm mt-0.5 block">{formatDuration(m?.reply_time_avg)}</span>
+                        </div>
+
+                        <div className="p-2.5 bg-slate-800/60 rounded-xl border border-white/10">
+                          <span className="text-[8px] uppercase text-slate-400 block font-bold">PPV Отправлено</span>
+                          <span className="font-black text-violet-300 text-sm mt-0.5 block">{m?.paid_messages_count ?? 0}</span>
+                        </div>
+
+                        <div className="p-2.5 bg-slate-800/60 rounded-xl border border-white/10">
+                          <span className="text-[8px] uppercase text-slate-400 block font-bold">PPV Продано</span>
+                          <span className="font-black text-emerald-400 text-sm mt-0.5 block">{m?.sold_messages_count ?? 0}</span>
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-xl text-center">
+                        <span className="text-[9px] uppercase text-emerald-400 font-bold block">Доход на модели</span>
+                        <span className="text-lg font-black text-emerald-300 mt-0.5 block">${m?.earnings ?? 0}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}
