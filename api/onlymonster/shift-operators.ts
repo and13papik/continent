@@ -145,6 +145,7 @@ export default async function handler(req: any, res: any) {
       messages_count: number;
       paid_messages_count: number;
       sold_messages_count: number;
+      reply_time_avg: number | null;
     }> = [];
 
     for (const item of metricsItems) {
@@ -170,13 +171,20 @@ export default async function handler(req: any, res: any) {
           ? item.sold_messages_count
           : (item.sold_messages || 0);
 
+        const replyTimeAvg = typeof item.reply_time_avg === 'number'
+          ? item.reply_time_avg
+          : (typeof item.reply_time === 'number' ? item.reply_time : null);
+
+        // TODO: правильная агрегация reply_time_avg при нескольких аккаунтах на одного оператора
+
         operators.push({
           user_id: userId,
           name: displayName,
           avatar,
           messages_count: messagesCount,
           paid_messages_count: paidMessagesCount,
-          sold_messages_count: soldMessagesCount
+          sold_messages_count: soldMessagesCount,
+          reply_time_avg: replyTimeAvg
         });
       }
     }

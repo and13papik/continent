@@ -36,6 +36,25 @@ interface ShiftOperator {
   messages_count: number;
   paid_messages_count: number;
   sold_messages_count: number;
+  reply_time_avg?: number | null;
+}
+
+function formatDuration(seconds?: number | null): string {
+  if (seconds === null || seconds === undefined || isNaN(seconds) || seconds <= 0) {
+    return '—';
+  }
+  const s = Math.round(seconds);
+  if (s < 60) {
+    return `${s}с`;
+  }
+  if (s < 3600) {
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    return secs > 0 ? `${mins}м ${secs}с` : `${mins}м`;
+  }
+  const hours = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  return mins > 0 ? `${hours}ч ${mins}м` : `${hours}ч`;
 }
 
 function decodeHtmlEntities(str: string): string {
@@ -473,8 +492,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                   return (
                     <div 
                       key={op.user_id || index}
-                      className="p-4 bg-slate-900/60 rounded-2xl border border-white/5 hover:border-violet-500/30 hover:bg-slate-900/90 transition-all flex items-center justify-between gap-3 font-mono"
+                      className="p-4 bg-slate-900/60 rounded-2xl border border-white/5 hover:border-violet-500/30 hover:bg-slate-900/90 transition-all flex flex-col justify-between space-y-4 font-mono group"
                     >
+                      {/* TOP SECTION: RANK, AVATAR, NAME, ID */}
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shrink-0 shadow-md ${
                           rank === 1 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
@@ -498,7 +518,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                           </div>
                         )}
 
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <h4 className="text-sm font-black text-white truncate group-hover:text-violet-300 transition-colors">
                             {op.name}
                           </h4>
@@ -508,14 +528,35 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                         </div>
                       </div>
 
-                      <div className="text-right shrink-0">
-                        <div className="flex items-center gap-1.5 justify-end text-violet-300 font-black text-sm">
-                          <MessageSquare size={13} className="text-violet-400" />
-                          <span>{op.messages_count}</span>
+                      {/* BOTTOM SECTION: 4 METRICS GRID */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-white/5 text-center">
+                        <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                          <span className="text-[8px] uppercase text-slate-500 font-bold block">Сообщения</span>
+                          <span className="text-xs font-black text-slate-200 block mt-0.5">
+                            {op.messages_count}
+                          </span>
                         </div>
-                        <span className="text-[9px] text-slate-500 uppercase block font-bold mt-0.5">
-                          сообщений
-                        </span>
+
+                        <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                          <span className="text-[8px] uppercase text-slate-500 font-bold block">Ср. время ответа</span>
+                          <span className="text-xs font-black text-slate-200 block mt-0.5">
+                            {formatDuration(op.reply_time_avg)}
+                          </span>
+                        </div>
+
+                        <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                          <span className="text-[8px] uppercase text-slate-500 font-bold block">PPV Отправлено</span>
+                          <span className="text-xs font-black text-slate-200 block mt-0.5">
+                            {op.paid_messages_count}
+                          </span>
+                        </div>
+
+                        <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                          <span className="text-[8px] uppercase text-slate-500 font-bold block">PPV Продано</span>
+                          <span className="text-xs font-black text-emerald-400 block mt-0.5">
+                            {op.sold_messages_count}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
