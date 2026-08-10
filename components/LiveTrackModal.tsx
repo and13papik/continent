@@ -222,24 +222,20 @@ const F1RaceCarNode: React.FC<CarNodeProps> = ({
   displayValue
 }) => {
   const leftPct = (transform.x / 1000) * 100;
-  const topPct = (transform.y / 500) * 100;
+  const topPct = (transform.y / 520) * 100;
 
   let bodyColor = '#0EA5E9'; // Cyan/Blue
   let rankStrokeColor = '#38BDF8';
-  let badgeBg = 'bg-cyan-500 text-black';
 
   if (rank === 1) {
     bodyColor = '#F2A623'; // Gold
     rankStrokeColor = '#FAC775';
-    badgeBg = 'bg-amber-400 text-black font-black';
   } else if (rank === 2) {
     bodyColor = '#9CA3AF'; // Silver
     rankStrokeColor = '#E5E7EB';
-    badgeBg = 'bg-slate-200 text-black font-black';
   } else if (rank === 3) {
     bodyColor = '#B8622F'; // Bronze
     rankStrokeColor = '#D08A4E';
-    badgeBg = 'bg-amber-600 text-white font-black';
   }
 
   return (
@@ -262,17 +258,6 @@ const F1RaceCarNode: React.FC<CarNodeProps> = ({
 
       {/* F1 CAR CHASSIS + AVATAR */}
       <div className="relative flex items-center justify-center">
-        {/* Leader Crown floating above car */}
-        {isLeader && (
-          <div
-            className="absolute -top-7 left-1/2 -translate-x-1/2 bg-amber-400 text-black text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-[0_0_12px_rgba(245,158,11,1)] animate-bounce z-40 whitespace-nowrap"
-            style={{ transform: `rotate(${-transform.angle}deg)` }}
-          >
-            <Crown size={10} className="fill-black" />
-            <span>#1 ЛИДЕР</span>
-          </div>
-        )}
-
         {/* Top-View F1 Race Car with Driver Avatar in Cockpit */}
         <RaceCar
           avatarUrl={op.avatar}
@@ -282,25 +267,39 @@ const F1RaceCarNode: React.FC<CarNodeProps> = ({
           operatorName={op.name}
         />
 
-        {/* Position Badge (#1, #2, #3...) attached to car */}
+        {/* COMPACT COMBINED BADGE OVERLAY (Upright for readability) */}
         <div
-          className={`absolute -bottom-2 -left-1 px-1.5 py-0.2 text-[9px] font-black rounded-md border border-black/40 shadow-md ${badgeBg}`}
+          className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 pointer-events-none z-50 transition-transform duration-300"
           style={{ transform: `rotate(${-transform.angle}deg)` }}
         >
-          #{rank}
-        </div>
+          <div
+            className={`px-2 py-0.5 rounded-lg border shadow-xl backdrop-blur-md flex items-center gap-1.5 whitespace-nowrap text-[10px] font-bold ${
+              rank === 1
+                ? 'bg-amber-950/90 border-amber-400/80 text-amber-200 shadow-amber-500/20'
+                : rank === 2
+                ? 'bg-slate-900/90 border-slate-300/70 text-slate-200'
+                : rank === 3
+                ? 'bg-amber-950/80 border-amber-600/70 text-amber-300'
+                : 'bg-slate-950/90 border-cyan-500/30 text-slate-200'
+            }`}
+          >
+            <span className={`font-black flex items-center gap-0.5 ${
+              rank === 1 ? 'text-amber-400' :
+              rank === 2 ? 'text-slate-300' :
+              rank === 3 ? 'text-amber-500' : 'text-slate-400'
+            }`}>
+              {rank === 1 && <Crown size={11} className="fill-amber-400 text-amber-400 shrink-0" />}
+              #{rank}
+            </span>
 
-        {/* Operator Name & Metric Badge (kept upright for readability) */}
-        <div
-          className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-slate-950/95 border border-white/20 rounded-lg shadow-2xl backdrop-blur-md flex flex-col items-center pointer-events-none whitespace-nowrap z-50 transition-opacity duration-200"
-          style={{ transform: `rotate(${-transform.angle}deg)` }}
-        >
-          <span className={`text-[10px] font-extrabold ${isLeader ? 'text-amber-300' : 'text-slate-100'}`}>
-            {op.name}
-          </span>
-          <span className="text-[9px] font-black text-cyan-400">
-            {displayValue}
-          </span>
+            <span className="max-w-[85px] sm:max-w-[110px] truncate text-slate-100 font-bold" title={op.name}>
+              {op.name}
+            </span>
+
+            <span className="text-cyan-400 font-black tracking-tight">
+              {displayValue}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -596,7 +595,7 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
   // Get {x, y, angle} coordinates for positioning a car on the SVG track
   const getCarTransform = (op: ShiftOperator, index: number, visibleOps: ShiftOperator[]) => {
     if (!pathRef.current || trackLength === 0) {
-      return { x: 260, y: 90, angle: 0 };
+      return { x: 280, y: 75, angle: 0 };
     }
 
     const progress = calculateProgress(op, visibleOps);
@@ -611,18 +610,39 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
     const angleRad = Math.atan2(dy, dx);
     const angleDeg = (angleRad * 180) / Math.PI;
 
-    // Lateral shift perpendicular to track centerline (-14px to +14px)
-    const perpRad = angleRad + Math.PI / 2;
-    const laneShift = visibleOps.length > 1 ? ((index % 3) - 1) * 14 : 0;
+    // Check for nearby cars within 5% track progress to assign perpendicular lane shift
+    const closeNeighbors = visibleOps.filter((other) => {
+      if (other.user_id === op.user_id) return false;
+      const otherProg = calculateProgress(other, visibleOps);
+      return Math.abs(otherProg - progress) < 0.05;
+    });
 
+    let laneShift = 0;
+    if (closeNeighbors.length > 0) {
+      const cluster = visibleOps
+        .map((o, i) => ({ id: o.user_id, index: i, prog: calculateProgress(o, visibleOps) }))
+        .filter(o => Math.abs(o.prog - progress) < 0.05)
+        .sort((a, b) => a.index - b.index);
+
+      const clusterIdx = cluster.findIndex(o => o.id === op.user_id);
+      const lanes = [0, -15, 15, -8, 8];
+      laneShift = lanes[clusterIdx % lanes.length];
+    }
+
+    const perpRad = angleRad + Math.PI / 2;
     const x = p1.x + Math.cos(perpRad) * laneShift;
     const y = p1.y + Math.sin(perpRad) * laneShift;
 
     return { x, y, angle: angleDeg };
   };
 
-  // Identify Leader (operator #1 in visible list)
+  // Identify Leader (operator #1 in visible list) & calculate telemetry gap
   const leaderUserId = visibleOperators.length > 0 ? visibleOperators[0].user_id : null;
+  const leaderOp = visibleOperators[0];
+  const secondOp = visibleOperators[1];
+  const leaderVal = leaderOp ? (getMetricRawValue(leaderOp) ?? 0) : 0;
+  const secondVal = secondOp ? (getMetricRawValue(secondOp) ?? 0) : 0;
+  const gapValue = Math.max(0, leaderVal - secondVal);
 
   return (
     <div 
@@ -737,26 +757,99 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="relative w-full aspect-[2/1] min-h-[360px] sm:min-h-[480px] my-auto select-none rounded-3xl border border-cyan-500/20 bg-slate-950 overflow-hidden shadow-[inset_0_0_60px_rgba(0,0,0,0.85)]">
-                {/* SVG CLOSED F1 CIRCUIT TRACK */}
+              <div className="relative w-full aspect-[2/1] min-h-[380px] sm:min-h-[500px] my-auto select-none rounded-3xl border border-cyan-500/20 bg-slate-950 overflow-hidden shadow-[inset_0_0_60px_rgba(0,0,0,0.85)]">
+                {/* CENTRAL LIVE TELEMETRY BOARD */}
+                <div className="absolute top-[48%] left-[48%] -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none flex flex-col items-center">
+                  <div className="bg-slate-950/85 border border-cyan-500/30 rounded-2xl p-3 sm:p-4 shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-md min-w-[200px] sm:min-w-[240px] text-center font-mono">
+                    <div className="flex items-center justify-center gap-1.5 mb-1.5">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                      </span>
+                      <span className="text-[10px] font-black tracking-widest text-slate-300 uppercase">
+                        LIVE RACE TELEMETRY
+                      </span>
+                    </div>
+
+                    {/* Shift Countdown / Info */}
+                    {isCurrentActiveShift && remainingTimeText ? (
+                      <div className="mb-2 pb-2 border-b border-white/10">
+                        <div className="text-base sm:text-xl font-black text-emerald-400 tracking-wider">
+                          {remainingTimeText}
+                        </div>
+                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                          ДО КОНЦА СМЕНЫ
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mb-2 pb-2 border-b border-white/10">
+                        <div className="text-xs font-bold text-cyan-300">
+                          {shiftInfo?.label || 'Текущая смена'}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Leader */}
+                    {leaderOp && (
+                      <div className="mb-1.5 text-left bg-amber-500/10 border border-amber-500/30 rounded-xl p-2">
+                        <div className="text-[9px] font-extrabold text-amber-400 uppercase tracking-wider flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            <Crown size={10} className="fill-amber-400" />
+                            ЛИДЕР
+                          </span>
+                          <span className="text-amber-300 font-black">
+                            {getMetricDisplayValue(leaderOp)}
+                          </span>
+                        </div>
+                        <div className="text-xs font-black text-slate-100 truncate mt-0.5">
+                          {leaderOp.name}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* #2 & Gap */}
+                    {secondOp && (
+                      <div className="text-left bg-slate-900/90 border border-white/10 rounded-xl p-2 flex items-center justify-between gap-2 text-[11px]">
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[9px] font-extrabold text-slate-400 block truncate">
+                            #2 {secondOp.name}
+                          </span>
+                          <span className="font-black text-slate-200">
+                            {getMetricDisplayValue(secondOp)}
+                          </span>
+                        </div>
+                        {sortBy === 'messages' && (
+                          <div className="text-right shrink-0">
+                            <span className="text-[9px] text-slate-400 block font-bold">РАЗРЫВ</span>
+                            <span className="text-cyan-400 font-black text-xs">
+                              +{gapValue}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* SVG CLOSED AUTODROME CIRCUIT TRACK */}
                 <svg
-                  viewBox="0 0 1000 500"
+                  viewBox="0 0 1000 520"
                   className="w-full h-full absolute inset-0 pointer-events-none"
                   preserveAspectRatio="xMidYMid meet"
                 >
                   <defs>
                     {/* Checkered Finish Line Pattern */}
-                    <pattern id="checkeredPattern" width="16" height="16" patternUnits="userSpaceOnUse">
-                      <rect width="8" height="8" fill="#ffffff" />
-                      <rect x="8" width="8" height="8" fill="#0f172a" />
-                      <rect y="8" width="8" height="8" fill="#0f172a" />
-                      <rect x="8" y="8" width="8" height="8" fill="#ffffff" />
+                    <pattern id="checkeredPattern" width="12" height="12" patternUnits="userSpaceOnUse">
+                      <rect width="6" height="6" fill="#ffffff" />
+                      <rect x="6" width="6" height="6" fill="#0f172a" />
+                      <rect y="6" width="6" height="6" fill="#0f172a" />
+                      <rect x="6" y="6" width="6" height="6" fill="#ffffff" />
                     </pattern>
                   </defs>
 
-                  {/* Circuit Outer Grass / Run-off Areas */}
+                  {/* Outer Run-Off / Grass Buffer */}
                   <path
-                    d="M 260,90 L 740,90 C 860,90 940,150 910,230 C 880,310 780,260 700,310 C 620,360 520,410 380,410 C 210,410 90,350 90,250 C 90,150 150,90 260,90 Z"
+                    d="M 280,75 L 680,75 C 780,75 920,100 920,180 C 920,240 820,260 820,310 C 820,360 910,390 910,435 C 910,485 820,485 740,485 L 480,485 C 380,485 360,410 300,390 C 240,370 210,465 140,465 C 70,465 65,330 85,230 C 105,120 180,75 280,75 Z"
                     fill="none"
                     stroke="#0b1329"
                     strokeWidth="80"
@@ -766,109 +859,93 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
 
                   {/* Turn 1 Outer Kerbs (Red/White) */}
                   <path
-                    d="M 740,65 C 880,65 965,130 932,230"
+                    d="M 680,52 C 800,52 943,80 943,180"
                     fill="none"
                     stroke="#ef4444"
-                    strokeWidth="8"
-                    strokeDasharray="14 14"
+                    strokeWidth="7"
+                    strokeDasharray="12 12"
                   />
                   <path
-                    d="M 740,65 C 880,65 965,130 932,230"
+                    d="M 680,52 C 800,52 943,80 943,180"
                     fill="none"
                     stroke="#ffffff"
-                    strokeWidth="8"
-                    strokeDasharray="14 14"
-                    strokeDashoffset="14"
+                    strokeWidth="7"
+                    strokeDasharray="12 12"
+                    strokeDashoffset="12"
                   />
 
-                  {/* Turn 3 Outer Kerbs (Red/White) */}
+                  {/* Hairpin Turn 4 Outer Kerbs (Red/White) */}
                   <path
-                    d="M 380,435 C 190,435 65,370 65,250"
+                    d="M 933,435 C 933,508 820,508 740,508"
                     fill="none"
                     stroke="#ef4444"
-                    strokeWidth="8"
-                    strokeDasharray="14 14"
+                    strokeWidth="7"
+                    strokeDasharray="12 12"
                   />
                   <path
-                    d="M 380,435 C 190,435 65,370 65,250"
+                    d="M 933,435 C 933,508 820,508 740,508"
                     fill="none"
                     stroke="#ffffff"
-                    strokeWidth="8"
-                    strokeDasharray="14 14"
-                    strokeDashoffset="14"
+                    strokeWidth="7"
+                    strokeDasharray="12 12"
+                    strokeDashoffset="12"
+                  />
+
+                  {/* Final Sweeper Turns 7-8 Kerbs (Red/White) */}
+                  <path
+                    d="M 140,488 C 47,488 42,330 62,230"
+                    fill="none"
+                    stroke="#ef4444"
+                    strokeWidth="7"
+                    strokeDasharray="12 12"
+                  />
+                  <path
+                    d="M 140,488 C 47,488 42,330 62,230"
+                    fill="none"
+                    stroke="#ffffff"
+                    strokeWidth="7"
+                    strokeDasharray="12 12"
+                    strokeDashoffset="12"
                   />
 
                   {/* Main Asphalt Track Path */}
                   <path
                     ref={pathRef}
-                    d="M 260,90 L 740,90 C 860,90 940,150 910,230 C 880,310 780,260 700,310 C 620,360 520,410 380,410 C 210,410 90,350 90,250 C 90,150 150,90 260,90 Z"
+                    d="M 280,75 L 680,75 C 780,75 920,100 920,180 C 920,240 820,260 820,310 C 820,360 910,390 910,435 C 910,485 820,485 740,485 L 480,485 C 380,485 360,410 300,390 C 240,370 210,465 140,465 C 70,465 65,330 85,230 C 105,120 180,75 280,75 Z"
                     fill="none"
                     stroke="#1e293b"
-                    strokeWidth="52"
+                    strokeWidth="48"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
 
                   {/* Track Edge Inner Border */}
                   <path
-                    d="M 260,90 L 740,90 C 860,90 940,150 910,230 C 880,310 780,260 700,310 C 620,360 520,410 380,410 C 210,410 90,350 90,250 C 90,150 150,90 260,90 Z"
+                    d="M 280,75 L 680,75 C 780,75 920,100 920,180 C 920,240 820,260 820,310 C 820,360 910,390 910,435 C 910,485 820,485 740,485 L 480,485 C 380,485 360,410 300,390 C 240,370 210,465 140,465 C 70,465 65,330 85,230 C 105,120 180,75 280,75 Z"
                     fill="none"
                     stroke="#334155"
-                    strokeWidth="48"
+                    strokeWidth="44"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    opacity="0.4"
+                    opacity="0.3"
                   />
 
                   {/* Dashed Center Road Line */}
                   <path
-                    d="M 260,90 L 740,90 C 860,90 940,150 910,230 C 880,310 780,260 700,310 C 620,360 520,410 380,410 C 210,410 90,350 90,250 C 90,150 150,90 260,90 Z"
+                    d="M 280,75 L 680,75 C 780,75 920,100 920,180 C 920,240 820,260 820,310 C 820,360 910,390 910,435 C 910,485 820,485 740,485 L 480,485 C 380,485 360,410 300,390 C 240,370 210,465 140,465 C 70,465 65,330 85,230 C 105,120 180,75 280,75 Z"
                     fill="none"
                     stroke="#f8fafc"
                     strokeWidth="2"
                     strokeDasharray="10 10"
-                    opacity="0.45"
+                    opacity="0.4"
                   />
 
-                  {/* Pit Lane Road */}
-                  <path
-                    d="M 320,135 L 680,135"
-                    fill="none"
-                    stroke="#334155"
-                    strokeWidth="14"
-                    strokeDasharray="6 6"
-                    opacity="0.7"
-                  />
-
-                  {/* Pit Stop Garages */}
-                  <g opacity="0.85">
-                    <rect x="340" y="148" width="50" height="20" rx="3" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
-                    <text x="365" y="162" fill="#60a5fa" fontSize="9" fontWeight="bold" textAnchor="middle" fontFamily="monospace">PIT 1</text>
-
-                    <rect x="400" y="148" width="50" height="20" rx="3" fill="#0f172a" stroke="#06b6d4" strokeWidth="1" />
-                    <text x="425" y="162" fill="#22d3ee" fontSize="9" fontWeight="bold" textAnchor="middle" fontFamily="monospace">PIT 2</text>
-
-                    <rect x="460" y="148" width="50" height="20" rx="3" fill="#0f172a" stroke="#a855f7" strokeWidth="1" />
-                    <text x="485" y="162" fill="#c084fc" fontSize="9" fontWeight="bold" textAnchor="middle" fontFamily="monospace">PIT 3</text>
-
-                    <rect x="520" y="148" width="50" height="20" rx="3" fill="#0f172a" stroke="#f59e0b" strokeWidth="1" />
-                    <text x="545" y="162" fill="#fbbf24" fontSize="9" fontWeight="bold" textAnchor="middle" fontFamily="monospace">PIT 4</text>
-                  </g>
-
-                  {/* Grandstand / Spectator Stand */}
-                  <g opacity="0.9">
-                    <rect x="350" y="22" width="280" height="26" rx="4" fill="#020617" stroke="#334155" strokeWidth="1.5" />
-                    <rect x="355" y="25" width="270" height="5" rx="2" fill="#ef4444" opacity="0.8" />
-                    <rect x="355" y="33" width="270" height="5" rx="2" fill="#3b82f6" opacity="0.8" />
-                    <text x="490" y="44" fill="#94a3b8" fontSize="8" fontWeight="black" textAnchor="middle" letterSpacing="2" fontFamily="monospace">GRANDSTAND • ФОРМУЛА-1</text>
-                  </g>
-
-                  {/* Checkered Start / Finish Line Banner */}
+                  {/* Clean Start / Finish Line on Top Straight */}
                   <rect
-                    x="254"
-                    y="38"
+                    x="334"
+                    y="50"
                     width="12"
-                    height="104"
+                    height="50"
                     fill="url(#checkeredPattern)"
                     rx="2"
                     stroke="#06b6d4"
@@ -877,8 +954,8 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                   />
 
                   <text
-                    x="260"
-                    y="30"
+                    x="340"
+                    y="42"
                     fill="#22d3ee"
                     fontSize="9"
                     fontWeight="900"
