@@ -873,7 +873,12 @@ export function formatEventForFeed(
   }
 
   if (type === 'chat.message') {
-    const isIncoming = p.from_id && p.fan_id && String(p.from_id) === String(p.fan_id);
+    const isIncoming = Boolean(
+      (p.from_id && p.fan_id && String(p.from_id) === String(p.fan_id)) ||
+      p.is_incoming === true ||
+      p.direction === 'in' ||
+      p.sender === 'fan'
+    );
     if (isIncoming) {
       return {
         category: 'accounts' as EventCategory,
@@ -884,8 +889,8 @@ export function formatEventForFeed(
       };
     } else {
       return {
-        category: 'accounts' as EventCategory,
-        text: `${modelName}: оператор ответил`,
+        category: 'operators' as EventCategory,
+        text: `${modelName}: исходящее сообщение`,
         colorClass: 'text-cyan-300',
         badgeBg: 'bg-cyan-500/10 border-cyan-500/20 text-cyan-300',
         dotColor: 'bg-cyan-400',
@@ -1005,12 +1010,18 @@ export const RealtimeEventFeed: React.FC<{
       const type = e.event_type || '';
 
       const isChatMessage = type === 'chat.message';
-      const isOutgoing = isChatMessage && p.from_id && p.fan_id && String(p.from_id) !== String(p.fan_id);
+      const isIncoming = isChatMessage && Boolean(
+        (p.from_id && p.fan_id && String(p.from_id) === String(p.fan_id)) ||
+        p.is_incoming === true ||
+        p.direction === 'in' ||
+        p.sender === 'fan'
+      );
+      const isOutgoing = isChatMessage && !isIncoming;
 
       if (isOutgoing) {
-        const rawAccId = e.account_id || e.platform_account_id || p.account_id || p.platform_account_id || '';
+        const rawAccId = e.account_id || e.platform_account_id || p.account_id || p.platform_account_id || p.creator_id || p.model_id || '';
         const accKey = String(rawAccId);
-        const ts = new Date(e.event_timestamp || e.received_at || 0).getTime();
+        const ts = new Date(e.event_timestamp || e.received_at || Date.now()).getTime();
 
         if (accKey && ts > 0) {
           const matchingAcc = accounts.find(a => String(a.id) === accKey || String(a.platform_account_id) === accKey);
