@@ -65,6 +65,146 @@ function formatDuration(seconds?: number | null): string {
   return mins > 0 ? `${hours}ч ${mins}м` : `${hours}ч`;
 }
 
+interface RaceCarProps {
+  avatarUrl?: string;
+  bodyColor: string;
+  rankStrokeColor: string;
+  operatorId: string;
+  operatorName: string;
+  className?: string;
+}
+
+export const RaceCar: React.FC<RaceCarProps> = ({
+  avatarUrl,
+  bodyColor,
+  rankStrokeColor,
+  operatorId,
+  operatorName,
+  className = "w-16 h-7 sm:w-20 sm:h-9"
+}) => {
+  const safeId = String(operatorId).replace(/[^a-zA-Z0-9_-]/g, '');
+  const clipId = `avatarClip-${safeId}`;
+  const initials = operatorName
+    ? operatorName
+        .trim()
+        .split(/\s+/)
+        .map((n) => n[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase()
+    : 'OP';
+
+  return (
+    <svg
+      viewBox="0 0 680 300"
+      className={`${className} overflow-visible filter drop-shadow-[0_4px_10px_rgba(0,0,0,0.85)]`}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <clipPath id={clipId}>
+          <circle cx="352" cy="150" r="45" />
+        </clipPath>
+      </defs>
+
+      {/* REAR WING */}
+      <rect x="40" y="50" width="70" height="22" rx="5" fill="#0f172a" stroke="#334155" strokeWidth="3" />
+      <rect x="40" y="228" width="70" height="22" rx="5" fill="#0f172a" stroke="#334155" strokeWidth="3" />
+      <rect x="55" y="65" width="35" height="170" rx="6" fill={bodyColor} stroke="#0f172a" strokeWidth="3" />
+      <rect x="45" y="100" width="15" height="100" rx="3" fill="#020617" />
+
+      {/* REAR SUSPENSION & WHEELS */}
+      <line x1="140" y1="150" x2="190" y2="60" stroke="#475569" strokeWidth="6" strokeLinecap="round" />
+      <line x1="140" y1="150" x2="190" y2="240" stroke="#475569" strokeWidth="6" strokeLinecap="round" />
+      <line x1="220" y1="150" x2="200" y2="60" stroke="#475569" strokeWidth="6" strokeLinecap="round" />
+      <line x1="220" y1="150" x2="200" y2="240" stroke="#475569" strokeWidth="6" strokeLinecap="round" />
+
+      <rect x="140" y="25" width="105" height="55" rx="12" fill="#090d16" stroke="#334155" strokeWidth="4" />
+      <rect x="140" y="220" width="105" height="55" rx="12" fill="#090d16" stroke="#334155" strokeWidth="4" />
+      <rect x="155" y="32" width="75" height="41" rx="6" fill="#1e293b" opacity="0.6" />
+      <rect x="155" y="227" width="75" height="41" rx="6" fill="#1e293b" opacity="0.6" />
+
+      {/* MAIN BODY / MONOCOQUE */}
+      <path
+        d="M 90,150 C 120,130 160,105 210,95 L 360,90 C 420,95 460,115 520,135 L 610,148 Q 625,150 610,152 L 520,165 C 460,185 420,205 360,210 L 210,205 C 160,195 120,170 90,150 Z"
+        fill={bodyColor}
+        stroke="#0f172a"
+        strokeWidth="6"
+      />
+
+      <path
+        d="M 230,110 C 300,105 380,115 420,135 L 500,146 L 500,154 L 420,165 C 380,185 300,195 230,190 Z"
+        fill="#020617"
+        opacity="0.35"
+      />
+
+      {/* FRONT SUSPENSION & WHEELS */}
+      <line x1="470" y1="150" x2="490" y2="65" stroke="#475569" strokeWidth="6" strokeLinecap="round" />
+      <line x1="470" y1="150" x2="490" y2="235" stroke="#475569" strokeWidth="6" strokeLinecap="round" />
+      <line x1="510" y1="150" x2="520" y2="65" stroke="#475569" strokeWidth="6" strokeLinecap="round" />
+      <line x1="510" y1="150" x2="520" y2="235" stroke="#475569" strokeWidth="6" strokeLinecap="round" />
+
+      <rect x="450" y="30" width="95" height="48" rx="10" fill="#090d16" stroke="#334155" strokeWidth="4" />
+      <rect x="450" y="222" width="95" height="48" rx="10" fill="#090d16" stroke="#334155" strokeWidth="4" />
+      <rect x="465" y="36" width="65" height="36" rx="5" fill="#1e293b" opacity="0.6" />
+      <rect x="465" y="228" width="65" height="36" rx="5" fill="#1e293b" opacity="0.6" />
+
+      {/* FRONT WING */}
+      <path
+        d="M 570,55 L 640,65 C 655,100 660,130 660,150 C 660,170 655,200 640,235 L 570,245 L 585,150 Z"
+        fill={bodyColor}
+        stroke="#0f172a"
+        strokeWidth="5"
+      />
+      <path
+        d="M 590,75 L 640,83 C 650,110 652,130 652,150 C 652,170 650,190 640,217 L 590,225 Z"
+        fill="#020617"
+        opacity="0.4"
+      />
+
+      {/* COCKPIT HOLE & HALO */}
+      <circle cx="352" cy="150" r="58" fill="#020617" stroke={rankStrokeColor} strokeWidth="5" />
+      <path
+        d="M 310,115 Q 352,100 395,115 L 415,150 L 395,185 Q 352,200 310,185 Z"
+        fill="none"
+        stroke="#1e293b"
+        strokeWidth="6"
+        opacity="0.8"
+      />
+
+      {/* DRIVER AVATAR IN COCKPIT */}
+      {avatarUrl ? (
+        <image
+          href={avatarUrl}
+          x="307"
+          y="105"
+          width="90"
+          height="90"
+          preserveAspectRatio="xMidYMid slice"
+          clipPath={`url(#${clipId})`}
+        />
+      ) : (
+        <g clipPath={`url(#${clipId})`}>
+          <circle cx="352" cy="150" r="45" fill="#1e293b" />
+          <text
+            x="352"
+            y="160"
+            fill="#f8fafc"
+            fontSize="30"
+            fontWeight="bold"
+            textAnchor="middle"
+            fontFamily="sans-serif"
+          >
+            {initials}
+          </text>
+        </g>
+      )}
+
+      {/* COCKPIT INNER RING STROKE */}
+      <circle cx="352" cy="150" r="45" fill="none" stroke={rankStrokeColor} strokeWidth="4" />
+    </svg>
+  );
+};
+
 interface CarNodeProps {
   op: ShiftOperator;
   index: number;
@@ -84,25 +224,21 @@ const F1RaceCarNode: React.FC<CarNodeProps> = ({
   const leftPct = (transform.x / 1000) * 100;
   const topPct = (transform.y / 500) * 100;
 
-  let themeColor = '#06b6d4'; // Cyan
-  let borderColor = 'border-cyan-400';
-  let glowClass = 'shadow-[0_0_15px_rgba(6,182,212,0.6)]';
+  let bodyColor = '#0EA5E9'; // Cyan/Blue
+  let rankStrokeColor = '#38BDF8';
   let badgeBg = 'bg-cyan-500 text-black';
 
   if (rank === 1) {
-    themeColor = '#f59e0b'; // Gold
-    borderColor = 'border-amber-300';
-    glowClass = 'shadow-[0_0_25px_rgba(245,158,11,0.95)]';
+    bodyColor = '#F2A623'; // Gold
+    rankStrokeColor = '#FAC775';
     badgeBg = 'bg-amber-400 text-black font-black';
   } else if (rank === 2) {
-    themeColor = '#e2e8f0'; // Silver
-    borderColor = 'border-slate-100';
-    glowClass = 'shadow-[0_0_18px_rgba(226,232,240,0.8)]';
+    bodyColor = '#9CA3AF'; // Silver
+    rankStrokeColor = '#E5E7EB';
     badgeBg = 'bg-slate-200 text-black font-black';
   } else if (rank === 3) {
-    themeColor = '#d97706'; // Bronze
-    borderColor = 'border-amber-500';
-    glowClass = 'shadow-[0_0_18px_rgba(217,119,6,0.8)]';
+    bodyColor = '#B8622F'; // Bronze
+    rankStrokeColor = '#D08A4E';
     badgeBg = 'bg-amber-600 text-white font-black';
   }
 
@@ -112,7 +248,7 @@ const F1RaceCarNode: React.FC<CarNodeProps> = ({
       style={{
         left: `${leftPct}%`,
         top: `${topPct}%`,
-        transform: `translate(-50%, -50%) rotate(${transform.angle}deg)`,
+        transform: `translate(-51.76%, -50%) rotate(${transform.angle}deg)`,
       }}
     >
       {/* SPEED TRAIL BEHIND CAR */}
@@ -137,50 +273,14 @@ const F1RaceCarNode: React.FC<CarNodeProps> = ({
           </div>
         )}
 
-        {/* F1 Car SVG Body */}
-        <div className={`relative rounded-full p-1 border transition-transform duration-300 ${borderColor} ${glowClass} bg-slate-950/90`}>
-          <svg viewBox="0 0 100 50" className="w-16 h-8 sm:w-20 sm:h-10 overflow-visible">
-            {/* Rear Wing */}
-            <rect x="2" y="8" width="8" height="34" rx="2" fill={themeColor} />
-            <rect x="0" y="12" width="4" height="26" rx="1" fill="#0f172a" />
-
-            {/* Rear Wheels */}
-            <rect x="14" y="0" width="16" height="8" rx="2" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-            <rect x="14" y="42" width="16" height="8" rx="2" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-
-            {/* Body / Sidepods */}
-            <path
-              d="M 10,25 Q 22,10 42,12 L 72,18 L 94,25 L 72,32 L 42,38 Q 22,40 10,25 Z"
-              fill={themeColor}
-            />
-            <path
-              d="M 12,25 Q 24,14 42,16 L 70,21 L 90,25 L 70,29 L 42,34 Q 24,36 12,25 Z"
-              fill="#020617"
-              opacity="0.6"
-            />
-
-            {/* Front Wheels */}
-            <rect x="68" y="2" width="14" height="7" rx="2" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-            <rect x="68" y="41" width="14" height="7" rx="2" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-
-            {/* Front Wing */}
-            <path d="M 86,10 L 98,12 L 98,38 L 86,40 L 89,25 Z" fill={themeColor} />
-
-            {/* Cockpit Hole */}
-            <circle cx="45" cy="25" r="13" fill="#020617" stroke={themeColor} strokeWidth="2" />
-          </svg>
-
-          {/* Avatar embedded inside Cockpit */}
-          <div className="absolute left-[45%] top-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 sm:w-7 sm:h-7 rounded-full overflow-hidden border border-white/40 bg-slate-900 shadow-md">
-            {op.avatar ? (
-              <img src={op.avatar} alt={op.name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-200">
-                {op.name.charAt(0)}
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Top-View F1 Race Car with Driver Avatar in Cockpit */}
+        <RaceCar
+          avatarUrl={op.avatar}
+          bodyColor={bodyColor}
+          rankStrokeColor={rankStrokeColor}
+          operatorId={op.user_id}
+          operatorName={op.name}
+        />
 
         {/* Position Badge (#1, #2, #3...) attached to car */}
         <div
