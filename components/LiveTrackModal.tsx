@@ -591,7 +591,7 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
   const [showSidebar, setShowSidebar] = useState<boolean>(true);
 
   // Camera & Motion Mode
-  const [cameraMode, setCameraMode] = useState<'overview' | 'live_camera'>('overview');
+  const [cameraMode] = useState<'overview' | 'live_camera'>('live_camera');
   const [cameraTransform, setCameraTransform] = useState<{ scale: number; x: number; y: number }>({ scale: 1, x: 0, y: 0 });
   const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(false);
   const [, setFrameTick] = useState<number>(0);
@@ -1548,29 +1548,7 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
               </button>
             </div>
 
-            {/* Live Camera Mode Toggle */}
-            <div className="flex items-center p-0.5 rounded-xl bg-slate-900 border border-white/10 text-xs font-bold">
-              <button
-                onClick={() => setCameraMode('overview')}
-                className={`px-2.5 py-1 rounded-lg transition-all text-[10px] uppercase font-black ${
-                  cameraMode === 'overview'
-                    ? 'bg-cyan-500 text-black shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                ОБЗОР
-              </button>
-              <button
-                onClick={() => setCameraMode('live_camera')}
-                className={`px-2.5 py-1 rounded-lg transition-all text-[10px] uppercase font-black flex items-center gap-1 ${
-                  cameraMode === 'live_camera'
-                    ? 'bg-rose-500 text-white shadow-[0_0_10px_rgba(244,63,94,0.6)] animate-pulse'
-                    : 'text-slate-400 hover:text-rose-300'
-                }`}
-              >
-                <span>LIVE-КАМЕРА</span>
-              </button>
-            </div>
+
 
             {/* Participants Panel Toggle */}
             <button
