@@ -109,7 +109,7 @@ export interface ModelBonus {
 export interface PaidStatus {
   id: string;
   entityName: string;
-  entityType: 'model' | 'operator';
+  entityType: 'model' | 'operator' | 'admin';
   periodId: string;
   createdAt: string;
   updatedAt?: string;

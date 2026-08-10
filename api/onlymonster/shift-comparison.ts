@@ -149,7 +149,9 @@ export default async function handler(req: any, res: any) {
       let accountShiftTotals: { 1: number; 2: number; 3: number; 4: number } = { 1: 0, 2: 0, 3: 0, 4: 0 };
       try {
         accountShiftTotals = await getAllAccountsShiftEarnings(token, day);
-      } catch (errAcc) {}
+      } catch (errAcc: any) {
+        console.error('[shift-comparison] Error in getAllAccountsShiftEarnings:', errAcc?.message || errAcc);
+      }
 
       for (let s = 1; s <= 4; s++) {
         const isFuture = day === 'today' && s > currentShiftIdx;

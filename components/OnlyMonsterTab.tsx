@@ -199,7 +199,7 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
       if (!d) return null;
 
       const zColor = getColorHex(z.color);
-      const isThisActive = !isNull && clampedVal >= f && clampedVal <= t;
+      const isThisActive = !isNull && clampedVal !== null && clampedVal >= f && clampedVal <= t;
 
       return (
         <path
@@ -1487,8 +1487,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                         </div>
                       </div>
 
-                      {/* Diagnostic comparison line for Today */}
-                      {shiftCompMode === 'today' && !s.isFuture && s.accountEarnings !== undefined && s.accountEarnings !== null && (
+                      {/* Diagnostic comparison line for Today / Yesterday */}
+                      {(shiftCompMode === 'today' || shiftCompMode === 'yesterday') && !s.isFuture && s.accountEarnings !== undefined && s.accountEarnings !== null && (
                         <div className="mt-2 pt-2 border-t border-white/10 text-[9px] text-slate-500 leading-tight space-y-0.5">
                           <div>Доход по аккаунтам: <span className="text-slate-300 font-bold">${s.accountEarnings}</span></div>
                           <div>Доход по операторам: <span className="text-slate-300 font-bold">${s.totalEarnings ?? 0}</span></div>

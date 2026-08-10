@@ -65,6 +65,148 @@ function formatDuration(seconds?: number | null): string {
   return mins > 0 ? `${hours}ч ${mins}м` : `${hours}ч`;
 }
 
+interface CarNodeProps {
+  op: ShiftOperator;
+  index: number;
+  rank: number;
+  isLeader: boolean;
+  transform: { x: number; y: number; angle: number };
+  displayValue: string;
+}
+
+const F1RaceCarNode: React.FC<CarNodeProps> = ({
+  op,
+  rank,
+  isLeader,
+  transform,
+  displayValue
+}) => {
+  const leftPct = (transform.x / 1000) * 100;
+  const topPct = (transform.y / 500) * 100;
+
+  let themeColor = '#06b6d4'; // Cyan
+  let borderColor = 'border-cyan-400';
+  let glowClass = 'shadow-[0_0_15px_rgba(6,182,212,0.6)]';
+  let badgeBg = 'bg-cyan-500 text-black';
+
+  if (rank === 1) {
+    themeColor = '#f59e0b'; // Gold
+    borderColor = 'border-amber-300';
+    glowClass = 'shadow-[0_0_25px_rgba(245,158,11,0.95)]';
+    badgeBg = 'bg-amber-400 text-black font-black';
+  } else if (rank === 2) {
+    themeColor = '#e2e8f0'; // Silver
+    borderColor = 'border-slate-100';
+    glowClass = 'shadow-[0_0_18px_rgba(226,232,240,0.8)]';
+    badgeBg = 'bg-slate-200 text-black font-black';
+  } else if (rank === 3) {
+    themeColor = '#d97706'; // Bronze
+    borderColor = 'border-amber-500';
+    glowClass = 'shadow-[0_0_18px_rgba(217,119,6,0.8)]';
+    badgeBg = 'bg-amber-600 text-white font-black';
+  }
+
+  return (
+    <div
+      className="absolute z-30 pointer-events-auto transition-all duration-1000 ease-in-out group"
+      style={{
+        left: `${leftPct}%`,
+        top: `${topPct}%`,
+        transform: `translate(-50%, -50%) rotate(${transform.angle}deg)`,
+      }}
+    >
+      {/* SPEED TRAIL BEHIND CAR */}
+      <div
+        className={`absolute right-[80%] top-1/2 -translate-y-1/2 h-2.5 rounded-l-full pointer-events-none transition-all duration-1000 ${
+          isLeader
+            ? 'w-16 bg-gradient-to-r from-transparent via-amber-500 to-amber-300 opacity-90 blur-[1px]'
+            : 'w-12 bg-gradient-to-r from-transparent via-cyan-500 to-cyan-300 opacity-70 blur-[1px]'
+        }`}
+      />
+
+      {/* F1 CAR CHASSIS + AVATAR */}
+      <div className="relative flex items-center justify-center">
+        {/* Leader Crown floating above car */}
+        {isLeader && (
+          <div
+            className="absolute -top-7 left-1/2 -translate-x-1/2 bg-amber-400 text-black text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-[0_0_12px_rgba(245,158,11,1)] animate-bounce z-40 whitespace-nowrap"
+            style={{ transform: `rotate(${-transform.angle}deg)` }}
+          >
+            <Crown size={10} className="fill-black" />
+            <span>#1 ЛИДЕР</span>
+          </div>
+        )}
+
+        {/* F1 Car SVG Body */}
+        <div className={`relative rounded-full p-1 border transition-transform duration-300 ${borderColor} ${glowClass} bg-slate-950/90`}>
+          <svg viewBox="0 0 100 50" className="w-16 h-8 sm:w-20 sm:h-10 overflow-visible">
+            {/* Rear Wing */}
+            <rect x="2" y="8" width="8" height="34" rx="2" fill={themeColor} />
+            <rect x="0" y="12" width="4" height="26" rx="1" fill="#0f172a" />
+
+            {/* Rear Wheels */}
+            <rect x="14" y="0" width="16" height="8" rx="2" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+            <rect x="14" y="42" width="16" height="8" rx="2" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+
+            {/* Body / Sidepods */}
+            <path
+              d="M 10,25 Q 22,10 42,12 L 72,18 L 94,25 L 72,32 L 42,38 Q 22,40 10,25 Z"
+              fill={themeColor}
+            />
+            <path
+              d="M 12,25 Q 24,14 42,16 L 70,21 L 90,25 L 70,29 L 42,34 Q 24,36 12,25 Z"
+              fill="#020617"
+              opacity="0.6"
+            />
+
+            {/* Front Wheels */}
+            <rect x="68" y="2" width="14" height="7" rx="2" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+            <rect x="68" y="41" width="14" height="7" rx="2" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+
+            {/* Front Wing */}
+            <path d="M 86,10 L 98,12 L 98,38 L 86,40 L 89,25 Z" fill={themeColor} />
+
+            {/* Cockpit Hole */}
+            <circle cx="45" cy="25" r="13" fill="#020617" stroke={themeColor} strokeWidth="2" />
+          </svg>
+
+          {/* Avatar embedded inside Cockpit */}
+          <div className="absolute left-[45%] top-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 sm:w-7 sm:h-7 rounded-full overflow-hidden border border-white/40 bg-slate-900 shadow-md">
+            {op.avatar ? (
+              <img src={op.avatar} alt={op.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-200">
+                {op.name.charAt(0)}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Position Badge (#1, #2, #3...) attached to car */}
+        <div
+          className={`absolute -bottom-2 -left-1 px-1.5 py-0.2 text-[9px] font-black rounded-md border border-black/40 shadow-md ${badgeBg}`}
+          style={{ transform: `rotate(${-transform.angle}deg)` }}
+        >
+          #{rank}
+        </div>
+
+        {/* Operator Name & Metric Badge (kept upright for readability) */}
+        <div
+          className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-slate-950/95 border border-white/20 rounded-lg shadow-2xl backdrop-blur-md flex flex-col items-center pointer-events-none whitespace-nowrap z-50 transition-opacity duration-200"
+          style={{ transform: `rotate(${-transform.angle}deg)` }}
+        >
+          <span className={`text-[10px] font-extrabold ${isLeader ? 'text-amber-300' : 'text-slate-100'}`}>
+            {op.name}
+          </span>
+          <span className="text-[9px] font-black text-cyan-400">
+            {displayValue}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
   isOpen,
   onClose,
@@ -85,6 +227,32 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
   const [secondsAgo, setSecondsAgo] = useState<number>(0);
   const [remainingTimeText, setRemainingTimeText] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState<boolean>(true);
+
+  // SVG Track Ref & Length state
+  const pathRef = useRef<SVGPathElement>(null);
+  const [trackLength, setTrackLength] = useState<number>(0);
+
+  // Measure path length on mount/modal open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const measurePath = () => {
+      if (pathRef.current) {
+        try {
+          const len = pathRef.current.getTotalLength();
+          if (len > 0) {
+            setTrackLength(len);
+          }
+        } catch (e) {
+          console.error('Failed to measure path length:', e);
+        }
+      }
+    };
+
+    measurePath();
+    const timer = setTimeout(measurePath, 60);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
 
   // Sync initial props when modal opens
   useEffect(() => {
@@ -282,66 +450,79 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
     return String(op.messages_count);
   };
 
-  // Calculate track position percentage (0 - 100%) for each visible operator
-  // Relative to max/min among VISIBLE operators
-  const calculatePositionPercentage = (op: ShiftOperator): number => {
-    if (visibleOperators.length <= 1) return 90; // If only 1, place near finish
+  // Calculate track progress percentage (0.05 to 0.90) along closed circuit path
+  const calculateProgress = (op: ShiftOperator, visibleOps: ShiftOperator[]): number => {
+    if (visibleOps.length <= 1) return 0.85;
 
     if (sortBy === 'reply_time') {
-      // Lower time is better
-      const validTimes = visibleOperators
+      const validTimes = visibleOps
         .map(o => o.reply_time_avg)
         .filter((t): t is number => t !== null && t !== undefined && !isNaN(t));
 
-      if (validTimes.length === 0) return 10;
-      const minTime = Math.min(...validTimes); // Best time
-      const maxTime = Math.max(...validTimes); // Worst time
+      if (validTimes.length === 0) return 0.08;
+      const minTime = Math.min(...validTimes);
+      const maxTime = Math.max(...validTimes);
 
       const val = op.reply_time_avg;
-      if (val === null || val === undefined) return 5; // Start line if no replies
+      if (val === null || val === undefined) return 0.05;
 
       if (sortDir === 'asc') {
-        // Lower time = closer to finish line (100)
-        if (maxTime === minTime) return 90;
-        const normalized = (maxTime - val) / (maxTime - minTime);
-        return Math.round(normalized * 85 + 8);
+        if (maxTime === minTime) return 0.85;
+        const norm = (maxTime - val) / (maxTime - minTime);
+        return 0.08 + norm * 0.80;
       } else {
-        if (maxTime === minTime) return 90;
-        const normalized = (val - minTime) / (maxTime - minTime);
-        return Math.round(normalized * 85 + 8);
+        if (maxTime === minTime) return 0.85;
+        const norm = (val - minTime) / (maxTime - minTime);
+        return 0.08 + norm * 0.80;
       }
     } else {
-      // Normal metric: higher is better (unless asc)
-      const values = visibleOperators.map(o => getMetricRawValue(o) ?? 0);
+      const values = visibleOps.map(o => getMetricRawValue(o) ?? 0);
       const maxVal = Math.max(...values, 0);
       const minVal = Math.min(...values, 0);
-
       const val = getMetricRawValue(op) ?? 0;
 
       if (sortDir === 'asc') {
-        if (maxVal === minVal) return 90;
-        const normalized = (maxVal - val) / (maxVal - minVal);
-        return Math.round(normalized * 85 + 8);
+        if (maxVal === minVal) return 0.85;
+        const norm = (maxVal - val) / (maxVal - minVal);
+        return 0.08 + norm * 0.80;
       } else {
-        if (maxVal === 0) return 5;
-        const normalized = val / maxVal;
-        return Math.round(normalized * 85 + 8);
+        if (maxVal === 0) return 0.05;
+        const norm = val / maxVal;
+        return 0.08 + norm * 0.80;
       }
     }
   };
 
-  // Identify Leader (operator with highest position)
-  let leaderUserId: string | null = null;
-  if (visibleOperators.length > 0) {
-    let bestPct = -1;
-    visibleOperators.forEach(op => {
-      const pct = calculatePositionPercentage(op);
-      if (pct > bestPct) {
-        bestPct = pct;
-        leaderUserId = op.user_id;
-      }
-    });
-  }
+  // Get {x, y, angle} coordinates for positioning a car on the SVG track
+  const getCarTransform = (op: ShiftOperator, index: number, visibleOps: ShiftOperator[]) => {
+    if (!pathRef.current || trackLength === 0) {
+      return { x: 260, y: 90, angle: 0 };
+    }
+
+    const progress = calculateProgress(op, visibleOps);
+    const distance = Math.max(0, Math.min(trackLength, progress * trackLength));
+
+    const p1 = pathRef.current.getPointAtLength(distance);
+    const nextDist = (distance + 3) % trackLength;
+    const p2 = pathRef.current.getPointAtLength(nextDist);
+
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const angleRad = Math.atan2(dy, dx);
+    const angleDeg = (angleRad * 180) / Math.PI;
+
+    // Lateral shift perpendicular to track centerline (-14px to +14px)
+    const perpRad = angleRad + Math.PI / 2;
+    const laneShift = visibleOps.length > 1 ? ((index % 3) - 1) * 14 : 0;
+
+    const x = p1.x + Math.cos(perpRad) * laneShift;
+    const y = p1.y + Math.sin(perpRad) * laneShift;
+
+    return { x, y, angle: angleDeg };
+  };
+
+  // Identify Leader (operator #1 in visible list)
+  const leaderUserId = visibleOperators.length > 0 ? visibleOperators[0].user_id : null;
 
   return (
     <div 
@@ -436,27 +617,11 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
           </div>
         </div>
 
-        {/* MAIN BODY: TRACK + PARTICIPANTS SIDEBAR */}
+        {/* MAIN BODY: FORMULA-1 CLOSED CIRCUIT + PARTICIPANTS SIDEBAR */}
         <div className="flex-1 flex overflow-hidden relative">
-          {/* TRACK AREA */}
-          <div className="flex-1 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 p-4 sm:p-6 overflow-y-auto flex flex-col justify-between relative">
+          {/* CIRCUIT CANVAS AREA */}
+          <div className="flex-1 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 p-3 sm:p-6 overflow-y-auto flex flex-col justify-between relative">
             
-            {/* START / FINISH MARKERS IN BACKGROUND */}
-            <div className="absolute inset-x-4 sm:inset-x-6 top-4 bottom-4 pointer-events-none flex justify-between z-0 opacity-40">
-              {/* Start Line */}
-              <div className="w-8 border-r-2 border-dashed border-red-500/60 flex flex-col items-center justify-between py-2 text-[9px] font-black text-red-400 uppercase tracking-widest select-none">
-                <span className="rotate-90 origin-center whitespace-nowrap mt-4">🚩 СТАРТ</span>
-                <span className="rotate-90 origin-center whitespace-nowrap mb-4">START</span>
-              </div>
-
-              {/* Finish Line Checkered Pattern */}
-              <div className="w-10 border-l-2 border-cyan-400/80 bg-[repeating-linear-gradient(45deg,#000,#000_8px,#fff_8px,#fff_16px)] opacity-30 flex flex-col items-center justify-between py-2 text-[9px] font-black text-cyan-300 uppercase tracking-widest select-none">
-                <span className="rotate-90 origin-center whitespace-nowrap mt-4 text-black bg-cyan-400 px-1 font-extrabold rounded">🏁 ФИНИШ</span>
-                <span className="rotate-90 origin-center whitespace-nowrap mb-4 text-black bg-cyan-400 px-1 font-extrabold rounded">FINISH</span>
-              </div>
-            </div>
-
-            {/* TRACK LANES */}
             {visibleOperators.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-8 z-10 space-y-3">
                 <Users size={48} className="text-slate-600 animate-bounce" />
@@ -472,106 +637,180 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="space-y-3 z-10 my-auto py-4">
-                {visibleOperators.map((op, index) => {
-                  const isLeader = op.user_id === leaderUserId;
-                  const posPct = calculatePositionPercentage(op);
-                  const displayValue = getMetricDisplayValue(op);
+              <div className="relative w-full aspect-[2/1] min-h-[360px] sm:min-h-[480px] my-auto select-none rounded-3xl border border-cyan-500/20 bg-slate-950 overflow-hidden shadow-[inset_0_0_60px_rgba(0,0,0,0.85)]">
+                {/* SVG CLOSED F1 CIRCUIT TRACK */}
+                <svg
+                  viewBox="0 0 1000 500"
+                  className="w-full h-full absolute inset-0 pointer-events-none"
+                  preserveAspectRatio="xMidYMid meet"
+                >
+                  <defs>
+                    {/* Checkered Finish Line Pattern */}
+                    <pattern id="checkeredPattern" width="16" height="16" patternUnits="userSpaceOnUse">
+                      <rect width="8" height="8" fill="#ffffff" />
+                      <rect x="8" width="8" height="8" fill="#0f172a" />
+                      <rect y="8" width="8" height="8" fill="#0f172a" />
+                      <rect x="8" y="8" width="8" height="8" fill="#ffffff" />
+                    </pattern>
+                  </defs>
 
-                  // Model avatars stack
-                  const matchedAccounts = (op.creator_ids || [])
-                    .map(id => accounts.find(a => String(a.id) === String(id)))
-                    .filter(Boolean) as OnlyMonsterAccount[];
+                  {/* Circuit Outer Grass / Run-off Areas */}
+                  <path
+                    d="M 260,90 L 740,90 C 860,90 940,150 910,230 C 880,310 780,260 700,310 C 620,360 520,410 380,410 C 210,410 90,350 90,250 C 90,150 150,90 260,90 Z"
+                    fill="none"
+                    stroke="#0b1329"
+                    strokeWidth="80"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
 
-                  return (
-                    <div 
-                      key={op.user_id}
-                      className={`relative h-20 sm:h-22 rounded-2xl border transition-all duration-500 flex items-center px-3 sm:px-4 ${
-                        isLeader 
-                          ? 'bg-gradient-to-r from-amber-950/40 via-blue-950/40 to-slate-900/80 border-amber-500/60 shadow-[0_0_25px_rgba(245,158,11,0.25)]' 
-                          : 'bg-slate-900/60 border-white/10 hover:border-cyan-500/30 hover:bg-slate-900/80'
-                      }`}
-                    >
-                      {/* LANE BACKGROUND LINES */}
-                      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px)] bg-[size:5%_100%] pointer-events-none rounded-2xl"></div>
+                  {/* Turn 1 Outer Kerbs (Red/White) */}
+                  <path
+                    d="M 740,65 C 880,65 965,130 932,230"
+                    fill="none"
+                    stroke="#ef4444"
+                    strokeWidth="8"
+                    strokeDasharray="14 14"
+                  />
+                  <path
+                    d="M 740,65 C 880,65 965,130 932,230"
+                    fill="none"
+                    stroke="#ffffff"
+                    strokeWidth="8"
+                    strokeDasharray="14 14"
+                    strokeDashoffset="14"
+                  />
 
-                      {/* FIXED LEFT BADGE: OPERATOR INFO */}
-                      <div className="w-36 sm:w-48 shrink-0 flex items-center gap-2.5 z-20 bg-slate-950/80 p-2 rounded-xl border border-white/10 shadow-lg backdrop-blur-sm">
-                        <div className={`w-6 h-6 rounded-lg font-black text-[10px] flex items-center justify-center shrink-0 ${
-                          isLeader 
-                            ? 'bg-amber-500 text-black shadow-[0_0_10px_rgba(245,158,11,0.8)]' 
-                            : 'bg-slate-800 text-slate-300 border border-white/10'
-                        }`}>
-                          {isLeader ? <Crown size={12} className="fill-black" /> : `#${index + 1}`}
-                        </div>
+                  {/* Turn 3 Outer Kerbs (Red/White) */}
+                  <path
+                    d="M 380,435 C 190,435 65,370 65,250"
+                    fill="none"
+                    stroke="#ef4444"
+                    strokeWidth="8"
+                    strokeDasharray="14 14"
+                  />
+                  <path
+                    d="M 380,435 C 190,435 65,370 65,250"
+                    fill="none"
+                    stroke="#ffffff"
+                    strokeWidth="8"
+                    strokeDasharray="14 14"
+                    strokeDashoffset="14"
+                  />
 
-                        <div className="min-w-0 flex-1">
-                          <p className={`text-xs font-bold truncate ${isLeader ? 'text-amber-300 font-extrabold' : 'text-slate-200'}`}>
-                            {op.name}
-                          </p>
-                          <p className="text-[10px] font-extrabold text-cyan-400">
-                            {displayValue}
-                          </p>
-                        </div>
-                      </div>
+                  {/* Main Asphalt Track Path */}
+                  <path
+                    ref={pathRef}
+                    d="M 260,90 L 740,90 C 860,90 940,150 910,230 C 880,310 780,260 700,310 C 620,360 520,410 380,410 C 210,410 90,350 90,250 C 90,150 150,90 260,90 Z"
+                    fill="none"
+                    stroke="#1e293b"
+                    strokeWidth="52"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
 
-                      {/* HORIZONTAL MOVING TRACK AREA */}
-                      <div className="flex-1 h-full relative mx-4 sm:mx-8">
-                        {/* SPEED TRAIL BEHIND CAR */}
-                        <div 
-                          className={`absolute top-1/2 -translate-y-1/2 h-1.5 rounded-full transition-all duration-1000 ${
-                            isLeader 
-                              ? 'bg-gradient-to-r from-red-500 via-amber-400 to-cyan-400 shadow-[0_0_12px_rgba(245,158,11,0.8)]' 
-                              : 'bg-gradient-to-r from-slate-800 via-blue-600 to-cyan-500 opacity-60'
-                          }`}
-                          style={{
-                            left: '0%',
-                            width: `${posPct}%`
-                          }}
-                        />
+                  {/* Track Edge Inner Border */}
+                  <path
+                    d="M 260,90 L 740,90 C 860,90 940,150 910,230 C 880,310 780,260 700,310 C 620,360 520,410 380,410 C 210,410 90,350 90,250 C 90,150 150,90 260,90 Z"
+                    fill="none"
+                    stroke="#334155"
+                    strokeWidth="48"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    opacity="0.4"
+                  />
 
-                        {/* CAR / OPERATOR AVATAR NODE */}
-                        <div 
-                          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex items-center gap-1 z-30 transition-all duration-1000 ease-out"
-                          style={{ left: `${posPct}%` }}
-                        >
-                          {/* Crown for Leader */}
-                          {isLeader && (
-                            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-amber-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-1 shadow-[0_0_10px_rgba(245,158,11,0.8)] animate-bounce">
-                              <Crown size={10} className="fill-black" />
-                              <span>ЛИДЕР</span>
-                            </div>
-                          )}
+                  {/* Dashed Center Road Line */}
+                  <path
+                    d="M 260,90 L 740,90 C 860,90 940,150 910,230 C 880,310 780,260 700,310 C 620,360 520,410 380,410 C 210,410 90,350 90,250 C 90,150 150,90 260,90 Z"
+                    fill="none"
+                    stroke="#f8fafc"
+                    strokeWidth="2"
+                    strokeDasharray="10 10"
+                    opacity="0.45"
+                  />
 
-                          {/* RACING CAR + AVATAR CONTAINER */}
-                          <div className={`flex items-center gap-1.5 p-1 rounded-full backdrop-blur-md border transition-all ${
-                            isLeader 
-                              ? 'bg-amber-950/80 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.6)] scale-110' 
-                              : 'bg-slate-950/90 border-cyan-500/50 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-                          }`}>
-                            <span className="text-base sm:text-lg leading-none shrink-0">🏎️</span>
+                  {/* Pit Lane Road */}
+                  <path
+                    d="M 320,135 L 680,135"
+                    fill="none"
+                    stroke="#334155"
+                    strokeWidth="14"
+                    strokeDasharray="6 6"
+                    opacity="0.7"
+                  />
 
-                            {op.avatar ? (
-                              <img 
-                                src={op.avatar} 
-                                alt={op.name} 
-                                className="w-8 h-8 rounded-full object-cover border border-white/20 shrink-0"
-                              />
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 border border-white/20 shrink-0">
-                                {op.name.charAt(0).toUpperCase()}
-                              </div>
-                            )}
+                  {/* Pit Stop Garages */}
+                  <g opacity="0.85">
+                    <rect x="340" y="148" width="50" height="20" rx="3" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
+                    <text x="365" y="162" fill="#60a5fa" fontSize="9" fontWeight="bold" textAnchor="middle" fontFamily="monospace">PIT 1</text>
 
-                            <span className="text-[11px] font-black text-white px-2 py-0.5 bg-slate-900/90 rounded-full border border-white/10 shrink-0 whitespace-nowrap">
-                              {displayValue}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                    <rect x="400" y="148" width="50" height="20" rx="3" fill="#0f172a" stroke="#06b6d4" strokeWidth="1" />
+                    <text x="425" y="162" fill="#22d3ee" fontSize="9" fontWeight="bold" textAnchor="middle" fontFamily="monospace">PIT 2</text>
+
+                    <rect x="460" y="148" width="50" height="20" rx="3" fill="#0f172a" stroke="#a855f7" strokeWidth="1" />
+                    <text x="485" y="162" fill="#c084fc" fontSize="9" fontWeight="bold" textAnchor="middle" fontFamily="monospace">PIT 3</text>
+
+                    <rect x="520" y="148" width="50" height="20" rx="3" fill="#0f172a" stroke="#f59e0b" strokeWidth="1" />
+                    <text x="545" y="162" fill="#fbbf24" fontSize="9" fontWeight="bold" textAnchor="middle" fontFamily="monospace">PIT 4</text>
+                  </g>
+
+                  {/* Grandstand / Spectator Stand */}
+                  <g opacity="0.9">
+                    <rect x="350" y="22" width="280" height="26" rx="4" fill="#020617" stroke="#334155" strokeWidth="1.5" />
+                    <rect x="355" y="25" width="270" height="5" rx="2" fill="#ef4444" opacity="0.8" />
+                    <rect x="355" y="33" width="270" height="5" rx="2" fill="#3b82f6" opacity="0.8" />
+                    <text x="490" y="44" fill="#94a3b8" fontSize="8" fontWeight="black" textAnchor="middle" letterSpacing="2" fontFamily="monospace">GRANDSTAND • ФОРМУЛА-1</text>
+                  </g>
+
+                  {/* Checkered Start / Finish Line Banner */}
+                  <rect
+                    x="254"
+                    y="38"
+                    width="12"
+                    height="104"
+                    fill="url(#checkeredPattern)"
+                    rx="2"
+                    stroke="#06b6d4"
+                    strokeWidth="1.5"
+                    className="drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]"
+                  />
+
+                  <text
+                    x="260"
+                    y="30"
+                    fill="#22d3ee"
+                    fontSize="9"
+                    fontWeight="900"
+                    textAnchor="middle"
+                    fontFamily="monospace"
+                    letterSpacing="1"
+                  >
+                    🏁 СТАРТ / ФИНИШ
+                  </text>
+                </svg>
+
+                {/* FORMULA 1 CARS LAYER */}
+                <div className="absolute inset-0 pointer-events-none">
+                  {visibleOperators.map((op, index) => {
+                    const isLeader = op.user_id === leaderUserId;
+                    const transform = getCarTransform(op, index, visibleOperators);
+                    const displayValue = getMetricDisplayValue(op);
+                    const rank = index + 1;
+
+                    return (
+                      <F1RaceCarNode
+                        key={op.user_id}
+                        op={op}
+                        index={index}
+                        rank={rank}
+                        isLeader={isLeader}
+                        transform={transform}
+                        displayValue={displayValue}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -580,15 +819,15 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
               <div className="flex items-center gap-3">
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                  <span>Корона = Лидер смены</span>
+                  <span>#1 Золотой болид = Лидер смены</span>
                 </span>
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
-                  <span>Позиция пропорциональна {sortLabels[sortBy]}</span>
+                  <span>Дистанция на треке = {sortLabels[sortBy]}</span>
                 </span>
               </div>
               <p className="text-slate-500">
-                Автообновление каждые 15 сек • Плавная анимация обгона
+                Автообновление каждые 15 сек • Плавный обгон по трассе Ф1
               </p>
             </div>
           </div>
@@ -686,3 +925,4 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
     </div>
   );
 };
+
