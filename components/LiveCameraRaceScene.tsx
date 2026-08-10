@@ -6,13 +6,12 @@ import {
   Sparkles,
   Clock,
   Trophy,
-  Users,
-  X,
+  Volume2,
+  VolumeX,
   Target,
-  Info,
   ChevronUp
 } from 'lucide-react';
-import { MESSAGES_PER_LAP, getLapInfo, easeInOutCubic } from './trackLogic';
+import { getLapInfo } from './trackLogic';
 
 export interface ShiftOperator {
   user_id: string;
@@ -64,7 +63,6 @@ interface OperatorAnimNode {
   boostIntensity: number; // 0 to 1
   isOvertaking: boolean;
   overtakeProgress: number; // 0 to 1
-  overtakeText?: string;
   signalFlash: boolean;
 }
 
@@ -80,16 +78,16 @@ function hashString(str: string): number {
 
 // Preset distinct car livery colors by rank & index
 const CAR_COLORS = [
-  { primary: '#f59e0b', accent: '#fbbf24', glow: '#f59e0b', name: 'Gold Leader' },
-  { primary: '#38bdf8', accent: '#7dd3fc', glow: '#06b6d4', name: 'Cyan Stealth' },
-  { primary: '#f97316', accent: '#fdba74', glow: '#ea580c', name: 'Copper Nitro' },
-  { primary: '#a855f7', accent: '#c084fc', glow: '#9333ea', name: 'Violet Venom' },
-  { primary: '#10b981', accent: '#34d399', glow: '#059669', name: 'Emerald Rush' },
-  { primary: '#ec4899', accent: '#f472b6', glow: '#db2777', name: 'Rose Phantom' },
-  { primary: '#6366f1', accent: '#818cf8', glow: '#4f46e5', name: 'Indigo Apex' },
-  { primary: '#eab308', accent: '#fde047', glow: '#ca8a04', name: 'Yellow Fury' },
-  { primary: '#06b6d4', accent: '#22d3ee', glow: '#0891b2', name: 'Teal Velocity' },
-  { primary: '#f43f5e', accent: '#fb7185', glow: '#e11d48', name: 'Crimson Pulse' },
+  { primary: '#f59e0b', accent: '#fef08a', glow: '#f59e0b', name: 'Gold Leader' },
+  { primary: '#38bdf8', accent: '#bae6fd', glow: '#06b6d4', name: 'Cyan Stealth' },
+  { primary: '#f97316', accent: '#ffedd5', glow: '#ea580c', name: 'Copper Nitro' },
+  { primary: '#a855f7', accent: '#f3e8ff', glow: '#9333ea', name: 'Violet Venom' },
+  { primary: '#10b981', accent: '#d1fae5', glow: '#059669', name: 'Emerald Rush' },
+  { primary: '#ec4899', accent: '#fce7f3', glow: '#db2777', name: 'Rose Phantom' },
+  { primary: '#6366f1', accent: '#e0e7ff', glow: '#4f46e5', name: 'Indigo Apex' },
+  { primary: '#eab308', accent: '#fef9c3', glow: '#ca8a04', name: 'Yellow Fury' },
+  { primary: '#06b6d4', accent: '#cffafe', glow: '#0891b2', name: 'Teal Velocity' },
+  { primary: '#f43f5e', accent: '#ffe4e6', glow: '#e11d48', name: 'Crimson Pulse' },
 ];
 
 export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
@@ -109,6 +107,9 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Mute audio state toggle
+  const [isMuted, setIsMuted] = useState(true);
 
   // Anim state stored in Ref for continuous RAF rendering
   const animNodesRef = useRef<Record<string, OperatorAnimNode>>({});
@@ -134,7 +135,6 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
 
   const leaderOp = sortedOperators[0] || null;
   const secondOp = sortedOperators[1] || null;
-  const thirdOp = sortedOperators[2] || null;
 
   // Gap between #1 and #2
   const gapValue = leaderOp && secondOp ? Math.max(0, leaderOp.messages_count - secondOp.messages_count) : 0;
@@ -183,13 +183,13 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
     let particlePool: { x: number; y: number; speed: number; size: number; opacity: number }[] = [];
 
     // Initialize particle pool for wind / speed lines
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 45; i++) {
       particlePool.push({
         x: Math.random(),
         y: Math.random(),
-        speed: 0.005 + Math.random() * 0.015,
-        size: 1 + Math.random() * 2,
-        opacity: 0.2 + Math.random() * 0.6,
+        speed: 0.008 + Math.random() * 0.02,
+        size: 1 + Math.random() * 2.5,
+        opacity: 0.2 + Math.random() * 0.7,
       });
     }
 
@@ -227,13 +227,13 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
       const lowestMsgs = sorted[sorted.length - 1]?.messages_count || 0;
       const maxGap = Math.max(1, leaderMsgs - lowestMsgs);
 
-      // Highway dimensions
-      const roadWidth = Math.min(W * 0.72, 480);
+      // Highway dimensions (4 lanes)
+      const roadWidth = Math.min(W * 0.75, 520);
       const roadLeft = (W - roadWidth) / 2;
       const laneWidth = roadWidth / 4;
 
       const topY = H * 0.16;
-      const bottomY = H * 0.84;
+      const bottomY = H * 0.82;
 
       // Assign target Y & Lanes without overlap
       const laneOccupancy: Record<number, number[]> = { 0: [], 1: [], 2: [], 3: [] };
@@ -244,18 +244,18 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
         const rank = rankMap.get(op.user_id) || 1;
         const gap = Math.max(0, leaderMsgs - op.messages_count);
 
-        // Compressed non-linear gap formula
+        // Compressed non-linear gap formula (logarithmic scaling)
         const normalizedGap = maxGap > 0 ? Math.log1p(gap) / Math.log1p(maxGap) : 0;
         let targetY = topY + normalizedGap * (bottomY - topY);
 
         // Base lane determined deterministically by operatorId
         let baseLane = hashString(op.user_id) % 4;
 
-        // Collision avoidance: if another car is within 50px Y in same lane, shift lane
+        // Collision avoidance: if another car is within 58px Y in same lane, shift lane
         let assignedLane = baseLane;
         for (let l = 0; l < 4; l++) {
           const testLane = (baseLane + l) % 4;
-          const collision = laneOccupancy[testLane].some((y) => Math.abs(y - targetY) < 55);
+          const collision = laneOccupancy[testLane].some((y) => Math.abs(y - targetY) < 58);
           if (!collision) {
             assignedLane = testLane;
             break;
@@ -296,7 +296,7 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
             node.deltaMsgs = delta;
             node.boostIntensity = Math.min(1.0, delta / 10);
           } else {
-            node.boostIntensity = Math.max(0, node.boostIntensity - 0.02);
+            node.boostIntensity = Math.max(0, node.boostIntensity - 0.015);
           }
         }
 
@@ -329,17 +329,18 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
       ctx.translate(-W / 2, -H / 2);
 
       // --- 3. DRAW ENVIRONMENT & BACKGROUND HIGHWAY ---
-      // Dark futuristic asphalt base
-      ctx.fillStyle = '#090d16';
+      // Dark sci-fi asphalt base
+      ctx.fillStyle = '#060a12';
       ctx.fillRect(0, 0, W, H);
 
-      // Outer terrain grid lines
-      ctx.strokeStyle = 'rgba(30, 41, 59, 0.4)';
-      ctx.lineWidth = 1;
-      const gridSize = 40;
-      scrollOffset = (scrollOffset + (prefersReducedMotion ? 1 : 4)) % gridSize;
+      // Scroll speed delta
+      const scrollSpeed = prefersReducedMotion ? 1 : 5;
+      scrollOffset = (scrollOffset + scrollSpeed) % 60;
 
-      for (let y = scrollOffset - gridSize; y < H + gridSize; y += gridSize) {
+      // Outer terrain telemetry grid
+      ctx.strokeStyle = 'rgba(30, 41, 59, 0.35)';
+      ctx.lineWidth = 1;
+      for (let y = scrollOffset - 60; y < H + 60; y += 40) {
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(W, y);
@@ -349,15 +350,17 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
       // Asphalt Road Bed
       const roadGradient = ctx.createLinearGradient(roadLeft, 0, roadLeft + roadWidth, 0);
       roadGradient.addColorStop(0, '#0f172a');
-      roadGradient.addColorStop(0.5, '#1e293b');
+      roadGradient.addColorStop(0.15, '#1e293b');
+      roadGradient.addColorStop(0.5, '#0f172a');
+      roadGradient.addColorStop(0.85, '#1e293b');
       roadGradient.addColorStop(1, '#0f172a');
 
       ctx.fillStyle = roadGradient;
       ctx.fillRect(roadLeft, 0, roadWidth, H);
 
-      // Outer Curb / Red-and-White Rumble Strips
-      const kerbWidth = 10;
-      const kerbHeight = 30;
+      // Outer Red-and-White Rumble Strips (Kerbs)
+      const kerbWidth = 12;
+      const kerbHeight = 32;
 
       for (let y = (scrollOffset % (kerbHeight * 2)) - kerbHeight * 2; y < H + kerbHeight * 2; y += kerbHeight * 2) {
         // Left Kerb
@@ -373,19 +376,19 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
         ctx.fillRect(roadLeft + roadWidth, y + kerbHeight, kerbWidth, kerbHeight);
       }
 
-      // Outer Highway Glow Barriers
+      // Outer Highway Laser Barriers
       ctx.shadowColor = '#06b6d4';
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 14;
       ctx.strokeStyle = '#22d3ee';
       ctx.lineWidth = 3;
 
-      // Left Solid Boundary
+      // Left Solid Boundary Rail
       ctx.beginPath();
       ctx.moveTo(roadLeft, 0);
       ctx.lineTo(roadLeft, H);
       ctx.stroke();
 
-      // Right Solid Boundary
+      // Right Solid Boundary Rail
       ctx.beginPath();
       ctx.moveTo(roadLeft + roadWidth, 0);
       ctx.lineTo(roadLeft + roadWidth, H);
@@ -393,10 +396,26 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
 
       ctx.shadowBlur = 0; // Reset shadow
 
+      // Roadside Light Pillars / Telemetry Pylons (scrolling down)
+      const pylonDist = 120;
+      for (let y = (scrollOffset % pylonDist) - pylonDist; y < H + pylonDist; y += pylonDist) {
+        // Left Pylon
+        ctx.fillStyle = '#0284c7';
+        ctx.fillRect(roadLeft - kerbWidth - 14, y, 8, 16);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(roadLeft - kerbWidth - 12, y + 4, 4, 8);
+
+        // Right Pylon
+        ctx.fillStyle = '#0284c7';
+        ctx.fillRect(roadLeft + roadWidth + kerbWidth + 6, y, 8, 16);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(roadLeft + roadWidth + kerbWidth + 8, y + 4, 4, 8);
+      }
+
       // Moving Dashed Lane Dividers (scrolling top to bottom)
       ctx.strokeStyle = 'rgba(248, 250, 252, 0.45)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([18, 18]);
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([20, 25]);
       ctx.lineDashOffset = -scrollOffset * 2.5;
 
       for (let l = 1; l < 4; l++) {
@@ -411,22 +430,22 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
       // Environmental Speed Lines / Wind Particles
       if (!prefersReducedMotion) {
         particlePool.forEach((p) => {
-          p.y += p.speed * 2;
+          p.y += p.speed * 2.2;
           if (p.y > 1) p.y = 0;
 
           const px = p.x * W;
           const py = p.y * H;
 
-          ctx.strokeStyle = `rgba(56, 189, 248, ${p.opacity * 0.4})`;
+          ctx.strokeStyle = `rgba(56, 189, 248, ${p.opacity * 0.45})`;
           ctx.lineWidth = p.size;
           ctx.beginPath();
           ctx.moveTo(px, py);
-          ctx.lineTo(px, py + 18);
+          ctx.lineTo(px, py + 22);
           ctx.stroke();
         });
       }
 
-      // --- 4. DRAW RACE CARS ---
+      // --- 4. DRAW TOP-DOWN HIGH-TECH CARS ---
       sorted.forEach((op) => {
         const node = animNodesRef.current[op.user_id];
         if (!node) return;
@@ -436,89 +455,132 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
         const cx = node.currX;
         const cy = node.currY;
 
-        const carW = 28;
-        const carH = 54;
+        const carW = 32;
+        const carH = 62;
 
         ctx.save();
         ctx.translate(cx, cy);
 
+        // Subtle vibration during speed
+        const vibX = (Math.random() - 0.5) * (0.8 + node.boostIntensity * 1.5);
+        const vibY = (Math.random() - 0.5) * (0.8 + node.boostIntensity * 1.5);
+        ctx.translate(vibX, vibY);
+
         // Ground shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
         ctx.beginPath();
-        ctx.ellipse(0, 6, carW * 0.7, carH * 0.5, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 8, carW * 0.75, carH * 0.5, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Exhaust Fire / Speed Trail (pointing downwards)
-        const trailLen = 15 + node.boostIntensity * 40;
+        // Rear Exhaust Flame / Energy Jet (pointing downwards)
+        const trailLen = 18 + node.boostIntensity * 48;
         const fireGrad = ctx.createLinearGradient(0, carH / 2, 0, carH / 2 + trailLen);
         fireGrad.addColorStop(0, colorScheme.glow);
-        fireGrad.addColorStop(0.5, '#ef4444');
+        fireGrad.addColorStop(0.4, '#f97316');
+        fireGrad.addColorStop(0.8, '#ef4444');
         fireGrad.addColorStop(1, 'transparent');
 
         ctx.fillStyle = fireGrad;
         ctx.beginPath();
-        ctx.moveTo(-6, carH / 2);
-        ctx.lineTo(6, carH / 2);
+        ctx.moveTo(-7, carH / 2);
+        ctx.lineTo(7, carH / 2);
         ctx.lineTo(0, carH / 2 + trailLen);
         ctx.closePath();
         ctx.fill();
 
-        // Front Headlight Light Cones (pointing upwards)
-        const lightGrad = ctx.createLinearGradient(0, -carH / 2, 0, -carH / 2 - 60);
-        lightGrad.addColorStop(0, 'rgba(254, 240, 138, 0.6)');
+        // Front Headlight Light Beams (pointing upwards)
+        const lightGrad = ctx.createLinearGradient(0, -carH / 2, 0, -carH / 2 - 70);
+        lightGrad.addColorStop(0, 'rgba(254, 240, 138, 0.65)');
         lightGrad.addColorStop(1, 'transparent');
 
         ctx.fillStyle = lightGrad;
         ctx.beginPath();
-        ctx.moveTo(-10, -carH / 2);
-        ctx.lineTo(-24, -carH / 2 - 60);
-        ctx.lineTo(24, -carH / 2 - 60);
-        ctx.lineTo(10, -carH / 2);
+        ctx.moveTo(-12, -carH / 2);
+        ctx.lineTo(-28, -carH / 2 - 70);
+        ctx.lineTo(28, -carH / 2 - 70);
+        ctx.lineTo(12, -carH / 2);
         ctx.closePath();
         ctx.fill();
 
-        // Car Body (Aerodynamic F1/GT Spec)
+        // Aerodynamic GT/Formula Car Body
         ctx.fillStyle = colorScheme.primary;
         ctx.strokeStyle = colorScheme.accent;
         ctx.lineWidth = 2;
 
-        // Chassis Nose
+        // Main Chassis
         ctx.beginPath();
-        ctx.moveTo(0, -carH / 2 - 4);
+        ctx.moveTo(0, -carH / 2 - 5);
         ctx.lineTo(carW / 2, -carH / 4);
-        ctx.lineTo(carW / 2, carH / 3);
+        ctx.lineTo(carW / 2 + 2, carH / 3);
         ctx.lineTo(carW / 3, carH / 2);
         ctx.lineTo(-carW / 3, carH / 2);
-        ctx.lineTo(-carW / 2, carH / 3);
+        ctx.lineTo(-carW / 2 - 2, carH / 3);
         ctx.lineTo(-carW / 2, -carH / 4);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
-        // Front & Rear Wings
+        // Front Splitter & Rear Wing
         ctx.fillStyle = '#0f172a';
-        ctx.fillRect(-carW / 2 - 4, -carH / 2 - 2, carW + 8, 5); // Front wing
-        ctx.fillRect(-carW / 2 - 2, carH / 2 - 2, carW + 4, 6); // Rear wing
+        ctx.fillRect(-carW / 2 - 5, -carH / 2 - 3, carW + 10, 6); // Front wing
+        ctx.fillRect(-carW / 2 - 3, carH / 2 - 3, carW + 6, 7); // Rear wing
 
-        // Cockpit / Windshield
-        ctx.fillStyle = '#0284c7';
+        // Side Pod Accent Lines
+        ctx.strokeStyle = colorScheme.accent;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.ellipse(0, -4, 6, 12, 0, 0, Math.PI * 2);
+        ctx.moveTo(-carW / 3, -carH / 6);
+        ctx.lineTo(-carW / 3, carH / 4);
+        ctx.moveTo(carW / 3, -carH / 6);
+        ctx.lineTo(carW / 3, carH / 4);
+        ctx.stroke();
+
+        // Cockpit Glass / Canopy
+        const glassGrad = ctx.createLinearGradient(0, -12, 0, 8);
+        glassGrad.addColorStop(0, '#38bdf8');
+        glassGrad.addColorStop(1, '#0284c7');
+        ctx.fillStyle = glassGrad;
+        ctx.beginPath();
+        ctx.ellipse(0, -4, 7, 14, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Wheels / Tires (4 tires)
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(-carW / 2 - 5, -carH / 3, 5, 12); // Front L
-        ctx.fillRect(carW / 2, -carH / 3, 5, 12); // Front R
-        ctx.fillRect(-carW / 2 - 5, carH / 4, 5, 14); // Rear L
-        ctx.fillRect(carW / 2, carH / 4, 5, 14); // Rear R
+        // Glass highlight line
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-3, -10);
+        ctx.lineTo(2, 2);
+        ctx.stroke();
 
-        // Rank Badge Number on Roof
+        // 4 Racing Tires (Black Rubber + Alloy Hub)
+        ctx.fillStyle = '#020617';
+        ctx.fillRect(-carW / 2 - 6, -carH / 3, 6, 14); // Front L
+        ctx.fillRect(carW / 2, -carH / 3, 6, 14); // Front R
+        ctx.fillRect(-carW / 2 - 6, carH / 4, 6, 16); // Rear L
+        ctx.fillRect(carW / 2, carH / 4, 6, 16); // Rear R
+
+        // Tire Alloy Highlights
+        ctx.fillStyle = colorScheme.accent;
+        ctx.fillRect(-carW / 2 - 4, -carH / 3 + 4, 2, 6);
+        ctx.fillRect(carW / 2 + 2, -carH / 3 + 4, 2, 6);
+
+        // Leader Crown or Roof Rank Badge Number
+        if (rank === 1) {
+          ctx.fillStyle = '#fbbf24';
+          ctx.shadowColor = '#fbbf24';
+          ctx.shadowBlur = 8;
+          ctx.font = '900 13px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('👑', 0, -22);
+          ctx.shadowBlur = 0;
+        }
+
         ctx.fillStyle = '#ffffff';
-        ctx.font = '900 11px monospace';
+        ctx.font = '900 12px monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`#${rank}`, 0, 8);
+        ctx.fillText(`#${rank}`, 0, 10);
 
         ctx.restore();
       });
@@ -535,14 +597,14 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
   }, [operators, hiddenOperatorIds, prefersReducedMotion]);
 
   return (
-    <div ref={containerRef} className="relative w-full h-full min-h-[520px] sm:min-h-[600px] bg-slate-950 overflow-hidden font-mono select-none rounded-3xl border border-cyan-500/30 shadow-[inset_0_0_80px_rgba(0,0,0,0.9)]">
+    <div ref={containerRef} className="relative w-full h-full min-h-[540px] sm:min-h-[620px] bg-slate-950 overflow-hidden font-mono select-none rounded-3xl border border-cyan-500/30 shadow-[inset_0_0_80px_rgba(0,0,0,0.9)]">
       {/* BACKGROUND CANVAS FOR HIGHWAY & CARS */}
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block" />
 
       {/* OVERLAY: ACTIVE OVERTAKE BANNER */}
       {activeOvertakeBanner && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 pointer-events-none animate-bounce">
-          <div className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-rose-600 to-amber-500 text-white font-black text-xs sm:text-sm uppercase tracking-widest shadow-[0_0_30px_rgba(244,63,94,0.8)] border border-white/40 flex items-center gap-2">
+          <div className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-rose-600 to-amber-500 text-white font-black text-xs sm:text-sm uppercase tracking-widest shadow-[0_0_35px_rgba(244,63,94,0.85)] border border-white/40 flex items-center gap-2">
             <Flame size={18} className="animate-pulse text-amber-300" />
             <span>{activeOvertakeBanner.text}</span>
             <Sparkles size={18} className="animate-pulse text-amber-300" />
@@ -550,15 +612,15 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
         </div>
       )}
 
-      {/* TOP LEFT HUD: LIVE STATUS & SHIFT COUNTDOWN */}
+      {/* TOP LEFT HUD: LIVE STATUS, SHIFT & AUDIO TOGGLE */}
       <div className="absolute top-4 left-4 z-30 pointer-events-none flex flex-col gap-2">
-        <div className="px-3 py-2 rounded-2xl bg-slate-950/85 border border-cyan-500/40 backdrop-blur-md shadow-xl flex items-center gap-2.5">
+        <div className="px-3.5 py-2 rounded-2xl bg-slate-950/85 border border-cyan-500/40 backdrop-blur-md shadow-xl flex items-center gap-3">
           <span className="relative flex h-2.5 w-2.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
           </span>
           <div>
-            <div className="text-[10px] font-black tracking-widest text-white uppercase flex items-center gap-1">
+            <div className="text-[10px] font-black tracking-widest text-white uppercase flex items-center gap-1.5">
               <span>● LIVE-КАМЕРА</span>
               <span className="text-[9px] text-cyan-400 font-normal">| 4 ПОЛОСЫ</span>
             </div>
@@ -566,11 +628,19 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
               {shiftInfo?.label ? `СМЕНА ${shiftInfo.label}` : 'ЗАЕЗД 08:00–14:00'}
             </div>
           </div>
+
+          <button
+            onClick={() => setIsMuted(!isMuted)}
+            className="pointer-events-auto ml-1 p-1.5 rounded-lg bg-slate-900 border border-white/10 hover:border-cyan-400/50 text-slate-400 hover:text-white transition-colors"
+            title={isMuted ? 'Звук выключен' : 'Звук включен'}
+          >
+            {isMuted ? <VolumeX size={13} /> : <Volume2 size={13} className="text-cyan-400" />}
+          </button>
         </div>
 
         {/* Countdown */}
         {isCurrentActiveShift && remainingTimeText && (
-          <div className="px-3 py-1.5 rounded-xl bg-slate-950/80 border border-emerald-500/40 text-emerald-300 backdrop-blur-md shadow-lg flex items-center gap-2 text-xs font-bold">
+          <div className="px-3 py-1.5 rounded-xl bg-slate-950/80 border border-emerald-500/40 text-emerald-300 backdrop-blur-md shadow-lg flex items-center gap-2 text-xs font-bold w-fit">
             <Clock size={13} className="text-emerald-400 animate-pulse" />
             <span>{remainingTimeText}</span>
           </div>
@@ -658,7 +728,7 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
               className="absolute pointer-events-auto cursor-pointer -translate-x-1/2 -translate-y-1/2 transition-all duration-75"
               style={{
                 left: `${pos.x}px`,
-                top: `${pos.y - 42}px`,
+                top: `${pos.y - 48}px`,
               }}
             >
               <div
