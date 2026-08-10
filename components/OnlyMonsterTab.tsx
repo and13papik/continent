@@ -635,9 +635,11 @@ function decodeHtmlEntities(str: string): string {
     .replace(/&apos;/g, "'");
 }
 
+export const IDLE_THRESHOLD_MINUTES = 10;
+
 export interface AttentionAlert {
   id: string;
-  type: 'slow_reply' | 'ppv_no_sales' | 'low_messages' | 'no_operator';
+  type: 'slow_reply' | 'ppv_no_sales' | 'low_messages' | 'no_operator' | 'account_idle';
   severity: 'red' | 'amber' | 'slate';
   text: string;
   operatorName?: string;
@@ -664,7 +666,9 @@ export function computeAttentionAlerts(
   operators: ShiftOperator[],
   accounts: OnlyMonsterAccount[],
   periodMode: 'today' | 'yesterday' | 'week' | 'month',
-  shiftInfo: { label: string; start: string; end: string } | null
+  shiftInfo: { label: string; start: string; end: string } | null,
+  lastOutgoingAtByAccount?: Record<string, number>,
+  now: number = Date.now()
 ): AttentionAlert[] {
   const alerts: AttentionAlert[] = [];
 
@@ -678,7 +682,6 @@ export function computeAttentionAlerts(
     if (periodMode === 'today' && shiftInfo?.start && shiftInfo?.end) {
       const startTime = new Date(shiftInfo.start).getTime();
       const endTime = new Date(shiftInfo.end).getTime();
-      const now = Date.now();
       const duration = endTime - startTime;
       if (duration > 0) {
         const elapsed = now - startTime;
@@ -733,7 +736,7 @@ export function computeAttentionAlerts(
     });
   }
 
-  // ⚪ 4. Account alert (no active operator)
+  // Account rules (4. no operator, 5. idle account)
   if (accounts && accounts.length > 0) {
     accounts.forEach((acc) => {
       if (acc.status === 'inactive') return;
@@ -760,6 +763,30 @@ export function computeAttentionAlerts(
           accountId: acc.platform_account_id || acc.id,
           accountObj: acc,
         });
+      } else {
+        // 🟠 5. Account idle (only if operator IS assigned AND lastOutgoingAtByAccount is known)
+        if (lastOutgoingAtByAccount) {
+          const key1 = String(acc.id || '');
+          const key2 = String(acc.platform_account_id || '');
+          const lastTs = (key1 && lastOutgoingAtByAccount[key1]) || (key2 && lastOutgoingAtByAccount[key2]);
+
+          if (typeof lastTs === 'number' && lastTs > 0) {
+            const elapsedMs = Math.max(0, now - lastTs);
+            const elapsedMins = elapsedMs / (60 * 1000);
+
+            if (elapsedMins >= IDLE_THRESHOLD_MINUTES) {
+              alerts.push({
+                id: `idle-${acc.id}`,
+                type: 'account_idle',
+                severity: 'amber',
+                text: `${acc.name} — простой ${formatAlertDuration(elapsedMs / 1000)}`,
+                accountName: acc.name,
+                accountId: acc.platform_account_id || acc.id,
+                accountObj: acc,
+              });
+            }
+          }
+        }
       }
     });
   }
@@ -799,6 +826,18 @@ export function formatEventForFeed(
   const modelName = accountsMap.get(String(rawAccId)) || (rawAccId ? String(rawAccId) : 'Модель');
 
   const type = event.event_type || '';
+
+  if (type === 'idle.resumed') {
+    const diffMs = p.idle_duration_ms || 0;
+    const durationText = formatAlertDuration(diffMs / 1000);
+    return {
+      category: 'warnings' as EventCategory,
+      text: `${modelName}: возобновление активности после простоя ${durationText}`,
+      colorClass: 'text-amber-300',
+      badgeBg: 'bg-amber-500/10 border-amber-500/20 text-amber-300',
+      dotColor: 'bg-amber-400',
+    };
+  }
 
   if (type === 'fans.tip.received') {
     const amt = p.amount_gross ?? p.amount ?? 0;
@@ -924,12 +963,14 @@ export const RealtimeEventFeed: React.FC<{
   accounts: OnlyMonsterAccount[];
   onAccountClick: (acc: OnlyMonsterAccount) => void;
   onNavigateToAccountsTab: () => void;
-}> = ({ accounts, onAccountClick, onNavigateToAccountsTab }) => {
+  onUpdateLastOutgoingMap?: (mapUpdater: (prev: Record<string, number>) => Record<string, number>) => void;
+}> = ({ accounts, onAccountClick, onNavigateToAccountsTab, onUpdateLastOutgoingMap }) => {
   const [events, setEvents] = useState<EventFeedItem[]>([]);
   const [filter, setFilter] = useState<'all' | EventCategory>('all');
   const [now, setNow] = useState<number>(Date.now());
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const lastKnownIdRef = useRef<number | string | null>(null);
+  const lastOutgoingMapRef = useRef<Record<string, number>>({});
 
   const accountsMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -946,6 +987,85 @@ export const RealtimeEventFeed: React.FC<{
     }, 1000);
     return () => clearInterval(ticker);
   }, []);
+
+  const processBatch = (rawBatch: EventFeedItem[], currentMap: Record<string, number>) => {
+    // Sort rawBatch chronologically (oldest first) to track timeline correctly
+    const chronological = [...rawBatch].sort((a, b) => {
+      const tA = new Date(a.event_timestamp || a.received_at || 0).getTime();
+      const tB = new Date(b.event_timestamp || b.received_at || 0).getTime();
+      return tA - tB;
+    });
+
+    const nextMap = { ...currentMap };
+    const visibleItems: EventFeedItem[] = [];
+
+    chronological.forEach(e => {
+      const rawPayload = e.payload || {};
+      const p = rawPayload.payload || rawPayload;
+      const type = e.event_type || '';
+
+      const isChatMessage = type === 'chat.message';
+      const isOutgoing = isChatMessage && p.from_id && p.fan_id && String(p.from_id) !== String(p.fan_id);
+
+      if (isOutgoing) {
+        const rawAccId = e.account_id || e.platform_account_id || p.account_id || p.platform_account_id || '';
+        const accKey = String(rawAccId);
+        const ts = new Date(e.event_timestamp || e.received_at || 0).getTime();
+
+        if (accKey && ts > 0) {
+          const matchingAcc = accounts.find(a => String(a.id) === accKey || String(a.platform_account_id) === accKey);
+          const keysToUpdate = new Set<string>([accKey]);
+          if (matchingAcc) {
+            if (matchingAcc.id) keysToUpdate.add(String(matchingAcc.id));
+            if (matchingAcc.platform_account_id) keysToUpdate.add(String(matchingAcc.platform_account_id));
+          }
+
+          let prevTs = 0;
+          keysToUpdate.forEach(k => {
+            if (nextMap[k] && nextMap[k] > prevTs) {
+              prevTs = nextMap[k];
+            }
+          });
+
+          if (prevTs > 0 && ts > prevTs) {
+            const diffMs = ts - prevTs;
+            if (diffMs >= IDLE_THRESHOLD_MINUTES * 60 * 1000) {
+              visibleItems.push({
+                id: `resume-${e.id}-${accKey}`,
+                event_type: 'idle.resumed',
+                account_id: rawAccId,
+                platform_account_id: e.platform_account_id,
+                payload: {
+                  payload: {
+                    account_id: rawAccId,
+                    idle_duration_ms: diffMs,
+                  }
+                },
+                event_timestamp: e.event_timestamp || e.received_at,
+                received_at: e.received_at,
+              });
+            }
+          }
+
+          keysToUpdate.forEach(k => {
+            nextMap[k] = Math.max(nextMap[k] || 0, ts);
+          });
+        }
+        // Routine outgoing message is NOT added to visibleItems
+      } else {
+        visibleItems.push(e);
+      }
+    });
+
+    // Re-sort visibleItems to DESCENDING (newest first for display)
+    visibleItems.sort((a, b) => {
+      const tA = new Date(a.event_timestamp || a.received_at || 0).getTime();
+      const tB = new Date(b.event_timestamp || b.received_at || 0).getTime();
+      return tB - tA;
+    });
+
+    return { nextMap, visibleItems };
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -975,12 +1095,18 @@ export const RealtimeEventFeed: React.FC<{
             });
             lastKnownIdRef.current = maxId;
 
+            const { nextMap, visibleItems } = processBatch(fetched, lastOutgoingMapRef.current);
+            lastOutgoingMapRef.current = nextMap;
+            if (onUpdateLastOutgoingMap) {
+              onUpdateLastOutgoingMap(() => nextMap);
+            }
+
             setEvents(prev => {
               if (!afterId || prev.length === 0) {
-                return fetched.slice(0, 100);
+                return visibleItems.slice(0, 100);
               }
               const existingIds = new Set(prev.map(e => String(e.id)));
-              const newItems = fetched.filter(e => !existingIds.has(String(e.id)));
+              const newItems = visibleItems.filter(e => !existingIds.has(String(e.id)));
               if (newItems.length === 0) return prev;
               return [...newItems, ...prev].slice(0, 100);
             });
@@ -1007,7 +1133,7 @@ export const RealtimeEventFeed: React.FC<{
       isMounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [accounts]);
 
   const formattedList = useMemo(() => {
     return events.map(e => {
@@ -1230,10 +1356,19 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
   // Attention Alerts state & computation
   const [showAlertsExpanded, setShowAlertsExpanded] = useState(false);
   const [highlightedOpId, setHighlightedOpId] = useState<string | null>(null);
+  const [lastOutgoingAtByAccount, setLastOutgoingAtByAccount] = useState<Record<string, number>>({});
+  const [nowTime, setNowTime] = useState<number>(Date.now());
+
+  useEffect(() => {
+    const ticker = setInterval(() => {
+      setNowTime(Date.now());
+    }, 10000);
+    return () => clearInterval(ticker);
+  }, []);
 
   const attentionAlerts = useMemo(() => {
-    return computeAttentionAlerts(operators, accounts, periodMode, shiftInfo);
-  }, [operators, accounts, periodMode, shiftInfo]);
+    return computeAttentionAlerts(operators, accounts, periodMode, shiftInfo, lastOutgoingAtByAccount, nowTime);
+  }, [operators, accounts, periodMode, shiftInfo, lastOutgoingAtByAccount, nowTime]);
 
   const visibleAlerts = showAlertsExpanded ? attentionAlerts : attentionAlerts.slice(0, 8);
 
@@ -1255,7 +1390,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
           setHighlightedOpId(null);
         }, 2500);
       }
-    } else if (alert.type === 'no_operator') {
+    } else if (alert.type === 'no_operator' || alert.type === 'account_idle') {
       setActiveSubTab('accounts');
       if (alert.accountObj) {
         handleAccountClick(alert.accountObj);
@@ -1797,6 +1932,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
         accounts={accounts}
         onAccountClick={(acc) => handleAccountClick(acc)}
         onNavigateToAccountsTab={() => setActiveSubTab('accounts')}
+        onUpdateLastOutgoingMap={(mapUpdater) => {
+          setLastOutgoingAtByAccount(prev => mapUpdater(prev));
+        }}
       />
 
       {/* SUB-TABS NAVIGATION */}
