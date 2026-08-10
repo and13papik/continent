@@ -15,6 +15,9 @@ import onlyMonsterShiftOperatorsHandler from "./api/onlymonster/shift-operators.
 import onlyMonsterShiftComparisonHandler from "./api/onlymonster/shift-comparison.js";
 import onlyMonsterOperatorModelBreakdownHandler from "./api/onlymonster/operator-model-breakdown.js";
 import onlyMonsterAccountDetailHandler from "./api/onlymonster/account-detail.js";
+import webhookHandler from "./api/webhook.js";
+import onlyMonsterWebhooksHandler from "./api/onlymonster/webhooks.js";
+import onlyMonsterDbTablesHandler from "./api/onlymonster/db-tables.js";
 
 async function startServer() {
   const app = express();
@@ -408,66 +411,14 @@ async function startServer() {
     }
   });
 
-  // OnlyMonster in-memory state
-  const omWebhooksHistory: any[] = [];
-  const maxOmWebhooks = 100;
-  
   let omToken = process.env.ONLYMONSTER_TOKEN || "om_token_fc269e0cc20370b29c803be7ad2e85c8c43b3d84366a6cf0f3ae0c5001c9f2ca";
   let omWebhookId = process.env.ONLYMONSTER_WEBHOOK_ID || "om_webhook_c0c072250515454194c4619f1c7e3d0c3a58b8349bf1b092519e22c670ca41a4";
 
-  // OnlyMonster Webhook handler (supporting multiple paths for safety)
-  const handleOnlyMonsterWebhook = (req: any, res: any) => {
-    const payload = req.body;
-    console.log("Received OnlyMonster Webhook:", JSON.stringify(payload, null, 2));
-
-    const eventType = payload.event || payload.type || "unknown";
-    const data = payload.data || payload.payload || payload;
-    
-    const webhookEvent = {
-      id: String(Date.now() + Math.random().toString(36).substring(2, 7)),
-      timestamp: new Date().toISOString(),
-      type: eventType,
-      data: data,
-      source: "OnlyMonster Webhook"
-    };
-
-    omWebhooksHistory.unshift(webhookEvent);
-    if (omWebhooksHistory.length > maxOmWebhooks) {
-      omWebhooksHistory.pop();
-    }
-
-    res.status(200).json({ success: true, received: true });
-  };
-
-  app.post("/api/webhook", handleOnlyMonsterWebhook);
-  app.post("/api/onlymonster/webhook", handleOnlyMonsterWebhook);
-
-  // Retrieve received webhooks
-  app.get("/api/onlymonster/webhooks", (req, res) => {
-    res.json({
-      success: true,
-      webhooks: omWebhooksHistory
-    });
-  });
-
-  // Simulate a webhook internally
-  app.post("/api/onlymonster/simulate", (req, res) => {
-    const { type, data } = req.body;
-    const simulatedEvent = {
-      id: String(Date.now() + Math.random().toString(36).substring(2, 7)),
-      timestamp: new Date().toISOString(),
-      type: type || "chat.message",
-      data: data || {},
-      source: "Simulator"
-    };
-
-    omWebhooksHistory.unshift(simulatedEvent);
-    if (omWebhooksHistory.length > maxOmWebhooks) {
-      omWebhooksHistory.pop();
-    }
-
-    res.json({ success: true, event: simulatedEvent });
-  });
+  // OnlyMonster Webhook handlers & DB tools
+  app.all("/api/webhook", (req, res) => webhookHandler(req, res));
+  app.all("/api/onlymonster/webhook", (req, res) => webhookHandler(req, res));
+  app.all("/api/onlymonster/webhooks", (req, res) => onlyMonsterWebhooksHandler(req, res));
+  app.all("/api/onlymonster/db-tables", (req, res) => onlyMonsterDbTablesHandler(req, res));
 
   // OnlyMonster API Proxy
   app.get("/api/onlymonster/proxy", (req, res) => onlyMonsterProxyHandler(req, res));
