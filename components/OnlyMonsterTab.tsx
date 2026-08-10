@@ -16,6 +16,7 @@ import {
   DollarSign,
   ArrowUp,
   ArrowDown,
+  Receipt,
   X
 } from 'lucide-react';
 
@@ -32,6 +33,7 @@ interface OnlyMonsterAccount {
   unread_chats: number;
   active_operators: number;
   today_earnings?: number | null;
+  tx_count?: number | null;
   earnings_label?: string;
   earnings_breakdown?: { 1: number; 2: number; 3: number; 4: number } | null;
   handle?: string;
@@ -696,6 +698,98 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
   const [hasLoadedOperators, setHasLoadedOperators] = useState(false);
   const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
 
+  // Account detail modal state
+  const [selectedAccountForDetail, setSelectedAccountForDetail] = useState<OnlyMonsterAccount | null>(null);
+  const [accountDetailData, setAccountDetailData] = useState<any | null>(null);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  // Helper to calculate real unique operator count for an account
+  const getOperatorCountForAccount = (accId: string): number => {
+    if (!operators || operators.length === 0) return 0;
+    const uniqueUsers = new Set<string>();
+    operators.forEach(op => {
+      if (Array.isArray(op.creator_ids) && op.creator_ids.some(cid => String(cid) === String(accId))) {
+        uniqueUsers.add(op.user_id);
+      }
+    });
+    return uniqueUsers.size;
+  };
+
+  // Helper to get ISO range for operational day on client
+  const getKyivOperationalDayISO = (day: 'today' | 'yesterday'): { start: string; end: string } => {
+    const now = new Date();
+    const hourFormatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Europe/Kyiv",
+      hour: "numeric",
+      hour12: false
+    });
+    const kyivHour = parseInt(hourFormatter.format(now), 10) || 0;
+    const anchorOffset = kyivHour >= 2 ? 0 : -1;
+    const baseOffset = day === 'today' ? anchorOffset : anchorOffset - 1;
+
+    const getKyivStr = (offsetDays: number) => {
+      const d = new Date(Date.now() + offsetDays * 24 * 3600 * 1000);
+      const fmt = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/Kyiv",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      });
+      return fmt.format(d);
+    };
+
+    const baseDateStr = getKyivStr(baseOffset);
+    const nextDateStr = getKyivStr(baseOffset + 1);
+
+    const kyivToUtc = (dStr: string, hour: number) => {
+      const naiveUtc = new Date(`${dStr}T${String(hour).padStart(2, '0')}:00:00.000Z`);
+      const hFmt = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Kyiv", hour: "numeric", hour12: false });
+      const kHour = parseInt(hFmt.format(naiveUtc), 10) || 0;
+      let offset = kHour - hour;
+      if (offset > 12) offset -= 24;
+      if (offset < -12) offset += 24;
+      return new Date(naiveUtc.getTime() - offset * 3600000).toISOString();
+    };
+
+    return {
+      start: kyivToUtc(baseDateStr, 2),
+      end: kyivToUtc(nextDateStr, 2)
+    };
+  };
+
+  // Click handler for opening account detail modal
+  const handleAccountClick = async (acc: OnlyMonsterAccount) => {
+    setSelectedAccountForDetail(acc);
+    setIsDetailLoading(true);
+    setDetailError(null);
+    setAccountDetailData(null);
+
+    try {
+      const range = getKyivOperationalDayISO(accountsEarningsDay);
+      const params = new URLSearchParams();
+      params.append('account_id', acc.platform_account_id);
+      params.append('start', range.start);
+      params.append('end', range.end);
+
+      const res = await fetch(`/api/onlymonster/account-detail?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setAccountDetailData(data);
+        } else {
+          setDetailError(data.error || 'Не удалось загрузить детальную статистику аккаунта');
+        }
+      } else {
+        setDetailError(`Ошибка сервера (${res.status})`);
+      }
+    } catch (err: any) {
+      setDetailError('Ошибка сети при загрузке детальной статистики аккаунта');
+    } finally {
+      setIsDetailLoading(false);
+    }
+  };
+
   // Fetch operator metrics for current shift/period
   const fetchShiftOperators = async (
     pMode: 'today' | 'yesterday' | 'week' | 'month' = periodMode,
@@ -914,6 +1008,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
             return {
               ...acc,
               today_earnings: rawTotal !== null ? Math.round(rawTotal * 100) / 100 : null,
+              tx_count: typeof entry.tx_count === 'number' ? entry.tx_count : null,
               earnings_label: entry.label || (dayMode === 'today' ? 'Сегодня' : 'Вчера'),
               earnings_breakdown: entry.breakdown || null
             };
@@ -1004,7 +1099,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
               platform: acc.platform || 'OnlyFans',
               status: acc.status === 'inactive' ? 'inactive' : 'active',
               unread_chats: typeof acc.unread_chats === 'number' ? acc.unread_chats : (acc.unread_count || 0),
-              active_operators: typeof acc.active_operators === 'number' ? acc.active_operators : (acc.operators_count || 1),
+              active_operators: typeof acc.active_operators === 'number' ? acc.active_operators : 0,
               today_earnings: undefined,
               avatar_url: acc.avatar || acc.avatar_url || acc.photo || acc.image || ''
             };
@@ -1193,70 +1288,91 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredAccounts.map((acc) => (
-                <div 
-                  key={acc.id} 
-                  className="p-4 bg-slate-900/60 rounded-2xl border border-white/5 hover:border-violet-500/30 hover:bg-slate-900/90 transition-all flex flex-col justify-between space-y-4 group"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-900 to-indigo-950 border border-violet-500/30 flex items-center justify-center text-white font-black text-sm font-mono shadow-md">
-                        {acc.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-black text-white font-mono group-hover:text-violet-300 transition-colors">
-                          {acc.name}
-                        </h4>
-                        {acc.handle && (
-                          <p className="text-[10px] font-mono text-slate-400">@{acc.handle}</p>
+              {filteredAccounts.map((acc) => {
+                const realOpCount = getOperatorCountForAccount(acc.id);
+                return (
+                  <div 
+                    key={acc.id} 
+                    onClick={() => handleAccountClick(acc)}
+                    className="p-4 bg-slate-900/60 rounded-2xl border border-white/5 hover:border-violet-500/50 hover:bg-slate-900/90 hover:scale-[1.01] transition-all cursor-pointer flex flex-col justify-between space-y-4 group shadow-md"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        {acc.avatar_url ? (
+                          <img 
+                            src={acc.avatar_url} 
+                            alt={acc.name} 
+                            className="w-10 h-10 rounded-xl object-cover border border-violet-500/30 shadow-md"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-900 to-indigo-950 border border-violet-500/30 flex items-center justify-center text-white font-black text-sm font-mono shadow-md">
+                            {acc.name.charAt(0).toUpperCase()}
+                          </div>
                         )}
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[8px] font-mono font-black uppercase bg-violet-500/15 text-violet-300 border border-violet-500/20 px-2 py-0.5 rounded">
-                            {acc.platform}
-                          </span>
-                          <span className="flex items-center gap-1 text-[9px] font-mono text-emerald-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            {acc.status === 'active' ? 'Активен' : 'Онлайн'}
-                          </span>
+                        <div>
+                          <h4 className="text-sm font-black text-white font-mono group-hover:text-violet-300 transition-colors flex items-center gap-1.5">
+                            {acc.name}
+                          </h4>
+                          {acc.handle && (
+                            <p className="text-[10px] font-mono text-slate-400">@{acc.handle}</p>
+                          )}
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[8px] font-mono font-black uppercase bg-violet-500/15 text-violet-300 border border-violet-500/20 px-2 py-0.5 rounded">
+                              {acc.platform}
+                            </span>
+                            <span className="flex items-center gap-1 text-[9px] font-mono text-emerald-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              {acc.status === 'active' ? 'Активен' : 'Онлайн'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-3 gap-2 pt-3 border-t border-white/5 font-mono text-center">
-                    <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                      <span className="text-[8px] uppercase text-slate-500 font-bold block">Непрочитано</span>
-                      <span className={`text-xs font-black block mt-0.5 ${acc.unread_chats > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
-                        {acc.unread_chats}
-                      </span>
-                    </div>
+                    <div className="grid grid-cols-3 gap-2 pt-3 border-t border-white/5 font-mono text-center">
+                      <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                        <span className="text-[8px] uppercase text-slate-500 font-bold block">Операторов</span>
+                        <span className={`text-xs font-black block mt-0.5 ${realOpCount > 0 ? 'text-violet-300' : 'text-slate-500'}`}>
+                          {realOpCount}
+                        </span>
+                      </div>
 
-                    <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                      <span className="text-[8px] uppercase text-slate-500 font-bold block">Операторов</span>
-                      <span className="text-xs font-black text-slate-200 block mt-0.5">
-                        {acc.active_operators}
-                      </span>
-                    </div>
+                      <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                        <span className="text-[8px] uppercase text-slate-500 font-bold block truncate">Транзакций</span>
+                        {isEarningsLoading && acc.tx_count === undefined ? (
+                          <span className="flex items-center justify-center mt-1">
+                            <RefreshCw size={12} className="animate-spin text-violet-400" />
+                          </span>
+                        ) : typeof acc.tx_count === 'number' ? (
+                          <span className="text-xs font-black text-cyan-400 block mt-0.5">
+                            {acc.tx_count}
+                          </span>
+                        ) : (
+                          <span className="text-xs font-black text-slate-500 block mt-0.5">
+                            —
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                      <span className="text-[8px] uppercase text-slate-500 font-bold block truncate">
-                        Доход {acc.earnings_label ? acc.earnings_label.toLowerCase() : (accountsEarningsDay === 'today' ? 'сегодня' : 'вчера')}
-                      </span>
-                      {isEarningsLoading && acc.today_earnings === undefined ? (
-                        <span className="flex items-center justify-center mt-1">
-                          <RefreshCw size={12} className="animate-spin text-violet-400" />
+                      <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                        <span className="text-[8px] uppercase text-slate-500 font-bold block truncate">
+                          Доход {acc.earnings_label ? acc.earnings_label.toLowerCase() : (accountsEarningsDay === 'today' ? 'сегодня' : 'вчера')}
                         </span>
-                      ) : typeof acc.today_earnings === 'number' ? (
-                        <span className="text-xs font-black text-emerald-400 block mt-0.5">
-                          +${acc.today_earnings}
-                        </span>
-                      ) : (
-                        <span className="text-xs font-black text-slate-500 block mt-0.5">
-                          —
-                        </span>
-                      )}
+                        {isEarningsLoading && acc.today_earnings === undefined ? (
+                          <span className="flex items-center justify-center mt-1">
+                            <RefreshCw size={12} className="animate-spin text-violet-400" />
+                          </span>
+                        ) : typeof acc.today_earnings === 'number' ? (
+                          <span className="text-xs font-black text-emerald-400 block mt-0.5">
+                            +${acc.today_earnings}
+                          </span>
+                        ) : (
+                          <span className="text-xs font-black text-slate-500 block mt-0.5">
+                            —
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
                   {/* OPTIONAL 4-SHIFT BREAKDOWN GRID */}
                   {showShiftBreakdown && (
@@ -1317,8 +1433,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
+              );
+            })}
+          </div>
           )}
         </div>
       )}
@@ -2041,6 +2158,219 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
         accounts={accounts}
         currentKyivShiftIndex={currentKyivShiftIndex}
       />
+
+      {/* ACCOUNT DETAIL MODAL */}
+      {selectedAccountForDetail && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setSelectedAccountForDetail(null)}
+        >
+          <div 
+            className="bg-slate-950 border border-white/15 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-6 font-mono text-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 pb-4 border-b border-white/10">
+              <div className="flex items-center gap-3.5">
+                {selectedAccountForDetail.avatar_url ? (
+                  <img 
+                    src={selectedAccountForDetail.avatar_url} 
+                    alt={selectedAccountForDetail.name} 
+                    className="w-12 h-12 rounded-2xl object-cover border border-violet-500/40 shadow-lg"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-800 to-indigo-950 border border-violet-500/40 flex items-center justify-center text-white font-black text-lg shadow-lg">
+                    {selectedAccountForDetail.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-lg font-black text-white flex items-center gap-2">
+                    {selectedAccountForDetail.name}
+                  </h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    {selectedAccountForDetail.handle && (
+                      <span className="text-xs text-slate-400">@{selectedAccountForDetail.handle}</span>
+                    )}
+                    <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                      {selectedAccountForDetail.platform || 'OnlyFans'}
+                    </span>
+                    <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-white/10">
+                      Период: {accountsEarningsDay === 'today' ? 'Сегодня' : 'Вчера'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedAccountForDetail(null)}
+                className="p-2 text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 rounded-xl border border-white/10 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            {isDetailLoading ? (
+              <div className="p-12 text-center space-y-3">
+                <RefreshCw size={28} className="animate-spin text-violet-400 mx-auto" />
+                <p className="text-sm text-slate-400 font-bold">Загрузка детальной статистики за смену...</p>
+              </div>
+            ) : detailError ? (
+              <div className="p-6 bg-rose-950/30 border border-rose-500/30 rounded-2xl text-center space-y-2">
+                <AlertCircle size={24} className="text-rose-400 mx-auto" />
+                <p className="text-sm font-bold text-rose-300">{detailError}</p>
+              </div>
+            ) : accountDetailData ? (
+              <div className="space-y-6">
+                {/* 4 Summary Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3.5 bg-slate-900/80 border border-emerald-500/20 rounded-2xl text-center space-y-1">
+                    <span className="text-[9px] font-bold uppercase text-slate-400 block">Доход</span>
+                    <span className="text-base font-black text-emerald-400 block">
+                      +${accountDetailData.summary?.totalAmount ?? 0}
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-900/80 border border-cyan-500/20 rounded-2xl text-center space-y-1">
+                    <span className="text-[9px] font-bold uppercase text-slate-400 block">Транзакций</span>
+                    <span className="text-base font-black text-cyan-400 block">
+                      {accountDetailData.summary?.totalTransactions ?? 0}
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-900/80 border border-violet-500/20 rounded-2xl text-center space-y-1">
+                    <span className="text-[9px] font-bold uppercase text-slate-400 block">Новых подписок</span>
+                    <span className="text-base font-black text-violet-300 block">
+                      {accountDetailData.subscriptions?.new ?? 0}
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-900/80 border border-amber-500/20 rounded-2xl text-center space-y-1">
+                    <span className="text-[9px] font-bold uppercase text-slate-400 block">Продлений</span>
+                    <span className="text-base font-black text-amber-300 block">
+                      {accountDetailData.subscriptions?.renewals ?? 0}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Transactions By Type Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black uppercase text-violet-300 flex items-center gap-2">
+                      <Receipt size={14} className="text-violet-400" />
+                      Транзакции по типам
+                    </h4>
+                    <span className="text-[10px] text-slate-400">
+                      Всего: {accountDetailData.transactionsByType?.length ?? 0} типов
+                    </span>
+                  </div>
+
+                  {(!accountDetailData.transactionsByType || accountDetailData.transactionsByType.length === 0) ? (
+                    <div className="p-4 bg-slate-900/40 rounded-xl border border-white/5 text-center text-xs text-slate-500">
+                      Нет транзакций за выбранную смену / день
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {accountDetailData.transactionsByType.map((item: any, idx: number) => {
+                        const typeLabel = (() => {
+                          const t = (item.type || '').toLowerCase();
+                          if (t === 'tip') return 'Чаевые';
+                          if (t === 'message payment' || t === 'message_payment') return 'Оплата сообщений';
+                          if (t === 'recurring subscription' || t === 'recurring_subscription' || t === 'subscription') return 'Продление подписки';
+                          if (t === 'post purchase' || t === 'post_purchase') return 'Покупка поста';
+                          if (t === 'live stream' || t === 'live_stream') return 'Лайв-стрим';
+                          if (t === 'unknown') return 'Прочее';
+                          return item.type;
+                        })();
+
+                        return (
+                          <div 
+                            key={idx}
+                            className="p-3 bg-slate-900/70 border border-white/5 rounded-xl flex items-center justify-between gap-3 hover:border-violet-500/30 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+                                <DollarSign size={14} />
+                              </div>
+                              <div>
+                                <span className="text-xs font-bold text-slate-100 block">{typeLabel}</span>
+                                <span className="text-[9px] text-slate-500 font-mono">{item.type}</span>
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <span className="text-xs font-black text-emerald-400 block">+${item.totalAmount}</span>
+                              <span className="text-[10px] text-slate-400 font-bold">{item.count} тр.</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Subscriptions Section */}
+                <div className="space-y-3 pt-3 border-t border-white/10">
+                  <h4 className="text-xs font-black uppercase text-violet-300 flex items-center gap-2">
+                    <UserCheck size={14} className="text-violet-400" />
+                    Детализация подписок
+                  </h4>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="p-3 bg-slate-900/70 border border-white/5 rounded-xl flex items-center justify-between">
+                      <span className="text-slate-400 font-bold">Новые подписки:</span>
+                      <span className="font-black text-violet-300 text-sm">
+                        {accountDetailData.subscriptions?.new ?? 0}
+                      </span>
+                    </div>
+
+                    <div className="p-3 bg-slate-900/70 border border-white/5 rounded-xl flex items-center justify-between">
+                      <span className="text-slate-400 font-bold">Продления:</span>
+                      <span className="font-black text-amber-300 text-sm">
+                        {accountDetailData.subscriptions?.renewals ?? 0}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Subscriptions breakdown by type */}
+                  {accountDetailData.subscriptions?.byType && Object.keys(accountDetailData.subscriptions.byType).length > 0 && (
+                    <div className="space-y-2 pt-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                        Типы планов подписок:
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(accountDetailData.subscriptions.byType).map(([sType, count]: [string, any], sIdx: number) => {
+                          const subLabel = (() => {
+                            const st = sType.toLowerCase();
+                            if (st === 'regular') return 'Обычная';
+                            if (st === 'promo') return 'Промо';
+                            if (st === 'trial') return 'Триал';
+                            if (st === 'personal_trial') return 'Личный триал';
+                            if (st === 'discount') return 'Скидка';
+                            if (st === 'bundle') return 'Пакет';
+                            if (st === 'auto') return 'Авто-продление';
+                            return sType;
+                          })();
+
+                          return (
+                            <span 
+                              key={sIdx}
+                              className="px-2.5 py-1 bg-slate-900 border border-violet-500/20 rounded-lg text-[10px] font-mono flex items-center gap-1.5 text-slate-300"
+                            >
+                              <span className="font-bold text-violet-300">{subLabel}:</span>
+                              <span className="font-black text-white">{count}</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

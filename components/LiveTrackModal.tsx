@@ -29,6 +29,7 @@ import {
   RaceAnimationState,
   SpeedTier
 } from './trackLogic';
+import { LiveCameraRaceScene } from './LiveCameraRaceScene';
 
 export { MESSAGES_PER_LAP, getLapInfo };
 
@@ -1448,6 +1449,8 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
         isLapCrossed: car.isLapCrossed,
         isLapped: car.isLapped,
         lapsBehind: car.lapsBehind,
+        deltaMessages: car.deltaMsgs,
+        isCloseBattle: car.isCloseBattle,
         lapInfo: car.lapInfo
       });
     });
@@ -1611,6 +1614,22 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                   Показать всех участников
                 </button>
               </div>
+            ) : cameraMode === 'live_camera' ? (
+              <LiveCameraRaceScene
+                operators={operators}
+                hiddenOperatorIds={hiddenOperatorIds}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                isShiftEnded={isShiftEnded}
+                remainingTimeText={remainingTimeText}
+                shiftInfo={shiftInfo}
+                eventsFeed={eventsFeed}
+                overtakingOpIds={overtakingOpIds}
+                selectedOperatorId={selectedOperatorId}
+                onSelectOperator={(id) => setSelectedOperatorId(id)}
+                prefersReducedMotion={prefersReducedMotion}
+                isCurrentActiveShift={isCurrentActiveShift}
+              />
             ) : (
               <div className="relative w-full aspect-[2/1] min-h-[380px] sm:min-h-[500px] my-auto select-none rounded-3xl border border-cyan-500/20 bg-slate-950 overflow-hidden shadow-[inset_0_0_60px_rgba(0,0,0,0.85)]">
                 

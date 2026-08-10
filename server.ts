@@ -12,6 +12,9 @@ import onlyMonsterConfigHandler from "./api/onlymonster/config.js";
 import onlyMonsterProxyHandler from "./api/onlymonster/proxy.js";
 import onlyMonsterEarningsHandler from "./api/onlymonster/earnings.js";
 import onlyMonsterShiftOperatorsHandler from "./api/onlymonster/shift-operators.js";
+import onlyMonsterShiftComparisonHandler from "./api/onlymonster/shift-comparison.js";
+import onlyMonsterOperatorModelBreakdownHandler from "./api/onlymonster/operator-model-breakdown.js";
+import onlyMonsterAccountDetailHandler from "./api/onlymonster/account-detail.js";
 
 async function startServer() {
   const app = express();
@@ -562,11 +565,14 @@ async function startServer() {
     res.status(result.statusCode).json(result.body);
   });
 
-  // OnlyMonster Configuration, proxy, earnings, and shift-operators handlers
+  // OnlyMonster Configuration, proxy, earnings, shift-operators, shift-comparison, operator-model-breakdown, and account-detail handlers
   app.all("/api/onlymonster/config", (req, res) => onlyMonsterConfigHandler(req, res));
   app.all("/api/onlymonster/proxy", (req, res) => onlyMonsterProxyHandler(req, res));
   app.all("/api/onlymonster/earnings", (req, res) => onlyMonsterEarningsHandler(req, res));
   app.all("/api/onlymonster/shift-operators", (req, res) => onlyMonsterShiftOperatorsHandler(req, res));
+  app.all("/api/onlymonster/shift-comparison", (req, res) => onlyMonsterShiftComparisonHandler(req, res));
+  app.all("/api/onlymonster/operator-model-breakdown", (req, res) => onlyMonsterOperatorModelBreakdownHandler(req, res));
+  app.all("/api/onlymonster/account-detail", (req, res) => onlyMonsterAccountDetailHandler(req, res));
 
   // Vite middleware
   if (process.env.NODE_ENV !== "production") {

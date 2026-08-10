@@ -28,6 +28,7 @@ async function getAccountEarnings(
   error?: string;
 }> {
   let totalAmount = 0;
+  let txCount = 0;
   const shiftTotals = { 1: 0, 2: 0, 3: 0, 4: 0 };
   let cursor: string | null = null;
   let page = 0;
@@ -104,6 +105,7 @@ async function getAccountEarnings(
           status === 'chargeback';
 
         if (!isExcludedStatus) {
+          txCount++;
           const rawAmt = tx.amount !== undefined ? tx.amount : tx.sum;
           const val = typeof rawAmt === 'number' ? rawAmt : parseFloat(rawAmt);
           if (!isNaN(val)) {
@@ -137,6 +139,7 @@ async function getAccountEarnings(
     const resObj: any = {
       total: roundedTotal,
       today: roundedTotal,
+      tx_count: txCount,
       currency: 'USD',
       label
     };
