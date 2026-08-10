@@ -46,3 +46,50 @@ export function clampToBounds(
 ): number {
   return Math.max(min, Math.min(max, val));
 }
+
+export type SpeedTier = 'idle' | 'low' | 'normal' | 'accel' | 'rush';
+
+export interface RaceAnimationState {
+  operatorId: string;
+  previousMessages: number;
+  targetMessages: number;
+  displayedMessages: number;
+  previousDistance: number;
+  targetDistance: number;
+  animatedDistance: number;
+  deltaMessages: number;
+  animationStartTime: number;
+  animationDuration: number;
+}
+
+export function getSpeedTier(deltaMessages: number): SpeedTier {
+  if (deltaMessages <= 0) return 'idle';
+  if (deltaMessages <= 2) return 'low';
+  if (deltaMessages <= 5) return 'normal';
+  if (deltaMessages <= 9) return 'accel';
+  return 'rush';
+}
+
+export function easeInOutCubic(t: number): number {
+  const clampT = Math.max(0, Math.min(1, t));
+  return clampT < 0.5 ? 4 * clampT * clampT * clampT : 1 - Math.pow(-2 * clampT + 2, 3) / 2;
+}
+
+export function calculateAnimatedProgress(
+  previousDistance: number,
+  targetDistance: number,
+  startTime: number,
+  duration: number,
+  currentTime: number
+): { animatedDistance: number; progress: number; isCompleted: boolean } {
+  if (duration <= 0 || currentTime <= startTime) {
+    return { animatedDistance: previousDistance, progress: 0, isCompleted: false };
+  }
+  const rawProgress = (currentTime - startTime) / duration;
+  if (rawProgress >= 1) {
+    return { animatedDistance: targetDistance, progress: 1, isCompleted: true };
+  }
+  const eased = easeInOutCubic(rawProgress);
+  const animatedDistance = previousDistance + (targetDistance - previousDistance) * eased;
+  return { animatedDistance, progress: rawProgress, isCompleted: false };
+}

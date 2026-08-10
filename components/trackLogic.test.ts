@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { getLapInfo, sanitizeOperatorMessages, isLapCrossedForward } from './trackLogic';
+import { 
+  getLapInfo, 
+  sanitizeOperatorMessages, 
+  isLapCrossedForward,
+  getSpeedTier,
+  easeInOutCubic,
+  calculateAnimatedProgress
+} from './trackLogic';
 
 describe('Track Logic Verification', () => {
   it('calculates lap info correctly across thresholds', () => {
@@ -41,5 +48,32 @@ describe('Track Logic Verification', () => {
   it('detects forward lap crossing accurately', () => {
     expect(isLapCrossedForward(0.99, 0.02)).toBe(true);
     expect(isLapCrossedForward(0.50, 0.55)).toBe(false);
+  });
+
+  it('classifies speed tiers based on message deltas', () => {
+    expect(getSpeedTier(0)).toBe('idle');
+    expect(getSpeedTier(2)).toBe('low');
+    expect(getSpeedTier(5)).toBe('normal');
+    expect(getSpeedTier(8)).toBe('accel');
+    expect(getSpeedTier(12)).toBe('rush');
+  });
+
+  it('calculates smooth animation progress over time', () => {
+    const start = 1000;
+    const duration = 10000;
+    
+    // At start
+    const res0 = calculateAnimatedProgress(100, 200, start, duration, 1000);
+    expect(res0.animatedDistance).toBe(100);
+    expect(res0.isCompleted).toBe(false);
+
+    // At 50% time
+    const resMid = calculateAnimatedProgress(100, 200, start, duration, 6000);
+    expect(resMid.animatedDistance).toBe(150);
+
+    // At end
+    const resEnd = calculateAnimatedProgress(100, 200, start, duration, 11000);
+    expect(resEnd.animatedDistance).toBe(200);
+    expect(resEnd.isCompleted).toBe(true);
   });
 });

@@ -22,7 +22,12 @@ import {
   getLapInfo,
   sanitizeOperatorMessages,
   isLapCrossedForward,
-  clampToBounds
+  clampToBounds,
+  getSpeedTier,
+  easeInOutCubic,
+  calculateAnimatedProgress,
+  RaceAnimationState,
+  SpeedTier
 } from './trackLogic';
 
 export { MESSAGES_PER_LAP, getLapInfo };
@@ -226,9 +231,14 @@ interface CarNodeProps {
   carY: number;
   angle: number;
   rankDelta?: number;
+  deltaMessages?: number;
   isNewLap?: boolean;
   isLapCrossed?: boolean;
   isSelected?: boolean;
+  isLapped?: boolean;
+  isCloseBattle?: boolean;
+  lapsBehind?: number;
+  prefersReducedMotion?: boolean;
   onClick?: () => void;
 }
 
@@ -240,13 +250,20 @@ const F1RaceCarNode: React.FC<CarNodeProps> = ({
   carY,
   angle,
   rankDelta,
+  deltaMessages = 0,
   isNewLap,
   isLapCrossed,
   isSelected,
+  isLapped,
+  isCloseBattle,
+  lapsBehind = 0,
+  prefersReducedMotion = false,
   onClick
 }) => {
   const leftPct = (carX / 1000) * 100;
   const topPct = (carY / 520) * 100;
+
+  const speedTier = getSpeedTier(deltaMessages);
 
   let bodyColor = '#0EA5E9'; // Cyan/Blue
   let rankStrokeColor = '#38BDF8';
@@ -260,38 +277,84 @@ const F1RaceCarNode: React.FC<CarNodeProps> = ({
   } else if (rank === 3) {
     bodyColor = '#B8622F'; // Bronze
     rankStrokeColor = '#D08A4E';
+  } else if (isLapped) {
+    bodyColor = '#475569'; // Slate muted for lapped drivers
+    rankStrokeColor = '#64748B';
   }
 
   const isOvertaking = (rankDelta || 0) > 0;
   const isDemoted = (rankDelta || 0) < 0;
+  const isRush = deltaMessages >= 10;
+
+  // Micro-engine vibration for idle / active motion
+  const now = Date.now();
+  const vibX = prefersReducedMotion
+    ? 0
+    : Math.sin(now / 45 + rank) * (speedTier === 'idle' ? 0.7 : 1.4);
+  const vibY = prefersReducedMotion
+    ? 0
+    : Math.cos(now / 35 + rank) * (speedTier === 'idle' ? 0.7 : 1.4);
+
+  // Lapped cars are rendered slightly smaller and muted so active battle cars pop out
+  const scaleClass = isSelected
+    ? 'scale-110 z-50'
+    : isLapped
+    ? 'scale-[0.82] opacity-75 z-20'
+    : 'scale-100 z-30';
 
   return (
     <div
       onClick={onClick}
-      className={`absolute z-30 pointer-events-auto group cursor-pointer ${
-        isLapCrossed ? 'transition-none' : 'transition-all duration-700 ease-out'
-      } ${isSelected ? 'scale-110 z-50' : ''}`}
+      className={`absolute pointer-events-auto group cursor-pointer ${
+        isLapCrossed ? 'transition-none' : 'transition-transform duration-100 ease-out'
+      } ${scaleClass}`}
       style={{
         left: `${leftPct}%`,
         top: `${topPct}%`,
-        transform: `translate(-51.76%, -50%) rotate(${angle}deg)`,
+        transform: `translate(calc(-51.76% + ${vibX}px), calc(-50% + ${vibY}px)) rotate(${angle}deg)`,
       }}
     >
+      {/* WIND / SPEED DUST PARTICLES (WHEN MOVING) */}
+      {!prefersReducedMotion && speedTier !== 'idle' && (
+        <div className="absolute right-[85%] top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none opacity-80">
+          <div className="w-10 h-[2px] bg-gradient-to-l from-cyan-400 to-transparent animate-pulse" />
+          <div className="w-6 h-[1.5px] bg-gradient-to-l from-white to-transparent" />
+          {isRush && (
+            <div className="w-14 h-[3px] bg-gradient-to-l from-amber-400 via-cyan-400 to-transparent blur-[0.5px]" />
+          )}
+        </div>
+      )}
+
       {/* SPEED TRAIL BEHIND CAR */}
       <div
-        className={`absolute right-[80%] top-1/2 -translate-y-1/2 h-2.5 rounded-l-full pointer-events-none transition-all duration-700 ${
-          isLeader
+        className={`absolute right-[80%] top-1/2 -translate-y-1/2 h-2.5 rounded-l-full pointer-events-none transition-all duration-300 ${
+          isRush
+            ? 'w-24 bg-gradient-to-r from-transparent via-cyan-400 to-amber-300 opacity-100 blur-[2px] animate-pulse'
+            : isLeader
             ? 'w-16 bg-gradient-to-r from-transparent via-amber-500 to-amber-300 opacity-90 blur-[1px]'
+            : isLapped
+            ? 'w-8 bg-gradient-to-r from-transparent via-slate-500 to-slate-400 opacity-30 blur-[1px]'
             : 'w-12 bg-gradient-to-r from-transparent via-cyan-500 to-cyan-300 opacity-70 blur-[1px]'
         }`}
       />
 
+      {/* RUSH / BATTLE AURA RING */}
+      {(isRush || isCloseBattle) && !isLapped && (
+        <div
+          className={`absolute -inset-2 rounded-full blur-md -z-10 animate-ping pointer-events-none ${
+            isRush ? 'bg-cyan-400/40' : 'bg-rose-500/30'
+          }`}
+        />
+      )}
+
       {/* LIVE ENGINE PULSE GLOW */}
-      <div
-        className={`absolute inset-0 rounded-full blur-md -z-10 animate-pulse pointer-events-none ${
-          isLeader ? 'bg-amber-500/30' : 'bg-cyan-500/20'
-        }`}
-      />
+      {!isLapped && (
+        <div
+          className={`absolute inset-0 rounded-full blur-md -z-10 animate-pulse pointer-events-none ${
+            isLeader ? 'bg-amber-500/30' : 'bg-cyan-500/20'
+          }`}
+        />
+      )}
 
       {/* F1 CAR CHASSIS + AVATAR */}
       <div className="relative flex items-center justify-center">
@@ -303,23 +366,33 @@ const F1RaceCarNode: React.FC<CarNodeProps> = ({
           operatorName={op.name}
         />
 
-        {/* OVERTAKE / NEW LAP / DEMOTED LIVE BADGE */}
-        {(isOvertaking || isDemoted || isNewLap) && (
+        {/* OVERTAKE / RUSH / BATTLE / NEW LAP BADGE */}
+        {(isOvertaking || isDemoted || isNewLap || isRush || isCloseBattle) && (
           <div
             className="absolute -top-6 left-1/2 -translate-x-1/2 pointer-events-none z-50 animate-bounce"
             style={{ transform: `rotate(${-angle}deg)` }}
           >
-            {isOvertaking && (
+            {isRush && (
+              <span className="px-1.5 py-0.5 rounded-md bg-amber-950 border border-amber-400 text-amber-300 text-[9px] font-black tracking-wider uppercase shadow-[0_0_12px_rgba(251,191,36,0.9)] whitespace-nowrap flex items-center gap-0.5">
+                🚀 РЫВОК +{deltaMessages}
+              </span>
+            )}
+            {!isRush && isOvertaking && (
               <span className="px-1.5 py-0.5 rounded-md bg-cyan-950 border border-cyan-400 text-cyan-300 text-[9px] font-black tracking-wider uppercase shadow-[0_0_10px_rgba(34,211,238,0.8)] whitespace-nowrap">
                 ОБГОН ↑{rankDelta}
               </span>
             )}
-            {isDemoted && (
+            {!isRush && isCloseBattle && !isOvertaking && (
+              <span className="px-1.5 py-0.5 rounded-md bg-rose-950 border border-rose-400 text-rose-300 text-[8.5px] font-black tracking-wider uppercase shadow-[0_0_10px_rgba(244,63,94,0.8)] whitespace-nowrap">
+                ⚔ БОРЬБА
+              </span>
+            )}
+            {isDemoted && !isOvertaking && !isRush && (
               <span className="px-1.5 py-0.5 rounded-md bg-slate-900 border border-slate-500 text-slate-300 text-[9px] font-bold whitespace-nowrap">
                 ↓{Math.abs(rankDelta || 0)}
               </span>
             )}
-            {isNewLap && !isOvertaking && (
+            {isNewLap && !isOvertaking && !isRush && (
               <span className="px-1.5 py-0.5 rounded-md bg-emerald-950 border border-emerald-400 text-emerald-300 text-[9px] font-black tracking-wider uppercase shadow-[0_0_10px_rgba(52,211,153,0.8)] whitespace-nowrap">
                 НОВЫЙ КРУГ 🏁
               </span>
@@ -341,6 +414,8 @@ interface DriverBadgeNodeProps {
   isUltraCompact?: boolean;
   isLapCrossed?: boolean;
   isSelected?: boolean;
+  isLapped?: boolean;
+  lapsBehind?: number;
   onClick?: () => void;
 }
 
@@ -354,24 +429,28 @@ const F1DriverBadgeNode: React.FC<DriverBadgeNodeProps> = ({
   isUltraCompact,
   isLapCrossed,
   isSelected,
+  isLapped,
+  lapsBehind = 0,
   onClick
 }) => {
   const leftPct = (badgeX / 1000) * 100;
   const topPct = (badgeY / 520) * 100;
   const lapInfo = getLapInfo(op.messages_count);
 
+  const lappedTag = isLapped ? ` (-${lapsBehind}К)` : '';
+
   return (
     <div
       onClick={onClick}
-      className={`absolute z-40 pointer-events-auto cursor-pointer ${
+      className={`absolute pointer-events-auto cursor-pointer ${
         isLapCrossed ? 'transition-none' : 'transition-all duration-700 ease-out'
-      } ${isSelected ? 'scale-110 z-50' : ''}`}
+      } ${isSelected ? 'scale-110 z-50' : isLapped ? 'z-30 opacity-80 scale-95' : 'z-40'}`}
       style={{
         left: `${leftPct}%`,
         top: `${topPct}%`,
         transform: 'translate(-50%, -50%)',
       }}
-      title={`${op.name} (#${rank}) — ${op.messages_count} сообщ. — КРУГ ${lapInfo.currentLap}`}
+      title={`${op.name} (#${rank}) — ${op.messages_count} сообщ. — КРУГ ${lapInfo.currentLap}${isLapped ? ` (отстает на ${lapsBehind} кр.)` : ''}`}
     >
       {isUltraCompact ? (
         // ULTRA COMPACT BADGE (#3 huskar · 213)
@@ -381,16 +460,18 @@ const F1DriverBadgeNode: React.FC<DriverBadgeNodeProps> = ({
               ? 'bg-cyan-950/95 border-cyan-400 text-cyan-200 shadow-cyan-500/40 ring-1 ring-cyan-400'
               : rank === 1
               ? 'bg-amber-950/95 border-amber-400/90 text-amber-200'
+              : isLapped
+              ? 'bg-slate-950/80 border-slate-700/60 text-slate-400'
               : 'bg-slate-950/95 border-cyan-500/40 text-slate-200'
           }`}
         >
-          <span className={`font-black ${rank === 1 ? 'text-amber-400' : 'text-cyan-400'}`}>
+          <span className={`font-black ${rank === 1 ? 'text-amber-400' : isLapped ? 'text-slate-500' : 'text-cyan-400'}`}>
             #{rank}
           </span>
           <span className="max-w-[50px] truncate text-slate-100 font-bold">
             {op.name}
           </span>
-          <span className="text-cyan-300 font-black">
+          <span className={isLapped ? 'text-slate-400 font-bold' : 'text-cyan-300 font-black'}>
             · {op.messages_count}
           </span>
         </div>
@@ -402,22 +483,24 @@ const F1DriverBadgeNode: React.FC<DriverBadgeNodeProps> = ({
               ? 'bg-cyan-950/95 border-cyan-400 text-cyan-200 shadow-cyan-500/40 ring-1 ring-cyan-400'
               : rank === 1
               ? 'bg-amber-950/95 border-amber-400/90 text-amber-200'
+              : isLapped
+              ? 'bg-slate-950/80 border-slate-700/60 text-slate-400'
               : 'bg-slate-950/95 border-cyan-500/40 text-slate-200'
           }`}
         >
           <div className="flex items-center gap-1">
-            <span className={`font-black ${rank === 1 ? 'text-amber-400' : 'text-cyan-400'}`}>
+            <span className={`font-black ${rank === 1 ? 'text-amber-400' : isLapped ? 'text-slate-500' : 'text-cyan-400'}`}>
               #{rank}
             </span>
             <span className="max-w-[65px] truncate text-slate-100 font-bold">
               {op.name}
             </span>
-            <span className="text-cyan-300 font-black ml-auto">
+            <span className={isLapped ? 'text-slate-400 font-bold ml-auto' : 'text-cyan-300 font-black ml-auto'}>
               · {op.messages_count}
             </span>
           </div>
           <div className="flex items-center justify-between text-[8.5px] text-slate-400 border-t border-white/10 pt-0.5">
-            <span className="text-cyan-300/90 font-bold">К{lapInfo.currentLap}</span>
+            <span className={isLapped ? 'text-slate-400 font-semibold' : 'text-cyan-300/90 font-bold'}>К{lapInfo.currentLap}{lappedTag}</span>
             <span className="text-slate-400">{lapInfo.messagesInCurrentLap}/100</span>
           </div>
         </div>
@@ -433,6 +516,8 @@ const F1DriverBadgeNode: React.FC<DriverBadgeNodeProps> = ({
               ? 'bg-slate-900/95 border-slate-300/80 text-slate-200'
               : rank === 3
               ? 'bg-amber-950/90 border-amber-600/80 text-amber-300'
+              : isLapped
+              ? 'bg-slate-950/80 border-slate-700/60 text-slate-400'
               : 'bg-slate-950/95 border-cyan-500/40 text-slate-200'
           }`}
         >
@@ -446,6 +531,8 @@ const F1DriverBadgeNode: React.FC<DriverBadgeNodeProps> = ({
                   ? 'text-slate-300'
                   : rank === 3
                   ? 'text-amber-500'
+                  : isLapped
+                  ? 'text-slate-500'
                   : 'text-slate-400'
               }`}
             >
@@ -457,14 +544,14 @@ const F1DriverBadgeNode: React.FC<DriverBadgeNodeProps> = ({
               {op.name}
             </span>
 
-            <span className="text-cyan-400 font-black tracking-tight ml-auto">
-              {op.messages_count}
+            <span className={`font-black tracking-tight ml-auto ${isLapped ? 'text-slate-400' : 'text-cyan-400'}`}>
+              {displayValue}
             </span>
           </div>
 
           {/* ROW 2: LAP NUMBER & CURRENT LAP PROGRESS */}
           <div className="flex items-center justify-between text-[9px] text-slate-300 font-semibold border-t border-white/10 pt-0.5">
-            <span className="text-cyan-300 font-bold">К{lapInfo.currentLap}</span>
+            <span className={isLapped ? 'text-slate-400 font-semibold' : 'text-cyan-300 font-bold'}>К{lapInfo.currentLap}{lappedTag}</span>
             <span className="text-slate-400 font-mono">{lapInfo.messagesInCurrentLap}/100</span>
           </div>
         </div>
@@ -502,12 +589,21 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
   const [isShiftEnded, setIsShiftEnded] = useState<boolean>(false);
   const [showSidebar, setShowSidebar] = useState<boolean>(true);
 
+  // Camera & Motion Mode
+  const [cameraMode, setCameraMode] = useState<'overview' | 'live_camera'>('overview');
+  const [cameraTransform, setCameraTransform] = useState<{ scale: number; x: number; y: number }>({ scale: 1, x: 0, y: 0 });
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(false);
+  const [, setFrameTick] = useState<number>(0);
+
   // Live Dynamics & Target Selection State
   const [eventsFeed, setEventsFeed] = useState<RaceEvent[]>([]);
   const [overtakingOpIds, setOvertakingOpIds] = useState<Map<string, number>>(new Map());
   const [newLapOpIds, setNewLapOpIds] = useState<Set<string>>(new Set());
   const [startLineFlash, setStartLineFlash] = useState<boolean>(false);
   const [selectedOperatorId, setSelectedOperatorId] = useState<string | null>(null);
+
+  // Animation state store for continuous 10-12s interpolation
+  const animStateRef = useRef<Record<string, RaceAnimationState>>({});
 
   // Previous snapshot ref for detecting real delta events by operatorId
   const prevSnapshotRef = useRef<Record<string, { messages: number; rank: number; completedLaps: number }>>({});
@@ -522,6 +618,82 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
   const pathRef = useRef<SVGPathElement>(null);
   const [trackLength, setTrackLength] = useState<number>(0);
 
+  // Detect prefers-reduced-motion
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+      setPrefersReducedMotion(mq.matches);
+      const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+      if (mq.addEventListener) mq.addEventListener('change', handler);
+      return () => {
+        if (mq.removeEventListener) mq.removeEventListener('change', handler);
+      };
+    }
+  }, []);
+
+  // Update animation target distances for smooth 10-12s motion replay
+  const updateAnimStatesForOperators = (opsList: ShiftOperator[], pathL?: number) => {
+    const L = pathL || trackLength || 1000;
+    const now = Date.now();
+
+    opsList.forEach((op) => {
+      const existing = animStateRef.current[op.user_id];
+      const { messages: sanitizedMsgs } = sanitizeOperatorMessages(op.messages_count, existing?.targetMessages);
+      const targetDist = (sanitizedMsgs / MESSAGES_PER_LAP) * L;
+
+      if (!existing) {
+        animStateRef.current[op.user_id] = {
+          operatorId: op.user_id,
+          previousMessages: sanitizedMsgs,
+          targetMessages: sanitizedMsgs,
+          displayedMessages: sanitizedMsgs,
+          previousDistance: targetDist,
+          targetDistance: targetDist,
+          animatedDistance: targetDist,
+          deltaMessages: 0,
+          animationStartTime: now,
+          animationDuration: 11000
+        };
+      } else {
+        const deltaMsgs = sanitizedMsgs - existing.targetMessages;
+        if (deltaMsgs > 0) {
+          animStateRef.current[op.user_id] = {
+            operatorId: op.user_id,
+            previousMessages: existing.displayedMessages,
+            targetMessages: sanitizedMsgs,
+            displayedMessages: existing.displayedMessages,
+            previousDistance: existing.animatedDistance,
+            targetDistance: targetDist,
+            animatedDistance: existing.animatedDistance,
+            deltaMessages: deltaMsgs,
+            animationStartTime: now,
+            animationDuration: 11000
+          };
+        } else if (deltaMsgs === 0) {
+          animStateRef.current[op.user_id] = {
+            ...existing,
+            targetMessages: sanitizedMsgs,
+            targetDistance: targetDist,
+            deltaMessages: 0
+          };
+        } else {
+          animStateRef.current[op.user_id] = {
+            operatorId: op.user_id,
+            previousMessages: sanitizedMsgs,
+            targetMessages: sanitizedMsgs,
+            displayedMessages: sanitizedMsgs,
+            previousDistance: targetDist,
+            targetDistance: targetDist,
+            animatedDistance: targetDist,
+            deltaMessages: 0,
+            animationStartTime: now,
+            animationDuration: 11000
+          };
+        }
+      }
+    });
+  };
+
   // Measure path length on mount/modal open
   useEffect(() => {
     if (!isOpen) return;
@@ -532,6 +704,7 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
           const len = pathRef.current.getTotalLength();
           if (len > 0) {
             setTrackLength(len);
+            updateAnimStatesForOperators(operators, len);
           }
         } catch (e) {
           console.error('Failed to measure path length:', e);
@@ -553,6 +726,8 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
       setLastUpdated(new Date());
       setSecondsAgo(0);
 
+      updateAnimStatesForOperators(initialOperators);
+
       // Seed initial snapshot
       const sortedByMsgs = [...initialOperators].sort((a, b) => b.messages_count - a.messages_count);
       const initSnap: Record<string, { messages: number; rank: number; completedLaps: number }> = {};
@@ -566,6 +741,101 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
       prevSnapshotRef.current = initSnap;
     }
   }, [isOpen, initialOperators, initialShiftInfo]);
+
+  // Continuous RAF loop for 60fps smooth interpolation & live camera pan
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let rafId: number;
+
+    const loop = () => {
+      const now = Date.now();
+      const animStates = animStateRef.current;
+
+      // 1. Smoothly advance distance & displayed messages for each operator
+      Object.keys(animStates).forEach((id) => {
+        const st = animStates[id];
+        if (!st) return;
+
+        const { animatedDistance, progress } = calculateAnimatedProgress(
+          st.previousDistance,
+          st.targetDistance,
+          st.animationStartTime,
+          st.animationDuration,
+          now
+        );
+
+        st.animatedDistance = animatedDistance;
+        const interp = Math.round(
+          st.previousMessages + (st.targetMessages - st.previousMessages) * easeInOutCubic(progress)
+        );
+        st.displayedMessages = interp;
+      });
+
+      // 2. Live camera auto-zoom and battle tracking
+      if (cameraMode === 'live_camera') {
+        let targetX = 0;
+        let targetY = 0;
+        let targetScale = 1.0;
+
+        const visibleOps = operators.filter(o => !hiddenOperatorIds.has(o.user_id));
+        const sorted = [...visibleOps].sort((a, b) => {
+          const mA = animStates[a.user_id]?.displayedMessages ?? a.messages_count;
+          const mB = animStates[b.user_id]?.displayedMessages ?? b.messages_count;
+          return mB - mA;
+        });
+
+        let focusCar: { x: number; y: number } | null = null;
+
+        // Focus on active surge or close battle
+        const rushingOp = sorted.find(o => (animStates[o.user_id]?.deltaMessages ?? 0) >= 3);
+        if (rushingOp && pathRef.current && trackLength > 0) {
+          const dist = animStates[rushingOp.user_id]?.animatedDistance ?? 0;
+          const pt = pathRef.current.getPointAtLength((dist % trackLength + trackLength) % trackLength);
+          focusCar = { x: pt.x, y: pt.y };
+        }
+
+        if (!focusCar && sorted.length >= 2) {
+          for (let i = 0; i < sorted.length - 1; i++) {
+            const op1 = sorted[i];
+            const op2 = sorted[i + 1];
+            const m1 = animStates[op1.user_id]?.displayedMessages ?? op1.messages_count;
+            const m2 = animStates[op2.user_id]?.displayedMessages ?? op2.messages_count;
+            if (m1 - m2 <= 5 && pathRef.current && trackLength > 0) {
+              const d1 = animStates[op1.user_id]?.animatedDistance ?? 0;
+              const d2 = animStates[op2.user_id]?.animatedDistance ?? 0;
+              const pt1 = pathRef.current.getPointAtLength((d1 % trackLength + trackLength) % trackLength);
+              const pt2 = pathRef.current.getPointAtLength((d2 % trackLength + trackLength) % trackLength);
+              focusCar = { x: (pt1.x + pt2.x) / 2, y: (pt1.y + pt2.y) / 2 };
+              break;
+            }
+          }
+        }
+
+        if (focusCar && !prefersReducedMotion) {
+          targetScale = 1.18;
+          targetX = (500 - focusCar.x) * 0.18;
+          targetY = (260 - focusCar.y) * 0.18;
+        }
+
+        setCameraTransform(prev => ({
+          scale: prev.scale + (targetScale - prev.scale) * 0.05,
+          x: prev.x + (targetX - prev.x) * 0.05,
+          y: prev.y + (targetY - prev.y) * 0.05
+        }));
+      } else {
+        setCameraTransform({ scale: 1, x: 0, y: 0 });
+      }
+
+      setFrameTick(now);
+      rafId = requestAnimationFrame(loop);
+    };
+
+    rafId = requestAnimationFrame(loop);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [isOpen, cameraMode, operators, hiddenOperatorIds, trackLength, prefersReducedMotion]);
 
   // Escape key handler
   useEffect(() => {
@@ -602,6 +872,7 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
         if (data.success && data.operators) {
           const newOps: ShiftOperator[] = data.operators;
           setOperators(newOps);
+          updateAnimStatesForOperators(newOps);
           if (data.shift) setShiftInfo(data.shift);
           setLastUpdated(new Date());
           setSecondsAgo(0);
@@ -876,7 +1147,11 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
     isCompact: boolean;
     isUltraCompact: boolean;
     isLapCrossed: boolean;
+    isLapped: boolean;
+    lapsBehind: number;
     lapInfo: ReturnType<typeof getLapInfo>;
+    deltaMessages: number;
+    isCloseBattle: boolean;
   }
 
   // Calculate 2D coordinates for cars and upright badges on the SVG track
@@ -894,25 +1169,43 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
     const rankMap = new Map<string, number>();
     sortedByMsgs.forEach((o, i) => rankMap.set(o.user_id, i + 1));
 
+    // Determine close battles (gap <= 10 messages between adjacent drivers)
+    const closeBattleSet = new Set<string>();
+    for (let i = 0; i < sortedByMsgs.length - 1; i++) {
+      const op1 = sortedByMsgs[i];
+      const op2 = sortedByMsgs[i + 1];
+      const m1 = animStateRef.current[op1.user_id]?.displayedMessages ?? op1.messages_count;
+      const m2 = animStateRef.current[op2.user_id]?.displayedMessages ?? op2.messages_count;
+      if (m1 - m2 <= 10) {
+        closeBattleSet.add(op1.user_id);
+        closeBattleSet.add(op2.user_id);
+      }
+    }
+
     // 2. Compute absolute lap progress & path distances with history & sanitization
     const rawData = visibleOps.map((op) => {
+      const animState = animStateRef.current[op.user_id];
+      const displayedMsgs = animState?.displayedMessages ?? op.messages_count;
+      const animDist = animState?.animatedDistance ?? (op.messages_count / MESSAGES_PER_LAP) * L;
+      const deltaMsgs = animState?.deltaMessages ?? 0;
+
       const rank = rankMap.get(op.user_id) || 1;
       const isLeader = rank === 1;
 
       const history = operatorHistoryRef.current[op.user_id];
       const { messages: effectiveMsgs, wasDecreased } = sanitizeOperatorMessages(
-        op.messages_count,
+        displayedMsgs,
         history?.messages
       );
 
       if (wasDecreased) {
         console.warn(
-          `[LiveTrackModal] Message count decreased for operator ${op.user_id} (${op.name}): prev=${history?.messages}, curr=${op.messages_count}. Preserving previous progress.`
+          `[LiveTrackModal] Message count decreased for operator ${op.user_id} (${op.name}): prev=${history?.messages}, curr=${displayedMsgs}. Preserving previous progress.`
         );
       }
 
       const lapInfo = getLapInfo(effectiveMsgs);
-      const rawDist = Math.max(0, Math.min(L, lapInfo.lapProgress * L));
+      const rawDist = Math.max(0, (animDist % L + L) % L);
 
       const isLapCrossed = isLapCrossedForward(
         history?.lapProgress ?? 0,
@@ -926,25 +1219,53 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
         rawDist
       };
 
-      const displayValue = getMetricDisplayValue(op);
-      return { op, rank, isLeader, lapInfo, rawDist, displayValue, isLapCrossed };
+      const displayValue = getMetricDisplayValue({ ...op, messages_count: effectiveMsgs });
+      return {
+        op: { ...op, messages_count: effectiveMsgs },
+        rank,
+        isLeader,
+        lapInfo,
+        rawDist,
+        displayValue,
+        isLapCrossed,
+        deltaMsgs,
+        isCloseBattle: closeBattleSet.has(op.user_id)
+      };
     });
 
-    // 3. Assign deterministic lateral lane shifts (with safe bounds on bottom section)
+    // 3. Assign deterministic lateral lane shifts and separate cars on different laps
     const carTransforms = rawData.map((item) => {
       const closeCluster = rawData
         .filter((other) => {
           const delta = Math.abs(other.rawDist - item.rawDist);
           const loopDelta = Math.min(delta, L - delta);
-          return loopDelta < 45;
+          return loopDelta < 50;
         })
-        .sort((a, b) => a.op.user_id.localeCompare(b.op.user_id));
+        .sort((a, b) => {
+          // Cars on leading laps take inner racing lines; lapped cars take secondary outer lines
+          if (b.lapInfo.completedLaps !== a.lapInfo.completedLaps) {
+            return b.lapInfo.completedLaps - a.lapInfo.completedLaps;
+          }
+          if (a.rank !== b.rank) {
+            return a.rank - b.rank;
+          }
+          return a.op.user_id.localeCompare(b.op.user_id);
+        });
+
+      const maxLapsInCluster = Math.max(...closeCluster.map((c) => c.lapInfo.completedLaps));
+      const lapsBehind = maxLapsInCluster - item.lapInfo.completedLaps;
+      const isLapped = lapsBehind > 0;
 
       let laneShift = 0;
       if (closeCluster.length > 1) {
         const clusterIdx = closeCluster.findIndex((o) => o.op.user_id === item.op.user_id);
-        const lanes = [0, -18, 18, -9, 9, -24, 24];
-        laneShift = lanes[clusterIdx % lanes.length];
+        const leadLanes = [0, -14, 14, -8, 8];
+        const lappedLanes = [22, -22, 30, -30, 36, -36];
+        if (!isLapped) {
+          laneShift = leadLanes[clusterIdx % leadLanes.length];
+        } else {
+          laneShift = lappedLanes[(clusterIdx + lapsBehind) % lappedLanes.length];
+        }
       }
 
       const distOnPath = (item.rawDist + L) % L;
@@ -960,7 +1281,7 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
       let carX = p1.x + Math.cos(perpRad) * laneShift;
       let carY = p1.y + Math.sin(perpRad) * laneShift;
 
-      // Safe bounds enforcement on bottom section (Requirement 1):
+      // Safe bounds enforcement on bottom section:
       if (p1.y > 400 && Math.sin(perpRad) * laneShift > 0) {
         carY = p1.y - Math.abs(Math.sin(perpRad) * laneShift);
       }
@@ -968,7 +1289,7 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
       carX = clampToBounds(carX, 35, 965);
       carY = clampToBounds(carY, 25, 475);
 
-      // Density calculation for badge compactness (Requirement 2):
+      // Density calculation for badge compactness:
       const densityNeighbors = rawData.filter((other) => {
         if (other.op.user_id === item.op.user_id) return false;
         const delta = Math.abs(other.rawDist - item.rawDist);
@@ -987,17 +1308,25 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
         angle: angleDeg,
         angleRad,
         isUltraCompact,
-        isCompact
+        isCompact,
+        isLapped,
+        lapsBehind
       };
     });
 
-    // 4. Badge Collision Resolution with 2-3 Visual Levels & Safe Bounds Clamping
-    const placedBadges: { bx: number; by: number; width: number; height: number }[] = [];
+    // 4. Badge Collision Resolution (place active battle/lead cars first)
+    const sortedForBadgePlacement = [...carTransforms].sort((a, b) => {
+      if (a.isLapped !== b.isLapped) return a.isLapped ? 1 : -1;
+      return a.rank - b.rank;
+    });
 
+    const placedBadges: { bx: number; by: number; width: number; height: number }[] = [];
     const telemetryBox = { minX: 320, maxX: 640, minY: 150, maxY: 355 };
     const containerBox = { minX: 25, maxX: 975, minY: 15, maxY: 505 };
 
-    const layouts: CarLayout[] = carTransforms.map((car) => {
+    const layoutMap = new Map<string, CarLayout>();
+
+    sortedForBadgePlacement.forEach((car) => {
       const W = car.isUltraCompact ? 80 : car.isCompact ? 95 : 110;
       const H = car.isUltraCompact ? 18 : car.isCompact ? 24 : 30;
 
@@ -1101,9 +1430,9 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
       placedBadges.push({ bx: bestBx, by: bestBy, width: W, height: H });
 
       const distToBadge = Math.hypot(bestBx - car.carX, bestBy - car.carY);
-      const hasPointer = distToBadge > 22;
+      const hasPointer = distToBadge > 18;
 
-      return {
+      layoutMap.set(car.op.user_id, {
         op: car.op,
         rank: car.rank,
         isLeader: car.isLeader,
@@ -1117,11 +1446,13 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
         isCompact: car.isCompact,
         isUltraCompact: car.isUltraCompact,
         isLapCrossed: car.isLapCrossed,
+        isLapped: car.isLapped,
+        lapsBehind: car.lapsBehind,
         lapInfo: car.lapInfo
-      };
+      });
     });
 
-    return layouts;
+    return carTransforms.map((c) => layoutMap.get(c.op.user_id)!);
   };
 
   const trackLayouts = getTrackLayouts(visibleOperators);
@@ -1210,6 +1541,30 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                 className="p-1 text-slate-400 hover:text-cyan-300 transition-colors disabled:opacity-50"
               >
                 <RefreshCw size={12} className={isRefreshing ? 'animate-spin text-cyan-400' : ''} />
+              </button>
+            </div>
+
+            {/* Live Camera Mode Toggle */}
+            <div className="flex items-center p-0.5 rounded-xl bg-slate-900 border border-white/10 text-xs font-bold">
+              <button
+                onClick={() => setCameraMode('overview')}
+                className={`px-2.5 py-1 rounded-lg transition-all text-[10px] uppercase font-black ${
+                  cameraMode === 'overview'
+                    ? 'bg-cyan-500 text-black shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                ОБЗОР
+              </button>
+              <button
+                onClick={() => setCameraMode('live_camera')}
+                className={`px-2.5 py-1 rounded-lg transition-all text-[10px] uppercase font-black flex items-center gap-1 ${
+                  cameraMode === 'live_camera'
+                    ? 'bg-rose-500 text-white shadow-[0_0_10px_rgba(244,63,94,0.6)] animate-pulse'
+                    : 'text-slate-400 hover:text-rose-300'
+                }`}
+              >
+                <span>LIVE-КАМЕРА</span>
               </button>
             </div>
 
@@ -1354,9 +1709,9 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                           </span>
                         </div>
                         <div className="text-right shrink-0">
-                          <span className="text-[8px] text-slate-400 block font-bold">РАЗРЫВ ДО #2</span>
+                          <span className="text-[8px] text-slate-400 block font-bold">ОТСТАВАНИЕ #2</span>
                           <span className="text-cyan-400 font-black text-[11px]">
-                            +{gapValue}
+                            {gapValue}
                           </span>
                         </div>
                       </div>
@@ -1371,7 +1726,15 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                   </div>
                 </div>
 
-                {/* SVG CLOSED AUTODROME CIRCUIT TRACK */}
+                {/* CAMERA TRANSFORM VIEWPORT WRAPPER */}
+                <div 
+                  className="absolute inset-0 w-full h-full pointer-events-none transition-transform duration-300 ease-out"
+                  style={{
+                    transform: `scale(${cameraTransform.scale}) translate(${cameraTransform.x}px, ${cameraTransform.y}px)`,
+                    transformOrigin: '50% 50%'
+                  }}
+                >
+                  {/* SVG CLOSED AUTODROME CIRCUIT TRACK */}
                 <svg
                   viewBox="0 0 1000 520"
                   className="w-full h-full absolute inset-0 pointer-events-none"
@@ -1481,14 +1844,15 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                   {/* BADGE CONNECTOR POINTER LINES */}
                   {trackLayouts.map((layout) => {
                     if (!layout.hasPointer) return null;
-                    const strokeColor =
-                      layout.rank === 1
-                        ? '#f59e0b'
-                        : layout.rank === 2
-                        ? '#9ca3af'
-                        : layout.rank === 3
-                        ? '#b8622f'
-                        : '#22d3ee';
+                    const strokeColor = layout.isLapped
+                      ? '#64748b'
+                      : layout.rank === 1
+                      ? '#f59e0b'
+                      : layout.rank === 2
+                      ? '#9ca3af'
+                      : layout.rank === 3
+                      ? '#b8622f'
+                      : '#22d3ee';
                     return (
                       <line
                         key={`ptr-${layout.op.user_id}`}
@@ -1497,9 +1861,9 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                         x2={layout.badgeX}
                         y2={layout.badgeY}
                         stroke={strokeColor}
-                        strokeWidth="1.2"
-                        strokeDasharray="2 2"
-                        opacity="0.65"
+                        strokeWidth={layout.isLapped ? '1' : '1.2'}
+                        strokeDasharray={layout.isLapped ? '2 2' : '3 3'}
+                        opacity={layout.isLapped ? '0.45' : '0.65'}
                       />
                     );
                   })}
@@ -1548,8 +1912,13 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                       carY={layout.carY}
                       angle={layout.angle}
                       rankDelta={overtakingOpIds.get(layout.op.user_id)}
+                      deltaMessages={layout.deltaMessages}
                       isNewLap={newLapOpIds.has(layout.op.user_id)}
+                      isLapped={layout.isLapped}
+                      isCloseBattle={layout.isCloseBattle}
+                      lapsBehind={layout.lapsBehind}
                       isSelected={selectedOperatorId === layout.op.user_id}
+                      prefersReducedMotion={prefersReducedMotion}
                       onClick={() => setSelectedOperatorId(prev => prev === layout.op.user_id ? null : layout.op.user_id)}
                     />
                   ))}
@@ -1563,11 +1932,16 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                       badgeX={layout.badgeX}
                       badgeY={layout.badgeY}
                       displayValue={layout.displayValue}
+                      isCompact={layout.isCompact}
+                      isUltraCompact={layout.isUltraCompact}
+                      isLapped={layout.isLapped}
+                      lapsBehind={layout.lapsBehind}
                       isSelected={selectedOperatorId === layout.op.user_id}
                       onClick={() => setSelectedOperatorId(prev => prev === layout.op.user_id ? null : layout.op.user_id)}
                     />
                   ))}
                 </div>
+              </div>
 
                 {/* LIVE RACE EVENTS FEED (BOTTOM LEFT CANVAS) */}
                 {eventsFeed.length > 0 && (
@@ -1756,7 +2130,7 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                                 ? 'text-amber-300 bg-amber-950/60 border border-amber-500/30'
                                 : 'text-slate-400 bg-slate-800/60'
                             }`}>
-                              До #{opRank - 1}: +{gapToAhead}
+                              ДО ОБГОНА #{opRank - 1}: +{gapToAhead}
                             </span>
                           )}
                         </div>
