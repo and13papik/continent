@@ -294,13 +294,8 @@ const App: React.FC = () => {
               </div>
               <NavLink to="/total-table" icon={<ICONS.Transfer size={14} />} label="Total Table" admin />
               <NavLink to="/admin-table" icon={<ICONS.Internship size={14} />} label="Admin Table" admin />
-              
-              {userRole === 'owner' && (
-                <>
-                  <NavLink to="/owner-table" icon={<ICONS.Calendar size={14} />} label="Core Table" premium />
-                  <NavLink to="/owner" icon={<ICONS.Owner size={14} />} label="Core Finance" premium />
-                </>
-              )}
+              <NavLink to="/owner-table" icon={<ICONS.Calendar size={14} />} label="Core Table" premium />
+              <NavLink to="/owner" icon={<ICONS.Owner size={14} />} label="Core Finance" premium />
             </div>
 
             <div className="pb-6">
@@ -382,19 +377,15 @@ const App: React.FC = () => {
           <div className="max-w-7xl mx-auto">
             <Routes>
               <Route path="/" element={<Dashboard state={state} updateState={updateState} userRole={userRole} />} />
-              <Route path="/metrics" element={<Metrics state={state} updateState={updateState} />} />
+              <Route path="/metrics" element={<Metrics state={state} updateState={updateState} userRole={userRole} />} />
               <Route path="/add-income" element={<AddIncome state={state} updateState={updateState} />} />
               <Route path="/advance-request" element={<AdvanceRequest state={state} updateState={updateState} />} />
               <Route path="/operations" element={<Operations state={state} updateState={updateState} />} />
               <Route path="/reports" element={<Reports state={state} updateState={updateState} />} />
               <Route path="/models" element={<Models state={state} updateState={updateState} />} />
               <Route path="/roster" element={<Roster state={state} updateState={updateState} />} />
-              {userRole === 'owner' && (
-                <>
-                  <Route path="/owner" element={<Owner state={state} updateState={updateState} />} />
-                  <Route path="/owner-table" element={<OwnerTable state={state} updateState={updateState} />} />
-                </>
-              )}
+              <Route path="/owner" element={<Owner state={state} updateState={updateState} />} />
+              <Route path="/owner-table" element={<OwnerTable state={state} updateState={updateState} />} />
               <Route path="/admin-table" element={<AdminTable state={state} updateState={updateState} />} />
               <Route path="/total-table" element={<TotalTable state={state} updateState={updateState} />} />
               <Route path="/settings" element={<Settings state={state} updateState={updateState} userRole={userRole} />} />

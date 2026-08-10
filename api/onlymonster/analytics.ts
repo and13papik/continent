@@ -360,7 +360,14 @@ async function handleShiftOperators(req: any, res: any, queryParams: Record<stri
 
   let range: KyivShift;
 
-  if (period === 'week') {
+  if (queryParams.from && queryParams.to) {
+    range = {
+      index: 0 as any,
+      label: 'Скользящее окно',
+      start: String(queryParams.from),
+      end: String(queryParams.to)
+    };
+  } else if (period === 'week') {
     range = getWeekRange();
   } else if (period === 'month') {
     range = getMonthRange();

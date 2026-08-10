@@ -184,6 +184,90 @@ async function handleLastActivity(req: any, res: any) {
   }
 }
 
+async function handleUnansweredCounts(req: any, res: any) {
+  try {
+    const supabase = await getSupabaseClient();
+    if (!supabase) {
+      return sendJson(res, 200, {
+        success: true,
+        unansweredCounts: {},
+        message: 'Supabase is not configured'
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('om_webhook_events')
+      .select('account_id, platform_account_id, payload, event_timestamp, received_at')
+      .eq('event_type', 'chat.message')
+      .order('received_at', { ascending: false })
+      .limit(1000);
+
+    if (error) {
+      console.error('[UnansweredCounts] Error fetching from Supabase:', error);
+      return sendJson(res, 200, {
+        success: false,
+        error: error.message,
+        unansweredCounts: {}
+      });
+    }
+
+    // First find last outgoing timestamp per account
+    const lastOutgoingMap: Record<string, number> = {};
+    const eventsByAccount: Record<string, Array<{ isIncoming: boolean; ts: number }>> = {};
+
+    (data || []).forEach((row: any) => {
+      const rawPayload = row.payload || {};
+      const p = rawPayload.payload || rawPayload;
+      const rawAccId = row.account_id || row.platform_account_id || p.account_id || p.platform_account_id || p.creator_id || p.model_id;
+      if (!rawAccId) return;
+
+      const accKey = String(rawAccId);
+      const ts = new Date(row.event_timestamp || row.received_at || 0).getTime();
+      if (ts <= 0) return;
+
+      const isIncoming = Boolean(
+        (p.from_id && p.fan_id && String(p.from_id) === String(p.fan_id)) ||
+        p.is_incoming === true ||
+        p.direction === 'in' ||
+        p.sender === 'fan'
+      );
+
+      if (!eventsByAccount[accKey]) {
+        eventsByAccount[accKey] = [];
+      }
+      eventsByAccount[accKey].push({ isIncoming, ts });
+
+      if (!isIncoming) {
+        if (!lastOutgoingMap[accKey] || ts > lastOutgoingMap[accKey]) {
+          lastOutgoingMap[accKey] = ts;
+        }
+      }
+    });
+
+    const unansweredCounts: Record<string, number> = {};
+
+    Object.keys(eventsByAccount).forEach((accKey) => {
+      const lastOutTs = lastOutgoingMap[accKey] || 0;
+      const count = eventsByAccount[accKey].filter(
+        item => item.isIncoming && item.ts > lastOutTs
+      ).length;
+      unansweredCounts[accKey] = count;
+    });
+
+    return sendJson(res, 200, {
+      success: true,
+      unansweredCounts
+    });
+  } catch (err: any) {
+    console.error('[UnansweredCounts] Exception:', err);
+    return sendJson(res, 200, {
+      success: false,
+      error: err.message || String(err),
+      unansweredCounts: {}
+    });
+  }
+}
+
 async function handleDbTables(req: any, res: any) {
   const creds = await getSupabaseCredentials();
   if (!creds) {
@@ -227,6 +311,8 @@ export default async function handler(req: any, res: any) {
     return handleEvents(req, res, queryParams);
   } else if (resource === 'last-activity' || resource === 'last_activity') {
     return handleLastActivity(req, res);
+  } else if (resource === 'unanswered-counts' || resource === 'unanswered_counts') {
+    return handleUnansweredCounts(req, res);
   } else if (resource === 'db-tables' || resource === 'tables') {
     return handleDbTables(req, res);
   } else {

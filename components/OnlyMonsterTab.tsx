@@ -31,6 +31,7 @@ import {
 
 interface OnlyMonsterTabProps {
   agencyModels: string[];
+  userRole?: 'user' | 'owner' | null;
 }
 
 interface OnlyMonsterAccount {
@@ -637,9 +638,26 @@ function decodeHtmlEntities(str: string): string {
 
 export const IDLE_THRESHOLD_MINUTES = 10;
 
+// временно скрытые аккаунты, не показываем в UI
+export const HIDDEN_ACCOUNT_NAMES = ['Catherine'];
+
+export function normalizeAccountName(name?: string): string {
+  if (!name) return '';
+  return name.toLowerCase().replace(/[^\wа-яё]/gi, '').trim();
+}
+
+export function isAccountHidden(name?: string): boolean {
+  if (!name) return false;
+  const normalized = normalizeAccountName(name);
+  return HIDDEN_ACCOUNT_NAMES.some(hiddenName => {
+    const normHidden = normalizeAccountName(hiddenName);
+    return normalized === normHidden || normalized.includes(normHidden);
+  });
+}
+
 export interface AttentionAlert {
   id: string;
-  type: 'slow_reply' | 'ppv_no_sales' | 'low_messages' | 'no_operator' | 'account_idle';
+  type: 'slow_reply' | 'ppv_no_sales' | 'low_messages' | 'low_messages_hour' | 'no_operator' | 'account_idle' | 'unanswered_messages';
   severity: 'red' | 'amber' | 'slate';
   text: string;
   operatorName?: string;
@@ -668,23 +686,27 @@ export function computeAttentionAlerts(
   periodMode: 'today' | 'yesterday' | 'week' | 'month',
   shiftInfo: { label: string; start: string; end: string } | null,
   lastOutgoingAtByAccount?: Record<string, number>,
-  now: number = Date.now()
+  now: number = Date.now(),
+  unansweredCountsByAccount?: Record<string, number>,
+  lastHourOperatorMessages?: Record<string, { count: number; name: string }>
 ): AttentionAlert[] {
   const alerts: AttentionAlert[] = [];
 
-  // Operator rules (1, 2, 3)
+  // Operator rules (1, 2, 3, 8)
   if (operators && operators.length > 0) {
     const operatorsWithMessages = operators.filter(o => (o.messages_count || 0) > 0);
     const totalMessages = operatorsWithMessages.reduce((sum, o) => sum + (o.messages_count || 0), 0);
     const teamAvgMessages = operatorsWithMessages.length > 0 ? totalMessages / operatorsWithMessages.length : 0;
 
     let skipLowMessages = false;
+    let shiftElapsedMs = 0;
     if (periodMode === 'today' && shiftInfo?.start && shiftInfo?.end) {
       const startTime = new Date(shiftInfo.start).getTime();
       const endTime = new Date(shiftInfo.end).getTime();
       const duration = endTime - startTime;
       if (duration > 0) {
         const elapsed = now - startTime;
+        shiftElapsedMs = elapsed;
         if (elapsed >= 0 && elapsed / duration < 0.25) {
           skipLowMessages = true;
         }
@@ -733,15 +755,51 @@ export function computeAttentionAlerts(
           });
         }
       }
+
+      // 🟠 8. Less than 55 messages in the last hour (only if shift started >= 60 mins ago)
+      if (lastHourOperatorMessages && lastHourOperatorMessages[op.user_id]) {
+        const hData = lastHourOperatorMessages[op.user_id];
+        const hCount = hData ? hData.count : 0;
+        if (shiftElapsedMs >= 60 * 60 * 1000 && hCount < 55) {
+          alerts.push({
+            id: `low-hour-${op.user_id}`,
+            type: 'low_messages_hour',
+            severity: 'amber',
+            text: `${op.name} — ${hCount} сообщений за последний час (норма 55+)`,
+            operatorName: op.name,
+            userId: op.user_id,
+          });
+        }
+      }
     });
   }
 
-  // Account rules (4. no operator, 5. idle account)
+  // Account rules (4. no operator, 5. idle account, 2. unanswered messages)
   if (accounts && accounts.length > 0) {
     accounts.forEach((acc) => {
       if (acc.status === 'inactive') return;
+      if (isAccountHidden(acc.name)) return;
 
       const accId = acc.platform_account_id || acc.id;
+
+      // 🔴 2. 10+ unanswered messages
+      if (unansweredCountsByAccount) {
+        const k1 = String(acc.id || '');
+        const k2 = String(acc.platform_account_id || '');
+        const unansweredCount = (k1 && unansweredCountsByAccount[k1]) || (k2 && unansweredCountsByAccount[k2]) || 0;
+        if (unansweredCount >= 10) {
+          alerts.push({
+            id: `unanswered-${acc.id}`,
+            type: 'unanswered_messages',
+            severity: 'red',
+            text: `🔴 ${acc.name} — ${unansweredCount} сообщений без ответа`,
+            accountName: acc.name,
+            accountId: acc.platform_account_id || acc.id,
+            accountObj: acc,
+          });
+        }
+      }
+
       let realOpCount = 0;
       if (operators && operators.length > 0) {
         const uniqueUsers = new Set<string>();
@@ -817,7 +875,8 @@ export type EventCategory = 'finance' | 'accounts' | 'operators' | 'warnings';
 
 export function formatEventForFeed(
   event: EventFeedItem,
-  accountsMap: Map<string, string>
+  accountsMap: Map<string, string>,
+  operators?: ShiftOperator[]
 ) {
   const rawPayload = event.payload || {};
   const p = rawPayload.payload || rawPayload;
@@ -826,6 +885,18 @@ export function formatEventForFeed(
   const modelName = accountsMap.get(String(rawAccId)) || (rawAccId ? String(rawAccId) : 'Модель');
 
   const type = event.event_type || '';
+
+  if (type === 'income.milestone') {
+    const threshold = p.threshold || 0;
+    return {
+      category: 'finance' as EventCategory,
+      text: `🎉 ${modelName} преодолела $${threshold} за смену`,
+      colorClass: 'text-amber-300 font-extrabold text-sm sm:text-base',
+      badgeBg: 'bg-amber-500/20 border-amber-500/40 text-amber-300 font-black',
+      dotColor: 'bg-amber-400',
+      isMilestone: true,
+    };
+  }
 
   if (type === 'idle.resumed') {
     const diffMs = p.idle_duration_ms || 0;
@@ -839,27 +910,52 @@ export function formatEventForFeed(
     };
   }
 
-  if (type === 'fans.tip.received') {
-    const amt = p.amount_gross ?? p.amount ?? 0;
-    return {
-      category: 'finance' as EventCategory,
-      text: `${modelName}: чаевые +$${amt}`,
-      colorClass: 'text-emerald-400',
-      badgeBg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
-      dotColor: 'bg-emerald-400',
-    };
-  }
-
-  if (type === 'fans.ppv.purchased') {
+  if (type === 'fans.tip.received' || type === 'fans.ppv.purchased') {
+    const isTip = type === 'fans.tip.received';
     const contentType = p.content_type === 'message' ? 'сообщение' : 'пост';
     const amt = p.price_gross ?? p.amount_gross ?? p.amount ?? 0;
-    return {
-      category: 'finance' as EventCategory,
-      text: `${modelName}: PPV ${contentType} куплен +$${amt}`,
-      colorClass: 'text-emerald-400',
-      badgeBg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
-      dotColor: 'bg-emerald-400',
-    };
+
+    let subtitle: string | undefined = undefined;
+    if (amt >= 50 && operators && operators.length > 0 && rawAccId) {
+      const assignedOps = operators.filter(op =>
+        Array.isArray(op.creator_ids) && op.creator_ids.some(cid => String(cid) === String(rawAccId))
+      );
+      if (assignedOps.length === 1) {
+        subtitle = `оператор: ${assignedOps[0].name}`;
+      } else if (assignedOps.length > 1) {
+        subtitle = `операторы: ${assignedOps.map(o => o.name).join(', ')} (уточнить вручную)`;
+      }
+    }
+
+    if (amt >= 50) {
+      return {
+        category: 'finance' as EventCategory,
+        text: `💰 Крупная продажа $${amt} на ${modelName}`,
+        subtitle,
+        colorClass: 'text-emerald-300 font-extrabold text-xs sm:text-sm',
+        badgeBg: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-bold',
+        dotColor: 'bg-emerald-400',
+        isLargeSale: true,
+      };
+    }
+
+    if (isTip) {
+      return {
+        category: 'finance' as EventCategory,
+        text: `${modelName}: чаевые +$${amt}`,
+        colorClass: 'text-emerald-400',
+        badgeBg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+        dotColor: 'bg-emerald-400',
+      };
+    } else {
+      return {
+        category: 'finance' as EventCategory,
+        text: `${modelName}: PPV ${contentType} куплен +$${amt}`,
+        colorClass: 'text-emerald-400',
+        badgeBg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+        dotColor: 'bg-emerald-400',
+      };
+    }
   }
 
   if (type === 'fans.subscription.new_subscriber') {
@@ -930,10 +1026,30 @@ export function formatEventForFeed(
     };
   }
 
-  if (type === 'firewall.message_guard.violation.user' || type === 'firewall.message_guard.violation.om_api') {
+  if (type === 'firewall.message_guard.violation.user' || type === 'firewall.message_guard.violation.om_api' || type.includes('message_guard')) {
+    let blockedStr = '';
+    const v = p.violation || p.violations || p;
+    if (typeof v === 'string') {
+      blockedStr = v;
+    } else if (Array.isArray(v)) {
+      blockedStr = v.join(', ');
+    } else if (typeof v === 'object' && v) {
+      const words = v.matched_words || v.restricted_words || v.words || v.keywords || v.topics || v.categories;
+      if (Array.isArray(words)) blockedStr = words.join(', ');
+      else if (typeof words === 'string') blockedStr = words;
+      else if (v.word || v.term) blockedStr = String(v.word || v.term);
+    }
+    if (!blockedStr && (p.word || p.words || p.matched_word)) {
+      blockedStr = String(p.word || p.words || p.matched_word);
+    }
+
+    const text = blockedStr
+      ? `${modelName}: заблокировано слово "${blockedStr}"`
+      : `${modelName}: заблокировано сообщение (Message Guard)`;
+
     return {
       category: 'warnings' as EventCategory,
-      text: `${modelName}: заблокировано сообщение (Message Guard)`,
+      text,
       colorClass: 'text-rose-400',
       badgeBg: 'bg-rose-500/10 border-rose-500/20 text-rose-400',
       dotColor: 'bg-rose-500',
@@ -966,10 +1082,11 @@ export function formatEventRelativeTime(tsString: string | undefined, now: numbe
 
 export const RealtimeEventFeed: React.FC<{
   accounts: OnlyMonsterAccount[];
+  operators?: ShiftOperator[];
   onAccountClick: (acc: OnlyMonsterAccount) => void;
   onNavigateToAccountsTab: () => void;
   onUpdateLastOutgoingMap?: (mapUpdater: (prev: Record<string, number>) => Record<string, number>) => void;
-}> = ({ accounts, onAccountClick, onNavigateToAccountsTab, onUpdateLastOutgoingMap }) => {
+}> = ({ accounts, operators, onAccountClick, onNavigateToAccountsTab, onUpdateLastOutgoingMap }) => {
   const [events, setEvents] = useState<EventFeedItem[]>([]);
   const [filter, setFilter] = useState<'all' | EventCategory>('all');
   const [now, setNow] = useState<number>(Date.now());
@@ -1147,14 +1264,75 @@ export const RealtimeEventFeed: React.FC<{
   }, [accounts]);
 
   const formattedList = useMemo(() => {
-    return events.map(e => {
-      const formatted = formatEventForFeed(e, accountsMap);
-      return {
-        event: e,
-        formatted
-      };
+    // 1. Calculate live income additions from events per account
+    const liveIncomeByAccount: Record<string, number> = {};
+    events.forEach(e => {
+      const type = e.event_type || '';
+      if (type === 'fans.tip.received' || type === 'fans.ppv.purchased') {
+        const rawPayload = e.payload || {};
+        const p = rawPayload.payload || rawPayload;
+        const amt = Number(p.price_gross ?? p.amount_gross ?? p.amount ?? 0);
+        const rawAccId = String(e.account_id || e.platform_account_id || p.account_id || p.platform_account_id || '');
+        if (rawAccId && amt > 0) {
+          liveIncomeByAccount[rawAccId] = (liveIncomeByAccount[rawAccId] || 0) + amt;
+        }
+      }
     });
-  }, [events, accountsMap]);
+
+    // 2. Generate synthetic milestone events
+    const MILESTONES = [100, 250, 500, 1000, 2500, 5000];
+    const milestoneEvents: EventFeedItem[] = [];
+
+    accounts.forEach(acc => {
+      if (isAccountHidden(acc.name)) return;
+      const accKey1 = String(acc.id || '');
+      const accKey2 = String(acc.platform_account_id || '');
+      const baseEarn = acc.today_earnings || 0;
+      const addedEarn = (accKey1 && liveIncomeByAccount[accKey1]) || (accKey2 && liveIncomeByAccount[accKey2]) || 0;
+      const totalEarn = baseEarn + addedEarn;
+
+      MILESTONES.forEach(ms => {
+        if (totalEarn >= ms) {
+          milestoneEvents.push({
+            id: `milestone-${acc.id}-${ms}`,
+            event_type: 'income.milestone',
+            account_id: acc.id,
+            platform_account_id: acc.platform_account_id,
+            payload: {
+              payload: {
+                threshold: ms,
+                model_name: acc.name,
+                account_id: acc.id,
+              }
+            },
+            event_timestamp: new Date().toISOString(),
+            received_at: new Date().toISOString(),
+          });
+        }
+      });
+    });
+
+    const combinedEvents = [...events, ...milestoneEvents];
+
+    return combinedEvents
+      .filter(e => {
+        const rawPayload = e.payload || {};
+        const p = rawPayload.payload || rawPayload;
+        const rawAccId = e.account_id || e.platform_account_id || p.account_id || p.platform_account_id || '';
+        const modelName = accountsMap.get(String(rawAccId)) || '';
+        if (modelName && isAccountHidden(modelName)) {
+          return false;
+        }
+        return true;
+      })
+      .map(e => {
+        const formatted = formatEventForFeed(e, accountsMap, operators);
+        return {
+          event: e,
+          formatted
+        };
+      });
+  }, [events, accounts, accountsMap, operators]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: formattedList.length, finance: 0, accounts: 0, operators: 0, warnings: 0 };
@@ -1254,19 +1432,35 @@ export const RealtimeEventFeed: React.FC<{
             const hasAcc = Boolean(event.account_id || event.platform_account_id || p.account_id || p.platform_account_id);
             const ts = event.event_timestamp || event.received_at;
 
+            const isMilestone = (formatted as any).isMilestone;
+            const isLargeSale = (formatted as any).isLargeSale;
+
+            const itemBgClass = isMilestone
+              ? 'bg-gradient-to-r from-amber-950/40 via-slate-900/80 to-slate-900/60 border-amber-500/40 shadow-sm shadow-amber-500/10'
+              : isLargeSale
+              ? 'bg-gradient-to-r from-emerald-950/40 via-slate-900/80 to-slate-900/60 border-emerald-500/40 shadow-sm shadow-emerald-500/10'
+              : 'bg-slate-900/40 border-white/[0.03] hover:bg-slate-900/80';
+
             return (
               <div
                 key={event.id}
                 onClick={() => hasAcc && handleRowClick(event)}
-                className={`p-2 rounded-xl border border-white/[0.03] bg-slate-900/40 hover:bg-slate-900/80 transition-all flex items-center justify-between gap-3 ${
+                className={`p-2.5 rounded-xl border transition-all flex items-center justify-between gap-3 ${itemBgClass} ${
                   hasAcc ? 'cursor-pointer hover:border-violet-500/30 group' : ''
                 }`}
               >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className={`h-2 w-2 rounded-full shrink-0 ${formatted.dotColor}`} />
-                  <span className={`text-xs font-semibold truncate ${formatted.colorClass}`}>
-                    {formatted.text}
-                  </span>
+                <div className="flex flex-col min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${formatted.dotColor}`} />
+                    <span className={`text-xs font-semibold truncate ${formatted.colorClass}`}>
+                      {formatted.text}
+                    </span>
+                  </div>
+                  {(formatted as any).subtitle && (
+                    <div className="text-[10px] text-slate-400 font-normal pl-4.5 pt-0.5 truncate">
+                      {(formatted as any).subtitle}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
@@ -1286,7 +1480,7 @@ export const RealtimeEventFeed: React.FC<{
   );
 };
 
-export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) => {
+export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, userRole }) => {
   // Sub-tabs state
   const [activeSubTab, setActiveSubTab] = useState<'accounts' | 'operator_metrics'>('accounts');
 
@@ -1370,11 +1564,72 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
   const [lastOutgoingAtByAccount, setLastOutgoingAtByAccount] = useState<Record<string, number>>({});
   const [nowTime, setNowTime] = useState<number>(Date.now());
 
+  // New signals state
+  const [unansweredCountsByAccount, setUnansweredCountsByAccount] = useState<Record<string, number>>({});
+  const [lastHourOperatorMessages, setLastHourOperatorMessages] = useState<Record<string, { count: number; name: string }>>({});
+
   useEffect(() => {
     const ticker = setInterval(() => {
       setNowTime(Date.now());
     }, 10000);
     return () => clearInterval(ticker);
+  }, []);
+
+  // Poll unanswered messages count every 30s
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUnanswered = async () => {
+      try {
+        const res = await fetch('/api/onlymonster/admin?resource=unanswered-counts');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isMounted && data.success && data.unansweredCounts) {
+          setUnansweredCountsByAccount(data.unansweredCounts);
+        }
+      } catch (err) {
+        console.error('[OnlyMonsterTab] Error fetching unanswered-counts:', err);
+      }
+    };
+    fetchUnanswered();
+    const interval = setInterval(fetchUnanswered, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Poll last hour operator messages every 5m
+  useEffect(() => {
+    let isMounted = true;
+    const fetchLastHourOperators = async () => {
+      try {
+        const toISO = new Date().toISOString();
+        const fromISO = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const res = await fetch(`/api/onlymonster/analytics?resource=shift-operators&from=${fromISO}&to=${toISO}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isMounted && data.success && Array.isArray(data.operators)) {
+          const map: Record<string, { count: number; name: string }> = {};
+          data.operators.forEach((op: any) => {
+            if (op.user_id) {
+              map[op.user_id] = {
+                count: op.messages_count || 0,
+                name: op.name || 'Оператор',
+              };
+            }
+          });
+          setLastHourOperatorMessages(map);
+        }
+      } catch (err) {
+        console.error('[OnlyMonsterTab] Error fetching last-hour shift-operators:', err);
+      }
+    };
+    fetchLastHourOperators();
+    const interval = setInterval(fetchLastHourOperators, 300000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -1417,13 +1672,22 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
   }, [accounts]);
 
   const attentionAlerts = useMemo(() => {
-    return computeAttentionAlerts(operators, accounts, periodMode, shiftInfo, lastOutgoingAtByAccount, nowTime);
-  }, [operators, accounts, periodMode, shiftInfo, lastOutgoingAtByAccount, nowTime]);
+    return computeAttentionAlerts(
+      operators,
+      accounts,
+      periodMode,
+      shiftInfo,
+      lastOutgoingAtByAccount,
+      nowTime,
+      unansweredCountsByAccount,
+      lastHourOperatorMessages
+    );
+  }, [operators, accounts, periodMode, shiftInfo, lastOutgoingAtByAccount, nowTime, unansweredCountsByAccount, lastHourOperatorMessages]);
 
   const visibleAlerts = showAlertsExpanded ? attentionAlerts : attentionAlerts.slice(0, 8);
 
   const handleAlertClick = (alert: AttentionAlert) => {
-    if (alert.type === 'slow_reply' || alert.type === 'ppv_no_sales' || alert.type === 'low_messages') {
+    if (alert.type === 'slow_reply' || alert.type === 'ppv_no_sales' || alert.type === 'low_messages' || alert.type === 'low_messages_hour') {
       if (!hasLoadedOperators) {
         fetchShiftOperators(periodMode, selectedShiftIndex, sortBy, sortDir);
       }
@@ -1440,7 +1704,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
           setHighlightedOpId(null);
         }, 2500);
       }
-    } else if (alert.type === 'no_operator' || alert.type === 'account_idle') {
+    } else if (alert.type === 'no_operator' || alert.type === 'account_idle' || alert.type === 'unanswered_messages') {
       setActiveSubTab('accounts');
       if (alert.accountObj) {
         handleAccountClick(alert.accountObj);
@@ -1885,10 +2149,12 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
     }
   }, []);
 
-  // Filter accounts by search query
+  // Filter accounts by search query and HIDDEN_ACCOUNT_NAMES
   const filteredAccounts = accounts.filter(acc => 
-    acc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (acc.handle && acc.handle.toLowerCase().includes(searchQuery.toLowerCase()))
+    !isAccountHidden(acc.name) && (
+      acc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (acc.handle && acc.handle.toLowerCase().includes(searchQuery.toLowerCase()))
+    )
   );
 
   return (
@@ -2640,7 +2906,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                           {(() => {
                             const matchedAccounts = (op.creator_ids || [])
                               .map(id => accounts.find(a => String(a.id) === String(id)))
-                              .filter(Boolean) as OnlyMonsterAccount[];
+                              .filter(a => a && !isAccountHidden(a.name)) as OnlyMonsterAccount[];
 
                             if (matchedAccounts.length === 0) {
                               return (

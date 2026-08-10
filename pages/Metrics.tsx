@@ -12,6 +12,7 @@ import PeriodBadge from '../components/PeriodBadge';
 interface MetricsProps {
   state: AppState;
   updateState: (updater: (prev: AppState) => AppState) => void;
+  userRole?: 'user' | 'owner' | null;
 }
 
 const METRICS_COLORS = {
@@ -27,7 +28,7 @@ const METRICS_COLORS = {
   gray: '#64748b'
 };
 
-const Metrics: React.FC<MetricsProps> = ({ state }) => {
+const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
   const incomeData = state.incomeData || [];
   const [activeTab, setActiveTab] = useState<'overview' | 'diagnostics' | 'models' | 'operators' | 'calendar' | 'onlymonster'>('onlymonster');
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
@@ -1269,7 +1270,7 @@ const Metrics: React.FC<MetricsProps> = ({ state }) => {
             )}
 
             {activeTab === 'onlymonster' && (
-              <OnlyMonsterTab agencyModels={state.models || []} />
+              <OnlyMonsterTab agencyModels={state.models || []} userRole={userRole} />
             )}
           </motion.div>
         </AnimatePresence>
