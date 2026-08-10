@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LiveTrackModal } from './LiveTrackModal';
 import { 
   RefreshCw, 
@@ -20,7 +20,13 @@ import {
   X,
   AlertTriangle,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Activity,
+  UserPlus,
+  Send,
+  CheckCheck,
+  Image,
+  ShieldAlert
 } from 'lucide-react';
 
 interface OnlyMonsterTabProps {
@@ -770,6 +776,379 @@ export function computeAttentionAlerts(
   return alerts;
 }
 
+export interface EventFeedItem {
+  id: number | string;
+  event_type: string;
+  account_id?: string;
+  platform_account_id?: string;
+  payload?: any;
+  received_at?: string;
+  event_timestamp?: string;
+}
+
+export type EventCategory = 'finance' | 'accounts' | 'operators' | 'warnings';
+
+export function formatEventForFeed(
+  event: EventFeedItem,
+  accountsMap: Map<string, string>
+) {
+  const rawPayload = event.payload || {};
+  const p = rawPayload.payload || rawPayload;
+
+  const rawAccId = event.account_id || event.platform_account_id || p.account_id || p.platform_account_id || '';
+  const modelName = accountsMap.get(String(rawAccId)) || (rawAccId ? String(rawAccId) : 'Модель');
+
+  const type = event.event_type || '';
+
+  if (type === 'fans.tip.received') {
+    const amt = p.amount_gross ?? p.amount ?? 0;
+    return {
+      category: 'finance' as EventCategory,
+      text: `${modelName}: чаевые +$${amt}`,
+      colorClass: 'text-emerald-400',
+      badgeBg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+      dotColor: 'bg-emerald-400',
+    };
+  }
+
+  if (type === 'fans.ppv.purchased') {
+    const contentType = p.content_type === 'message' ? 'сообщение' : 'пост';
+    const amt = p.price_gross ?? p.amount_gross ?? p.amount ?? 0;
+    return {
+      category: 'finance' as EventCategory,
+      text: `${modelName}: PPV ${contentType} куплен +$${amt}`,
+      colorClass: 'text-emerald-400',
+      badgeBg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+      dotColor: 'bg-emerald-400',
+    };
+  }
+
+  if (type === 'fans.subscription.new_subscriber') {
+    return {
+      category: 'finance' as EventCategory,
+      text: `${modelName}: новый подписчик`,
+      colorClass: 'text-violet-400',
+      badgeBg: 'bg-violet-500/10 border-violet-500/20 text-violet-400',
+      dotColor: 'bg-violet-400',
+    };
+  }
+
+  if (type === 'chat.message') {
+    const isIncoming = p.from_id && p.fan_id && String(p.from_id) === String(p.fan_id);
+    if (isIncoming) {
+      return {
+        category: 'accounts' as EventCategory,
+        text: `${modelName}: новое сообщение от фаната`,
+        colorClass: 'text-slate-300',
+        badgeBg: 'bg-slate-800/80 border-slate-700 text-slate-300',
+        dotColor: 'bg-slate-400',
+      };
+    } else {
+      return {
+        category: 'accounts' as EventCategory,
+        text: `${modelName}: оператор ответил`,
+        colorClass: 'text-cyan-300',
+        badgeBg: 'bg-cyan-500/10 border-cyan-500/20 text-cyan-300',
+        dotColor: 'bg-cyan-400',
+      };
+    }
+  }
+
+  if (type === 'chat.message_sent') {
+    return {
+      category: 'operators' as EventCategory,
+      text: `${modelName}: сообщение доставлено`,
+      colorClass: 'text-slate-300',
+      badgeBg: 'bg-slate-800/80 border-slate-700 text-slate-300',
+      dotColor: 'bg-slate-400',
+    };
+  }
+
+  if (type === 'chat.message_error') {
+    const status = p.status || 'ошибка';
+    return {
+      category: 'warnings' as EventCategory,
+      text: `${modelName}: ошибка доставки (${status})`,
+      colorClass: 'text-rose-400',
+      badgeBg: 'bg-rose-500/10 border-rose-500/20 text-rose-400',
+      dotColor: 'bg-rose-500',
+    };
+  }
+
+  if (type === 'vault.media_upload.created' || type === 'vault.media_upload.updated') {
+    const status = p.status || 'загружено';
+    return {
+      category: 'accounts' as EventCategory,
+      text: `${modelName}: загрузка медиа — ${status}`,
+      colorClass: 'text-slate-300',
+      badgeBg: 'bg-slate-800/80 border-slate-700 text-slate-300',
+      dotColor: 'bg-slate-400',
+    };
+  }
+
+  if (type === 'firewall.message_guard.violation.user' || type === 'firewall.message_guard.violation.om_api') {
+    return {
+      category: 'warnings' as EventCategory,
+      text: `${modelName}: заблокировано сообщение (Message Guard)`,
+      colorClass: 'text-rose-400',
+      badgeBg: 'bg-rose-500/10 border-rose-500/20 text-rose-400',
+      dotColor: 'bg-rose-500',
+    };
+  }
+
+  return {
+    category: 'accounts' as EventCategory,
+    text: `${modelName}: ${type}`,
+    colorClass: 'text-slate-300',
+    badgeBg: 'bg-slate-800/80 border-slate-700 text-slate-300',
+    dotColor: 'bg-slate-400',
+  };
+}
+
+export function formatEventRelativeTime(tsString: string | undefined, now: number): string {
+  if (!tsString) return 'только что';
+  const time = new Date(tsString).getTime();
+  if (isNaN(time)) return 'только что';
+  const diffSec = Math.max(0, Math.floor((now - time) / 1000));
+  if (diffSec < 5) return 'только что';
+  if (diffSec < 60) return `${diffSec}с назад`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}м назад`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}ч назад`;
+  const diffDay = Math.floor(diffHour / 24);
+  return `${diffDay}д назад`;
+}
+
+export const RealtimeEventFeed: React.FC<{
+  accounts: OnlyMonsterAccount[];
+  onAccountClick: (acc: OnlyMonsterAccount) => void;
+  onNavigateToAccountsTab: () => void;
+}> = ({ accounts, onAccountClick, onNavigateToAccountsTab }) => {
+  const [events, setEvents] = useState<EventFeedItem[]>([]);
+  const [filter, setFilter] = useState<'all' | EventCategory>('all');
+  const [now, setNow] = useState<number>(Date.now());
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const lastKnownIdRef = useRef<number | string | null>(null);
+
+  const accountsMap = useMemo(() => {
+    const map = new Map<string, string>();
+    accounts.forEach(acc => {
+      if (acc.id) map.set(String(acc.id), acc.name);
+      if (acc.platform_account_id) map.set(String(acc.platform_account_id), acc.name);
+    });
+    return map;
+  }, [accounts]);
+
+  useEffect(() => {
+    const ticker = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(ticker);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchEvents = async (afterId?: number | string) => {
+      try {
+        const url = afterId
+          ? `/api/onlymonster/admin?resource=events&after_id=${afterId}&limit=50`
+          : `/api/onlymonster/admin?resource=events&limit=50`;
+
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (isMounted && data.success && Array.isArray(data.events)) {
+          const fetched: EventFeedItem[] = data.events;
+          if (fetched.length > 0) {
+            let maxId = lastKnownIdRef.current;
+            fetched.forEach(e => {
+              if (maxId === null) {
+                maxId = e.id;
+              } else if (typeof e.id === 'number' && typeof maxId === 'number') {
+                if (e.id > maxId) maxId = e.id;
+              } else if (String(e.id) > String(maxId)) {
+                maxId = e.id;
+              }
+            });
+            lastKnownIdRef.current = maxId;
+
+            setEvents(prev => {
+              if (!afterId || prev.length === 0) {
+                return fetched.slice(0, 100);
+              }
+              const existingIds = new Set(prev.map(e => String(e.id)));
+              const newItems = fetched.filter(e => !existingIds.has(String(e.id)));
+              if (newItems.length === 0) return prev;
+              return [...newItems, ...prev].slice(0, 100);
+            });
+          }
+        }
+      } catch (err) {
+        console.error('[RealtimeEventFeed] Fetch error:', err);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    fetchEvents();
+
+    const interval = setInterval(() => {
+      if (lastKnownIdRef.current !== null && lastKnownIdRef.current !== undefined) {
+        fetchEvents(lastKnownIdRef.current);
+      } else {
+        fetchEvents();
+      }
+    }, 10000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const formattedList = useMemo(() => {
+    return events.map(e => {
+      const formatted = formatEventForFeed(e, accountsMap);
+      return {
+        event: e,
+        formatted
+      };
+    });
+  }, [events, accountsMap]);
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { all: formattedList.length, finance: 0, accounts: 0, operators: 0, warnings: 0 };
+    formattedList.forEach(item => {
+      if (c[item.formatted.category] !== undefined) {
+        c[item.formatted.category]++;
+      }
+    });
+    return c;
+  }, [formattedList]);
+
+  const visibleList = useMemo(() => {
+    if (filter === 'all') return formattedList;
+    return formattedList.filter(item => item.formatted.category === filter);
+  }, [formattedList, filter]);
+
+  const handleRowClick = (item: EventFeedItem) => {
+    const rawPayload = item.payload || {};
+    const p = rawPayload.payload || rawPayload;
+    const accId = item.account_id || item.platform_account_id || p.account_id || p.platform_account_id;
+
+    if (!accId) return;
+
+    const foundAcc = accounts.find(
+      a => String(a.id) === String(accId) || String(a.platform_account_id) === String(accId)
+    );
+
+    onNavigateToAccountsTab();
+
+    if (foundAcc) {
+      onAccountClick(foundAcc);
+    }
+  };
+
+  return (
+    <div className="glass-card p-4 sm:p-5 rounded-3xl border border-white/10 bg-slate-950/60 shadow-lg space-y-3 font-mono">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2.5">
+        <div className="flex items-center gap-2.5">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </span>
+          <h3 className="text-xs font-black uppercase text-white tracking-wider flex items-center gap-2">
+            <Activity size={15} className="text-emerald-400" />
+            ЛЕНТА СОБЫТИЙ В РЕАЛЬНОМ ВРЕМЕНИ
+            <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] px-2 py-0.5 rounded-full font-bold">
+              LIVE
+            </span>
+          </h3>
+        </div>
+        <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
+          <Clock size={12} className="text-slate-500" />
+          Авто-обновление каждые 10с
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+        {[
+          { id: 'all', label: 'Все', count: counts.all },
+          { id: 'finance', label: 'Финансы', count: counts.finance },
+          { id: 'accounts', label: 'Аккаунты', count: counts.accounts },
+          { id: 'operators', label: 'Операторы', count: counts.operators },
+          { id: 'warnings', label: 'Предупреждения', count: counts.warnings },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setFilter(tab.id as any)}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 ${
+              filter === tab.id
+                ? 'bg-violet-600 text-white shadow-md shadow-violet-950/40 border border-violet-400/30'
+                : 'bg-slate-900/80 text-slate-400 border border-white/5 hover:bg-slate-800 hover:text-slate-200'
+            }`}
+          >
+            <span>{tab.label}</span>
+            <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-extrabold ${
+              filter === tab.id ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+            }`}>
+              {tab.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="max-h-[380px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+        {isLoading && events.length === 0 ? (
+          <div className="text-center py-6 text-xs text-slate-500 animate-pulse">
+            Загрузка ленты событий...
+          </div>
+        ) : visibleList.length === 0 ? (
+          <div className="text-center py-6 text-xs text-slate-500 italic">
+            {events.length === 0 ? 'Нет зарегистрированных событий' : 'Нет событий в этой категории'}
+          </div>
+        ) : (
+          visibleList.map(({ event, formatted }) => {
+            const rawPayload = event.payload || {};
+            const p = rawPayload.payload || rawPayload;
+            const hasAcc = Boolean(event.account_id || event.platform_account_id || p.account_id || p.platform_account_id);
+            const ts = event.event_timestamp || event.received_at;
+
+            return (
+              <div
+                key={event.id}
+                onClick={() => hasAcc && handleRowClick(event)}
+                className={`p-2 rounded-xl border border-white/[0.03] bg-slate-900/40 hover:bg-slate-900/80 transition-all flex items-center justify-between gap-3 ${
+                  hasAcc ? 'cursor-pointer hover:border-violet-500/30 group' : ''
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${formatted.dotColor}`} />
+                  <span className={`text-xs font-semibold truncate ${formatted.colorClass}`}>
+                    {formatted.text}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] text-slate-500 font-bold whitespace-nowrap">
+                    {formatEventRelativeTime(ts, now)}
+                  </span>
+                  {hasAcc && (
+                    <ChevronRight size={13} className="text-slate-600 group-hover:text-violet-400 transition-colors" />
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) => {
   // Sub-tabs state
   const [activeSubTab, setActiveSubTab] = useState<'accounts' | 'operator_metrics'>('accounts');
@@ -1412,6 +1791,13 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
           )}
         </div>
       )}
+
+      {/* REAL-TIME EVENT FEED */}
+      <RealtimeEventFeed
+        accounts={accounts}
+        onAccountClick={(acc) => handleAccountClick(acc)}
+        onNavigateToAccountsTab={() => setActiveSubTab('accounts')}
+      />
 
       {/* SUB-TABS NAVIGATION */}
       <div className="flex items-center gap-2 border-b border-white/10 pb-3">

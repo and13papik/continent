@@ -11,6 +11,60 @@ function sendJson(res: any, status: number, data: any) {
   return res.end(JSON.stringify(data));
 }
 
+async function handleEvents(req: any, res: any, queryParams: Record<string, string>) {
+  try {
+    const supabase = await getSupabaseClient();
+    if (!supabase) {
+      return sendJson(res, 200, {
+        success: true,
+        events: [],
+        message: 'Supabase is not configured'
+      });
+    }
+
+    const limit = Math.min(Math.max(parseInt(queryParams.limit || '50', 10) || 50, 1), 100);
+    const afterId = queryParams.after_id;
+
+    let query = supabase
+      .from('om_webhook_events')
+      .select('id, event_type, account_id, platform_account_id, payload, received_at, event_timestamp')
+      .order('received_at', { ascending: false })
+      .limit(limit);
+
+    if (afterId) {
+      const numAfterId = parseInt(afterId, 10);
+      if (!isNaN(numAfterId)) {
+        query = query.gt('id', numAfterId);
+      } else {
+        query = query.gt('id', afterId);
+      }
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('[Events History] Error fetching from Supabase:', error);
+      return sendJson(res, 200, {
+        success: false,
+        error: error.message,
+        events: []
+      });
+    }
+
+    return sendJson(res, 200, {
+      success: true,
+      events: data || []
+    });
+  } catch (err: any) {
+    console.error('[Events History] Exception:', err);
+    return sendJson(res, 200, {
+      success: false,
+      error: err.message || String(err),
+      events: []
+    });
+  }
+}
+
 async function handleWebhooks(req: any, res: any) {
   try {
     const supabase = await getSupabaseClient();
@@ -102,7 +156,9 @@ export default async function handler(req: any, res: any) {
 
   const resource = (queryParams.resource || 'webhooks').toLowerCase().trim();
 
-  if (resource === 'db-tables' || resource === 'tables') {
+  if (resource === 'events') {
+    return handleEvents(req, res, queryParams);
+  } else if (resource === 'db-tables' || resource === 'tables') {
     return handleDbTables(req, res);
   } else {
     return handleWebhooks(req, res);
