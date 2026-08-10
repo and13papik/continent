@@ -511,6 +511,12 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
 
   // Previous snapshot ref for detecting real delta events by operatorId
   const prevSnapshotRef = useRef<Record<string, { messages: number; rank: number; completedLaps: number }>>({});
+  const operatorHistoryRef = useRef<Record<string, {
+    messages: number;
+    lapProgress: number;
+    completedLaps: number;
+    rawDist: number;
+  }>>({});
 
   // SVG Track Ref & Length state
   const pathRef = useRef<SVGPathElement>(null);
@@ -872,13 +878,6 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
     isLapCrossed: boolean;
     lapInfo: ReturnType<typeof getLapInfo>;
   }
-
-  const operatorHistoryRef = useRef<Record<string, {
-    messages: number;
-    lapProgress: number;
-    completedLaps: number;
-    rawDist: number;
-  }>>({});
 
   // Calculate 2D coordinates for cars and upright badges on the SVG track
   // Absolute longitudinal progress along lap = (messages % 100) / 100
