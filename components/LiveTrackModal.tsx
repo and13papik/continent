@@ -207,22 +207,23 @@ export const RaceCar: React.FC<RaceCarProps> = ({
 
 interface CarNodeProps {
   op: ShiftOperator;
-  index: number;
   rank: number;
   isLeader: boolean;
-  transform: { x: number; y: number; angle: number };
-  displayValue: string;
+  carX: number;
+  carY: number;
+  angle: number;
 }
 
 const F1RaceCarNode: React.FC<CarNodeProps> = ({
   op,
   rank,
   isLeader,
-  transform,
-  displayValue
+  carX,
+  carY,
+  angle
 }) => {
-  const leftPct = (transform.x / 1000) * 100;
-  const topPct = (transform.y / 520) * 100;
+  const leftPct = (carX / 1000) * 100;
+  const topPct = (carY / 520) * 100;
 
   let bodyColor = '#0EA5E9'; // Cyan/Blue
   let rankStrokeColor = '#38BDF8';
@@ -240,16 +241,16 @@ const F1RaceCarNode: React.FC<CarNodeProps> = ({
 
   return (
     <div
-      className="absolute z-30 pointer-events-auto transition-all duration-1000 ease-in-out group"
+      className="absolute z-30 pointer-events-auto transition-all duration-700 ease-out group"
       style={{
         left: `${leftPct}%`,
         top: `${topPct}%`,
-        transform: `translate(-51.76%, -50%) rotate(${transform.angle}deg)`,
+        transform: `translate(-51.76%, -50%) rotate(${angle}deg)`,
       }}
     >
       {/* SPEED TRAIL BEHIND CAR */}
       <div
-        className={`absolute right-[80%] top-1/2 -translate-y-1/2 h-2.5 rounded-l-full pointer-events-none transition-all duration-1000 ${
+        className={`absolute right-[80%] top-1/2 -translate-y-1/2 h-2.5 rounded-l-full pointer-events-none transition-all duration-700 ${
           isLeader
             ? 'w-16 bg-gradient-to-r from-transparent via-amber-500 to-amber-300 opacity-90 blur-[1px]'
             : 'w-12 bg-gradient-to-r from-transparent via-cyan-500 to-cyan-300 opacity-70 blur-[1px]'
@@ -258,7 +259,6 @@ const F1RaceCarNode: React.FC<CarNodeProps> = ({
 
       {/* F1 CAR CHASSIS + AVATAR */}
       <div className="relative flex items-center justify-center">
-        {/* Top-View F1 Race Car with Driver Avatar in Cockpit */}
         <RaceCar
           avatarUrl={op.avatar}
           bodyColor={bodyColor}
@@ -266,41 +266,72 @@ const F1RaceCarNode: React.FC<CarNodeProps> = ({
           operatorId={op.user_id}
           operatorName={op.name}
         />
+      </div>
+    </div>
+  );
+};
 
-        {/* COMPACT COMBINED BADGE OVERLAY (Upright for readability) */}
-        <div
-          className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 pointer-events-none z-50 transition-transform duration-300"
-          style={{ transform: `rotate(${-transform.angle}deg)` }}
+interface DriverBadgeNodeProps {
+  op: ShiftOperator;
+  rank: number;
+  badgeX: number;
+  badgeY: number;
+  displayValue: string;
+}
+
+const F1DriverBadgeNode: React.FC<DriverBadgeNodeProps> = ({
+  op,
+  rank,
+  badgeX,
+  badgeY,
+  displayValue
+}) => {
+  const leftPct = (badgeX / 1000) * 100;
+  const topPct = (badgeY / 520) * 100;
+
+  return (
+    <div
+      className="absolute z-40 pointer-events-auto transition-all duration-700 ease-out"
+      style={{
+        left: `${leftPct}%`,
+        top: `${topPct}%`,
+        transform: 'translate(-50%, -50%)',
+      }}
+      title={`${op.name} (#${rank}) — ${displayValue}`}
+    >
+      <div
+        className={`px-2 py-0.5 rounded-lg border shadow-xl backdrop-blur-md flex items-center gap-1.5 whitespace-nowrap text-[10px] font-bold select-none ${
+          rank === 1
+            ? 'bg-amber-950/95 border-amber-400/90 text-amber-200 shadow-amber-500/20 ring-1 ring-amber-400/30'
+            : rank === 2
+            ? 'bg-slate-900/95 border-slate-300/80 text-slate-200'
+            : rank === 3
+            ? 'bg-amber-950/90 border-amber-600/80 text-amber-300'
+            : 'bg-slate-950/95 border-cyan-500/40 text-slate-200'
+        }`}
+      >
+        <span
+          className={`font-black flex items-center gap-0.5 ${
+            rank === 1
+              ? 'text-amber-400'
+              : rank === 2
+              ? 'text-slate-300'
+              : rank === 3
+              ? 'text-amber-500'
+              : 'text-slate-400'
+          }`}
         >
-          <div
-            className={`px-2 py-0.5 rounded-lg border shadow-xl backdrop-blur-md flex items-center gap-1.5 whitespace-nowrap text-[10px] font-bold ${
-              rank === 1
-                ? 'bg-amber-950/90 border-amber-400/80 text-amber-200 shadow-amber-500/20'
-                : rank === 2
-                ? 'bg-slate-900/90 border-slate-300/70 text-slate-200'
-                : rank === 3
-                ? 'bg-amber-950/80 border-amber-600/70 text-amber-300'
-                : 'bg-slate-950/90 border-cyan-500/30 text-slate-200'
-            }`}
-          >
-            <span className={`font-black flex items-center gap-0.5 ${
-              rank === 1 ? 'text-amber-400' :
-              rank === 2 ? 'text-slate-300' :
-              rank === 3 ? 'text-amber-500' : 'text-slate-400'
-            }`}>
-              {rank === 1 && <Crown size={11} className="fill-amber-400 text-amber-400 shrink-0" />}
-              #{rank}
-            </span>
+          {rank === 1 && <Crown size={10} className="fill-amber-400 text-amber-400 shrink-0" />}
+          #{rank}
+        </span>
 
-            <span className="max-w-[85px] sm:max-w-[110px] truncate text-slate-100 font-bold" title={op.name}>
-              {op.name}
-            </span>
+        <span className="max-w-[70px] sm:max-w-[95px] truncate text-slate-100 font-bold" title={op.name}>
+          {op.name}
+        </span>
 
-            <span className="text-cyan-400 font-black tracking-tight">
-              {displayValue}
-            </span>
-          </div>
-        </div>
+        <span className="text-cyan-400 font-black tracking-tight">
+          {displayValue}
+        </span>
       </div>
     </div>
   );
@@ -592,49 +623,205 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
     }
   };
 
-  // Get {x, y, angle} coordinates for positioning a car on the SVG track
-  const getCarTransform = (op: ShiftOperator, index: number, visibleOps: ShiftOperator[]) => {
-    if (!pathRef.current || trackLength === 0) {
-      return { x: 280, y: 75, angle: 0 };
+  interface CarLayout {
+    op: ShiftOperator;
+    index: number;
+    rank: number;
+    isLeader: boolean;
+    carX: number;
+    carY: number;
+    angle: number;
+    badgeX: number;
+    badgeY: number;
+    hasPointer: boolean;
+    displayValue: string;
+  }
+
+  // Get collision-free 2D coordinates for cars and upright badges on the SVG track
+  const getTrackLayouts = (visibleOps: ShiftOperator[]): CarLayout[] => {
+    if (!pathRef.current || trackLength === 0 || visibleOps.length === 0) {
+      return [];
     }
 
-    const progress = calculateProgress(op, visibleOps);
-    const distance = Math.max(0, Math.min(trackLength, progress * trackLength));
+    const L = trackLength;
 
-    const p1 = pathRef.current.getPointAtLength(distance);
-    const nextDist = (distance + 3) % trackLength;
-    const p2 = pathRef.current.getPointAtLength(nextDist);
-
-    const dx = p2.x - p1.x;
-    const dy = p2.y - p1.y;
-    const angleRad = Math.atan2(dy, dx);
-    const angleDeg = (angleRad * 180) / Math.PI;
-
-    // Check for nearby cars within 5% track progress to assign perpendicular lane shift
-    const closeNeighbors = visibleOps.filter((other) => {
-      if (other.user_id === op.user_id) return false;
-      const otherProg = calculateProgress(other, visibleOps);
-      return Math.abs(otherProg - progress) < 0.05;
+    // 1. Calculate raw progress and path distances
+    const rawData = visibleOps.map((op, index) => {
+      const rank = index + 1;
+      const isLeader = rank === 1;
+      const progress = calculateProgress(op, visibleOps);
+      const rawDist = Math.max(0, Math.min(L, progress * L));
+      const displayValue = getMetricDisplayValue(op);
+      return { op, index, rank, isLeader, progress, rawDist, displayValue };
     });
 
-    let laneShift = 0;
-    if (closeNeighbors.length > 0) {
-      const cluster = visibleOps
-        .map((o, i) => ({ id: o.user_id, index: i, prog: calculateProgress(o, visibleOps) }))
-        .filter(o => Math.abs(o.prog - progress) < 0.05)
-        .sort((a, b) => a.index - b.index);
+    // 2. Identify clusters and assign longitudinal + lateral shifts
+    const carTransforms = rawData.map((item) => {
+      const closeCluster = rawData.filter((other) => {
+        const delta = Math.abs(other.rawDist - item.rawDist);
+        const loopDelta = Math.min(delta, L - delta);
+        return loopDelta < 55;
+      });
 
-      const clusterIdx = cluster.findIndex(o => o.id === op.user_id);
-      const lanes = [0, -15, 15, -8, 8];
-      laneShift = lanes[clusterIdx % lanes.length];
-    }
+      let laneShift = 0;
+      let microLongShift = 0;
 
-    const perpRad = angleRad + Math.PI / 2;
-    const x = p1.x + Math.cos(perpRad) * laneShift;
-    const y = p1.y + Math.sin(perpRad) * laneShift;
+      if (closeCluster.length > 1) {
+        const clusterIdx = closeCluster.findIndex((o) => o.op.user_id === item.op.user_id);
+        const lanes = [0, -18, 18, -9, 9, -24, 24];
+        laneShift = lanes[clusterIdx % lanes.length];
 
-    return { x, y, angle: angleDeg };
+        // Micro longitudinal shift: shift lower ranks slightly backwards along path (preserving exact rank order)
+        microLongShift = -(clusterIdx * 14);
+      }
+
+      const distOnPath = (item.rawDist + microLongShift + L * 2) % L;
+      const p1 = pathRef.current!.getPointAtLength(distOnPath);
+      const p2 = pathRef.current!.getPointAtLength((distOnPath + 3) % L);
+
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const angleRad = Math.atan2(dy, dx);
+      const angleDeg = (angleRad * 180) / Math.PI;
+
+      const perpRad = angleRad + Math.PI / 2;
+      const carX = p1.x + Math.cos(perpRad) * laneShift;
+      const carY = p1.y + Math.sin(perpRad) * laneShift;
+
+      return {
+        ...item,
+        carX,
+        carY,
+        angle: angleDeg,
+        angleRad
+      };
+    });
+
+    // 3. Collision Resolution for Badges in 2D space
+    const placedBadges: { bx: number; by: number; width: number; height: number }[] = [];
+    const W = 105;
+    const H = 22;
+
+    const telemetryBox = { minX: 335, maxX: 625, minY: 170, maxY: 340 };
+    const containerBox = { minX: 35, maxX: 965, minY: 20, maxY: 500 };
+
+    const candidateOffsets = [
+      { dx: 0, dy: -28 },    // Above
+      { dx: 0, dy: 28 },     // Below
+      { dx: 55, dy: 0 },     // Right
+      { dx: -55, dy: 0 },    // Left
+      { dx: 45, dy: -24 },   // Top-Right
+      { dx: 45, dy: 24 },    // Bottom-Right
+      { dx: -45, dy: -24 },  // Top-Left
+      { dx: -45, dy: 24 },   // Bottom-Left
+      { dx: 0, dy: -48 },    // Farther Above
+      { dx: 0, dy: 48 },     // Farther Below
+      { dx: 80, dy: 0 },     // Farther Right
+      { dx: -80, dy: 0 },    // Farther Left
+      { dx: 65, dy: -40 },   // Far Top-Right
+      { dx: -65, dy: -40 },  // Far Top-Left
+      { dx: 65, dy: 40 },    // Far Bottom-Right
+      { dx: -65, dy: 40 },   // Far Bottom-Left
+    ];
+
+    const layouts: CarLayout[] = carTransforms.map((car) => {
+      let bestBx = car.carX;
+      let bestBy = car.carY - 28;
+      let found = false;
+
+      const normDx = Math.cos(car.angleRad + Math.PI / 2) * 30;
+      const normDy = Math.sin(car.angleRad + Math.PI / 2) * 30;
+
+      const dynamicCandidates = [
+        { dx: normDx, dy: normDy },
+        { dx: -normDx, dy: -normDy },
+        ...candidateOffsets
+      ];
+
+      for (const cand of dynamicCandidates) {
+        const bx = car.carX + cand.dx;
+        const by = car.carY + cand.dy;
+
+        if (
+          bx + W / 2 > telemetryBox.minX &&
+          bx - W / 2 < telemetryBox.maxX &&
+          by + H / 2 > telemetryBox.minY &&
+          by - H / 2 < telemetryBox.maxY
+        ) {
+          continue;
+        }
+
+        if (
+          bx - W / 2 < containerBox.minX ||
+          bx + W / 2 > containerBox.maxX ||
+          by - H / 2 < containerBox.minY ||
+          by + H / 2 > containerBox.maxY
+        ) {
+          continue;
+        }
+
+        const badgeCollision = placedBadges.some((pb) => {
+          return Math.abs(bx - pb.bx) < W * 0.82 && Math.abs(by - pb.by) < H * 0.90;
+        });
+        if (badgeCollision) continue;
+
+        const carCollision = carTransforms.some((other) => {
+          if (other.op.user_id === car.op.user_id) return false;
+          return Math.abs(bx - other.carX) < 32 && Math.abs(by - other.carY) < 18;
+        });
+        if (carCollision) continue;
+
+        bestBx = bx;
+        bestBy = by;
+        found = true;
+        break;
+      }
+
+      if (!found) {
+        let minOverlap = Infinity;
+        for (const cand of dynamicCandidates) {
+          const bx = car.carX + cand.dx;
+          const by = car.carY + cand.dy;
+          let score = 0;
+
+          placedBadges.forEach((pb) => {
+            const overlapX = Math.max(0, W * 0.85 - Math.abs(bx - pb.bx));
+            const overlapY = Math.max(0, H * 0.90 - Math.abs(by - pb.by));
+            score += overlapX * overlapY;
+          });
+
+          if (score < minOverlap) {
+            minOverlap = score;
+            bestBx = bx;
+            bestBy = by;
+          }
+        }
+      }
+
+      placedBadges.push({ bx: bestBx, by: bestBy, width: W, height: H });
+
+      const distToBadge = Math.hypot(bestBx - car.carX, bestBy - car.carY);
+      const hasPointer = distToBadge > 22;
+
+      return {
+        op: car.op,
+        index: car.index,
+        rank: car.rank,
+        isLeader: car.isLeader,
+        carX: car.carX,
+        carY: car.carY,
+        angle: car.angle,
+        badgeX: bestBx,
+        badgeY: bestBy,
+        hasPointer,
+        displayValue: car.displayValue
+      };
+    });
+
+    return layouts;
   };
+
+  const trackLayouts = getTrackLayouts(visibleOperators);
 
   // Identify Leader (operator #1 in visible list) & calculate telemetry gap
   const leaderUserId = visibleOperators.length > 0 ? visibleOperators[0].user_id : null;
@@ -767,7 +954,7 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
                       </span>
                       <span className="text-[10px] font-black tracking-widest text-slate-300 uppercase">
-                        LIVE RACE TELEMETRY
+                        ТЕЛЕМЕТРИЯ ГОНКИ
                       </span>
                     </div>
 
@@ -940,6 +1127,32 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                     opacity="0.4"
                   />
 
+                  {/* BADGE CONNECTOR POINTER LINES */}
+                  {trackLayouts.map((layout) => {
+                    if (!layout.hasPointer) return null;
+                    const strokeColor =
+                      layout.rank === 1
+                        ? '#f59e0b'
+                        : layout.rank === 2
+                        ? '#9ca3af'
+                        : layout.rank === 3
+                        ? '#b8622f'
+                        : '#22d3ee';
+                    return (
+                      <line
+                        key={`ptr-${layout.op.user_id}`}
+                        x1={layout.carX}
+                        y1={layout.carY}
+                        x2={layout.badgeX}
+                        y2={layout.badgeY}
+                        stroke={strokeColor}
+                        strokeWidth="1.2"
+                        strokeDasharray="2 2"
+                        opacity="0.65"
+                      />
+                    );
+                  })}
+
                   {/* Clean Start / Finish Line on Top Straight */}
                   <rect
                     x="334"
@@ -967,26 +1180,32 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                   </text>
                 </svg>
 
-                {/* FORMULA 1 CARS LAYER */}
+                {/* FORMULA 1 CARS & BADGES LAYER */}
                 <div className="absolute inset-0 pointer-events-none">
-                  {visibleOperators.map((op, index) => {
-                    const isLeader = op.user_id === leaderUserId;
-                    const transform = getCarTransform(op, index, visibleOperators);
-                    const displayValue = getMetricDisplayValue(op);
-                    const rank = index + 1;
+                  {/* CARS */}
+                  {trackLayouts.map((layout) => (
+                    <F1RaceCarNode
+                      key={`car-${layout.op.user_id}`}
+                      op={layout.op}
+                      rank={layout.rank}
+                      isLeader={layout.isLeader}
+                      carX={layout.carX}
+                      carY={layout.carY}
+                      angle={layout.angle}
+                    />
+                  ))}
 
-                    return (
-                      <F1RaceCarNode
-                        key={op.user_id}
-                        op={op}
-                        index={index}
-                        rank={rank}
-                        isLeader={isLeader}
-                        transform={transform}
-                        displayValue={displayValue}
-                      />
-                    );
-                  })}
+                  {/* DRIVER BADGES */}
+                  {trackLayouts.map((layout) => (
+                    <F1DriverBadgeNode
+                      key={`badge-${layout.op.user_id}`}
+                      op={layout.op}
+                      rank={layout.rank}
+                      badgeX={layout.badgeX}
+                      badgeY={layout.badgeY}
+                      displayValue={layout.displayValue}
+                    />
+                  ))}
                 </div>
               </div>
             )}
