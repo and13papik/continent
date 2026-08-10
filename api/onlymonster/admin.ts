@@ -117,6 +117,73 @@ async function handleWebhooks(req: any, res: any) {
   }
 }
 
+async function handleLastActivity(req: any, res: any) {
+  try {
+    const supabase = await getSupabaseClient();
+    if (!supabase) {
+      return sendJson(res, 200, {
+        success: true,
+        lastOutgoingAtByAccount: {},
+        message: 'Supabase is not configured'
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('om_webhook_events')
+      .select('account_id, platform_account_id, payload, event_timestamp, received_at')
+      .eq('event_type', 'chat.message')
+      .order('received_at', { ascending: false })
+      .limit(500);
+
+    if (error) {
+      console.error('[LastActivity] Error fetching from Supabase:', error);
+      return sendJson(res, 200, {
+        success: false,
+        error: error.message,
+        lastOutgoingAtByAccount: {}
+      });
+    }
+
+    const lastOutgoingMap: Record<string, number> = {};
+
+    (data || []).forEach((row: any) => {
+      const rawPayload = row.payload || {};
+      const p = rawPayload.payload || rawPayload;
+      const isIncoming = Boolean(
+        (p.from_id && p.fan_id && String(p.from_id) === String(p.fan_id)) ||
+        p.is_incoming === true ||
+        p.direction === 'in' ||
+        p.sender === 'fan'
+      );
+
+      if (!isIncoming) {
+        const rawAccId = row.account_id || row.platform_account_id || p.account_id || p.platform_account_id || p.creator_id || p.model_id;
+        if (rawAccId) {
+          const accKey = String(rawAccId);
+          const ts = new Date(row.event_timestamp || row.received_at || 0).getTime();
+          if (ts > 0) {
+            if (!lastOutgoingMap[accKey] || ts > lastOutgoingMap[accKey]) {
+              lastOutgoingMap[accKey] = ts;
+            }
+          }
+        }
+      }
+    });
+
+    return sendJson(res, 200, {
+      success: true,
+      lastOutgoingAtByAccount: lastOutgoingMap
+    });
+  } catch (err: any) {
+    console.error('[LastActivity] Exception:', err);
+    return sendJson(res, 200, {
+      success: false,
+      error: err.message || String(err),
+      lastOutgoingAtByAccount: {}
+    });
+  }
+}
+
 async function handleDbTables(req: any, res: any) {
   const creds = await getSupabaseCredentials();
   if (!creds) {
@@ -158,6 +225,8 @@ export default async function handler(req: any, res: any) {
 
   if (resource === 'events') {
     return handleEvents(req, res, queryParams);
+  } else if (resource === 'last-activity' || resource === 'last_activity') {
+    return handleLastActivity(req, res);
   } else if (resource === 'db-tables' || resource === 'tables') {
     return handleDbTables(req, res);
   } else {

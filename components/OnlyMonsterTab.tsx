@@ -1377,6 +1377,45 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
     return () => clearInterval(ticker);
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+    const fetchInitialLastActivity = async () => {
+      try {
+        const res = await fetch('/api/onlymonster/admin?resource=last-activity');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isMounted && data.success && data.lastOutgoingAtByAccount) {
+          const rawIncoming: Record<string, number> = data.lastOutgoingAtByAccount;
+          setLastOutgoingAtByAccount(prev => {
+            const next = { ...prev };
+            Object.entries(rawIncoming).forEach(([key, ts]) => {
+              const numTs = Number(ts);
+              if (numTs > 0) {
+                next[key] = Math.max(next[key] || 0, numTs);
+              }
+            });
+            accounts.forEach(acc => {
+              const k1 = String(acc.id || '');
+              const k2 = String(acc.platform_account_id || '');
+              const ts1 = next[k1] || 0;
+              const ts2 = next[k2] || 0;
+              const maxTs = Math.max(ts1, ts2);
+              if (maxTs > 0) {
+                if (k1) next[k1] = maxTs;
+                if (k2) next[k2] = maxTs;
+              }
+            });
+            return next;
+          });
+        }
+      } catch (err) {
+        console.error('[OnlyMonsterTab] Error fetching last-activity:', err);
+      }
+    };
+    fetchInitialLastActivity();
+    return () => { isMounted = false; };
+  }, [accounts]);
+
   const attentionAlerts = useMemo(() => {
     return computeAttentionAlerts(operators, accounts, periodMode, shiftInfo, lastOutgoingAtByAccount, nowTime);
   }, [operators, accounts, periodMode, shiftInfo, lastOutgoingAtByAccount, nowTime]);
