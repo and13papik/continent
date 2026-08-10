@@ -17,6 +17,15 @@ import {
   Sparkles,
   Target
 } from 'lucide-react';
+import {
+  MESSAGES_PER_LAP,
+  getLapInfo,
+  sanitizeOperatorMessages,
+  isLapCrossedForward,
+  clampToBounds
+} from './trackLogic';
+
+export { MESSAGES_PER_LAP, getLapInfo };
 
 interface OnlyMonsterAccount {
   id: string;
@@ -51,24 +60,6 @@ interface LiveTrackModalProps {
   sortDir: 'asc' | 'desc';
   accounts: OnlyMonsterAccount[];
   currentKyivShiftIndex: number;
-}
-
-// 1 Full Lap = 100 Messages
-export const MESSAGES_PER_LAP = 100;
-
-export function getLapInfo(messages: number) {
-  const safeMsgs = Math.max(0, messages || 0);
-  const completedLaps = Math.floor(safeMsgs / MESSAGES_PER_LAP);
-  const currentLap = completedLaps + 1;
-  const messagesInCurrentLap = safeMsgs % MESSAGES_PER_LAP;
-  const lapProgress = messagesInCurrentLap / MESSAGES_PER_LAP;
-  return {
-    completedLaps,
-    currentLap,
-    messagesInCurrentLap,
-    lapProgress,
-    totalMessages: safeMsgs
-  };
 }
 
 function formatDuration(seconds?: number | null): string {
@@ -236,6 +227,7 @@ interface CarNodeProps {
   angle: number;
   rankDelta?: number;
   isNewLap?: boolean;
+  isLapCrossed?: boolean;
   isSelected?: boolean;
   onClick?: () => void;
 }
@@ -249,6 +241,7 @@ const F1RaceCarNode: React.FC<CarNodeProps> = ({
   angle,
   rankDelta,
   isNewLap,
+  isLapCrossed,
   isSelected,
   onClick
 }) => {
@@ -275,9 +268,9 @@ const F1RaceCarNode: React.FC<CarNodeProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`absolute z-30 pointer-events-auto transition-all duration-700 ease-out group cursor-pointer ${
-        isSelected ? 'scale-110' : ''
-      }`}
+      className={`absolute z-30 pointer-events-auto group cursor-pointer ${
+        isLapCrossed ? 'transition-none' : 'transition-all duration-700 ease-out'
+      } ${isSelected ? 'scale-110 z-50' : ''}`}
       style={{
         left: `${leftPct}%`,
         top: `${topPct}%`,
@@ -344,6 +337,9 @@ interface DriverBadgeNodeProps {
   badgeX: number;
   badgeY: number;
   displayValue: string;
+  isCompact?: boolean;
+  isUltraCompact?: boolean;
+  isLapCrossed?: boolean;
   isSelected?: boolean;
   onClick?: () => void;
 }
@@ -354,6 +350,9 @@ const F1DriverBadgeNode: React.FC<DriverBadgeNodeProps> = ({
   badgeX,
   badgeY,
   displayValue,
+  isCompact,
+  isUltraCompact,
+  isLapCrossed,
   isSelected,
   onClick
 }) => {
@@ -364,9 +363,9 @@ const F1DriverBadgeNode: React.FC<DriverBadgeNodeProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`absolute z-40 pointer-events-auto transition-all duration-700 ease-out cursor-pointer ${
-        isSelected ? 'scale-110 z-50' : ''
-      }`}
+      className={`absolute z-40 pointer-events-auto cursor-pointer ${
+        isLapCrossed ? 'transition-none' : 'transition-all duration-700 ease-out'
+      } ${isSelected ? 'scale-110 z-50' : ''}`}
       style={{
         left: `${leftPct}%`,
         top: `${topPct}%`,
@@ -374,51 +373,102 @@ const F1DriverBadgeNode: React.FC<DriverBadgeNodeProps> = ({
       }}
       title={`${op.name} (#${rank}) — ${op.messages_count} сообщ. — КРУГ ${lapInfo.currentLap}`}
     >
-      <div
-        className={`px-2 py-1 rounded-xl border shadow-xl backdrop-blur-md flex flex-col gap-0.5 whitespace-nowrap text-[10px] font-mono select-none transition-all ${
-          isSelected
-            ? 'bg-cyan-950/95 border-cyan-400 text-cyan-200 shadow-cyan-500/40 ring-2 ring-cyan-400'
-            : rank === 1
-            ? 'bg-amber-950/95 border-amber-400/90 text-amber-200 shadow-amber-500/20 ring-1 ring-amber-400/30'
-            : rank === 2
-            ? 'bg-slate-900/95 border-slate-300/80 text-slate-200'
-            : rank === 3
-            ? 'bg-amber-950/90 border-amber-600/80 text-amber-300'
-            : 'bg-slate-950/95 border-cyan-500/40 text-slate-200'
-        }`}
-      >
-        {/* ROW 1: RANK + NAME + MESSAGES */}
-        <div className="flex items-center gap-1.5">
-          <span
-            className={`font-black flex items-center gap-0.5 ${
-              rank === 1
-                ? 'text-amber-400'
-                : rank === 2
-                ? 'text-slate-300'
-                : rank === 3
-                ? 'text-amber-500'
-                : 'text-slate-400'
-            }`}
-          >
-            {rank === 1 && <Crown size={10} className="fill-amber-400 text-amber-400 shrink-0" />}
+      {isUltraCompact ? (
+        // ULTRA COMPACT BADGE (#3 huskar · 213)
+        <div
+          className={`px-1.5 py-0.5 rounded-lg border shadow-lg backdrop-blur-md flex items-center gap-1 whitespace-nowrap text-[9px] font-mono select-none transition-all ${
+            isSelected
+              ? 'bg-cyan-950/95 border-cyan-400 text-cyan-200 shadow-cyan-500/40 ring-1 ring-cyan-400'
+              : rank === 1
+              ? 'bg-amber-950/95 border-amber-400/90 text-amber-200'
+              : 'bg-slate-950/95 border-cyan-500/40 text-slate-200'
+          }`}
+        >
+          <span className={`font-black ${rank === 1 ? 'text-amber-400' : 'text-cyan-400'}`}>
             #{rank}
           </span>
-
-          <span className="max-w-[70px] sm:max-w-[95px] truncate text-slate-100 font-bold" title={op.name}>
+          <span className="max-w-[50px] truncate text-slate-100 font-bold">
             {op.name}
           </span>
-
-          <span className="text-cyan-400 font-black tracking-tight ml-auto">
-            {op.messages_count}
+          <span className="text-cyan-300 font-black">
+            · {op.messages_count}
           </span>
         </div>
-
-        {/* ROW 2: LAP NUMBER & CURRENT LAP PROGRESS */}
-        <div className="flex items-center justify-between text-[9px] text-slate-300 font-semibold border-t border-white/10 pt-0.5">
-          <span className="text-cyan-300 font-bold">К{lapInfo.currentLap}</span>
-          <span className="text-slate-400 font-mono">{lapInfo.messagesInCurrentLap}/100</span>
+      ) : isCompact ? (
+        // COMPACT BADGE (#3 huskar · 213 \n К3 · 13/100)
+        <div
+          className={`px-2 py-0.5 rounded-xl border shadow-lg backdrop-blur-md flex flex-col gap-0.5 whitespace-nowrap text-[9.5px] font-mono select-none transition-all ${
+            isSelected
+              ? 'bg-cyan-950/95 border-cyan-400 text-cyan-200 shadow-cyan-500/40 ring-1 ring-cyan-400'
+              : rank === 1
+              ? 'bg-amber-950/95 border-amber-400/90 text-amber-200'
+              : 'bg-slate-950/95 border-cyan-500/40 text-slate-200'
+          }`}
+        >
+          <div className="flex items-center gap-1">
+            <span className={`font-black ${rank === 1 ? 'text-amber-400' : 'text-cyan-400'}`}>
+              #{rank}
+            </span>
+            <span className="max-w-[65px] truncate text-slate-100 font-bold">
+              {op.name}
+            </span>
+            <span className="text-cyan-300 font-black ml-auto">
+              · {op.messages_count}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-[8.5px] text-slate-400 border-t border-white/10 pt-0.5">
+            <span className="text-cyan-300/90 font-bold">К{lapInfo.currentLap}</span>
+            <span className="text-slate-400">{lapInfo.messagesInCurrentLap}/100</span>
+          </div>
         </div>
-      </div>
+      ) : (
+        // STANDARD BADGE
+        <div
+          className={`px-2 py-1 rounded-xl border shadow-xl backdrop-blur-md flex flex-col gap-0.5 whitespace-nowrap text-[10px] font-mono select-none transition-all ${
+            isSelected
+              ? 'bg-cyan-950/95 border-cyan-400 text-cyan-200 shadow-cyan-500/40 ring-2 ring-cyan-400'
+              : rank === 1
+              ? 'bg-amber-950/95 border-amber-400/90 text-amber-200 shadow-amber-500/20 ring-1 ring-amber-400/30'
+              : rank === 2
+              ? 'bg-slate-900/95 border-slate-300/80 text-slate-200'
+              : rank === 3
+              ? 'bg-amber-950/90 border-amber-600/80 text-amber-300'
+              : 'bg-slate-950/95 border-cyan-500/40 text-slate-200'
+          }`}
+        >
+          {/* ROW 1: RANK + NAME + MESSAGES */}
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`font-black flex items-center gap-0.5 ${
+                rank === 1
+                  ? 'text-amber-400'
+                  : rank === 2
+                  ? 'text-slate-300'
+                  : rank === 3
+                  ? 'text-amber-500'
+                  : 'text-slate-400'
+              }`}
+            >
+              {rank === 1 && <Crown size={10} className="fill-amber-400 text-amber-400 shrink-0" />}
+              #{rank}
+            </span>
+
+            <span className="max-w-[70px] sm:max-w-[95px] truncate text-slate-100 font-bold" title={op.name}>
+              {op.name}
+            </span>
+
+            <span className="text-cyan-400 font-black tracking-tight ml-auto">
+              {op.messages_count}
+            </span>
+          </div>
+
+          {/* ROW 2: LAP NUMBER & CURRENT LAP PROGRESS */}
+          <div className="flex items-center justify-between text-[9px] text-slate-300 font-semibold border-t border-white/10 pt-0.5">
+            <span className="text-cyan-300 font-bold">К{lapInfo.currentLap}</span>
+            <span className="text-slate-400 font-mono">{lapInfo.messagesInCurrentLap}/100</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -817,8 +867,18 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
     badgeY: number;
     hasPointer: boolean;
     displayValue: string;
+    isCompact: boolean;
+    isUltraCompact: boolean;
+    isLapCrossed: boolean;
     lapInfo: ReturnType<typeof getLapInfo>;
   }
+
+  const operatorHistoryRef = useRef<Record<string, {
+    messages: number;
+    lapProgress: number;
+    completedLaps: number;
+    rawDist: number;
+  }>>({});
 
   // Calculate 2D coordinates for cars and upright badges on the SVG track
   // Absolute longitudinal progress along lap = (messages % 100) / 100
@@ -835,26 +895,50 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
     const rankMap = new Map<string, number>();
     sortedByMsgs.forEach((o, i) => rankMap.set(o.user_id, i + 1));
 
-    // 2. Compute absolute lap progress & path distances
+    // 2. Compute absolute lap progress & path distances with history & sanitization
     const rawData = visibleOps.map((op) => {
       const rank = rankMap.get(op.user_id) || 1;
       const isLeader = rank === 1;
-      const lapInfo = getLapInfo(op.messages_count);
+
+      const history = operatorHistoryRef.current[op.user_id];
+      const { messages: effectiveMsgs, wasDecreased } = sanitizeOperatorMessages(
+        op.messages_count,
+        history?.messages
+      );
+
+      if (wasDecreased) {
+        console.warn(
+          `[LiveTrackModal] Message count decreased for operator ${op.user_id} (${op.name}): prev=${history?.messages}, curr=${op.messages_count}. Preserving previous progress.`
+        );
+      }
+
+      const lapInfo = getLapInfo(effectiveMsgs);
       const rawDist = Math.max(0, Math.min(L, lapInfo.lapProgress * L));
+
+      const isLapCrossed = isLapCrossedForward(
+        history?.lapProgress ?? 0,
+        lapInfo.lapProgress
+      );
+
+      operatorHistoryRef.current[op.user_id] = {
+        messages: effectiveMsgs,
+        lapProgress: lapInfo.lapProgress,
+        completedLaps: lapInfo.completedLaps,
+        rawDist
+      };
+
       const displayValue = getMetricDisplayValue(op);
-      return { op, rank, isLeader, lapInfo, rawDist, displayValue };
+      return { op, rank, isLeader, lapInfo, rawDist, displayValue, isLapCrossed };
     });
 
-    // 3. Assign deterministic lateral lane shifts for close clusters (zero longitudinal manipulation)
+    // 3. Assign deterministic lateral lane shifts (with safe bounds on bottom section)
     const carTransforms = rawData.map((item) => {
-      // Find cars in close progress cluster (< 45px path distance)
       const closeCluster = rawData
         .filter((other) => {
           const delta = Math.abs(other.rawDist - item.rawDist);
           const loopDelta = Math.min(delta, L - delta);
           return loopDelta < 45;
         })
-        // Sort cluster by user_id deterministically so lane assignment never flips
         .sort((a, b) => a.op.user_id.localeCompare(b.op.user_id));
 
       let laneShift = 0;
@@ -874,58 +958,93 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
       const angleDeg = (angleRad * 180) / Math.PI;
 
       const perpRad = angleRad + Math.PI / 2;
-      const carX = p1.x + Math.cos(perpRad) * laneShift;
-      const carY = p1.y + Math.sin(perpRad) * laneShift;
+      let carX = p1.x + Math.cos(perpRad) * laneShift;
+      let carY = p1.y + Math.sin(perpRad) * laneShift;
+
+      // Safe bounds enforcement on bottom section (Requirement 1):
+      if (p1.y > 400 && Math.sin(perpRad) * laneShift > 0) {
+        carY = p1.y - Math.abs(Math.sin(perpRad) * laneShift);
+      }
+
+      carX = clampToBounds(carX, 35, 965);
+      carY = clampToBounds(carY, 25, 475);
+
+      // Density calculation for badge compactness (Requirement 2):
+      const densityNeighbors = rawData.filter((other) => {
+        if (other.op.user_id === item.op.user_id) return false;
+        const delta = Math.abs(other.rawDist - item.rawDist);
+        const loopDelta = Math.min(delta, L - delta);
+        return loopDelta < 90;
+      });
+
+      const density = densityNeighbors.length;
+      const isUltraCompact = density >= 3;
+      const isCompact = density >= 1 && density < 3;
 
       return {
         ...item,
         carX,
         carY,
         angle: angleDeg,
-        angleRad
+        angleRad,
+        isUltraCompact,
+        isCompact
       };
     });
 
-    // 4. Badge Collision Resolution (in 2D space)
+    // 4. Badge Collision Resolution with 2-3 Visual Levels & Safe Bounds Clamping
     const placedBadges: { bx: number; by: number; width: number; height: number }[] = [];
-    const W = 110;
-    const H = 28;
 
-    const telemetryBox = { minX: 330, maxX: 630, minY: 160, maxY: 350 };
-    const containerBox = { minX: 30, maxX: 970, minY: 15, maxY: 505 };
-
-    const candidateOffsets = [
-      { dx: 0, dy: -32 },    // Above
-      { dx: 0, dy: 32 },     // Below
-      { dx: 58, dy: 0 },     // Right
-      { dx: -58, dy: 0 },    // Left
-      { dx: 48, dy: -26 },   // Top-Right
-      { dx: 48, dy: 26 },    // Bottom-Right
-      { dx: -48, dy: -26 },  // Top-Left
-      { dx: -48, dy: 26 },   // Bottom-Left
-      { dx: 0, dy: -52 },    // Farther Above
-      { dx: 0, dy: 52 },     // Farther Below
-      { dx: 85, dy: 0 },     // Farther Right
-      { dx: -85, dy: 0 },    // Farther Left
-    ];
+    const telemetryBox = { minX: 320, maxX: 640, minY: 150, maxY: 355 };
+    const containerBox = { minX: 25, maxX: 975, minY: 15, maxY: 505 };
 
     const layouts: CarLayout[] = carTransforms.map((car) => {
+      const W = car.isUltraCompact ? 80 : car.isCompact ? 95 : 110;
+      const H = car.isUltraCompact ? 18 : car.isCompact ? 24 : 30;
+
+      const candidateOffsets = car.carY > 380
+        ? [
+            { dx: 0, dy: -32 },
+            { dx: -45, dy: -22 },
+            { dx: 45, dy: -22 },
+            { dx: 0, dy: -52 },
+            { dx: -60, dy: -18 },
+            { dx: 60, dy: -18 },
+            { dx: 0, dy: 28 },
+          ]
+        : [
+            { dx: 0, dy: -30 },    // Level 1: Above
+            { dx: 0, dy: 30 },     // Level 2: Below
+            { dx: 45, dy: -22 },   // Level 3: Top-Right
+            { dx: -45, dy: -22 },  // Level 4: Top-Left
+            { dx: 0, dy: -48 },    // Level 5: Farther Above
+            { dx: 45, dy: 22 },    // Level 6: Bottom-Right
+            { dx: -45, dy: 22 },   // Level 7: Bottom-Left
+            { dx: 70, dy: 0 },     // Level 8: Far Right
+            { dx: -70, dy: 0 },    // Level 9: Far Left
+          ];
+
       let bestBx = car.carX;
-      let bestBy = car.carY - 32;
+      let bestBy = car.carY > 380 ? car.carY - 32 : car.carY - 30;
       let found = false;
 
-      const normDx = Math.cos(car.angleRad + Math.PI / 2) * 32;
-      const normDy = Math.sin(car.angleRad + Math.PI / 2) * 32;
+      const normDx = Math.cos(car.angleRad + Math.PI / 2) * 30;
+      const normDy = Math.sin(car.angleRad + Math.PI / 2) * 30;
 
-      const dynamicCandidates = [
-        { dx: normDx, dy: normDy },
-        { dx: -normDx, dy: -normDy },
-        ...candidateOffsets
-      ];
+      const dynamicCandidates = car.carY > 380
+        ? candidateOffsets
+        : [
+            { dx: normDx, dy: normDy },
+            { dx: -normDx, dy: -normDy },
+            ...candidateOffsets
+          ];
 
       for (const cand of dynamicCandidates) {
-        const bx = car.carX + cand.dx;
-        const by = car.carY + cand.dy;
+        let bx = car.carX + cand.dx;
+        let by = car.carY + cand.dy;
+
+        bx = clampToBounds(bx, containerBox.minX + W / 2, containerBox.maxX - W / 2);
+        by = clampToBounds(by, containerBox.minY + H / 2, containerBox.maxY - H / 2);
 
         if (
           bx + W / 2 > telemetryBox.minX &&
@@ -936,23 +1055,14 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
           continue;
         }
 
-        if (
-          bx - W / 2 < containerBox.minX ||
-          bx + W / 2 > containerBox.maxX ||
-          by - H / 2 < containerBox.minY ||
-          by + H / 2 > containerBox.maxY
-        ) {
-          continue;
-        }
-
         const badgeCollision = placedBadges.some((pb) => {
-          return Math.abs(bx - pb.bx) < W * 0.82 && Math.abs(by - pb.by) < H * 0.90;
+          return Math.abs(bx - pb.bx) < (W + pb.width) * 0.45 && Math.abs(by - pb.by) < (H + pb.height) * 0.48;
         });
         if (badgeCollision) continue;
 
         const carCollision = carTransforms.some((other) => {
           if (other.op.user_id === car.op.user_id) return false;
-          return Math.abs(bx - other.carX) < 34 && Math.abs(by - other.carY) < 20;
+          return Math.abs(bx - other.carX) < 32 && Math.abs(by - other.carY) < 18;
         });
         if (carCollision) continue;
 
@@ -965,13 +1075,16 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
       if (!found) {
         let minOverlap = Infinity;
         for (const cand of dynamicCandidates) {
-          const bx = car.carX + cand.dx;
-          const by = car.carY + cand.dy;
-          let score = 0;
+          let bx = car.carX + cand.dx;
+          let by = car.carY + cand.dy;
 
+          bx = clampToBounds(bx, containerBox.minX + W / 2, containerBox.maxX - W / 2);
+          by = clampToBounds(by, containerBox.minY + H / 2, containerBox.maxY - H / 2);
+
+          let score = 0;
           placedBadges.forEach((pb) => {
-            const overlapX = Math.max(0, W * 0.85 - Math.abs(bx - pb.bx));
-            const overlapY = Math.max(0, H * 0.90 - Math.abs(by - pb.by));
+            const overlapX = Math.max(0, (W + pb.width) * 0.5 - Math.abs(bx - pb.bx));
+            const overlapY = Math.max(0, (H + pb.height) * 0.5 - Math.abs(by - pb.by));
             score += overlapX * overlapY;
           });
 
@@ -983,10 +1096,13 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
         }
       }
 
+      bestBx = clampToBounds(bestBx, containerBox.minX + W / 2, containerBox.maxX - W / 2);
+      bestBy = clampToBounds(bestBy, containerBox.minY + H / 2, containerBox.maxY - H / 2);
+
       placedBadges.push({ bx: bestBx, by: bestBy, width: W, height: H });
 
       const distToBadge = Math.hypot(bestBx - car.carX, bestBy - car.carY);
-      const hasPointer = distToBadge > 24;
+      const hasPointer = distToBadge > 22;
 
       return {
         op: car.op,
@@ -999,6 +1115,9 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
         badgeY: bestBy,
         hasPointer,
         displayValue: car.displayValue,
+        isCompact: car.isCompact,
+        isUltraCompact: car.isUltraCompact,
+        isLapCrossed: car.isLapCrossed,
         lapInfo: car.lapInfo
       };
     });
@@ -1143,44 +1262,44 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                 
                 {/* CENTRAL LIVE TELEMETRY BOARD */}
                 <div className="absolute top-[48%] left-[48%] -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none flex flex-col items-center">
-                  <div className="bg-slate-950/90 border border-cyan-500/40 rounded-2xl p-3 sm:p-4 shadow-[0_0_35px_rgba(6,182,212,0.15)] backdrop-blur-md min-w-[210px] sm:min-w-[250px] text-center font-mono">
+                  <div className="bg-slate-950/90 border border-cyan-500/40 rounded-xl p-2 sm:p-2.5 shadow-[0_0_35px_rgba(6,182,212,0.15)] backdrop-blur-md min-w-[190px] sm:min-w-[220px] text-center font-mono">
                     
                     {/* Live Status Header */}
-                    <div className="flex items-center justify-center gap-1.5 mb-1.5">
-                      <span className="relative flex h-2 w-2">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <span className="relative flex h-1.5 w-1.5">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500"></span>
                       </span>
-                      <span className="text-[10px] font-black tracking-widest text-slate-300 uppercase">
+                      <span className="text-[9px] font-black tracking-widest text-slate-300 uppercase">
                         ТЕЛЕМЕТРИЯ ГОНКИ
                       </span>
                     </div>
 
                     {/* Shift Label Header */}
-                    <div className="text-[10px] font-bold text-cyan-400/90 uppercase tracking-wider mb-2">
+                    <div className="text-[9px] font-bold text-cyan-400/90 uppercase tracking-wider mb-1">
                       {shiftInfo?.label ? `ЗАЕЗД ${shiftInfo.label}` : 'ЗАЕЗД 08:00–14:00'}
                     </div>
 
                     {/* Shift Countdown / Ended State */}
                     {isShiftEnded ? (
-                      <div className="mb-2 pb-2 border-b border-amber-500/30">
-                        <div className="text-xs sm:text-sm font-black text-amber-300 tracking-wider flex items-center justify-center gap-1">
-                          <Trophy size={14} className="text-amber-400" />
+                      <div className="mb-1 pb-1 border-b border-amber-500/30">
+                        <div className="text-xs sm:text-xs font-black text-amber-300 tracking-wider flex items-center justify-center gap-1">
+                          <Trophy size={12} className="text-amber-400" />
                           ЗАЕЗД ЗАВЕРШЁН
                         </div>
                       </div>
                     ) : isCurrentActiveShift && remainingTimeText ? (
-                      <div className="mb-2 pb-2 border-b border-white/10">
-                        <div className="text-base sm:text-xl font-black text-emerald-400 tracking-wider">
+                      <div className="mb-1 pb-1 border-b border-white/10">
+                        <div className="text-sm sm:text-base font-black text-emerald-400 tracking-wider">
                           {remainingTimeText}
                         </div>
-                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                        <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">
                           ДО КОНЦА СМЕНЫ
                         </div>
                       </div>
                     ) : (
-                      <div className="mb-2 pb-2 border-b border-white/10">
-                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="mb-1 pb-1 border-b border-white/10">
+                        <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">
                           ДО КОНЦА СМЕНЫ
                         </div>
                       </div>
@@ -1188,18 +1307,18 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
 
                     {/* Leader Display */}
                     {leaderOp && (
-                      <div className="mb-2 text-left bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5">
-                        <div className="text-[9px] font-extrabold text-amber-400 uppercase tracking-wider flex items-center justify-between">
+                      <div className="text-left bg-amber-500/10 border border-amber-500/30 rounded-lg p-1.5">
+                        <div className="text-[8px] font-extrabold text-amber-400 uppercase tracking-wider flex items-center justify-between">
                           <span className="flex items-center gap-1">
-                            <Crown size={11} className="fill-amber-400 text-amber-400 shrink-0" />
+                            <Crown size={10} className="fill-amber-400 text-amber-400 shrink-0" />
                             {isShiftEnded ? 'ПОБЕДИТЕЛЬ' : 'ЛИДЕР'}
                           </span>
-                          <span className="text-amber-300 font-black">
+                          <span className="text-amber-300 font-black text-[10px]">
                             {leaderOp.messages_count}
                           </span>
                         </div>
                         
-                        <div className="text-xs font-black text-slate-100 truncate mt-0.5">
+                        <div className="text-xs font-black text-slate-100 truncate">
                           {leaderOp.name}
                         </div>
 
@@ -1207,12 +1326,12 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                         {(() => {
                           const leaderLap = getLapInfo(leaderOp.messages_count);
                           return (
-                            <div className="mt-1.5 pt-1.5 border-t border-amber-500/20">
-                              <div className="flex items-center justify-between text-[10px] font-bold text-amber-200">
+                            <div className="mt-1 pt-1 border-t border-amber-500/20">
+                              <div className="flex items-center justify-between text-[9px] font-bold text-amber-200">
                                 <span>КРУГ {leaderLap.currentLap}</span>
                                 <span className="text-amber-400">{leaderLap.messagesInCurrentLap}/100</span>
                               </div>
-                              <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden mt-1 border border-amber-500/30">
+                              <div className="w-full h-1 bg-slate-900 rounded-full overflow-hidden mt-0.5 border border-amber-500/30">
                                 <div 
                                   className="h-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all duration-500" 
                                   style={{ width: `${leaderLap.lapProgress * 100}%` }} 
@@ -1226,18 +1345,18 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
 
                     {/* #2 & Gap */}
                     {!isShiftEnded && secondOp && (
-                      <div className="text-left bg-slate-900/90 border border-white/10 rounded-xl p-2 flex items-center justify-between gap-2 text-[11px]">
+                      <div className="mt-1 text-left bg-slate-900/90 border border-white/10 rounded-lg p-1.5 flex items-center justify-between gap-2 text-[10px]">
                         <div className="min-w-0 flex-1">
-                          <span className="text-[9px] font-extrabold text-slate-400 block truncate">
+                          <span className="text-[8px] font-extrabold text-slate-400 block truncate">
                             #2 {secondOp.name}
                           </span>
-                          <span className="font-black text-slate-200">
+                          <span className="font-black text-slate-200 text-[10px]">
                             {secondOp.messages_count}
                           </span>
                         </div>
                         <div className="text-right shrink-0">
-                          <span className="text-[9px] text-slate-400 block font-bold">РАЗРЫВ ДО #2</span>
-                          <span className="text-cyan-400 font-black text-xs">
+                          <span className="text-[8px] text-slate-400 block font-bold">РАЗРЫВ ДО #2</span>
+                          <span className="text-cyan-400 font-black text-[11px]">
                             +{gapValue}
                           </span>
                         </div>
@@ -1246,7 +1365,7 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
 
                     {/* Ended Shift Summary Banner */}
                     {isShiftEnded && leaderOp && (
-                      <div className="mt-1 text-[10px] text-amber-300 font-bold">
+                      <div className="mt-1 text-[9px] text-amber-300 font-bold">
                         {getLapInfo(leaderOp.messages_count).completedLaps} ЗАВЕРШЁННЫХ КРУГА
                       </div>
                     )}
@@ -1586,53 +1705,59 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
                     <div
                       key={op.user_id}
                       onClick={() => toggleOperatorHide(op.user_id)}
-                      className={`p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col gap-1.5 ${
+                      className={`p-1.5 sm:p-2 rounded-xl border transition-all cursor-pointer flex flex-col gap-1 ${
                         isHidden 
                           ? 'bg-slate-950/40 border-white/5 opacity-50 hover:opacity-75' 
                           : selectedOperatorId === op.user_id
                           ? 'bg-cyan-950/60 border-cyan-400 shadow-md ring-1 ring-cyan-400'
-                          : 'bg-slate-900 border-cyan-500/30 hover:border-cyan-400/60 shadow-sm'
+                          : 'bg-slate-900/90 border-cyan-500/20 hover:border-cyan-400/60 shadow-sm'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2.5">
-                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                          <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border transition-all ${
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <div className={`w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 border transition-all ${
                             !isHidden 
                               ? 'bg-cyan-500 border-cyan-400 text-black' 
                               : 'bg-slate-800 border-slate-600 text-transparent'
                           }`}>
-                            <Check size={12} strokeWidth={3} />
+                            <Check size={10} strokeWidth={3} />
                           </div>
 
                           {op.avatar ? (
-                            <img src={op.avatar} alt={op.name} className="w-7 h-7 rounded-full object-cover shrink-0" />
+                            <img src={op.avatar} alt={op.name} className="w-6 h-6 rounded-full object-cover shrink-0" />
                           ) : (
-                            <div className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-300 shrink-0">
+                            <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[9px] font-bold text-slate-300 shrink-0">
                               {op.name.charAt(0)}
                             </div>
                           )}
 
                           <div className="min-w-0 flex-1">
-                            <p className={`text-xs font-bold truncate ${isHidden ? 'line-through text-slate-500' : 'text-slate-200'}`}>
+                            <p className={`text-[11px] font-bold truncate leading-tight ${isHidden ? 'line-through text-slate-500' : 'text-slate-200'}`}>
                               #{opRank} {op.name}
                             </p>
                           </div>
                         </div>
 
-                        <span className={`text-xs font-black shrink-0 ${isHidden ? 'text-slate-600' : 'text-cyan-400'}`}>
+                        <span className={`text-[11px] font-black shrink-0 ${isHidden ? 'text-slate-600' : 'text-cyan-400'}`}>
                           {displayValue}
                         </span>
                       </div>
 
-                      {/* SUBTITLE: LAP INFO + GAP */}
+                      {/* SUBTITLE: LAP INFO + COLOR-CODED GAP */}
                       {!isHidden && (
-                        <div className="flex items-center justify-between text-[10px] font-mono pl-6 pt-1 border-t border-white/5 text-slate-400">
+                        <div className="flex items-center justify-between text-[9.5px] font-mono pl-5 pt-0.5 border-t border-white/5 text-slate-400">
                           <span className="text-slate-300 font-semibold">
-                            КРУГ {lapInfo.currentLap} · {lapInfo.messagesInCurrentLap}/100
+                            К{lapInfo.currentLap} · {lapInfo.messagesInCurrentLap}/100
                           </span>
                           {opRank > 1 && gapToAhead > 0 && (
-                            <span className="text-amber-400/90 text-[9px] font-bold">
-                              До #{opRank - 1}: {gapToAhead}
+                            <span className={`text-[9px] font-extrabold px-1 py-0.2 rounded ${
+                              gapToAhead <= 10
+                                ? 'text-emerald-400 bg-emerald-950/60 border border-emerald-500/30'
+                                : gapToAhead <= 30
+                                ? 'text-amber-300 bg-amber-950/60 border border-amber-500/30'
+                                : 'text-slate-400 bg-slate-800/60'
+                            }`}>
+                              До #{opRank - 1}: +{gapToAhead}
                             </span>
                           )}
                         </div>
