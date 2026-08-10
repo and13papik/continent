@@ -771,8 +771,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
       params.append('account_id', acc.platform_account_id);
       params.append('start', range.start);
       params.append('end', range.end);
+      params.set('resource', 'account-detail');
 
-      const res = await fetch(`/api/onlymonster/account-detail?${params.toString()}`);
+      const res = await fetch(`/api/onlymonster/analytics?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
@@ -813,8 +814,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
 
       params.append('sortBy', sb);
       params.append('sortDir', sd);
+      params.set('resource', 'shift-operators');
 
-      const url = `/api/onlymonster/shift-operators?${params.toString()}`;
+      const url = `/api/onlymonster/analytics?${params.toString()}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -869,8 +871,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
         params.append('scope', 'day');
         params.append('day', mode);
       }
+      params.set('resource', 'shift-comparison');
 
-      const res = await fetch(`/api/onlymonster/shift-comparison?${params.toString()}`);
+      const res = await fetch(`/api/onlymonster/analytics?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
@@ -927,8 +930,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
       params.append('creator_id', creatorId);
       params.append('start', shiftInfo.start);
       params.append('end', shiftInfo.end);
+      params.set('resource', 'operator-model-breakdown');
 
-      const res = await fetch(`/api/onlymonster/operator-model-breakdown?${params.toString()}`);
+      const res = await fetch(`/api/onlymonster/analytics?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
@@ -988,8 +992,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
       if (breakdownMode) {
         params.append('breakdown', 'true');
       }
+      params.set('resource', 'earnings');
 
-      const res = await fetch(`/api/onlymonster/earnings?${params.toString()}`);
+      const res = await fetch(`/api/onlymonster/analytics?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         if (data && data.success && data.earnings) {

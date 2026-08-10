@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '../_lib/supabase.js';
+import { getSupabaseClient, getSupabaseCredentials, listExistingSupabaseTables } from '../_lib/supabase.js';
 
 function sendJson(res: any, status: number, data: any) {
   if (typeof res.status === 'function' && typeof res.json === 'function') {
@@ -11,11 +11,7 @@ function sendJson(res: any, status: number, data: any) {
   return res.end(JSON.stringify(data));
 }
 
-export default async function handler(req: any, res: any) {
-  if (req.method !== 'GET') {
-    return sendJson(res, 405, { success: false, error: 'Method not allowed' });
-  }
-
+async function handleWebhooks(req: any, res: any) {
   try {
     const supabase = await getSupabaseClient();
     if (!supabase) {
@@ -64,5 +60,51 @@ export default async function handler(req: any, res: any) {
       error: err.message || String(err),
       webhooks: []
     });
+  }
+}
+
+async function handleDbTables(req: any, res: any) {
+  const creds = await getSupabaseCredentials();
+  if (!creds) {
+    return sendJson(res, 200, {
+      success: false,
+      configured: false,
+      message: 'Supabase URL or Key not set on backend'
+    });
+  }
+
+  const result = await listExistingSupabaseTables();
+  return sendJson(res, 200, {
+    success: result.success,
+    configured: true,
+    supabaseUrl: creds.url,
+    tables: result.tables,
+    error: result.error
+  });
+}
+
+export default async function handler(req: any, res: any) {
+  if (req.method !== 'GET') {
+    return sendJson(res, 405, { success: false, error: 'Method not allowed' });
+  }
+
+  let queryParams: Record<string, string> = {};
+  if (req.query && typeof req.query === 'object') {
+    queryParams = req.query as Record<string, string>;
+  } else if (req.url) {
+    try {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      parsedUrl.searchParams.forEach((val, key) => {
+        queryParams[key] = val;
+      });
+    } catch (e) {}
+  }
+
+  const resource = (queryParams.resource || 'webhooks').toLowerCase().trim();
+
+  if (resource === 'db-tables' || resource === 'tables') {
+    return handleDbTables(req, res);
+  } else {
+    return handleWebhooks(req, res);
   }
 }

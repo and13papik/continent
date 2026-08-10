@@ -865,8 +865,9 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
       }
       params.append('sortBy', sortBy);
       params.append('sortDir', sortDir);
+      params.set('resource', 'shift-operators');
 
-      const url = `/api/onlymonster/shift-operators?${params.toString()}`;
+      const url = `/api/onlymonster/analytics?${params.toString()}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
