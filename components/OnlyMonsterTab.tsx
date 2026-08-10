@@ -2311,10 +2311,21 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
 
                 {/* Subscriptions Section */}
                 <div className="space-y-3 pt-3 border-t border-white/10">
-                  <h4 className="text-xs font-black uppercase text-violet-300 flex items-center gap-2">
-                    <UserCheck size={14} className="text-violet-400" />
-                    Детализация подписок
-                  </h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black uppercase text-violet-300 flex items-center gap-2">
+                      <UserCheck size={14} className="text-violet-400" />
+                      Детализация подписок
+                    </h4>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      Всего записей: {
+                        accountDetailData.summary?.totalSubscriptions ?? 
+                        ((accountDetailData.subscriptions?.new ?? 0) + 
+                         (accountDetailData.subscriptions?.renewals ?? 0) + 
+                         (accountDetailData.subscriptions?.returned ?? 0) + 
+                         (accountDetailData.subscriptions?.unknownAction ?? 0))
+                      }
+                    </span>
+                  </div>
 
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div className="p-3 bg-slate-900/70 border border-white/5 rounded-xl flex items-center justify-between">
@@ -2330,14 +2341,39 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                         {accountDetailData.subscriptions?.renewals ?? 0}
                       </span>
                     </div>
+
+                    {(accountDetailData.subscriptions?.returned ?? 0) > 0 && (
+                      <div className="p-3 bg-slate-900/70 border border-rose-500/20 rounded-xl flex items-center justify-between">
+                        <span className="text-slate-400 font-bold">Возвраты:</span>
+                        <span className="font-black text-rose-300 text-sm">
+                          {accountDetailData.subscriptions?.returned}
+                        </span>
+                      </div>
+                    )}
+
+                    {(accountDetailData.subscriptions?.unknownAction ?? 0) > 0 && (
+                      <div className="p-3 bg-slate-900/70 border border-slate-500/20 rounded-xl flex items-center justify-between">
+                        <span className="text-slate-400 font-bold">Неизвестно:</span>
+                        <span className="font-black text-slate-300 text-sm">
+                          {accountDetailData.subscriptions?.unknownAction}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Subscriptions breakdown by type */}
                   {accountDetailData.subscriptions?.byType && Object.keys(accountDetailData.subscriptions.byType).length > 0 && (
                     <div className="space-y-2 pt-2">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">
-                        Типы планов подписок:
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                          Типы планов подписок:
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          Сумма по типам: {
+                            Object.values(accountDetailData.subscriptions.byType).reduce((acc: number, val: any) => acc + (Number(val) || 0), 0)
+                          }
+                        </span>
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         {Object.entries(accountDetailData.subscriptions.byType).map(([sType, count]: [string, any], sIdx: number) => {
                           const subLabel = (() => {
@@ -2349,6 +2385,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                             if (st === 'discount') return 'Скидка';
                             if (st === 'bundle') return 'Пакет';
                             if (st === 'auto') return 'Авто-продление';
+                            if (st === 'unknown') return 'Неизвестный тип';
                             return sType;
                           })();
 

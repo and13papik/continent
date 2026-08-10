@@ -212,17 +212,23 @@ export default async function handler(req: any, res: any) {
     // Process subscriptions
     let newSubs = 0;
     let prolongSubs = 0;
+    let returnedSubs = 0;
+    let unknownActionSubs = 0;
     const subTypeMap: Record<string, number> = {};
 
     for (const sub of subResult) {
-      const action = (sub.action || sub.event || '').toString().toLowerCase();
-      if (action === 'subscribe') {
+      const action = (sub.action || sub.event || '').toString().toLowerCase().trim();
+      if (action === 'subscribe' || action === 'subscription' || action === 'new') {
         newSubs += 1;
-      } else if (action === 'prolong' || action === 'renew' || action === 'renewed') {
+      } else if (action === 'prolong' || action === 'renew' || action === 'renewed' || action === 'recurring') {
         prolongSubs += 1;
+      } else if (action === 'return' || action === 'returned' || action === 'refund' || action === 'refunded' || action === 'chargeback') {
+        returnedSubs += 1;
+      } else {
+        unknownActionSubs += 1;
       }
 
-      const subType = (sub.type || sub.sub_type || sub.plan_type || 'regular').toString().trim();
+      const subType = (sub.type || sub.sub_type || sub.plan_type || 'regular').toString().trim() || 'unknown';
       subTypeMap[subType] = (subTypeMap[subType] || 0) + 1;
     }
 
@@ -242,7 +248,15 @@ export default async function handler(req: any, res: any) {
       subscriptions: {
         new: newSubs,
         renewals: prolongSubs,
-        byType: subTypeMap
+        returned: returnedSubs,
+        unknownAction: unknownActionSubs,
+        byType: subTypeMap,
+        byAction: {
+          subscribe: newSubs,
+          prolong: prolongSubs,
+          return: returnedSubs,
+          unknown: unknownActionSubs
+        }
       }
     });
 
