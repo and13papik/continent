@@ -77,8 +77,11 @@ export default async function handler(req: any, res: any) {
     // Save event to Supabase
     const supabase = await getSupabaseClient();
     if (!supabase) {
-      console.error('[Webhook] Supabase client is not configured');
-      return sendJson(res, 500, { success: false, error: 'Database client not configured' });
+      console.error('[Webhook] Supabase client is not configured. Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY in environment variables or Vercel KV.');
+      return sendJson(res, 500, { 
+        success: false, 
+        error: 'Database client not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel Environment Variables.' 
+      });
     }
 
     const { error: dbError } = await supabase

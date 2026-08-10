@@ -40,89 +40,175 @@ export function verifyOmWebhookSignature(
 export function computeDedupKey(eventType: string, payload: any, webhookDeliveryId?: string | null): string {
   const typeLower = (eventType || '').toLowerCase().trim();
 
-  // 1. fans.tip.received -> payload.tip_id
+  // 1. fans.tip.received -> tip_id
   if (typeLower === 'fans.tip.received') {
-    const tipId = payload?.tip_id || payload?.id;
+    const tipId =
+      payload?.payload?.tip_id ||
+      payload?.payload?.tip?.id ||
+      payload?.data?.tip_id ||
+      payload?.data?.tip?.id ||
+      payload?.tip_id ||
+      payload?.tip?.id ||
+      null;
     if (tipId) return String(tipId);
   }
 
-  // 2. fans.ppv.purchased -> ${payload.account.account_id}:${payload.content_type}:${payload.content_id}:${payload.fan_id}
+  // 2. fans.ppv.purchased -> ${accId}:${contentType}:${contentId}:${fanId}
   if (typeLower === 'fans.ppv.purchased') {
-    const accId = payload?.account?.account_id || payload?.account_id || '';
-    const contentType = payload?.content_type || 'media';
-    const contentId = payload?.content_id || payload?.id || '';
-    const fanId = payload?.fan_id || payload?.user_id || '';
+    const accId =
+      payload?.payload?.account?.account_id ||
+      payload?.account?.account_id ||
+      payload?.payload?.account_id ||
+      payload?.account_id ||
+      '';
+    const contentType =
+      payload?.payload?.content_type ||
+      payload?.data?.content_type ||
+      payload?.content_type ||
+      'media';
+    const contentId =
+      payload?.payload?.content_id ||
+      payload?.payload?.media_id ||
+      payload?.data?.content_id ||
+      payload?.content_id ||
+      '';
+    const fanId =
+      payload?.payload?.fan_id ||
+      payload?.payload?.user_id ||
+      payload?.data?.fan_id ||
+      payload?.fan_id ||
+      '';
     if (contentId) {
       return `${accId}:${contentType}:${contentId}:${fanId}`;
     }
   }
 
-  // 3. fans.subscription.new_subscriber -> ${payload.account.account_id}:${payload.fan_id}
+  // 3. fans.subscription.new_subscriber -> ${accId}:${fanId}
   if (typeLower === 'fans.subscription.new_subscriber') {
-    const accId = payload?.account?.account_id || payload?.account_id || '';
-    const fanId = payload?.fan_id || payload?.user_id || '';
+    const accId =
+      payload?.payload?.account?.account_id ||
+      payload?.account?.account_id ||
+      payload?.payload?.account_id ||
+      payload?.account_id ||
+      '';
+    const fanId =
+      payload?.payload?.fan_id ||
+      payload?.payload?.subscriber_id ||
+      payload?.payload?.user_id ||
+      payload?.data?.fan_id ||
+      payload?.fan_id ||
+      '';
     if (accId || fanId) {
       return `${accId}:${fanId}`;
     }
   }
 
-  // 4. vault.media_upload.created / vault.media_upload.updated -> ${payload.media_upload_id}:${payload.updated_at}
+  // 4. vault.media_upload.created / vault.media_upload.updated -> ${mediaUploadId}:${updatedAt}
   if (typeLower === 'vault.media_upload.created' || typeLower === 'vault.media_upload.updated') {
-    const mediaUploadId = payload?.media_upload_id || payload?.id || '';
-    const updatedAt = payload?.updated_at || payload?.created_at || '';
+    const mediaUploadId =
+      payload?.payload?.media_upload_id ||
+      payload?.payload?.media_id ||
+      payload?.data?.media_upload_id ||
+      payload?.media_upload_id ||
+      '';
+    const updatedAt =
+      payload?.payload?.updated_at ||
+      payload?.payload?.created_at ||
+      payload?.data?.updated_at ||
+      payload?.updated_at ||
+      payload?.created_at ||
+      '';
     if (mediaUploadId) {
       return `${mediaUploadId}:${updatedAt}`;
     }
   }
 
-  // 5. firewall.message_guard.violation.user / .om_api -> payload.violation_id
+  // 5. firewall.message_guard.violation.user / .om_api -> violation_id
   if (
     typeLower === 'firewall.message_guard.violation.user' ||
     typeLower === 'firewall.message_guard.violation.om_api' ||
     typeLower.includes('violation')
   ) {
-    const violationId = payload?.violation_id || payload?.id;
+    const violationId =
+      payload?.payload?.violation_id ||
+      payload?.data?.violation_id ||
+      payload?.violation_id ||
+      null;
     if (violationId) return String(violationId);
   }
 
-  // 6. chat.message -> payload.message.message_id
+  // 6. chat.message -> message_id
   if (typeLower === 'chat.message') {
-    const msgId = payload?.message?.message_id || payload?.message_id || payload?.id;
+    const msgId =
+      payload?.payload?.message?.message_id ||
+      payload?.payload?.message?.id ||
+      payload?.message?.message_id ||
+      payload?.message?.id ||
+      payload?.payload?.message_id ||
+      payload?.data?.message?.message_id ||
+      payload?.data?.message?.id ||
+      payload?.data?.message_id ||
+      payload?.message_id ||
+      null;
     if (msgId) return String(msgId);
   }
 
-  // 7. chat.message_sent / chat.message_error -> payload.send_id
+  // 7. chat.message_sent / chat.message_error -> send_id
   if (typeLower === 'chat.message_sent' || typeLower === 'chat.message_error') {
-    const sendId = payload?.send_id || payload?.id;
+    const sendId =
+      payload?.payload?.send_id ||
+      payload?.payload?.message_id ||
+      payload?.payload?.message?.message_id ||
+      payload?.data?.send_id ||
+      payload?.send_id ||
+      payload?.message_id ||
+      null;
     if (sendId) return String(sendId);
   }
 
-  // Fallback: use x-om-webhook-id or fallback string
-  if (webhookDeliveryId) {
-    return String(webhookDeliveryId);
+  // Fallback 1: deliveryId from x-om-webhook-id header
+  if (webhookDeliveryId && String(webhookDeliveryId).trim()) {
+    return String(webhookDeliveryId).trim();
   }
 
-  return String(payload?.id || `fallback_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`);
+  // Fallback 2: root payload ID if present
+  if (payload?.id && typeof payload.id === 'string' && payload.id.trim()) {
+    return String(payload.id).trim();
+  }
+
+  // Fallback 3: generated unique string
+  return `fallback_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 }
 
 export function extractEventDetails(payload: any) {
   const eventType = payload?.type || payload?.event || 'unknown';
 
   const accountId =
+    payload?.payload?.account?.account_id ||
     payload?.account?.account_id ||
+    payload?.payload?.account_id ||
     payload?.account_id ||
     null;
 
   const platformAccountId =
+    payload?.payload?.account?.platform_account_id ||
     payload?.account?.platform_account_id ||
+    payload?.payload?.platform_account_id ||
     payload?.platform_account_id ||
     null;
 
   const rawTs =
+    payload?.payload?.message?.created_at ||
+    payload?.message?.created_at ||
+    payload?.payload?.created_at ||
     payload?.created_at ||
+    payload?.payload?.purchased_at ||
     payload?.purchased_at ||
+    payload?.payload?.tipped_at ||
     payload?.tipped_at ||
+    payload?.payload?.updated_at ||
     payload?.updated_at ||
+    payload?.payload?.timestamp ||
     payload?.timestamp ||
     null;
 

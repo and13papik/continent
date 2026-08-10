@@ -2,19 +2,35 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { isKvConfigured } from './om-store.js';
 import { kv } from '@vercel/kv';
 
-let localSupabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-let localSupabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || '';
+let localSupabaseUrl = '';
+let localSupabaseKey = '';
 
 export async function getSupabaseCredentials(): Promise<{ url: string; key: string } | null> {
-  let url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || localSupabaseUrl;
-  let key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || localSupabaseKey;
+  let url = 
+    process.env.SUPABASE_URL || 
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 
+    process.env.VITE_SUPABASE_URL || 
+    process.env.REACT_APP_SUPABASE_URL || 
+    process.env.SUPABASE_PROJECT_URL || 
+    localSupabaseUrl;
+
+  let key = 
+    process.env.SUPABASE_SERVICE_ROLE_KEY || 
+    process.env.SUPABASE_SERVICE_KEY || 
+    process.env.SUPABASE_SECRET_KEY || 
+    process.env.SUPABASE_ANON_KEY || 
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
+    process.env.SUPABASE_KEY || 
+    process.env.VITE_SUPABASE_ANON_KEY || 
+    process.env.REACT_APP_SUPABASE_ANON_KEY || 
+    localSupabaseKey;
 
   if ((!url || !key) && isKvConfigured()) {
     try {
       const kvUrl = await kv.get<string>('onlymonster:supabase_url');
       const kvKey = await kv.get<string>('onlymonster:supabase_key');
-      if (kvUrl && typeof kvUrl === 'string') url = kvUrl.trim();
-      if (kvKey && typeof kvKey === 'string') key = kvKey.trim();
+      if (kvUrl && typeof kvUrl === 'string' && kvUrl.trim()) url = kvUrl.trim();
+      if (kvKey && typeof kvKey === 'string' && kvKey.trim()) key = kvKey.trim();
     } catch (e) {
       console.error('Error reading Supabase credentials from KV:', e);
     }
