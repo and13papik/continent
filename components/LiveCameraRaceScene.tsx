@@ -51,22 +51,30 @@ interface LiveCameraRaceSceneProps {
 
 interface OperatorAnimNode {
   userId: string;
-  currY: number;
-  targetY: number;
+  // Positions
   currX: number;
   targetX: number;
-  currLane: number;
-  targetLane: number;
+  baseY: number;        // Target Y based on messages & ranking
+  currY: number;        // Smoothly lerped Y base position
+  boostYOffset: number; // Temporary forward offset (negative Y = forward)
+  boostScale: number;   // Body scale factor (1.0 to 1.06)
+  
+  // Counters & Boost state
+  lastProcessedMsgs: number;
   displayedMsgs: number;
   targetMsgs: number;
   deltaMsgs: number;
-  boostIntensity: number; // 0 to 1
+  boostBadge: string | null; // e.g. "+2", "⚡ +5", "🚀 BOOST +12"
+  boostTimer: number;        // Frames remaining for boost effect
+  maxBoostFrames: number;
+  
+  // Lane & Overtake
+  currLane: number;
+  targetLane: number;
   isOvertaking: boolean;
-  overtakeProgress: number; // 0 to 1
-  signalFlash: boolean;
 }
 
-// Deterministic hash for stable base lane assignment (0 to 3)
+// Deterministic hash for stable base lane assignment
 function hashString(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -127,11 +135,16 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
   const [activeOvertakeBanner, setActiveOvertakeBanner] = useState<{ text: string; id: string } | null>(null);
 
   // React state tick for DOM driver badges positioning
-  const [positionsTick, setPositionsTick] = useState<Record<string, { x: number; y: number; rank: number; deltaMsgs: number; isLeader: boolean }>>({});
+  const [positionsTick, setPositionsTick] = useState<
+    Record<string, { x: number; y: number; rank: number; deltaMsgs: number; boostBadge: string | null; isLeader: boolean }>
+  >({});
 
   // Visible operators sorted by current message count
   const visibleOperators = operators.filter((o) => !hiddenOperatorIds.has(o.user_id));
   const sortedOperators = [...visibleOperators].sort((a, b) => b.messages_count - a.messages_count);
+
+  const numVisible = visibleOperators.length;
+  const numLanes = numVisible >= 7 ? 5 : 4; // Adaptive 4 or 5 lanes!
 
   const leaderOp = sortedOperators[0] || null;
   const secondOp = sortedOperators[1] || null;
@@ -183,7 +196,7 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
     let particlePool: { x: number; y: number; speed: number; size: number; opacity: number }[] = [];
 
     // Initialize particle pool for wind / speed lines
-    for (let i = 0; i < 45; i++) {
+    for (let i = 0; i < 50; i++) {
       particlePool.push({
         x: Math.random(),
         y: Math.random(),
@@ -216,7 +229,7 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
         return;
       }
 
-      // --- 1. CALCULATE COMPRESSED VERTICAL POSITIONS & LANES ---
+      // --- 1. CALCULATE COMPRESSED VERTICAL POSITIONS & ADAPTIVE LANES ---
       const visOps = operators.filter((o) => !hiddenOperatorIds.has(o.user_id));
       const sorted = [...visOps].sort((a, b) => b.messages_count - a.messages_count);
 
@@ -227,40 +240,46 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
       const lowestMsgs = sorted[sorted.length - 1]?.messages_count || 0;
       const maxGap = Math.max(1, leaderMsgs - lowestMsgs);
 
-      // Highway dimensions (4 lanes)
-      const roadWidth = Math.min(W * 0.75, 520);
+      // Adaptive lane layout (4 vs 5 lanes)
+      const currentNumLanes = visOps.length >= 7 ? 5 : 4;
+      const roadWidth = Math.min(W * (currentNumLanes === 5 ? 0.82 : 0.74), currentNumLanes === 5 ? 580 : 500);
       const roadLeft = (W - roadWidth) / 2;
-      const laneWidth = roadWidth / 4;
+      const laneWidth = roadWidth / currentNumLanes;
 
       const topY = H * 0.16;
       const bottomY = H * 0.82;
 
-      // Assign target Y & Lanes without overlap
-      const laneOccupancy: Record<number, number[]> = { 0: [], 1: [], 2: [], 3: [] };
+      // Track lane occupancy to avoid overlaps
+      const laneOccupancy: Record<number, number[]> = {};
+      for (let l = 0; l < currentNumLanes; l++) laneOccupancy[l] = [];
 
-      const nextTickPositions: Record<string, { x: number; y: number; rank: number; deltaMsgs: number; isLeader: boolean }> = {};
+      const nextTickPositions: Record<
+        string,
+        { x: number; y: number; rank: number; deltaMsgs: number; boostBadge: string | null; isLeader: boolean }
+      > = {};
 
       sorted.forEach((op) => {
         const rank = rankMap.get(op.user_id) || 1;
         const gap = Math.max(0, leaderMsgs - op.messages_count);
 
-        // Compressed non-linear gap formula (logarithmic scaling)
+        // Logarithmic compressed distance formula
         const normalizedGap = maxGap > 0 ? Math.log1p(gap) / Math.log1p(maxGap) : 0;
         let targetY = topY + normalizedGap * (bottomY - topY);
 
         // Base lane determined deterministically by operatorId
-        let baseLane = hashString(op.user_id) % 4;
+        let baseLane = hashString(op.user_id) % currentNumLanes;
 
-        // Collision avoidance: if another car is within 58px Y in same lane, shift lane
+        // Collision avoidance: if another car is within 56px Y in same lane, shift lane
         let assignedLane = baseLane;
-        for (let l = 0; l < 4; l++) {
-          const testLane = (baseLane + l) % 4;
-          const collision = laneOccupancy[testLane].some((y) => Math.abs(y - targetY) < 58);
+        for (let l = 0; l < currentNumLanes; l++) {
+          const testLane = (baseLane + l) % currentNumLanes;
+          const collision = laneOccupancy[testLane]?.some((y) => Math.abs(y - targetY) < 56);
           if (!collision) {
             assignedLane = testLane;
             break;
           }
         }
+        if (!laneOccupancy[assignedLane]) laneOccupancy[assignedLane] = [];
         laneOccupancy[assignedLane].push(targetY);
 
         const targetX = roadLeft + assignedLane * laneWidth + laneWidth / 2;
@@ -270,46 +289,106 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
         if (!node) {
           node = {
             userId: op.user_id,
-            currY: targetY,
-            targetY,
             currX: targetX,
             targetX,
-            currLane: assignedLane,
-            targetLane: assignedLane,
+            baseY: targetY,
+            currY: targetY,
+            boostYOffset: 0,
+            boostScale: 1.0,
+            lastProcessedMsgs: op.messages_count,
             displayedMsgs: op.messages_count,
             targetMsgs: op.messages_count,
             deltaMsgs: 0,
-            boostIntensity: 0,
+            boostBadge: null,
+            boostTimer: 0,
+            maxBoostFrames: 60,
+            currLane: assignedLane,
+            targetLane: assignedLane,
             isOvertaking: false,
-            overtakeProgress: 0,
-            signalFlash: false,
           };
           animNodesRef.current[op.user_id] = node;
         } else {
-          node.targetY = targetY;
           node.targetX = targetX;
+          node.baseY = targetY;
           node.targetLane = assignedLane;
           node.targetMsgs = op.messages_count;
 
-          const delta = op.messages_count - node.displayedMsgs;
-          if (delta > 0) {
-            node.deltaMsgs = delta;
-            node.boostIntensity = Math.min(1.0, delta / 10);
-          } else {
-            node.boostIntensity = Math.max(0, node.boostIntensity - 0.015);
+          // Check if real new snapshot messages arrived!
+          const realDelta = op.messages_count - node.lastProcessedMsgs;
+          if (realDelta > 0) {
+            node.deltaMsgs = realDelta;
+            node.lastProcessedMsgs = op.messages_count;
+
+            // Trigger visual BOOST scaled by delta level
+            let maxImpulse = 10;
+            let targetScale = 1.02;
+            let badgeText = `+${realDelta}`;
+            let boostFrames = 45;
+
+            if (realDelta >= 10) {
+              maxImpulse = 38;
+              targetScale = 1.06;
+              badgeText = `🚀 BOOST +${realDelta}`;
+              boostFrames = 90;
+            } else if (realDelta >= 6) {
+              maxImpulse = 28;
+              targetScale = 1.05;
+              badgeText = `⚡ +${realDelta}`;
+              boostFrames = 75;
+            } else if (realDelta >= 3) {
+              maxImpulse = 18;
+              targetScale = 1.035;
+              badgeText = `⚡ +${realDelta}`;
+              boostFrames = 60;
+            }
+
+            if (prefersReducedMotion) {
+              targetScale = 1.0;
+              maxImpulse = 10;
+            }
+
+            node.boostYOffset = -maxImpulse; // Negative Y moves forward on canvas
+            node.boostScale = targetScale;
+            node.boostBadge = badgeText;
+            node.boostTimer = boostFrames;
+            node.maxBoostFrames = boostFrames;
           }
         }
 
-        // Lerp positions smoothly (0.08 rate)
-        node.currY += (node.targetY - node.currY) * 0.08;
+        // --- UPDATE BOOST & ANIMATION STEPS ---
+        // 1. Lerp base Y towards target Y
+        node.currY += (node.baseY - node.currY) * 0.08;
         node.currX += (node.targetX - node.currX) * 0.08;
-        node.displayedMsgs += (node.targetMsgs - node.displayedMsgs) * 0.08;
+
+        // 2. Roll displayed messages count smoothly
+        node.displayedMsgs += (node.targetMsgs - node.displayedMsgs) * 0.1;
+        if (Math.abs(node.targetMsgs - node.displayedMsgs) < 0.1) {
+          node.displayedMsgs = node.targetMsgs;
+        }
+
+        // 3. Smoothly decay boostYOffset back to 0 without backward jerky motion
+        if (node.boostTimer > 0) {
+          node.boostTimer--;
+          const progress = node.boostTimer / node.maxBoostFrames; // 1 down to 0
+          // Smooth decay using cubic easing
+          node.boostYOffset *= 0.94;
+          node.boostScale = 1.0 + (node.boostScale - 1.0) * 0.94;
+        } else {
+          node.boostYOffset *= 0.85;
+          if (Math.abs(node.boostYOffset) < 0.2) node.boostYOffset = 0;
+          node.boostScale = 1.0;
+          node.boostBadge = null;
+        }
+
+        // Effective drawing Y = currY + boostYOffset
+        const finalDrawY = node.currY + node.boostYOffset;
 
         nextTickPositions[op.user_id] = {
           x: node.currX,
-          y: node.currY,
+          y: finalDrawY,
           rank,
           deltaMsgs: node.deltaMsgs,
+          boostBadge: node.boostBadge,
           isLeader: rank === 1,
         };
       });
@@ -323,21 +402,20 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
       ctx.save();
       ctx.clearRect(0, 0, W, H);
 
-      // Apply subtle camera zoom around center
+      // Apply camera transform
       ctx.translate(W / 2, H / 2);
       ctx.scale(cam.scale, cam.scale);
       ctx.translate(-W / 2, -H / 2);
 
       // --- 3. DRAW ENVIRONMENT & BACKGROUND HIGHWAY ---
-      // Dark sci-fi asphalt base
       ctx.fillStyle = '#060a12';
       ctx.fillRect(0, 0, W, H);
 
       // Scroll speed delta
-      const scrollSpeed = prefersReducedMotion ? 1 : 5;
+      const scrollSpeed = prefersReducedMotion ? 1 : 5.5;
       scrollOffset = (scrollOffset + scrollSpeed) % 60;
 
-      // Outer terrain telemetry grid
+      // Outer terrain grid
       ctx.strokeStyle = 'rgba(30, 41, 59, 0.35)';
       ctx.lineWidth = 1;
       for (let y = scrollOffset - 60; y < H + 60; y += 40) {
@@ -382,13 +460,11 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
       ctx.strokeStyle = '#22d3ee';
       ctx.lineWidth = 3;
 
-      // Left Solid Boundary Rail
       ctx.beginPath();
       ctx.moveTo(roadLeft, 0);
       ctx.lineTo(roadLeft, H);
       ctx.stroke();
 
-      // Right Solid Boundary Rail
       ctx.beginPath();
       ctx.moveTo(roadLeft + roadWidth, 0);
       ctx.lineTo(roadLeft + roadWidth, H);
@@ -396,29 +472,27 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
 
       ctx.shadowBlur = 0; // Reset shadow
 
-      // Roadside Light Pillars / Telemetry Pylons (scrolling down)
+      // Roadside Light Pillars (scrolling down)
       const pylonDist = 120;
       for (let y = (scrollOffset % pylonDist) - pylonDist; y < H + pylonDist; y += pylonDist) {
-        // Left Pylon
         ctx.fillStyle = '#0284c7';
         ctx.fillRect(roadLeft - kerbWidth - 14, y, 8, 16);
         ctx.fillStyle = '#38bdf8';
         ctx.fillRect(roadLeft - kerbWidth - 12, y + 4, 4, 8);
 
-        // Right Pylon
         ctx.fillStyle = '#0284c7';
         ctx.fillRect(roadLeft + roadWidth + kerbWidth + 6, y, 8, 16);
         ctx.fillStyle = '#38bdf8';
         ctx.fillRect(roadLeft + roadWidth + kerbWidth + 8, y + 4, 4, 8);
       }
 
-      // Moving Dashed Lane Dividers (scrolling top to bottom)
+      // Moving Dashed Lane Dividers
       ctx.strokeStyle = 'rgba(248, 250, 252, 0.45)';
       ctx.lineWidth = 2.5;
       ctx.setLineDash([20, 25]);
       ctx.lineDashOffset = -scrollOffset * 2.5;
 
-      for (let l = 1; l < 4; l++) {
+      for (let l = 1; l < currentNumLanes; l++) {
         const lx = roadLeft + l * laneWidth;
         ctx.beginPath();
         ctx.moveTo(lx, 0);
@@ -445,7 +519,7 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
         });
       }
 
-      // --- 4. DRAW TOP-DOWN HIGH-TECH CARS ---
+      // --- 4. DRAW TOP-DOWN HIGH-TECH CARS WITH BOOST EFFECTS ---
       sorted.forEach((op) => {
         const node = animNodesRef.current[op.user_id];
         if (!node) return;
@@ -453,17 +527,20 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
         const rank = rankMap.get(op.user_id) || 1;
         const colorScheme = CAR_COLORS[(rank - 1) % CAR_COLORS.length];
         const cx = node.currX;
-        const cy = node.currY;
+        const cy = node.currY + node.boostYOffset; // Include boost offset!
 
-        const carW = 32;
-        const carH = 62;
+        const isBoosting = node.boostYOffset < -1 || node.boostScale > 1.01;
+
+        const carW = 32 * node.boostScale;
+        const carH = 62 * node.boostScale;
 
         ctx.save();
         ctx.translate(cx, cy);
 
-        // Subtle vibration during speed
-        const vibX = (Math.random() - 0.5) * (0.8 + node.boostIntensity * 1.5);
-        const vibY = (Math.random() - 0.5) * (0.8 + node.boostIntensity * 1.5);
+        // Subtle vibration during speed or boost
+        const vibIntensity = isBoosting ? 2.5 : 0.8;
+        const vibX = (Math.random() - 0.5) * vibIntensity;
+        const vibY = (Math.random() - 0.5) * vibIntensity;
         ctx.translate(vibX, vibY);
 
         // Ground shadow
@@ -472,8 +549,9 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
         ctx.ellipse(0, 8, carW * 0.75, carH * 0.5, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Rear Exhaust Flame / Energy Jet (pointing downwards)
-        const trailLen = 18 + node.boostIntensity * 48;
+        // Rear Exhaust Flame / Energy Jet (extended during boost!)
+        const boostTrailBonus = isBoosting ? Math.abs(node.boostYOffset) * 1.5 : 0;
+        const trailLen = 18 + boostTrailBonus;
         const fireGrad = ctx.createLinearGradient(0, carH / 2, 0, carH / 2 + trailLen);
         fireGrad.addColorStop(0, colorScheme.glow);
         fireGrad.addColorStop(0.4, '#f97316');
@@ -488,24 +566,24 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
         ctx.closePath();
         ctx.fill();
 
-        // Front Headlight Light Beams (pointing upwards)
-        const lightGrad = ctx.createLinearGradient(0, -carH / 2, 0, -carH / 2 - 70);
-        lightGrad.addColorStop(0, 'rgba(254, 240, 138, 0.65)');
+        // Front Headlight Light Beams
+        const lightGrad = ctx.createLinearGradient(0, -carH / 2, 0, -carH / 2 - (isBoosting ? 90 : 70));
+        lightGrad.addColorStop(0, 'rgba(254, 240, 138, 0.7)');
         lightGrad.addColorStop(1, 'transparent');
 
         ctx.fillStyle = lightGrad;
         ctx.beginPath();
         ctx.moveTo(-12, -carH / 2);
-        ctx.lineTo(-28, -carH / 2 - 70);
-        ctx.lineTo(28, -carH / 2 - 70);
+        ctx.lineTo(-28, -carH / 2 - (isBoosting ? 90 : 70));
+        ctx.lineTo(28, -carH / 2 - (isBoosting ? 90 : 70));
         ctx.lineTo(12, -carH / 2);
         ctx.closePath();
         ctx.fill();
 
         // Aerodynamic GT/Formula Car Body
         ctx.fillStyle = colorScheme.primary;
-        ctx.strokeStyle = colorScheme.accent;
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = isBoosting ? '#ffffff' : colorScheme.accent;
+        ctx.lineWidth = isBoosting ? 3 : 2;
 
         // Main Chassis
         ctx.beginPath();
@@ -522,8 +600,8 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
 
         // Front Splitter & Rear Wing
         ctx.fillStyle = '#0f172a';
-        ctx.fillRect(-carW / 2 - 5, -carH / 2 - 3, carW + 10, 6); // Front wing
-        ctx.fillRect(-carW / 2 - 3, carH / 2 - 3, carW + 6, 7); // Rear wing
+        ctx.fillRect(-carW / 2 - 5, -carH / 2 - 3, carW + 10, 6);
+        ctx.fillRect(-carW / 2 - 3, carH / 2 - 3, carW + 6, 7);
 
         // Side Pod Accent Lines
         ctx.strokeStyle = colorScheme.accent;
@@ -535,7 +613,7 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
         ctx.lineTo(carW / 3, carH / 4);
         ctx.stroke();
 
-        // Cockpit Glass / Canopy
+        // Cockpit Glass
         const glassGrad = ctx.createLinearGradient(0, -12, 0, 8);
         glassGrad.addColorStop(0, '#38bdf8');
         glassGrad.addColorStop(1, '#0284c7');
@@ -544,35 +622,22 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
         ctx.ellipse(0, -4, 7, 14, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Glass highlight line
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(-3, -10);
-        ctx.lineTo(2, 2);
-        ctx.stroke();
-
-        // 4 Racing Tires (Black Rubber + Alloy Hub)
+        // 4 Racing Tires
         ctx.fillStyle = '#020617';
-        ctx.fillRect(-carW / 2 - 6, -carH / 3, 6, 14); // Front L
-        ctx.fillRect(carW / 2, -carH / 3, 6, 14); // Front R
-        ctx.fillRect(-carW / 2 - 6, carH / 4, 6, 16); // Rear L
-        ctx.fillRect(carW / 2, carH / 4, 6, 16); // Rear R
+        ctx.fillRect(-carW / 2 - 6, -carH / 3, 6, 14);
+        ctx.fillRect(carW / 2, -carH / 3, 6, 14);
+        ctx.fillRect(-carW / 2 - 6, carH / 4, 6, 16);
+        ctx.fillRect(carW / 2, carH / 4, 6, 16);
 
-        // Tire Alloy Highlights
-        ctx.fillStyle = colorScheme.accent;
-        ctx.fillRect(-carW / 2 - 4, -carH / 3 + 4, 2, 6);
-        ctx.fillRect(carW / 2 + 2, -carH / 3 + 4, 2, 6);
-
-        // Leader Crown or Roof Rank Badge Number
+        // Leader Crown or Roof Rank Badge
         if (rank === 1) {
           ctx.fillStyle = '#fbbf24';
           ctx.shadowColor = '#fbbf24';
-          ctx.shadowBlur = 8;
-          ctx.font = '900 13px sans-serif';
+          ctx.shadowBlur = 10;
+          ctx.font = '900 14px sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText('👑', 0, -22);
+          ctx.fillText('👑', 0, -24);
           ctx.shadowBlur = 0;
         }
 
@@ -597,7 +662,10 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
   }, [operators, hiddenOperatorIds, prefersReducedMotion]);
 
   return (
-    <div ref={containerRef} className="relative w-full h-full min-h-[540px] sm:min-h-[620px] bg-slate-950 overflow-hidden font-mono select-none rounded-3xl border border-cyan-500/30 shadow-[inset_0_0_80px_rgba(0,0,0,0.9)]">
+    <div
+      ref={containerRef}
+      className="relative w-full h-full min-h-[540px] sm:min-h-[620px] bg-slate-950 overflow-hidden font-mono select-none rounded-3xl border border-cyan-500/30 shadow-[inset_0_0_80px_rgba(0,0,0,0.9)]"
+    >
       {/* BACKGROUND CANVAS FOR HIGHWAY & CARS */}
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block" />
 
@@ -622,7 +690,7 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
           <div>
             <div className="text-[10px] font-black tracking-widest text-white uppercase flex items-center gap-1.5">
               <span>● LIVE-КАМЕРА</span>
-              <span className="text-[9px] text-cyan-400 font-normal">| 4 ПОЛОСЫ</span>
+              <span className="text-[9px] text-cyan-400 font-normal">| {numLanes} ПОЛОС</span>
             </div>
             <div className="text-[9px] text-slate-400 font-bold uppercase">
               {shiftInfo?.label ? `СМЕНА ${shiftInfo.label}` : 'ЗАЕЗД 08:00–14:00'}
@@ -656,14 +724,10 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
                 <Crown size={12} className="fill-amber-400 text-amber-400 shrink-0" />
                 ЛИДЕР ЗАЕЗДА
               </span>
-              <span className="text-amber-300 font-black text-xs">
-                {leaderOp.messages_count}
-              </span>
+              <span className="text-amber-300 font-black text-xs">{leaderOp.messages_count}</span>
             </div>
 
-            <div className="text-xs sm:text-sm font-black text-white truncate">
-              {leaderOp.name}
-            </div>
+            <div className="text-xs sm:text-sm font-black text-white truncate">{leaderOp.name}</div>
 
             {secondOp && (
               <div className="mt-1.5 pt-1.5 border-t border-white/10 flex items-center justify-between text-[10px] font-bold">
@@ -716,7 +780,6 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
           if (!op) return null;
 
           const isSelected = selectedOperatorId === opId;
-          const lapInfo = getLapInfo(op.messages_count);
 
           return (
             <div
@@ -728,7 +791,7 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
               className="absolute pointer-events-auto cursor-pointer -translate-x-1/2 -translate-y-1/2 transition-all duration-75"
               style={{
                 left: `${pos.x}px`,
-                top: `${pos.y - 48}px`,
+                top: `${pos.y - 52}px`,
               }}
             >
               <div
@@ -749,17 +812,16 @@ export const LiveCameraRaceScene: React.FC<LiveCameraRaceSceneProps> = ({
                   #{pos.rank}
                 </span>
 
-                <span className="font-bold text-white max-w-[80px] sm:max-w-[110px] truncate" title={op.name}>
+                <span className="font-bold text-white max-w-[75px] sm:max-w-[105px] truncate" title={op.name}>
                   {op.name}
                 </span>
 
-                <span className="font-black text-cyan-400">
-                  {op.messages_count}
-                </span>
+                <span className="font-black text-cyan-400">{op.messages_count}</span>
 
-                {pos.deltaMsgs > 0 && (
-                  <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-extrabold text-[9px] border border-emerald-500/30">
-                    +{pos.deltaMsgs}
+                {/* BOOST BADGE PILL */}
+                {pos.boostBadge && (
+                  <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-extrabold text-[9px] border border-amber-500/40 animate-pulse flex items-center gap-0.5">
+                    {pos.boostBadge}
                   </span>
                 )}
               </div>
