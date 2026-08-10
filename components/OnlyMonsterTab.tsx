@@ -107,6 +107,51 @@ const describeArc = (cx: number, cy: number, r: number, startAngleDeg: number, e
   ].join(" ");
 };
 
+export const getClientKyivShiftIndexForDate = (d: Date = new Date()): 1 | 2 | 3 | 4 => {
+  try {
+    const hourFormatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Europe/Kyiv",
+      hour: "numeric",
+      hour12: false
+    });
+    const hour = parseInt(hourFormatter.format(d), 10) || 0;
+    if (hour >= 2 && hour < 8) return 1;
+    if (hour >= 8 && hour < 14) return 2;
+    if (hour >= 14 && hour < 20) return 3;
+    return 4;
+  } catch (e) {
+    return 1;
+  }
+};
+
+export const getKyivOpDateStr = (d: Date = new Date()): string => {
+  try {
+    const hourFmt = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Kyiv", hour: "numeric", hour12: false });
+    const kHour = parseInt(hourFmt.format(d), 10) || 0;
+    const offsetDays = kHour >= 2 ? 0 : -1;
+    const target = new Date(d.getTime() + offsetDays * 86400000);
+    return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Kyiv", year: "numeric", month: "2-digit", day: "2-digit" }).format(target);
+  } catch (e) {
+    return '';
+  }
+};
+
+export const isEventInCurrentKyivShift = (rawTs: string | number | undefined | null, targetShiftIndex: number) => {
+  if (!rawTs) return false;
+  try {
+    const d = new Date(rawTs);
+    if (isNaN(d.getTime())) return false;
+    const shiftIdx = getClientKyivShiftIndexForDate(d);
+    if (shiftIdx !== targetShiftIndex) return false;
+
+    const eventOpDate = getKyivOpDateStr(d);
+    const currentOpDate = getKyivOpDateStr(new Date());
+    return eventOpDate === currentOpDate;
+  } catch (e) {
+    return false;
+  }
+};
+
 const STATIC_PARTICLES = [
   { aOff: -10, rOff: 8, opacity: 0.6, size: 1.5 },
   { aOff: 15, rOff: -12, opacity: 0.4, size: 2.0 },
@@ -1263,8 +1308,32 @@ export const RealtimeEventFeed: React.FC<{
     };
   }, [accounts]);
 
-  const formattedList = useMemo(() => {
-    // 1. Calculate live income additions from events per account
+  // Milestone tracking state
+  const [liveMilestoneEvents, setLiveMilestoneEvents] = useState<EventFeedItem[]>([]);
+  const passedMilestonesRef = useRef<Set<string>>(new Set());
+  const initializedShiftRef = useRef<number | null>(null);
+  const currentShiftRef = useRef<number>(getClientKyivShiftIndexForDate(new Date()));
+
+  const MILESTONES = useMemo(() => [100, 250, 500, 1000, 2500, 5000], []);
+
+  useEffect(() => {
+    const currentShiftIndex = getClientKyivShiftIndexForDate(new Date());
+
+    // Reset tracking if operational shift has changed
+    if (currentShiftRef.current !== currentShiftIndex) {
+      currentShiftRef.current = currentShiftIndex;
+      initializedShiftRef.current = null;
+      passedMilestonesRef.current.clear();
+      setLiveMilestoneEvents([]);
+    }
+
+    // Check if accounts have loaded earnings breakdown
+    const hasEarningsData = accounts.some(a => a.earnings_breakdown !== undefined && a.earnings_breakdown !== null);
+    if (!hasEarningsData && initializedShiftRef.current === null) {
+      return;
+    }
+
+    // 1. Calculate live income additions from tip/PPV events in the CURRENT shift
     const liveIncomeByAccount: Record<string, number> = {};
     events.forEach(e => {
       const type = e.event_type || '';
@@ -1273,46 +1342,81 @@ export const RealtimeEventFeed: React.FC<{
         const p = rawPayload.payload || rawPayload;
         const amt = Number(p.price_gross ?? p.amount_gross ?? p.amount ?? 0);
         const rawAccId = String(e.account_id || e.platform_account_id || p.account_id || p.platform_account_id || '');
-        if (rawAccId && amt > 0) {
+        const eventTs = e.event_timestamp || e.received_at;
+
+        if (rawAccId && amt > 0 && isEventInCurrentKyivShift(eventTs, currentShiftIndex)) {
           liveIncomeByAccount[rawAccId] = (liveIncomeByAccount[rawAccId] || 0) + amt;
         }
       }
     });
 
-    // 2. Generate synthetic milestone events
-    const MILESTONES = [100, 250, 500, 1000, 2500, 5000];
-    const milestoneEvents: EventFeedItem[] = [];
+    // 2. Perform silent initialization for current shift if not initialized yet
+    if (initializedShiftRef.current !== currentShiftIndex) {
+      accounts.forEach(acc => {
+        if (isAccountHidden(acc.name)) return;
+        const accKey1 = String(acc.id || '');
+        const accKey2 = String(acc.platform_account_id || '');
+        const baseEarn = (acc.earnings_breakdown && acc.earnings_breakdown[currentShiftIndex]) || 0;
+
+        MILESTONES.forEach(ms => {
+          if (baseEarn >= ms) {
+            if (accKey1) passedMilestonesRef.current.add(`${accKey1}-${ms}`);
+            if (accKey2) passedMilestonesRef.current.add(`${accKey2}-${ms}`);
+          }
+        });
+      });
+
+      initializedShiftRef.current = currentShiftIndex;
+    }
+
+    // 3. Check for new milestones passed during the active session
+    const newMilestones: EventFeedItem[] = [];
 
     accounts.forEach(acc => {
       if (isAccountHidden(acc.name)) return;
       const accKey1 = String(acc.id || '');
       const accKey2 = String(acc.platform_account_id || '');
-      const baseEarn = acc.today_earnings || 0;
+      const baseEarn = (acc.earnings_breakdown && acc.earnings_breakdown[currentShiftIndex]) || 0;
       const addedEarn = (accKey1 && liveIncomeByAccount[accKey1]) || (accKey2 && liveIncomeByAccount[accKey2]) || 0;
-      const totalEarn = baseEarn + addedEarn;
+      const totalShiftEarn = baseEarn + addedEarn;
 
       MILESTONES.forEach(ms => {
-        if (totalEarn >= ms) {
-          milestoneEvents.push({
-            id: `milestone-${acc.id}-${ms}`,
-            event_type: 'income.milestone',
-            account_id: acc.id,
-            platform_account_id: acc.platform_account_id,
-            payload: {
+        if (totalShiftEarn >= ms) {
+          const k1 = accKey1 ? `${accKey1}-${ms}` : '';
+          const k2 = accKey2 ? `${accKey2}-${ms}` : '';
+          const alreadyPassed = (k1 && passedMilestonesRef.current.has(k1)) || (k2 && passedMilestonesRef.current.has(k2));
+
+          if (!alreadyPassed) {
+            if (k1) passedMilestonesRef.current.add(k1);
+            if (k2) passedMilestonesRef.current.add(k2);
+
+            newMilestones.push({
+              id: `milestone-${acc.id || acc.platform_account_id}-${ms}-${Date.now()}`,
+              event_type: 'income.milestone',
+              account_id: acc.id,
+              platform_account_id: acc.platform_account_id,
               payload: {
-                threshold: ms,
-                model_name: acc.name,
-                account_id: acc.id,
-              }
-            },
-            event_timestamp: new Date().toISOString(),
-            received_at: new Date().toISOString(),
-          });
+                payload: {
+                  threshold: ms,
+                  model_name: acc.name,
+                  account_id: acc.id || acc.platform_account_id,
+                }
+              },
+              event_timestamp: new Date().toISOString(),
+              received_at: new Date().toISOString(),
+            });
+          }
         }
       });
     });
 
-    const combinedEvents = [...events, ...milestoneEvents];
+    if (newMilestones.length > 0) {
+      setLiveMilestoneEvents(prev => [...prev, ...newMilestones]);
+    }
+  }, [events, accounts, MILESTONES]);
+
+  const formattedList = useMemo(() => {
+    const combinedEvents = [...events, ...liveMilestoneEvents];
 
     return combinedEvents
       .filter(e => {
@@ -1332,7 +1436,7 @@ export const RealtimeEventFeed: React.FC<{
           formatted
         };
       });
-  }, [events, accounts, accountsMap, operators]);
+  }, [events, liveMilestoneEvents, accountsMap, operators]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: formattedList.length, finance: 0, accounts: 0, operators: 0, warnings: 0 };
@@ -1997,7 +2101,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
       const params = new URLSearchParams();
       params.append('accounts', ids.join(','));
       params.append('day', dayMode);
-      if (breakdownMode) {
+      if (breakdownMode || dayMode === 'today') {
         params.append('breakdown', 'true');
       }
       params.set('resource', 'earnings');
