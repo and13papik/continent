@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { LiveTrackModal } from './LiveTrackModal';
 import { 
   RefreshCw, 
@@ -17,7 +17,10 @@ import {
   ArrowUp,
   ArrowDown,
   Receipt,
-  X
+  X,
+  AlertTriangle,
+  ChevronRight,
+  ChevronDown
 } from 'lucide-react';
 
 interface OnlyMonsterTabProps {
@@ -626,6 +629,147 @@ function decodeHtmlEntities(str: string): string {
     .replace(/&apos;/g, "'");
 }
 
+export interface AttentionAlert {
+  id: string;
+  type: 'slow_reply' | 'ppv_no_sales' | 'low_messages' | 'no_operator';
+  severity: 'red' | 'amber' | 'slate';
+  text: string;
+  operatorName?: string;
+  userId?: string;
+  accountName?: string;
+  accountId?: string;
+  accountObj?: OnlyMonsterAccount;
+}
+
+export function formatAlertDuration(seconds: number): string {
+  if (isNaN(seconds) || seconds <= 0) return '0с';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60);
+  if (mins > 0 && secs > 0) {
+    return `${mins}м ${secs}с`;
+  } else if (mins > 0) {
+    return `${mins}м`;
+  } else {
+    return `${secs}с`;
+  }
+}
+
+export function computeAttentionAlerts(
+  operators: ShiftOperator[],
+  accounts: OnlyMonsterAccount[],
+  periodMode: 'today' | 'yesterday' | 'week' | 'month',
+  shiftInfo: { label: string; start: string; end: string } | null
+): AttentionAlert[] {
+  const alerts: AttentionAlert[] = [];
+
+  // Operator rules (1, 2, 3)
+  if (operators && operators.length > 0) {
+    const operatorsWithMessages = operators.filter(o => (o.messages_count || 0) > 0);
+    const totalMessages = operatorsWithMessages.reduce((sum, o) => sum + (o.messages_count || 0), 0);
+    const teamAvgMessages = operatorsWithMessages.length > 0 ? totalMessages / operatorsWithMessages.length : 0;
+
+    let skipLowMessages = false;
+    if (periodMode === 'today' && shiftInfo?.start && shiftInfo?.end) {
+      const startTime = new Date(shiftInfo.start).getTime();
+      const endTime = new Date(shiftInfo.end).getTime();
+      const now = Date.now();
+      const duration = endTime - startTime;
+      if (duration > 0) {
+        const elapsed = now - startTime;
+        if (elapsed >= 0 && elapsed / duration < 0.25) {
+          skipLowMessages = true;
+        }
+      }
+    }
+
+    operators.forEach((op) => {
+      const msgCount = op.messages_count || 0;
+
+      // 🔴 1. Slow reply (reply_time_avg > 300 AND messages_count > 0)
+      if (typeof op.reply_time_avg === 'number' && op.reply_time_avg > 300 && msgCount > 0) {
+        alerts.push({
+          id: `slow-${op.user_id}`,
+          type: 'slow_reply',
+          severity: 'red',
+          text: `${op.name} — ответ ${formatAlertDuration(op.reply_time_avg)}`,
+          operatorName: op.name,
+          userId: op.user_id,
+        });
+      }
+
+      // 🟠 2. PPV without sales (paid_messages_count >= 3 AND sold_messages_count === 0)
+      const paidCount = op.paid_messages_count || 0;
+      const soldCount = op.sold_messages_count || 0;
+      if (paidCount >= 3 && soldCount === 0) {
+        alerts.push({
+          id: `ppv-${op.user_id}`,
+          type: 'ppv_no_sales',
+          severity: 'amber',
+          text: `${op.name} — ${paidCount} PPV отправлено, 0 продано`,
+          operatorName: op.name,
+          userId: op.user_id,
+        });
+      }
+
+      // 🟠 3. Low messages (messages_count < teamAvgMessages * 0.3 AND messages_count > 0)
+      if (!skipLowMessages && teamAvgMessages > 0) {
+        if (msgCount > 0 && msgCount < teamAvgMessages * 0.3) {
+          alerts.push({
+            id: `low-${op.user_id}`,
+            type: 'low_messages',
+            severity: 'amber',
+            text: `${op.name} — всего ${msgCount} сообщений`,
+            operatorName: op.name,
+            userId: op.user_id,
+          });
+        }
+      }
+    });
+  }
+
+  // ⚪ 4. Account alert (no active operator)
+  if (accounts && accounts.length > 0) {
+    accounts.forEach((acc) => {
+      if (acc.status === 'inactive') return;
+
+      const accId = acc.platform_account_id || acc.id;
+      let realOpCount = 0;
+      if (operators && operators.length > 0) {
+        const uniqueUsers = new Set<string>();
+        operators.forEach(op => {
+          if (Array.isArray(op.creator_ids) && op.creator_ids.some(cid => String(cid) === String(accId) || String(cid) === String(acc.id))) {
+            uniqueUsers.add(op.user_id);
+          }
+        });
+        realOpCount = uniqueUsers.size;
+      }
+
+      if (realOpCount === 0) {
+        alerts.push({
+          id: `no-op-${acc.id}`,
+          type: 'no_operator',
+          severity: 'slate',
+          text: `${acc.name} — нет активного оператора`,
+          accountName: acc.name,
+          accountId: acc.platform_account_id || acc.id,
+          accountObj: acc,
+        });
+      }
+    });
+  }
+
+  // Sort alerts: 🔴 -> 🟠 -> ⚪
+  const severityWeight: Record<string, number> = {
+    red: 1,
+    amber: 2,
+    slate: 3,
+  };
+
+  alerts.sort((a, b) => severityWeight[a.severity] - severityWeight[b.severity]);
+
+  return alerts;
+}
+
 export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) => {
   // Sub-tabs state
   const [activeSubTab, setActiveSubTab] = useState<'accounts' | 'operator_metrics'>('accounts');
@@ -703,6 +847,42 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
   const [accountDetailData, setAccountDetailData] = useState<any | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+
+  // Attention Alerts state & computation
+  const [showAlertsExpanded, setShowAlertsExpanded] = useState(false);
+  const [highlightedOpId, setHighlightedOpId] = useState<string | null>(null);
+
+  const attentionAlerts = useMemo(() => {
+    return computeAttentionAlerts(operators, accounts, periodMode, shiftInfo);
+  }, [operators, accounts, periodMode, shiftInfo]);
+
+  const visibleAlerts = showAlertsExpanded ? attentionAlerts : attentionAlerts.slice(0, 8);
+
+  const handleAlertClick = (alert: AttentionAlert) => {
+    if (alert.type === 'slow_reply' || alert.type === 'ppv_no_sales' || alert.type === 'low_messages') {
+      if (!hasLoadedOperators) {
+        fetchShiftOperators(periodMode, selectedShiftIndex, sortBy, sortDir);
+      }
+      setActiveSubTab('operator_metrics');
+      if (alert.userId) {
+        setHighlightedOpId(alert.userId);
+        setTimeout(() => {
+          const el = document.getElementById(`op-card-${alert.userId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 120);
+        setTimeout(() => {
+          setHighlightedOpId(null);
+        }, 2500);
+      }
+    } else if (alert.type === 'no_operator') {
+      setActiveSubTab('accounts');
+      if (alert.accountObj) {
+        handleAccountClick(alert.accountObj);
+      }
+    }
+  };
 
   // Helper to calculate real unique operator count for an account
   const getOperatorCountForAccount = (accId: string): number => {
@@ -1136,6 +1316,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
 
   useEffect(() => {
     loadConfig();
+    if (!hasLoadedOperators) {
+      fetchShiftOperators(periodMode, selectedShiftIndex, sortBy, sortDir);
+    }
   }, []);
 
   // Filter accounts by search query
@@ -1146,6 +1329,90 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
 
   return (
     <div className="space-y-6">
+      {/* HEADER BAR */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-white/10">
+        <div>
+          <h2 className="text-base sm:text-lg font-black uppercase text-white tracking-wider font-mono flex items-center gap-2.5">
+            <RefreshCw size={20} className="text-violet-400" />
+            Синхронизация OnlyMonster Browser
+          </h2>
+          <p className="text-xs text-slate-400 font-mono mt-0.5">
+            Мониторинг аккаунтов моделей, показателей операторов и автоматические предупреждения
+          </p>
+        </div>
+      </div>
+
+      {/* "ТРЕБУЕТ ВНИМАНИЯ" BLOCK */}
+      {attentionAlerts.length > 0 && (
+        <div className="glass-card p-4 sm:p-5 rounded-3xl border border-rose-500/20 bg-gradient-to-r from-rose-950/20 via-slate-950/60 to-slate-950/60 shadow-lg space-y-3 font-mono">
+          <div className="flex items-center justify-between gap-3 border-b border-white/5 pb-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+              <h3 className="text-xs font-black uppercase text-rose-300 tracking-wider flex items-center gap-2">
+                <AlertTriangle size={15} className="text-rose-400" />
+                ТРЕБУЕТ ВНИМАНИЯ
+                <span className="bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold ml-1">
+                  {attentionAlerts.length}
+                </span>
+              </h3>
+            </div>
+            <p className="text-[10px] text-slate-400 hidden sm:block">
+              Автоматические предупреждения за выбранную смену/период
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {visibleAlerts.map((alert) => (
+              <div
+                key={alert.id}
+                onClick={() => handleAlertClick(alert)}
+                className={`p-2.5 rounded-xl border flex items-center gap-2.5 transition-all cursor-pointer group ${
+                  alert.severity === 'red'
+                    ? 'bg-rose-950/40 border-rose-500/30 text-rose-200 hover:border-rose-400/60 hover:bg-rose-900/40'
+                    : alert.severity === 'amber'
+                    ? 'bg-amber-950/30 border-amber-500/30 text-amber-200 hover:border-amber-400/60 hover:bg-amber-900/40'
+                    : 'bg-slate-900/60 border-white/10 text-slate-300 hover:border-violet-500/40 hover:bg-slate-800'
+                }`}
+                title="Нажмите для перехода к деталям"
+              >
+                <span className="shrink-0 flex items-center justify-center">
+                  {alert.severity === 'red' && (
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                    </span>
+                  )}
+                  {alert.severity === 'amber' && (
+                    <span className="h-2.5 w-2.5 rounded-full bg-amber-400 shrink-0" />
+                  )}
+                  {alert.severity === 'slate' && (
+                    <span className="h-2.5 w-2.5 rounded-full bg-slate-500 shrink-0" />
+                  )}
+                </span>
+
+                <span className="text-xs font-bold leading-tight truncate flex-1">
+                  {alert.text}
+                </span>
+
+                <ChevronRight size={14} className="text-slate-500 group-hover:text-white transition-colors shrink-0" />
+              </div>
+            ))}
+          </div>
+
+          {attentionAlerts.length > 8 && (
+            <div className="pt-1 text-center">
+              <button
+                onClick={() => setShowAlertsExpanded(!showAlertsExpanded)}
+                className="text-[11px] font-bold uppercase text-slate-400 hover:text-violet-300 transition-colors inline-flex items-center gap-1 py-1 px-3 rounded-lg hover:bg-white/5"
+              >
+                {showAlertsExpanded ? 'Свернуть' : `Показать все (${attentionAlerts.length})`}
+                <ChevronDown size={12} className={`transition-transform ${showAlertsExpanded ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* SUB-TABS NAVIGATION */}
       <div className="flex items-center gap-2 border-b border-white/10 pb-3">
         <button
@@ -1298,6 +1565,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                 return (
                   <div 
                     key={acc.id} 
+                    id={`acc-card-${acc.id}`}
                     onClick={() => handleAccountClick(acc)}
                     className="p-4 bg-slate-900/60 rounded-2xl border border-white/5 hover:border-violet-500/50 hover:bg-slate-900/90 hover:scale-[1.01] transition-all cursor-pointer flex flex-col justify-between space-y-4 group shadow-md"
                   >
@@ -1760,12 +2028,16 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels }) 
                   const ppvConversion = op.paid_messages_count > 0 
                     ? Math.round((op.sold_messages_count / op.paid_messages_count) * 100)
                     : null;
+                  const isHighlighted = highlightedOpId === op.user_id;
 
                   return (
                     <div 
                       key={op.user_id || index}
+                      id={`op-card-${op.user_id}`}
                       className={`p-4 rounded-2xl transition-all duration-500 flex flex-col justify-between space-y-4 font-mono group ${
-                        raceMode
+                        isHighlighted
+                          ? 'bg-slate-900 border-2 border-rose-500 shadow-[0_0_25px_rgba(244,63,94,0.5)] scale-[1.02] z-10'
+                          : raceMode
                           ? 'bg-blue-950/30 border border-cyan-400/40 shadow-[0_0_20px_rgba(56,189,248,0.15)] hover:border-cyan-300 hover:shadow-[0_0_25px_rgba(56,189,248,0.3)]'
                           : rank === 1
                           ? 'bg-slate-900/90 border border-amber-500/50 shadow-lg shadow-amber-500/10 hover:border-amber-400/70 hover:bg-slate-900'
