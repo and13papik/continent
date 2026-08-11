@@ -685,6 +685,7 @@ export const IDLE_THRESHOLD_MINUTES = 10;
 
 // временно скрытые аккаунты, не показываем в UI
 export const HIDDEN_ACCOUNT_NAMES = ['Catherine'];
+export const HIDDEN_OPERATOR_NAMES: string[] = [];
 
 export function normalizeAccountName(name?: string): string {
   if (!name) return '';
@@ -695,6 +696,15 @@ export function isAccountHidden(name?: string): boolean {
   if (!name) return false;
   const normalized = normalizeAccountName(name);
   return HIDDEN_ACCOUNT_NAMES.some(hiddenName => {
+    const normHidden = normalizeAccountName(hiddenName);
+    return normalized === normHidden || normalized.includes(normHidden);
+  });
+}
+
+export function isOperatorHidden(name?: string): boolean {
+  if (!name) return false;
+  const normalized = normalizeAccountName(name);
+  return HIDDEN_OPERATOR_NAMES.some(hiddenName => {
     const normHidden = normalizeAccountName(hiddenName);
     return normalized === normHidden || normalized.includes(normHidden);
   });
@@ -739,7 +749,8 @@ export function computeAttentionAlerts(
 
   // Operator rules (1, 2, 3, 8)
   if (operators && operators.length > 0) {
-    const operatorsWithMessages = operators.filter(o => (o.messages_count || 0) > 0);
+    const activeOps = operators.filter(o => !isOperatorHidden(o.name));
+    const operatorsWithMessages = activeOps.filter(o => (o.messages_count || 0) > 0);
     const totalMessages = operatorsWithMessages.reduce((sum, o) => sum + (o.messages_count || 0), 0);
     const teamAvgMessages = operatorsWithMessages.length > 0 ? totalMessages / operatorsWithMessages.length : 0;
 
@@ -758,7 +769,7 @@ export function computeAttentionAlerts(
       }
     }
 
-    operators.forEach((op) => {
+    activeOps.forEach((op) => {
       const msgCount = op.messages_count || 0;
 
       // 🔴 1. Slow reply (reply_time_avg > 300 AND messages_count > 0)
@@ -787,34 +798,45 @@ export function computeAttentionAlerts(
         });
       }
 
-      // 🟠 3. Low messages (messages_count < teamAvgMessages * 0.3 AND messages_count > 0)
-      if (!skipLowMessages && teamAvgMessages > 0) {
-        if (msgCount > 0 && msgCount < teamAvgMessages * 0.3) {
-          alerts.push({
-            id: `low-${op.user_id}`,
-            type: 'low_messages',
-            severity: 'amber',
-            text: `${op.name} — всего ${msgCount} сообщений`,
-            operatorName: op.name,
-            userId: op.user_id,
-          });
-        }
-      }
+      // Low messages alerts handling: deduplicate per operator (prefer specific hourly alert over general shift low alert)
+      let hourlyAlertCandidate: AttentionAlert | null = null;
+      let shiftLowAlertCandidate: AttentionAlert | null = null;
 
-      // 🟠 8. Less than 55 messages in the last hour (only if shift started >= 60 mins ago)
+      // 🟠 8. Less than 55 messages in the last hour (only if shift started >= 60 mins ago and operator has at least 3 messages)
       if (lastHourOperatorMessages && lastHourOperatorMessages[op.user_id]) {
         const hData = lastHourOperatorMessages[op.user_id];
         const hCount = hData ? hData.count : 0;
-        if (shiftElapsedMs >= 60 * 60 * 1000 && hCount < 55) {
-          alerts.push({
+        if (shiftElapsedMs >= 60 * 60 * 1000 && msgCount >= 3 && hCount < 55) {
+          hourlyAlertCandidate = {
             id: `low-hour-${op.user_id}`,
             type: 'low_messages_hour',
             severity: 'amber',
             text: `${op.name} — ${hCount} сообщений за последний час (норма 55+)`,
             operatorName: op.name,
             userId: op.user_id,
-          });
+          };
         }
+      }
+
+      // 🟠 3. Low messages for whole shift (messages_count < teamAvgMessages * 0.3 AND messages_count >= 3)
+      if (!skipLowMessages && teamAvgMessages > 0) {
+        if (msgCount >= 3 && msgCount < teamAvgMessages * 0.3) {
+          shiftLowAlertCandidate = {
+            id: `low-${op.user_id}`,
+            type: 'low_messages',
+            severity: 'amber',
+            text: `${op.name} — всего ${msgCount} сообщений`,
+            operatorName: op.name,
+            userId: op.user_id,
+          };
+        }
+      }
+
+      // If hourly alert triggered, show hourly alert (it's more specific). Otherwise show shift low alert if present.
+      if (hourlyAlertCandidate) {
+        alerts.push(hourlyAlertCandidate);
+      } else if (shiftLowAlertCandidate) {
+        alerts.push(shiftLowAlertCandidate);
       }
     });
   }
