@@ -323,109 +323,6 @@ async function handleUnansweredCounts(req: any, res: any) {
   }
 }
 
-async function handleLiveEvents(req: any, res: any, queryParams: Record<string, string>) {
-  try {
-    const supabase = await getSupabaseClient();
-    if (!supabase) {
-      return sendJson(res, 200, {
-        success: true,
-        events: [],
-        message: 'Supabase is not configured'
-      });
-    }
-
-    const nowIso = new Date().toISOString();
-    const limit = Math.min(Math.max(parseInt(queryParams.limit || '100', 10) || 100, 1), 500);
-    const category = queryParams.category;
-    const status = queryParams.status;
-    const shiftId = queryParams.shift_id;
-
-    let query = supabase
-      .from('om_live_events')
-      .select('*')
-      .gt('expires_at', nowIso)
-      .order('updated_at', { ascending: false })
-      .limit(limit);
-
-    if (category && category !== 'all') {
-      query = query.eq('category', category);
-    }
-    if (status) {
-      query = query.eq('status', status);
-    }
-    if (shiftId) {
-      query = query.eq('shift_id', shiftId);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      return sendJson(res, 200, {
-        success: true,
-        events: [],
-        warning: error.message
-      });
-    }
-
-    return sendJson(res, 200, {
-      success: true,
-      events: data || []
-    });
-  } catch (err: any) {
-    console.error('[LiveEvents] Exception:', err);
-    return sendJson(res, 200, {
-      success: false,
-      error: err.message || String(err),
-      events: []
-    });
-  }
-}
-
-async function handleCleanupLiveEvents(req: any, res: any, queryParams: Record<string, string>) {
-  try {
-    const authHeader = req.headers?.authorization || req.headers?.Authorization;
-    const cronSecret = process.env.CRON_SECRET || process.env.ADMIN_SECRET || 'om_cron_secret';
-    const providedSecret = queryParams.secret || (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '');
-
-    if (providedSecret !== cronSecret && process.env.NODE_ENV === 'production') {
-      return sendJson(res, 401, { success: false, error: 'Unauthorized: Invalid cron secret' });
-    }
-
-    const supabase = await getSupabaseClient();
-    if (!supabase) {
-      return sendJson(res, 200, {
-        success: false,
-        message: 'Supabase is not configured'
-      });
-    }
-
-    const nowIso = new Date().toISOString();
-    const { error, count } = await supabase
-      .from('om_live_events')
-      .delete({ count: 'exact' })
-      .lte('expires_at', nowIso);
-
-    if (error) {
-      return sendJson(res, 200, {
-        success: false,
-        error: error.message
-      });
-    }
-
-    return sendJson(res, 200, {
-      success: true,
-      deleted_count: count ?? 0,
-      cleaned_at: nowIso
-    });
-  } catch (err: any) {
-    console.error('[CleanupLiveEvents] Exception:', err);
-    return sendJson(res, 200, {
-      success: false,
-      error: err.message || String(err)
-    });
-  }
-}
-
 async function handleDbTables(req: any, res: any) {
   const creds = await getSupabaseCredentials();
   if (!creds) {
@@ -447,7 +344,7 @@ async function handleDbTables(req: any, res: any) {
 }
 
 export default async function handler(req: any, res: any) {
-  if (req.method !== 'GET' && req.method !== 'POST') {
+  if (req.method !== 'GET') {
     return sendJson(res, 405, { success: false, error: 'Method not allowed' });
   }
 
@@ -467,10 +364,6 @@ export default async function handler(req: any, res: any) {
 
   if (resource === 'events') {
     return handleEvents(req, res, queryParams);
-  } else if (resource === 'live-events' || resource === 'live_events') {
-    return handleLiveEvents(req, res, queryParams);
-  } else if (resource === 'cleanup-live-events' || resource === 'cleanup_live_events') {
-    return handleCleanupLiveEvents(req, res, queryParams);
   } else if (resource === 'last-activity' || resource === 'last_activity') {
     return handleLastActivity(req, res);
   } else if (resource === 'unanswered-counts' || resource === 'unanswered_counts') {
