@@ -124,6 +124,91 @@ export const getClientKyivShiftIndexForDate = (d: Date = new Date()): 1 | 2 | 3 
   }
 };
 
+export interface KyivShiftRange {
+  label: string;
+  start: string; // ISO 8601 UTC
+  end: string;   // ISO 8601 UTC
+  index: 1 | 2 | 3 | 4;
+}
+
+export function getKyivShiftRange(date: Date = new Date()): KyivShiftRange {
+  const hourFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Kyiv",
+    hour: "numeric",
+    hour12: false
+  });
+  const kyivHour = parseInt(hourFormatter.format(date), 10) || 0;
+
+  let shiftIndex: 1 | 2 | 3 | 4 = 1;
+  let label = "02:00–08:00";
+  let startHour = 2;
+  let endHour = 8;
+
+  if (kyivHour >= 2 && kyivHour < 8) {
+    shiftIndex = 1;
+    label = "02:00–08:00";
+    startHour = 2;
+    endHour = 8;
+  } else if (kyivHour >= 8 && kyivHour < 14) {
+    shiftIndex = 2;
+    label = "08:00–14:00";
+    startHour = 8;
+    endHour = 14;
+  } else if (kyivHour >= 14 && kyivHour < 20) {
+    shiftIndex = 3;
+    label = "14:00–20:00";
+    startHour = 14;
+    endHour = 20;
+  } else {
+    shiftIndex = 4;
+    label = "20:00–02:00";
+    startHour = 20;
+    endHour = 2;
+  }
+
+  const getKyivDateStr = (offsetDays: number = 0) => {
+    const d = new Date(date.getTime() + offsetDays * 86400000);
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Kyiv",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(d);
+  };
+
+  const kyivWallTimeToUTC = (dStr: string, hour: number) => {
+    const padded = String(hour).padStart(2, '0');
+    const naiveUtc = new Date(`${dStr}T${padded}:00:00.000Z`);
+    const hFmt = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Kyiv", hour: "numeric", hour12: false });
+    const kH = parseInt(hFmt.format(naiveUtc), 10) || 0;
+    let offset = kH - hour;
+    if (offset > 12) offset -= 24;
+    if (offset < -12) offset += 24;
+    return new Date(naiveUtc.getTime() - offset * 3600000).toISOString();
+  };
+
+  if (shiftIndex !== 4) {
+    const todayStr = getKyivDateStr(0);
+    const start = kyivWallTimeToUTC(todayStr, startHour);
+    const end = kyivWallTimeToUTC(todayStr, endHour);
+    return { label, start, end, index: shiftIndex };
+  } else {
+    if (kyivHour < 2) {
+      const prevDayStr = getKyivDateStr(-1);
+      const todayStr = getKyivDateStr(0);
+      const start = kyivWallTimeToUTC(prevDayStr, 20);
+      const end = kyivWallTimeToUTC(todayStr, 2);
+      return { label, start, end, index: 4 };
+    } else {
+      const todayStr = getKyivDateStr(0);
+      const nextDayStr = getKyivDateStr(1);
+      const start = kyivWallTimeToUTC(todayStr, 20);
+      const end = kyivWallTimeToUTC(nextDayStr, 2);
+      return { label, start, end, index: 4 };
+    }
+  }
+}
+
 export const getKyivOpDateStr = (d: Date = new Date()): string => {
   try {
     const hourFmt = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Kyiv", hour: "numeric", hour12: false });
@@ -1395,8 +1480,15 @@ export const RealtimeEventFeed: React.FC<{
   const [filter, setFilter] = useState<'all' | EventCategory>('all');
   const [now, setNow] = useState<number>(Date.now());
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isTruncated, setIsTruncated] = useState<boolean>(false);
   const lastKnownIdRef = useRef<number | string | null>(null);
   const lastOutgoingMapRef = useRef<Record<string, number>>({});
+  const activeShiftRef = useRef<KyivShiftRange>(getKyivShiftRange(new Date()));
+
+  // Milestone tracking state
+  const [liveMilestoneEvents, setLiveMilestoneEvents] = useState<EventFeedItem[]>([]);
+  const passedMilestonesRef = useRef<Set<string>>(new Set());
+  const initializedShiftRef = useRef<number | null>(null);
 
   const accountsMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -1502,18 +1594,57 @@ export const RealtimeEventFeed: React.FC<{
   useEffect(() => {
     let isMounted = true;
 
-    const fetchEvents = async (afterId?: number | string) => {
+    const fetchEvents = async (isInitialForShift: boolean = false) => {
       try {
-        const url = afterId
-          ? `/api/onlymonster/admin?resource=events&after_id=${afterId}&limit=50`
-          : `/api/onlymonster/admin?resource=events&limit=50`;
+        const currentShift = getKyivShiftRange(new Date());
 
+        // Check if operational shift has shifted
+        if (
+          currentShift.start !== activeShiftRef.current.start ||
+          currentShift.end !== activeShiftRef.current.end ||
+          currentShift.index !== activeShiftRef.current.index
+        ) {
+          activeShiftRef.current = currentShift;
+          lastKnownIdRef.current = null;
+          lastOutgoingMapRef.current = {};
+          passedMilestonesRef.current.clear();
+          initializedShiftRef.current = null;
+          if (isMounted) {
+            setEvents([]);
+            setLiveMilestoneEvents([]);
+            setIsTruncated(false);
+          }
+          if (onUpdateLastOutgoingMap) {
+            onUpdateLastOutgoingMap(() => ({}));
+          }
+          isInitialForShift = true;
+        }
+
+        const shift = activeShiftRef.current;
+        const afterId = !isInitialForShift ? lastKnownIdRef.current : null;
+
+        const params = new URLSearchParams();
+        params.set('resource', 'events');
+        params.set('shift_start', shift.start);
+        params.set('shift_end', shift.end);
+        if (afterId !== null && afterId !== undefined) {
+          params.set('after_id', String(afterId));
+        } else {
+          params.set('limit', '500');
+        }
+
+        const url = `/api/onlymonster/admin?${params.toString()}`;
         const res = await fetch(url);
         if (!res.ok) return;
         const data = await res.json();
 
         if (isMounted && data.success && Array.isArray(data.events)) {
           const fetched: EventFeedItem[] = data.events;
+
+          if (data.truncated !== undefined) {
+            setIsTruncated(Boolean(data.truncated));
+          }
+
           if (fetched.length > 0) {
             let maxId = lastKnownIdRef.current;
             fetched.forEach(e => {
@@ -1534,13 +1665,13 @@ export const RealtimeEventFeed: React.FC<{
             }
 
             setEvents(prev => {
-              if (!afterId || prev.length === 0) {
-                return visibleItems.slice(0, 100);
+              if (isInitialForShift || prev.length === 0) {
+                return visibleItems.slice(0, 500);
               }
               const existingIds = new Set(prev.map(e => String(e.id)));
               const newItems = visibleItems.filter(e => !existingIds.has(String(e.id)));
               if (newItems.length === 0) return prev;
-              return [...newItems, ...prev].slice(0, 100);
+              return [...newItems, ...prev].slice(0, 500);
             });
           }
         }
@@ -1551,14 +1682,10 @@ export const RealtimeEventFeed: React.FC<{
       }
     };
 
-    fetchEvents();
+    fetchEvents(true);
 
     const interval = setInterval(() => {
-      if (lastKnownIdRef.current !== null && lastKnownIdRef.current !== undefined) {
-        fetchEvents(lastKnownIdRef.current);
-      } else {
-        fetchEvents();
-      }
+      fetchEvents(false);
     }, 10000);
 
     return () => {
@@ -1567,24 +1694,11 @@ export const RealtimeEventFeed: React.FC<{
     };
   }, [accounts]);
 
-  // Milestone tracking state
-  const [liveMilestoneEvents, setLiveMilestoneEvents] = useState<EventFeedItem[]>([]);
-  const passedMilestonesRef = useRef<Set<string>>(new Set());
-  const initializedShiftRef = useRef<number | null>(null);
-  const currentShiftRef = useRef<number>(getClientKyivShiftIndexForDate(new Date()));
-
   const MILESTONES = useMemo(() => [100, 250, 500, 1000, 2500, 5000], []);
 
   useEffect(() => {
-    const currentShiftIndex = getClientKyivShiftIndexForDate(new Date());
-
-    // Reset tracking if operational shift has changed
-    if (currentShiftRef.current !== currentShiftIndex) {
-      currentShiftRef.current = currentShiftIndex;
-      initializedShiftRef.current = null;
-      passedMilestonesRef.current.clear();
-      setLiveMilestoneEvents([]);
-    }
+    const currentShift = activeShiftRef.current;
+    const currentShiftIndex = currentShift.index;
 
     // Check if accounts have loaded earnings breakdown
     const hasEarningsData = accounts.some(a => a.earnings_breakdown !== undefined && a.earnings_breakdown !== null);
@@ -1744,11 +1858,21 @@ export const RealtimeEventFeed: React.FC<{
             <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] px-2 py-0.5 rounded-full font-bold">
               LIVE
             </span>
+            <span className="bg-violet-500/10 text-violet-300 border border-violet-500/20 text-[9px] px-2 py-0.5 rounded-full font-mono font-medium hidden sm:inline-block">
+              Смена {activeShiftRef.current?.label}
+            </span>
           </h3>
         </div>
-        <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
-          <Clock size={12} className="text-slate-500" />
-          Авто-обновление каждые 10с
+        <div className="text-[10px] text-slate-400 flex items-center gap-2">
+          {isTruncated && (
+            <span className="text-[9px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md font-bold">
+              последние 500 событий
+            </span>
+          )}
+          <div className="flex items-center gap-1.5">
+            <Clock size={12} className="text-slate-500" />
+            Авто-обновление каждые 10с
+          </div>
         </div>
       </div>
 

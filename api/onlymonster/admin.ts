@@ -22,8 +22,54 @@ async function handleEvents(req: any, res: any, queryParams: Record<string, stri
       });
     }
 
-    const limit = Math.min(Math.max(parseInt(queryParams.limit || '50', 10) || 50, 1), 100);
+    const shiftStart = queryParams.shift_start;
+    const shiftEnd = queryParams.shift_end;
     const afterId = queryParams.after_id;
+
+    // Shift-bounded query: load all events within the operational shift boundaries
+    if (shiftStart && shiftEnd) {
+      const limit = Math.min(Math.max(parseInt(queryParams.limit || '500', 10) || 500, 1), 1000);
+
+      let query = supabase
+        .from('om_webhook_events')
+        .select('id, event_type, account_id, platform_account_id, payload, received_at, event_timestamp')
+        .gte('received_at', shiftStart)
+        .lte('received_at', shiftEnd)
+        .order('received_at', { ascending: false })
+        .limit(limit);
+
+      if (afterId) {
+        const numAfterId = parseInt(afterId, 10);
+        if (!isNaN(numAfterId)) {
+          query = query.gt('id', numAfterId);
+        } else {
+          query = query.gt('id', afterId);
+        }
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('[Events History] Error fetching shift events from Supabase:', error);
+        return sendJson(res, 200, {
+          success: false,
+          error: error.message,
+          events: []
+        });
+      }
+
+      const events = data || [];
+      const truncated = events.length >= limit;
+
+      return sendJson(res, 200, {
+        success: true,
+        events,
+        truncated
+      });
+    }
+
+    // Fallback: limit/after_id without shift bounds for backwards compatibility
+    const limit = Math.min(Math.max(parseInt(queryParams.limit || '50', 10) || 50, 1), 100);
 
     let query = supabase
       .from('om_webhook_events')
