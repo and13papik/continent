@@ -25,8 +25,14 @@ import {
   UserPlus,
   Send,
   CheckCheck,
+  CheckCircle2,
   Image,
-  ShieldAlert
+  ShieldAlert,
+  TrendingUp,
+  TrendingDown,
+  Sparkles,
+  ArrowUpRight,
+  Zap
 } from 'lucide-react';
 
 interface OnlyMonsterTabProps {
@@ -771,9 +777,6 @@ export const IDLE_NO_ACTIVITY_MINUTES = 15;
 export const SLOW_REPLY_WAITING_MINUTES = 10;
 export const OVERLOAD_UNANSWERED_THRESHOLD = 10;
 export const BIG_SALE_THRESHOLD = 49.99;
-export const EARNINGS_SPIKE_WINDOW_MINUTES = 15;
-export const EARNINGS_SPIKE_RATIO = 2.0; // рост в 2 раза считается "резким"
-export const EARNINGS_DROP_RATIO = 0.3; // падение до 30% от предыдущего окна
 export const PURCHASE_BURST_COUNT = 3;
 export const PURCHASE_BURST_WINDOW_MINUTES = 10;
 export const VIOLATION_BURST_COUNT = 3;
@@ -1178,280 +1181,51 @@ export function computeAttentionAlerts(
   return finalAlerts;
 }
 
-export type EventCategory = 'finance' | 'accounts' | 'operators' | 'warnings';
+// ==========================================
+// LIVE EVENT FEED TYPES & THRESHOLDS
+// ==========================================
+export const OPERATOR_INACTIVE_MINUTES = 15;
+export const RESPONSE_TIME_THRESHOLD_MINUTES = 5; // 300 seconds
+export const RESPONSE_TIME_VIOLATION_DURATION_MINUTES = 10;
+export const MINIMUM_SHIFT_ELAPSED_MINUTES = 30;
+export const PACE_WARNING_PERCENT = 60;
+export const PACE_CRITICAL_PERCENT = 40;
+export const DEFAULT_SHIFT_MESSAGE_TARGET = 300; // Target messages per 6h shift
+export const LARGE_TRANSACTION_THRESHOLD = 49.99;
+export const PURCHASE_BURST_AMOUNT = 100;
+export const SHIFT_REVENUE_MILESTONES = [100, 250, 500, 1000];
+export const BLOCKED_EVENTS_THRESHOLD = 3;
+export const BLOCKED_EVENTS_WINDOW_MINUTES = 15;
+export const BLOCKED_REPEATED_WINDOW_MINUTES = 30;
 
-export function formatEventForFeed(
-  event: EventFeedItem,
-  accountsMap: Map<string, string>,
-  operators?: ShiftOperator[]
-) {
-  const rawPayload = event.payload || {};
-  const p = rawPayload.payload || rawPayload;
+export type LiveEventCategory = 'all' | 'operators' | 'finance' | 'warnings' | 'system';
+export type LiveEventSeverity = 'red' | 'amber' | 'green' | 'blue' | 'slate';
+export type LiveEventStatus = 'active' | 'acknowledged' | 'resolved' | 'expired';
 
-  const rawAccId = event.account_id || event.platform_account_id || p.account_id || p.platform_account_id || '';
-  const modelName = accountsMap.get(String(rawAccId)) || (rawAccId ? String(rawAccId) : 'Модель');
-
-  const type = event.event_type || '';
-
-  // 1. Income Milestones
-  if (type === 'income.milestone') {
-    const threshold = p.threshold || 0;
-    return {
-      category: 'finance' as EventCategory,
-      text: `🎉 ${modelName} преодолела ${threshold} за смену`,
-      colorClass: 'text-amber-300 font-extrabold text-sm sm:text-base',
-      badgeBg: 'bg-amber-500/20 border-amber-500/40 text-amber-300 font-black',
-      dotColor: 'bg-amber-400',
-      isMilestone: true,
-    };
-  }
-
-  // 2. Pace recovered
-  if (type === 'operator.pace_recovered') {
-    const opName = p.operator_name || 'Оператор';
-    const hCount = p.hourly_count || 0;
-    return {
-      category: 'operators' as EventCategory,
-      text: `✅ ${opName} восстановил темп (${hCount} сообщений/час)`,
-      colorClass: 'text-emerald-300 font-bold',
-      badgeBg: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-bold',
-      dotColor: 'bg-emerald-400',
-    };
-  }
-
-  // 3. Earnings Spike
-  if (type === 'finance.earnings_spike') {
-    const currentAmt = Number(p.current_amt || 0).toFixed(0);
-    const prevAmt = Number(p.prev_amt || 0).toFixed(0);
-    return {
-      category: 'finance' as EventCategory,
-      text: `📈 ${modelName}: рост дохода — ${currentAmt} за ${EARNINGS_SPIKE_WINDOW_MINUTES} мин (было ${prevAmt})`,
-      colorClass: 'text-emerald-300 font-bold text-xs sm:text-sm',
-      badgeBg: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-bold',
-      dotColor: 'bg-emerald-400',
-    };
-  }
-
-  // 4. Earnings Drop
-  if (type === 'finance.earnings_drop') {
-    const currentAmt = Number(p.current_amt || 0).toFixed(0);
-    const prevAmt = Number(p.prev_amt || 0).toFixed(0);
-    return {
-      category: 'finance' as EventCategory,
-      text: `📉 ${modelName}: падение активности — ${currentAmt} за ${EARNINGS_SPIKE_WINDOW_MINUTES} мин (было ${prevAmt})`,
-      colorClass: 'text-amber-300 font-medium',
-      badgeBg: 'bg-amber-500/20 border-amber-500/30 text-amber-300 font-medium',
-      dotColor: 'bg-amber-400',
-    };
-  }
-
-  // 5. Purchase Burst
-  if (type === 'finance.purchase_burst') {
-    const count = p.count || 0;
-    const mins = p.window_minutes || PURCHASE_BURST_WINDOW_MINUTES;
-    return {
-      category: 'finance' as EventCategory,
-      text: `🔥 ${modelName}: серия покупок — ${count} за ${mins} минут`,
-      colorClass: 'text-amber-300 font-extrabold text-xs sm:text-sm',
-      badgeBg: 'bg-amber-500/25 border-amber-500/50 text-amber-300 font-black shadow-sm',
-      dotColor: 'bg-amber-400',
-    };
-  }
-
-  // 6. Security Violations Burst (Org-wide)
-  if (type === 'security.violation_burst') {
-    const count = p.count || 0;
-    const mins = p.window_minutes || VIOLATION_BURST_WINDOW_MINUTES;
-    return {
-      category: 'warnings' as EventCategory,
-      text: `⚠️ ${count} блокировок Message Guard за ${mins} минут — возможна системная проблема`,
-      colorClass: 'text-rose-400 font-bold',
-      badgeBg: 'bg-rose-500/20 border-rose-500/40 text-rose-300 font-bold',
-      dotColor: 'bg-rose-500',
-    };
-  }
-
-  // 7. Security Violations Repeat (Single Account)
-  if (type === 'security.violation_repeat') {
-    const count = p.count || 0;
-    const mins = p.window_minutes || VIOLATION_REPEAT_WINDOW_MINUTES;
-    return {
-      category: 'warnings' as EventCategory,
-      text: `🔁 ${modelName}: повторные блокировки Message Guard (${count} за ${mins} мин)`,
-      colorClass: 'text-rose-400 font-extrabold text-xs sm:text-sm',
-      badgeBg: 'bg-rose-950/80 border-rose-500/60 text-rose-300 font-extrabold shadow-sm',
-      dotColor: 'bg-rose-400',
-    };
-  }
-
-  // 8. Idle Resumed
-  if (type === 'idle.resumed') {
-    const diffMs = p.idle_duration_ms || 0;
-    const durationText = formatAlertDuration(diffMs / 1000);
-    return {
-      category: 'warnings' as EventCategory,
-      text: `${modelName}: возобновление активности после простоя ${durationText}`,
-      colorClass: 'text-amber-300',
-      badgeBg: 'bg-amber-500/10 border-amber-500/20 text-amber-300',
-      dotColor: 'bg-amber-400',
-    };
-  }
-
-  // 9. Tips and PPV (Big Sale threshold = 49.99)
-  if (type === 'fans.tip.received' || type === 'fans.ppv.purchased') {
-    const isTip = type === 'fans.tip.received';
-    const contentType = p.content_type === 'message' ? 'сообщение' : 'пост';
-    const amt = Number(p.price_gross ?? p.amount_gross ?? p.amount ?? 0);
-    const isBigSale = amt >= BIG_SALE_THRESHOLD;
-
-    let subtitle: string | undefined = undefined;
-    if (isBigSale && operators && operators.length > 0 && rawAccId) {
-      const assignedOps = operators.filter(op =>
-        Array.isArray(op.creator_ids) && op.creator_ids.some(cid => String(cid) === String(rawAccId))
-      );
-      if (assignedOps.length === 1) {
-        subtitle = `оператор: ${assignedOps[0].name}`;
-      } else if (assignedOps.length > 1) {
-        subtitle = `операторы: ${assignedOps.map(o => o.name).join(', ')} (уточнить вручную)`;
-      }
-    }
-
-    if (isBigSale) {
-      return {
-        category: 'finance' as EventCategory,
-        text: `💰 Крупная продажа ${amt} на ${modelName}`,
-        subtitle,
-        colorClass: 'text-emerald-300 font-extrabold text-xs sm:text-sm',
-        badgeBg: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-bold',
-        dotColor: 'bg-emerald-400',
-        isLargeSale: true,
-      };
-    }
-
-    if (isTip) {
-      return {
-        category: 'finance' as EventCategory,
-        text: `${modelName}: чаевые +${amt}`,
-        colorClass: 'text-emerald-400',
-        badgeBg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
-        dotColor: 'bg-emerald-400',
-      };
-    } else {
-      return {
-        category: 'finance' as EventCategory,
-        text: `${modelName}: PPV ${contentType} куплен +${amt}`,
-        colorClass: 'text-emerald-400',
-        badgeBg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
-        dotColor: 'bg-emerald-400',
-      };
-    }
-  }
-
-  if (type === 'fans.subscription.new_subscriber') {
-    return {
-      category: 'finance' as EventCategory,
-      text: `${modelName}: новый подписчик`,
-      colorClass: 'text-violet-400',
-      badgeBg: 'bg-violet-500/10 border-violet-500/20 text-violet-400',
-      dotColor: 'bg-violet-400',
-    };
-  }
-
-  if (type === 'chat.message') {
-    const isIncoming = Boolean(
-      (p.from_id && p.fan_id && String(p.from_id) === String(p.fan_id)) ||
-      p.is_incoming === true ||
-      p.direction === 'in' ||
-      p.sender === 'fan'
-    );
-    if (isIncoming) {
-      return {
-        category: 'accounts' as EventCategory,
-        text: `${modelName}: новое сообщение от фаната`,
-        colorClass: 'text-slate-300',
-        badgeBg: 'bg-slate-800/80 border-slate-700 text-slate-300',
-        dotColor: 'bg-slate-400',
-      };
-    } else {
-      return {
-        category: 'operators' as EventCategory,
-        text: `${modelName}: исходящее сообщение`,
-        colorClass: 'text-cyan-300',
-        badgeBg: 'bg-cyan-500/10 border-cyan-500/20 text-cyan-300',
-        dotColor: 'bg-cyan-400',
-      };
-    }
-  }
-
-  if (type === 'chat.message_sent') {
-    return {
-      category: 'operators' as EventCategory,
-      text: `${modelName}: сообщение доставлено`,
-      colorClass: 'text-slate-300',
-      badgeBg: 'bg-slate-800/80 border-slate-700 text-slate-300',
-      dotColor: 'bg-slate-400',
-    };
-  }
-
-  if (type === 'chat.message_error') {
-    const status = p.status || 'ошибка';
-    return {
-      category: 'warnings' as EventCategory,
-      text: `${modelName}: ошибка доставки (${status})`,
-      colorClass: 'text-rose-400',
-      badgeBg: 'bg-rose-500/10 border-rose-500/20 text-rose-400',
-      dotColor: 'bg-rose-500',
-    };
-  }
-
-  if (type === 'vault.media_upload.created' || type === 'vault.media_upload.updated') {
-    const status = p.status || 'загружено';
-    return {
-      category: 'accounts' as EventCategory,
-      text: `${modelName}: загрузка медиа — ${status}`,
-      colorClass: 'text-slate-300',
-      badgeBg: 'bg-slate-800/80 border-slate-700 text-slate-300',
-      dotColor: 'bg-slate-400',
-    };
-  }
-
-  if (type === 'firewall.message_guard.violation.user' || type === 'firewall.message_guard.violation.om_api' || type.includes('message_guard')) {
-    let blockedStr = '';
-    const v = p.violation || p.violations || p;
-    if (typeof v === 'string') {
-      blockedStr = v;
-    } else if (Array.isArray(v)) {
-      blockedStr = v.join(', ');
-    } else if (typeof v === 'object' && v) {
-      const words = v.matched_words || v.restricted_words || v.words || v.keywords || v.topics || v.categories;
-      if (Array.isArray(words)) blockedStr = words.join(', ');
-      else if (typeof words === 'string') blockedStr = words;
-      else if (v.word || v.term) blockedStr = String(v.word || v.term);
-    }
-    if (!blockedStr && (p.word || p.words || p.matched_word)) {
-      blockedStr = String(p.word || p.words || p.matched_word);
-    }
-
-    const text = blockedStr
-      ? `${modelName}: заблокировано слово "${blockedStr}"`
-      : `${modelName}: заблокировано сообщение (Message Guard)`;
-
-    return {
-      category: 'warnings' as EventCategory,
-      text,
-      colorClass: 'text-rose-400',
-      badgeBg: 'bg-rose-500/10 border-rose-500/20 text-rose-400',
-      dotColor: 'bg-rose-500',
-    };
-  }
-
-  return {
-    category: 'accounts' as EventCategory,
-    text: `${modelName}: ${type}`,
-    colorClass: 'text-slate-300',
-    badgeBg: 'bg-slate-800/80 border-slate-700 text-slate-300',
-    dotColor: 'bg-slate-400',
-  };
+export interface LiveFeedItem {
+  id: string;
+  dedupe_key: string;
+  category: 'operators' | 'finance' | 'warnings' | 'system';
+  event_type: string;
+  severity: LiveEventSeverity;
+  account_id?: string;
+  account_name?: string;
+  operator_id?: string;
+  operator_name?: string;
+  shift_id?: string;
+  shift_label?: string;
+  title: string;
+  description: string;
+  subtitle?: string;
+  threshold_text?: string;
+  current_val_text?: string;
+  duration_text?: string;
+  metrics?: Record<string, any>;
+  status: LiveEventStatus;
+  related_event_id?: string;
+  created_at: string;
+  updated_at: string;
+  expires_at: string;
 }
 
 export function formatEventRelativeTime(tsString: string | undefined, now: number): string {
@@ -1469,24 +1243,245 @@ export function formatEventRelativeTime(tsString: string | undefined, now: numbe
   return `${diffDay}д назад`;
 }
 
+// Detailed modal for inspecting high-signal live events
+export const LiveFeedDetailModal: React.FC<{
+  event: LiveFeedItem | null;
+  accounts: OnlyMonsterAccount[];
+  onClose: () => void;
+  onNavigateToAccount: (acc: OnlyMonsterAccount) => void;
+  onNavigateToOperators?: () => void;
+}> = ({ event, accounts, onClose, onNavigateToAccount, onNavigateToOperators }) => {
+  if (!event) return null;
+
+  const matchedAccount = accounts.find(
+    a => String(a.id) === String(event.account_id) || String(a.platform_account_id) === String(event.account_id)
+  );
+
+  const getSeverityBadge = () => {
+    switch (event.severity) {
+      case 'red':
+        return (
+          <span className="bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+            КРИТИЧЕСКИЙ СТАТУС
+          </span>
+        );
+      case 'amber':
+        return (
+          <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-amber-400" />
+            ТРЕБУЕТ ВНИМАНИЯ
+          </span>
+        );
+      case 'green':
+        return (
+          <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1.5">
+            <CheckCircle2 size={13} className="text-emerald-400" />
+            ПОЛОЖИТЕЛЬНЫЙ РЕЗУЛЬТАТ
+          </span>
+        );
+      default:
+        return (
+          <span className="bg-violet-500/20 text-violet-300 border border-violet-500/30 text-xs px-2.5 py-1 rounded-full font-bold">
+            СИСТЕМНОЕ СОБЫТИЕ
+          </span>
+        );
+    }
+  };
+
+  const getCategoryLabel = () => {
+    switch (event.category) {
+      case 'operators': return 'Операторы';
+      case 'finance': return 'Финансы';
+      case 'warnings': return 'Блокировки';
+      case 'system': return 'Система';
+      default: return 'Событие';
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-mono">
+      <div className="glass-card w-full max-w-xl p-6 rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl space-y-5 text-white max-h-[90vh] overflow-y-auto custom-scrollbar">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              {getSeverityBadge()}
+              <span className="bg-slate-800 text-slate-300 border border-white/10 text-xs px-2.5 py-1 rounded-full font-bold">
+                {getCategoryLabel()}
+              </span>
+              <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
+                event.status === 'active'
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                  : event.status === 'resolved'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'bg-slate-800 text-slate-400 border border-white/10'
+              }`}>
+                {event.status === 'active' ? 'Активно' : event.status === 'resolved' ? 'Решено' : 'Подтверждено'}
+              </span>
+            </div>
+            <h3 className="text-base sm:text-lg font-black text-white pt-1">
+              {event.title}
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-xl bg-slate-900 border border-white/10 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Fact / Description */}
+        <div className="p-4 rounded-2xl bg-slate-900/80 border border-white/5 space-y-2">
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            Главный факт и описание
+          </div>
+          <p className="text-sm font-semibold text-slate-100 leading-relaxed">
+            {event.description}
+          </p>
+          {event.subtitle && (
+            <p className="text-xs text-slate-400">
+              {event.subtitle}
+            </p>
+          )}
+        </div>
+
+        {/* Thresholds & Metrics if present */}
+        {(event.threshold_text || event.current_val_text || event.duration_text) && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {event.threshold_text && (
+              <div className="p-3 rounded-xl bg-slate-900/60 border border-white/5">
+                <div className="text-[10px] text-slate-400 font-bold uppercase">Порог правила</div>
+                <div className="text-xs font-bold text-amber-300 mt-1">{event.threshold_text}</div>
+              </div>
+            )}
+            {event.current_val_text && (
+              <div className="p-3 rounded-xl bg-slate-900/60 border border-white/5">
+                <div className="text-[10px] text-slate-400 font-bold uppercase">Факт / Значение</div>
+                <div className="text-xs font-bold text-white mt-1">{event.current_val_text}</div>
+              </div>
+            )}
+            {event.duration_text && (
+              <div className="p-3 rounded-xl bg-slate-900/60 border border-white/5">
+                <div className="text-[10px] text-slate-400 font-bold uppercase">Длительность</div>
+                <div className="text-xs font-bold text-rose-300 mt-1">{event.duration_text}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Context Information */}
+        <div className="p-4 rounded-2xl bg-slate-900/40 border border-white/5 space-y-2 text-xs">
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider pb-1">
+            Контекст события
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-300">
+            {event.account_name && (
+              <div>
+                <span className="text-slate-500">Аккаунт: </span>
+                <span className="font-bold text-violet-300">{event.account_name}</span>
+              </div>
+            )}
+            {event.operator_name && (
+              <div>
+                <span className="text-slate-500">Оператор: </span>
+                <span className="font-bold text-cyan-300">@{event.operator_name}</span>
+              </div>
+            )}
+            {event.shift_label && (
+              <div>
+                <span className="text-slate-500">Смена: </span>
+                <span className="font-bold text-white">{event.shift_label}</span>
+              </div>
+            )}
+            <div>
+              <span className="text-slate-500">Создано: </span>
+              <span>{new Date(event.created_at).toLocaleTimeString('ru-RU')}</span>
+            </div>
+            <div>
+              <span className="text-slate-500">Обновлено: </span>
+              <span>{new Date(event.updated_at).toLocaleTimeString('ru-RU')}</span>
+            </div>
+            <div>
+              <span className="text-slate-500">Хранение: </span>
+              <span className="text-slate-400">до {new Date(event.expires_at).toLocaleTimeString('ru-RU')} (24ч)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-wrap items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+          {matchedAccount && (
+            <button
+              onClick={() => {
+                onClose();
+                onNavigateToAccount(matchedAccount);
+              }}
+              className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-lg shadow-violet-950/40"
+            >
+              <Users size={14} />
+              Открыть карточку аккаунта
+            </button>
+          )}
+
+          {event.category === 'operators' && onNavigateToOperators && (
+            <button
+              onClick={() => {
+                onClose();
+                onNavigateToOperators();
+              }}
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 font-bold text-xs flex items-center gap-1.5 transition-colors"
+            >
+              <UserCheck size={14} />
+              Метрики оператора
+            </button>
+          )}
+
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-white/5 font-bold text-xs transition-colors"
+          >
+            Закрыть
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const RealtimeEventFeed: React.FC<{
   accounts: OnlyMonsterAccount[];
   operators?: ShiftOperator[];
   onAccountClick: (acc: OnlyMonsterAccount) => void;
   onNavigateToAccountsTab: () => void;
+  onNavigateToOperatorsTab?: () => void;
   onUpdateLastOutgoingMap?: (mapUpdater: (prev: Record<string, number>) => Record<string, number>) => void;
-}> = ({ accounts, operators, onAccountClick, onNavigateToAccountsTab, onUpdateLastOutgoingMap }) => {
-  const [events, setEvents] = useState<EventFeedItem[]>([]);
-  const [filter, setFilter] = useState<'all' | EventCategory>('all');
+}> = ({
+  accounts,
+  operators,
+  onAccountClick,
+  onNavigateToAccountsTab,
+  onNavigateToOperatorsTab,
+  onUpdateLastOutgoingMap,
+}) => {
+  const [filter, setFilter] = useState<LiveEventCategory>('all');
   const [now, setNow] = useState<number>(Date.now());
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isTruncated, setIsTruncated] = useState<boolean>(false);
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
+  const [selectedDetailEvent, setSelectedDetailEvent] = useState<LiveFeedItem | null>(null);
+
+  // Core internal states
+  const [liveEventsMap, setLiveEventsMap] = useState<Map<string, LiveFeedItem>>(new Map());
   const lastKnownIdRef = useRef<number | string | null>(null);
   const lastOutgoingMapRef = useRef<Record<string, number>>({});
   const activeShiftRef = useRef<KyivShiftRange>(getKyivShiftRange(new Date()));
 
-  // Milestone tracking state
-  const [liveMilestoneEvents, setLiveMilestoneEvents] = useState<EventFeedItem[]>([]);
+  // Operator reply time violation duration tracker
+  const operatorSlowReplyStartRef = useRef<Record<string, number>>({});
+  // Resolved state tracker to prevent duplicate resolution events
+  const resolvedKeysRef = useRef<Set<string>>(new Set());
+  // Milestones tracker for current shift
   const passedMilestonesRef = useRef<Set<string>>(new Set());
   const initializedShiftRef = useRef<number | null>(null);
 
@@ -1499,6 +1494,7 @@ export const RealtimeEventFeed: React.FC<{
     return map;
   }, [accounts]);
 
+  // Tick clock every second
   useEffect(() => {
     const ticker = setInterval(() => {
       setNow(Date.now());
@@ -1506,22 +1502,42 @@ export const RealtimeEventFeed: React.FC<{
     return () => clearInterval(ticker);
   }, []);
 
-  const processBatch = (rawBatch: EventFeedItem[], currentMap: Record<string, number>) => {
-    // Sort rawBatch chronologically (oldest first) to track timeline correctly
+  // Process incoming raw webhook batch and synthesize high-signal live events
+  const processRawEvents = (
+    rawBatch: EventFeedItem[],
+    currentShift: KyivShiftRange,
+    currentOutMap: Record<string, number>,
+    existingEvents: Map<string, LiveFeedItem>
+  ) => {
+    const nextMap = { ...currentOutMap };
+    const nextEvents = new Map<string, LiveFeedItem>(existingEvents);
+
+    const shiftIndex = currentShift.index;
+    const shiftLabel = currentShift.label || `Смена ${shiftIndex}`;
+    const nowIso = new Date().toISOString();
+    const expiresIso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+
+    // 1. First, sort rawBatch chronologically
     const chronological = [...rawBatch].sort((a, b) => {
       const tA = new Date(a.event_timestamp || a.received_at || 0).getTime();
       const tB = new Date(b.event_timestamp || b.received_at || 0).getTime();
       return tA - tB;
     });
 
-    const nextMap = { ...currentMap };
-    const visibleItems: EventFeedItem[] = [];
+    // Temp buffers for grouping windowed items (purchase burst, block burst)
+    const recentTxByAccount: Record<string, { count: number; total: number; latestTs: number; txIds: string[] }> = {};
+    const recentBlocksByAccount: Record<string, { count: number; latestTs: number }> = {};
+    const shiftIncomeByAccount: Record<string, number> = {};
 
     chronological.forEach(e => {
       const rawPayload = e.payload || {};
       const p = rawPayload.payload || rawPayload;
-      const type = e.event_type || '';
+      const type = (e.event_type || '').toLowerCase().trim();
+      const rawAccId = String(e.account_id || e.platform_account_id || p.account_id || p.platform_account_id || p.creator_id || '');
+      const modelName = accountsMap.get(rawAccId) || (rawAccId ? `Модель ${rawAccId}` : 'Модель');
+      const eventTs = new Date(e.event_timestamp || e.received_at || Date.now()).getTime();
 
+      // Track outgoing messages for activity timestamps
       const isChatMessage = type === 'chat.message';
       const isIncoming = isChatMessage && Boolean(
         (p.from_id && p.fan_id && String(p.from_id) === String(p.fan_id)) ||
@@ -1531,74 +1547,543 @@ export const RealtimeEventFeed: React.FC<{
       );
       const isOutgoing = isChatMessage && !isIncoming;
 
-      if (isOutgoing) {
-        const rawAccId = e.account_id || e.platform_account_id || p.account_id || p.platform_account_id || p.creator_id || p.model_id || '';
-        const accKey = String(rawAccId);
-        const ts = new Date(e.event_timestamp || e.received_at || Date.now()).getTime();
+      if (isOutgoing && rawAccId && eventTs > 0) {
+        nextMap[rawAccId] = Math.max(nextMap[rawAccId] || 0, eventTs);
+        const matchingAcc = accounts.find(a => String(a.id) === rawAccId || String(a.platform_account_id) === rawAccId);
+        if (matchingAcc) {
+          if (matchingAcc.id) nextMap[String(matchingAcc.id)] = Math.max(nextMap[String(matchingAcc.id)] || 0, eventTs);
+          if (matchingAcc.platform_account_id) nextMap[String(matchingAcc.platform_account_id)] = Math.max(nextMap[String(matchingAcc.platform_account_id)] || 0, eventTs);
+        }
+      }
 
-        if (accKey && ts > 0) {
-          const matchingAcc = accounts.find(a => String(a.id) === accKey || String(a.platform_account_id) === accKey);
-          const keysToUpdate = new Set<string>([accKey]);
-          if (matchingAcc) {
-            if (matchingAcc.id) keysToUpdate.add(String(matchingAcc.id));
-            if (matchingAcc.platform_account_id) keysToUpdate.add(String(matchingAcc.platform_account_id));
-          }
+      // ─── Financial Webhook Events (Confirmed Transactions) ───
+      if (
+        type === 'fans.tip.received' ||
+        type === 'fans.ppv.purchased' ||
+        type === 'fans.message.purchased' ||
+        type === 'fans.post.purchased' ||
+        type === 'payment.received'
+      ) {
+        const amt = Number(p.price_gross ?? p.amount_gross ?? p.amount ?? p.price ?? 0);
+        const isTip = type === 'fans.tip.received' || Boolean(p.is_tip);
+        const txId = p.tip_id || p.transaction_id || p.tx_id || p.id || e.id;
 
-          let prevTs = 0;
-          keysToUpdate.forEach(k => {
-            if (nextMap[k] && nextMap[k] > prevTs) {
-              prevTs = nextMap[k];
-            }
-          });
+        // Determine exact transaction type description
+        let txType = isTip ? 'Payment for tip' : 'Payment for message';
+        if (p.transaction_type) {
+          txType = p.transaction_type;
+        } else if (p.type_label) {
+          txType = p.type_label;
+        } else if (p.content_type === 'post') {
+          txType = 'Payment for post';
+        } else if (p.content_type === 'message') {
+          txType = 'Payment for message';
+        } else if (isTip) {
+          txType = 'Payment for tip';
+        }
 
-          if (prevTs > 0 && ts > prevTs) {
-            const diffMs = ts - prevTs;
-            if (diffMs >= IDLE_THRESHOLD_MINUTES * 60 * 1000) {
-              visibleItems.push({
-                id: `resume-${e.id}-${accKey}`,
-                event_type: 'idle.resumed',
+        const currSym = p.currency === 'EUR' ? '€' : p.currency === 'GBP' ? '£' : '$';
+        const formattedAmt = `${currSym}${amt >= 100 && amt % 1 === 0 ? amt.toFixed(0) : amt.toFixed(2)}`;
+
+        if (rawAccId && amt > 0) {
+          shiftIncomeByAccount[rawAccId] = (shiftIncomeByAccount[rawAccId] || 0) + amt;
+
+          // 1. Large Transaction (>= $49.99)
+          // $49.98 -> ignored, $49.99 -> shown, $50.00 -> shown, $85.00 -> shown
+          if (amt >= LARGE_TRANSACTION_THRESHOLD) {
+            const dedupeKey = `large_transaction:${txId}`;
+            if (!nextEvents.has(dedupeKey)) {
+              nextEvents.set(dedupeKey, {
+                id: `ltx-${txId}`,
+                dedupe_key: dedupeKey,
+                category: 'finance',
+                event_type: 'finance.large_transaction',
+                severity: 'green',
                 account_id: rawAccId,
-                platform_account_id: e.platform_account_id,
-                payload: {
-                  payload: {
-                    account_id: rawAccId,
-                    idle_duration_ms: diffMs,
-                  }
+                account_name: modelName,
+                shift_id: String(shiftIndex),
+                shift_label: shiftLabel,
+                title: `💰 КРУПНАЯ ТРАНЗАКЦИЯ`,
+                description: `${modelName} · +${formattedAmt} · Тип: ${txType}`,
+                subtitle: `Тип: ${txType}`,
+                threshold_text: `Порог: от $${LARGE_TRANSACTION_THRESHOLD}`,
+                current_val_text: `+${formattedAmt}`,
+                metrics: {
+                  amount: amt,
+                  currency: p.currency || 'USD',
+                  transaction_type: txType,
+                  transaction_id: txId,
                 },
-                event_timestamp: e.event_timestamp || e.received_at,
-                received_at: e.received_at,
+                status: 'active',
+                created_at: new Date(eventTs).toISOString(),
+                updated_at: nowIso,
+                expires_at: expiresIso,
               });
             }
           }
 
-          keysToUpdate.forEach(k => {
-            nextMap[k] = Math.max(nextMap[k] || 0, ts);
-          });
+          // 2. Buffer for Purchase Burst within 10-minute window
+          const window10m = Math.floor(eventTs / (PURCHASE_BURST_WINDOW_MINUTES * 60 * 1000));
+          const burstBucketKey = `${rawAccId}_${window10m}`;
+          if (!recentTxByAccount[burstBucketKey]) {
+            recentTxByAccount[burstBucketKey] = { count: 0, total: 0, latestTs: eventTs, txIds: [] };
+          }
+          recentTxByAccount[burstBucketKey].count += 1;
+          recentTxByAccount[burstBucketKey].total += amt;
+          recentTxByAccount[burstBucketKey].latestTs = Math.max(recentTxByAccount[burstBucketKey].latestTs, eventTs);
+          recentTxByAccount[burstBucketKey].txIds.push(String(txId));
         }
-        // Routine outgoing message is NOT added to visibleItems
-      } else {
-        visibleItems.push(e);
+      }
+
+      // ─── Message Guard Violations (Blocks) ───
+      if (
+        type === 'firewall.message_guard.violation.user' ||
+        type === 'firewall.message_guard.violation.om_api' ||
+        type.includes('message_guard')
+      ) {
+        if (rawAccId) {
+          const window15m = Math.floor(eventTs / (BLOCKED_EVENTS_WINDOW_MINUTES * 60 * 1000));
+          const blockBucketKey = `${rawAccId}_${window15m}`;
+          if (!recentBlocksByAccount[blockBucketKey]) {
+            recentBlocksByAccount[blockBucketKey] = { count: 0, latestTs: eventTs };
+          }
+          recentBlocksByAccount[blockBucketKey].count += 1;
+          recentBlocksByAccount[blockBucketKey].latestTs = Math.max(recentBlocksByAccount[blockBucketKey].latestTs, eventTs);
+        }
       }
     });
 
-    // Re-sort visibleItems to DESCENDING (newest first for display)
-    visibleItems.sort((a, b) => {
-      const tA = new Date(a.event_timestamp || a.received_at || 0).getTime();
-      const tB = new Date(b.event_timestamp || b.received_at || 0).getTime();
-      return tB - tA;
+    // ─── Evaluate Purchase Bursts (>= 3 tx or >= $100 in 10 min) ───
+    Object.entries(recentTxByAccount).forEach(([bucketKey, bData]) => {
+      const [accId, window10mStr] = bucketKey.split('_');
+      const modelName = accountsMap.get(accId) || `Модель ${accId}`;
+
+      if (bData.count >= PURCHASE_BURST_COUNT || bData.total >= PURCHASE_BURST_AMOUNT) {
+        const dedupeKey = `purchase_burst:${accId}:${window10mStr}`;
+        const existing = nextEvents.get(dedupeKey);
+        const formattedTotal = bData.total >= 100 && bData.total % 1 === 0 ? bData.total.toFixed(0) : bData.total.toFixed(2);
+        const txWord = bData.count === 1 ? 'транзакция' : (bData.count >= 2 && bData.count <= 4) ? 'транзакции' : 'транзакций';
+
+        if (existing) {
+          existing.description = `${modelName} · ${bData.count} ${txWord} за 10 минут · Общая сумма: +$${formattedTotal}`;
+          existing.subtitle = `Общая сумма: +$${formattedTotal}`;
+          existing.current_val_text = `${bData.count} tx / +$${formattedTotal}`;
+          existing.updated_at = nowIso;
+        } else {
+          nextEvents.set(dedupeKey, {
+            id: `burst-${accId}-${window10mStr}`,
+            dedupe_key: dedupeKey,
+            category: 'finance',
+            event_type: 'finance.purchase_burst',
+            severity: 'green',
+            account_id: accId,
+            account_name: modelName,
+            shift_id: String(shiftIndex),
+            shift_label: shiftLabel,
+            title: `🔥 СЕРИЯ ТРАНЗАКЦИЙ`,
+            description: `${modelName} · ${bData.count} ${txWord} за 10 минут · Общая сумма: +$${formattedTotal}`,
+            subtitle: `Общая сумма: +$${formattedTotal}`,
+            threshold_text: `Порог: ≥${PURCHASE_BURST_COUNT} tx или ≥$${PURCHASE_BURST_AMOUNT} за ${PURCHASE_BURST_WINDOW_MINUTES} мин`,
+            current_val_text: `${bData.count} tx (+$${formattedTotal})`,
+            status: 'active',
+            created_at: new Date(bData.latestTs).toISOString(),
+            updated_at: nowIso,
+            expires_at: expiresIso,
+          });
+        }
+      }
     });
 
-    return { nextMap, visibleItems };
+    // ─── Evaluate Block Bursts (>= 3 blocks in 15 min, >= 6 blocks in 30 min) ───
+    Object.entries(recentBlocksByAccount).forEach(([bucketKey, bData]) => {
+      const [accId, window15mStr] = bucketKey.split('_');
+      const modelName = accountsMap.get(accId) || `Модель ${accId}`;
+
+      if (bData.count >= BLOCKED_EVENTS_THRESHOLD) {
+        const isRepeated = bData.count >= 6;
+        const dedupeKey = isRepeated
+          ? `blocked_repeated:${accId}:${window15mStr}`
+          : `blocked_burst:${accId}:${window15mStr}`;
+
+        const existing = nextEvents.get(dedupeKey);
+        if (existing) {
+          existing.title = isRepeated
+            ? `🔴 ПОВТОРЯЮЩИЕСЯ БЛОКИРОВКИ (${bData.count})`
+            : `🟠 СЕРИЯ БЛОКИРОВОК (${bData.count} за 15м)`;
+          existing.description = `${modelName} · ${bData.count} блокировок Message Guard за период`;
+          existing.current_val_text = `${bData.count} блокировок`;
+          existing.updated_at = nowIso;
+        } else {
+          nextEvents.set(dedupeKey, {
+            id: `block-${accId}-${window15mStr}`,
+            dedupe_key: dedupeKey,
+            category: 'warnings',
+            event_type: isRepeated ? 'security.violation_repeat' : 'security.violation_burst',
+            severity: isRepeated ? 'red' : 'amber',
+            account_id: accId,
+            account_name: modelName,
+            shift_id: String(shiftIndex),
+            shift_label: shiftLabel,
+            title: isRepeated
+              ? `🔴 ПОВТОРЯЮЩИЕСЯ БЛОКИРОВКИ (${bData.count})`
+              : `🟠 СЕРИЯ БЛОКИРОВОК (${bData.count} за 15м)`,
+            description: `${modelName} · ${bData.count} блокировок Message Guard за период`,
+            threshold_text: isRepeated ? 'Порог: ≥6 блокировок за 30 мин' : 'Порог: ≥3 блокировки за 15 мин',
+            current_val_text: `${bData.count} блокировок`,
+            status: 'active',
+            created_at: new Date(bData.latestTs).toISOString(),
+            updated_at: nowIso,
+            expires_at: expiresIso,
+          });
+        }
+      }
+    });
+
+    return { nextMap, nextEvents };
   };
 
+  // Evaluate Operator rules and Shift milestones dynamically against current state
+  const evaluateDynamicRules = (
+    currentShift: KyivShiftRange,
+    outMap: Record<string, number>,
+    existingEvents: Map<string, LiveFeedItem>
+  ) => {
+    const nextEvents = new Map<string, LiveFeedItem>(existingEvents);
+    const shiftIndex = currentShift.index;
+    const shiftLabel = currentShift.label || `Смена ${shiftIndex}`;
+    const nowTs = Date.now();
+    const nowIso = new Date().toISOString();
+    const expiresIso = new Date(nowTs + 24 * 3600 * 1000).toISOString();
+
+    const shiftStartTs = new Date(currentShift.start).getTime();
+    const shiftElapsedMinutes = Math.max(0, Math.floor((nowTs - shiftStartTs) / (60 * 1000)));
+
+    // ─── Shift Milestone Evaluation ($100, $250, $500, $1000) ───
+    let totalShiftConfirmedRevenue = 0;
+    accounts.forEach(acc => {
+      if (isAccountHidden(acc.name)) return;
+      const baseEarn = (acc.earnings_breakdown && acc.earnings_breakdown[shiftIndex]) || 0;
+      totalShiftConfirmedRevenue += baseEarn;
+    });
+
+    // Initialize passed milestones silently for existing history
+    if (initializedShiftRef.current !== shiftIndex) {
+      SHIFT_REVENUE_MILESTONES.forEach(ms => {
+        if (totalShiftConfirmedRevenue >= ms) {
+          passedMilestonesRef.current.add(`shift_${shiftIndex}_${ms}`);
+        }
+      });
+      initializedShiftRef.current = shiftIndex;
+    }
+
+    // Check newly crossed milestones in this shift
+    SHIFT_REVENUE_MILESTONES.forEach(ms => {
+      const msKey = `shift_${shiftIndex}_${ms}`;
+      if (totalShiftConfirmedRevenue >= ms && !passedMilestonesRef.current.has(msKey)) {
+        passedMilestonesRef.current.add(msKey);
+        const dedupeKey = `shift_revenue_milestone:${shiftIndex}:${currentShift.start}:${ms}`;
+
+        nextEvents.set(dedupeKey, {
+          id: `shift-ms-${shiftIndex}-${ms}`,
+          dedupe_key: dedupeKey,
+          category: 'finance',
+          event_type: 'finance.shift_milestone',
+          severity: 'amber',
+          shift_id: String(shiftIndex),
+          shift_label: shiftLabel,
+          title: `🏆 РЕЗУЛЬТАТ СМЕНЫ: $${ms}`,
+          description: `Смена ${shiftLabel} преодолела $${ms} (текущий итог: $${totalShiftConfirmedRevenue.toFixed(2)})`,
+          threshold_text: `Порог смены: $${ms}`,
+          current_val_text: `$${totalShiftConfirmedRevenue.toFixed(2)}`,
+          status: 'active',
+          created_at: nowIso,
+          updated_at: nowIso,
+          expires_at: expiresIso,
+        });
+      }
+    });
+
+    // ─── Operator Metrics Evaluation ───
+    if (operators && operators.length > 0) {
+      operators.forEach(op => {
+        if (isOperatorHidden(op.name)) return;
+        const opId = op.user_id || op.name;
+        const opName = op.name || 'Оператор';
+        const assignedAccIds = Array.isArray(op.creator_ids) ? op.creator_ids.map(String) : [];
+
+        // Determine assigned model names
+        const assignedModelNames = assignedAccIds
+          .map(id => accountsMap.get(id) || id)
+          .filter(Boolean);
+        const modelNamesStr = assignedModelNames.length > 0 ? assignedModelNames.join(', ') : 'Назначенные модели';
+
+        // 1. Inactivity Check (15 minutes)
+        if (assignedAccIds.length > 0) {
+          let latestActivityTs = shiftStartTs;
+          assignedAccIds.forEach(id => {
+            if (outMap[id] && outMap[id] > latestActivityTs) {
+              latestActivityTs = outMap[id];
+            }
+          });
+
+          const inactiveDiffMs = Math.max(0, nowTs - latestActivityTs);
+          const inactiveMinutes = Math.floor(inactiveDiffMs / (60 * 1000));
+          const inactiveDedupeKey = `operator_inactive:${opId}:${shiftIndex}`;
+          const existingInactive = nextEvents.get(inactiveDedupeKey);
+
+          if (inactiveMinutes >= OPERATOR_INACTIVE_MINUTES) {
+            if (existingInactive) {
+              existingInactive.description = `@${opName} · нет активности ${inactiveMinutes} минут (${modelNamesStr})`;
+              existingInactive.current_val_text = `${inactiveMinutes} минут`;
+              existingInactive.duration_text = `${inactiveMinutes}м`;
+              existingInactive.updated_at = nowIso;
+              existingInactive.status = 'active';
+            } else {
+              nextEvents.set(inactiveDedupeKey, {
+                id: `op-inact-${opId}-${shiftIndex}`,
+                dedupe_key: inactiveDedupeKey,
+                category: 'operators',
+                event_type: 'operator.inactive',
+                severity: 'red',
+                operator_id: opId,
+                operator_name: opName,
+                shift_id: String(shiftIndex),
+                shift_label: shiftLabel,
+                title: `🔴 НЕТ АКТИВНОСТИ (@${opName})`,
+                description: `@${opName} · нет активности ${inactiveMinutes} минут (${modelNamesStr})`,
+                subtitle: `Аккаунты: ${modelNamesStr} | ${shiftLabel}`,
+                threshold_text: `Порог: ${OPERATOR_INACTIVE_MINUTES} минут без сообщений`,
+                current_val_text: `${inactiveMinutes} минут`,
+                duration_text: `${inactiveMinutes}м`,
+                status: 'active',
+                created_at: nowIso,
+                updated_at: nowIso,
+                expires_at: expiresIso,
+              });
+            }
+          } else if (existingInactive && existingInactive.status === 'active') {
+            // Operator resumed activity -> mark warning as resolved & emit single recovery event
+            existingInactive.status = 'resolved';
+            existingInactive.updated_at = nowIso;
+
+            const resumeDedupeKey = `operator_recovered_activity:${opId}:${shiftIndex}`;
+            if (!resolvedKeysRef.current.has(resumeDedupeKey)) {
+              resolvedKeysRef.current.add(resumeDedupeKey);
+              nextEvents.set(resumeDedupeKey, {
+                id: `op-resumed-${opId}-${shiftIndex}-${nowTs}`,
+                dedupe_key: resumeDedupeKey,
+                category: 'operators',
+                event_type: 'operator.activity_resumed',
+                severity: 'green',
+                operator_id: opId,
+                operator_name: opName,
+                shift_id: String(shiftIndex),
+                shift_label: shiftLabel,
+                title: `🟢 АКТИВНОСТЬ ВОЗОБНОВЛЕНА`,
+                description: `@${opName} возобновил отправку сообщений на ${modelNamesStr}`,
+                status: 'resolved',
+                related_event_id: existingInactive.id,
+                created_at: nowIso,
+                updated_at: nowIso,
+                expires_at: expiresIso,
+              });
+            }
+          }
+        }
+
+        // 2. Slow Response Time (> 5m for >= 10m)
+        const avgReplyTimeSec = Number(op.reply_time_avg || 0);
+        const slowReplyDedupeKey = `operator_slow_response:${opId}:${shiftIndex}`;
+        const existingSlow = nextEvents.get(slowReplyDedupeKey);
+
+        if (avgReplyTimeSec > RESPONSE_TIME_THRESHOLD_MINUTES * 60) {
+          if (!operatorSlowReplyStartRef.current[opId]) {
+            operatorSlowReplyStartRef.current[opId] = nowTs;
+          }
+          const violationDurationMinutes = Math.floor((nowTs - operatorSlowReplyStartRef.current[opId]) / (60 * 1000));
+
+          if (violationDurationMinutes >= RESPONSE_TIME_VIOLATION_DURATION_MINUTES) {
+            const formatMinSec = (sec: number) => {
+              const m = Math.floor(sec / 60);
+              const s = Math.floor(sec % 60);
+              return `${m}:${s < 10 ? '0' : ''}${s}м`;
+            };
+
+            if (existingSlow) {
+              existingSlow.description = `@${opName} · среднее время ответа ${formatMinSec(avgReplyTimeSec)} (сохраняется ${violationDurationMinutes}м)`;
+              existingSlow.current_val_text = formatMinSec(avgReplyTimeSec);
+              existingSlow.duration_text = `${violationDurationMinutes}м`;
+              existingSlow.updated_at = nowIso;
+              existingSlow.status = 'active';
+            } else {
+              nextEvents.set(slowReplyDedupeKey, {
+                id: `op-slow-${opId}-${shiftIndex}`,
+                dedupe_key: slowReplyDedupeKey,
+                category: 'operators',
+                event_type: 'operator.slow_response',
+                severity: 'red',
+                operator_id: opId,
+                operator_name: opName,
+                shift_id: String(shiftIndex),
+                shift_label: shiftLabel,
+                title: `🔴 МЕДЛЕННЫЙ ОТВЕТ (@${opName})`,
+                description: `@${opName} · среднее время ответа ${formatMinSec(avgReplyTimeSec)} (сохраняется ${violationDurationMinutes}м)`,
+                threshold_text: `Порог: до ${RESPONSE_TIME_THRESHOLD_MINUTES}:00 мин`,
+                current_val_text: formatMinSec(avgReplyTimeSec),
+                duration_text: `${violationDurationMinutes}м`,
+                status: 'active',
+                created_at: nowIso,
+                updated_at: nowIso,
+                expires_at: expiresIso,
+              });
+            }
+          }
+        } else {
+          // Normal reply time
+          delete operatorSlowReplyStartRef.current[opId];
+          if (existingSlow && existingSlow.status === 'active') {
+            existingSlow.status = 'resolved';
+            existingSlow.updated_at = nowIso;
+
+            const replyRecoveredKey = `operator_recovered_response:${opId}:${shiftIndex}`;
+            if (!resolvedKeysRef.current.has(replyRecoveredKey)) {
+              resolvedKeysRef.current.add(replyRecoveredKey);
+              nextEvents.set(replyRecoveredKey, {
+                id: `op-reply-ok-${opId}-${shiftIndex}-${nowTs}`,
+                dedupe_key: replyRecoveredKey,
+                category: 'operators',
+                event_type: 'operator.response_recovered',
+                severity: 'green',
+                operator_id: opId,
+                operator_name: opName,
+                shift_id: String(shiftIndex),
+                shift_label: shiftLabel,
+                title: `🟢 ВРЕМЯ ОТВЕТА В НОРМЕ`,
+                description: `@${opName}: среднее время ответа нормализовано (${Math.round(avgReplyTimeSec)}с)`,
+                status: 'resolved',
+                related_event_id: existingSlow.id,
+                created_at: nowIso,
+                updated_at: nowIso,
+                expires_at: expiresIso,
+              });
+            }
+          }
+        }
+
+        // 3. Pace Monitoring (calculated only after 30 min of shift)
+        if (shiftElapsedMinutes >= MINIMUM_SHIFT_ELAPSED_MINUTES) {
+          const shiftProgress = Math.min(Math.max(shiftElapsedMinutes / 360, 0.08), 1.0);
+          const targetMsgNow = Math.round(DEFAULT_SHIFT_MESSAGE_TARGET * shiftProgress);
+          const actualMsg = Number(op.messages_count || 0);
+          const pacePercent = targetMsgNow > 0 ? Math.round((actualMsg / targetMsgNow) * 100) : 100;
+
+          const paceDedupeKey = `operator_low_pace:${opId}:${shiftIndex}`;
+          const existingPace = nextEvents.get(paceDedupeKey);
+
+          if (pacePercent < PACE_CRITICAL_PERCENT) {
+            // Critical Pace Lag (< 40%)
+            if (existingPace) {
+              existingPace.severity = 'red';
+              existingPace.title = `🔴 КРИТИЧЕСКОЕ ОТСТАВАНИЕ (@${opName})`;
+              existingPace.description = `@${opName} · темп ${pacePercent}% от нормы (${actualMsg} из ~${targetMsgNow} сообщ.)`;
+              existingPace.current_val_text = `${pacePercent}% (${actualMsg} сообщ.)`;
+              existingPace.updated_at = nowIso;
+              existingPace.status = 'active';
+            } else {
+              nextEvents.set(paceDedupeKey, {
+                id: `op-pace-${opId}-${shiftIndex}`,
+                dedupe_key: paceDedupeKey,
+                category: 'operators',
+                event_type: 'operator.critical_pace',
+                severity: 'red',
+                operator_id: opId,
+                operator_name: opName,
+                shift_id: String(shiftIndex),
+                shift_label: shiftLabel,
+                title: `🔴 КРИТИЧЕСКОЕ ОТСТАВАНИЕ (@${opName})`,
+                description: `@${opName} · темп ${pacePercent}% от нормы (${actualMsg} из ~${targetMsgNow} сообщ.)`,
+                threshold_text: `Порог: норма ≥${PACE_WARNING_PERCENT}%`,
+                current_val_text: `${pacePercent}% от нормы`,
+                status: 'active',
+                created_at: nowIso,
+                updated_at: nowIso,
+                expires_at: expiresIso,
+              });
+            }
+          } else if (pacePercent < PACE_WARNING_PERCENT) {
+            // Warning Pace Lag (40% - 59%)
+            if (existingPace) {
+              existingPace.severity = 'amber';
+              existingPace.title = `🟠 ОТСТАВАНИЕ ОТ ТЕМПА (@${opName})`;
+              existingPace.description = `@${opName} · темп ${pacePercent}% от нормы (${actualMsg} из ~${targetMsgNow} сообщ.)`;
+              existingPace.current_val_text = `${pacePercent}% (${actualMsg} сообщ.)`;
+              existingPace.updated_at = nowIso;
+              existingPace.status = 'active';
+            } else {
+              nextEvents.set(paceDedupeKey, {
+                id: `op-pace-${opId}-${shiftIndex}`,
+                dedupe_key: paceDedupeKey,
+                category: 'operators',
+                event_type: 'operator.low_pace',
+                severity: 'amber',
+                operator_id: opId,
+                operator_name: opName,
+                shift_id: String(shiftIndex),
+                shift_label: shiftLabel,
+                title: `🟠 ОТСТАВАНИЕ ОТ ТЕМПА (@${opName})`,
+                description: `@${opName} · темп ${pacePercent}% от нормы (${actualMsg} из ~${targetMsgNow} сообщ.)`,
+                threshold_text: `Порог: норма ≥${PACE_WARNING_PERCENT}%`,
+                current_val_text: `${pacePercent}% от нормы`,
+                status: 'active',
+                created_at: nowIso,
+                updated_at: nowIso,
+                expires_at: expiresIso,
+              });
+            }
+          } else if (existingPace && existingPace.status === 'active') {
+            // Pace recovered!
+            existingPace.status = 'resolved';
+            existingPace.updated_at = nowIso;
+
+            const paceRecoveredKey = `operator_recovered_pace:${opId}:${shiftIndex}`;
+            if (!resolvedKeysRef.current.has(paceRecoveredKey)) {
+              resolvedKeysRef.current.add(paceRecoveredKey);
+              nextEvents.set(paceRecoveredKey, {
+                id: `op-pace-ok-${opId}-${shiftIndex}-${nowTs}`,
+                dedupe_key: paceRecoveredKey,
+                category: 'operators',
+                event_type: 'operator.pace_recovered',
+                severity: 'green',
+                operator_id: opId,
+                operator_name: opName,
+                shift_id: String(shiftIndex),
+                shift_label: shiftLabel,
+                title: `🟢 ТЕМП ВОССТАНОВЛЕН`,
+                description: `@${opName} вернулся к нормальному темпу (текущий темп: ${pacePercent}%)`,
+                status: 'resolved',
+                related_event_id: existingPace.id,
+                created_at: nowIso,
+                updated_at: nowIso,
+                expires_at: expiresIso,
+              });
+            }
+          }
+        }
+      });
+    }
+
+    return nextEvents;
+  };
+
+  // Main polling effect
   useEffect(() => {
     let isMounted = true;
 
-    const fetchEvents = async (isInitialForShift: boolean = false) => {
+    const fetchEvents = async (isInitial: boolean = false) => {
       try {
         const currentShift = getKyivShiftRange(new Date());
 
-        // Check if operational shift has shifted
+        // Shift rollover detection
         if (
           currentShift.start !== activeShiftRef.current.start ||
           currentShift.end !== activeShiftRef.current.end ||
@@ -1607,21 +2092,36 @@ export const RealtimeEventFeed: React.FC<{
           activeShiftRef.current = currentShift;
           lastKnownIdRef.current = null;
           lastOutgoingMapRef.current = {};
+          resolvedKeysRef.current.clear();
           passedMilestonesRef.current.clear();
           initializedShiftRef.current = null;
+
           if (isMounted) {
-            setEvents([]);
-            setLiveMilestoneEvents([]);
-            setIsTruncated(false);
+            const shiftStartEvent: LiveFeedItem = {
+              id: `sys-shift-${currentShift.index}-${Date.now()}`,
+              dedupe_key: `system_shift_started:${currentShift.index}:${currentShift.start}`,
+              category: 'system',
+              event_type: 'system.shift_started',
+              severity: 'blue',
+              shift_id: String(currentShift.index),
+              shift_label: currentShift.label,
+              title: `⚡ НАЧАЛО СМЕНЫ ${currentShift.label}`,
+              description: `Смена ${currentShift.label} активна (Киевское время)`,
+              status: 'active',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+            };
+            setLiveEventsMap(new Map([[shiftStartEvent.dedupe_key, shiftStartEvent]]));
           }
           if (onUpdateLastOutgoingMap) {
             onUpdateLastOutgoingMap(() => ({}));
           }
-          isInitialForShift = true;
+          isInitial = true;
         }
 
         const shift = activeShiftRef.current;
-        const afterId = !isInitialForShift ? lastKnownIdRef.current : null;
+        const afterId = !isInitial ? lastKnownIdRef.current : null;
 
         const params = new URLSearchParams();
         params.set('resource', 'events');
@@ -1639,15 +2139,11 @@ export const RealtimeEventFeed: React.FC<{
         const data = await res.json();
 
         if (isMounted && data.success && Array.isArray(data.events)) {
-          const fetched: EventFeedItem[] = data.events;
+          const rawEvents: EventFeedItem[] = data.events;
 
-          if (data.truncated !== undefined) {
-            setIsTruncated(Boolean(data.truncated));
-          }
-
-          if (fetched.length > 0) {
+          if (rawEvents.length > 0) {
             let maxId = lastKnownIdRef.current;
-            fetched.forEach(e => {
+            rawEvents.forEach(e => {
               if (maxId === null) {
                 maxId = e.id;
               } else if (typeof e.id === 'number' && typeof maxId === 'number') {
@@ -1657,26 +2153,26 @@ export const RealtimeEventFeed: React.FC<{
               }
             });
             lastKnownIdRef.current = maxId;
+          }
 
-            const { nextMap, visibleItems } = processBatch(fetched, lastOutgoingMapRef.current);
+          setLiveEventsMap(prevMap => {
+            const { nextMap, nextEvents } = processRawEvents(
+              rawEvents,
+              shift,
+              lastOutgoingMapRef.current,
+              prevMap
+            );
             lastOutgoingMapRef.current = nextMap;
             if (onUpdateLastOutgoingMap) {
               onUpdateLastOutgoingMap(() => nextMap);
             }
 
-            setEvents(prev => {
-              if (isInitialForShift || prev.length === 0) {
-                return visibleItems.slice(0, 500);
-              }
-              const existingIds = new Set(prev.map(e => String(e.id)));
-              const newItems = visibleItems.filter(e => !existingIds.has(String(e.id)));
-              if (newItems.length === 0) return prev;
-              return [...newItems, ...prev].slice(0, 500);
-            });
-          }
+            const evaluated = evaluateDynamicRules(shift, nextMap, nextEvents);
+            return evaluated;
+          });
         }
       } catch (err) {
-        console.error('[RealtimeEventFeed] Fetch error:', err);
+        console.error('[RealtimeEventFeed] Polling error:', err);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -1692,284 +2188,268 @@ export const RealtimeEventFeed: React.FC<{
       isMounted = false;
       clearInterval(interval);
     };
-  }, [accounts]);
+  }, [accounts, operators]);
 
-  const MILESTONES = useMemo(() => [100, 250, 500, 1000, 2500, 5000], []);
-
+  // Periodic evaluator for live durations
   useEffect(() => {
-    const currentShift = activeShiftRef.current;
-    const currentShiftIndex = currentShift.index;
+    const evaluator = setInterval(() => {
+      setLiveEventsMap(prevMap => {
+        return evaluateDynamicRules(activeShiftRef.current, lastOutgoingMapRef.current, prevMap);
+      });
+    }, 5000);
+    return () => clearInterval(evaluator);
+  }, [accounts, operators]);
 
-    // Check if accounts have loaded earnings breakdown
-    const hasEarningsData = accounts.some(a => a.earnings_breakdown !== undefined && a.earnings_breakdown !== null);
-    if (!hasEarningsData && initializedShiftRef.current === null) {
-      return;
-    }
+  // Filtered & Sorted Event List
+  const { allList, visibleList, counts } = useMemo(() => {
+    const nowTs = Date.now();
+    const items = Array.from(liveEventsMap.values()).filter(item => {
+      // 24-hour expiration filter
+      const expTs = new Date(item.expires_at).getTime();
+      if (expTs <= nowTs) return false;
 
-    // 1. Calculate live income additions from tip/PPV events in the CURRENT shift
-    const liveIncomeByAccount: Record<string, number> = {};
-    events.forEach(e => {
-      const type = e.event_type || '';
-      if (type === 'fans.tip.received' || type === 'fans.ppv.purchased') {
-        const rawPayload = e.payload || {};
-        const p = rawPayload.payload || rawPayload;
-        const amt = Number(p.price_gross ?? p.amount_gross ?? p.amount ?? 0);
-        const rawAccId = String(e.account_id || e.platform_account_id || p.account_id || p.platform_account_id || '');
-        const eventTs = e.event_timestamp || e.received_at;
+      // Filter hidden models
+      if (item.account_name && isAccountHidden(item.account_name)) return false;
+      return true;
+    });
 
-        if (rawAccId && amt > 0 && isEventInCurrentKyivShift(eventTs, currentShiftIndex)) {
-          liveIncomeByAccount[rawAccId] = (liveIncomeByAccount[rawAccId] || 0) + amt;
-        }
+    // Priority sorting:
+    // 1. Active Critical (🔴)
+    // 2. Active Warnings (🟠)
+    // 3. Important Financial Events (💰, 🔥, 🏆)
+    // 4. Recovered / Resolved (🟢)
+    // 5. System & Others
+    const getPriority = (it: LiveFeedItem) => {
+      if (it.status === 'active') {
+        if (it.severity === 'red') return 1;
+        if (it.severity === 'amber') return 2;
+        if (it.category === 'finance') return 3;
+        if (it.severity === 'green') return 4;
+        if (it.category === 'system') return 5;
+        return 6;
       }
+      if (it.status === 'resolved' || it.severity === 'green') return 7;
+      return 8;
+    };
+
+    items.sort((a, b) => {
+      const pA = getPriority(a);
+      const pB = getPriority(b);
+      if (pA !== pB) return pA - pB;
+      const tA = new Date(a.updated_at || a.created_at).getTime();
+      const tB = new Date(b.updated_at || b.created_at).getTime();
+      return tB - tA;
     });
 
-    // 2. Perform silent initialization for current shift if not initialized yet
-    if (initializedShiftRef.current !== currentShiftIndex) {
-      accounts.forEach(acc => {
-        if (isAccountHidden(acc.name)) return;
-        const accKey1 = String(acc.id || '');
-        const accKey2 = String(acc.platform_account_id || '');
-        const baseEarn = (acc.earnings_breakdown && acc.earnings_breakdown[currentShiftIndex]) || 0;
+    const c = {
+      all: items.length,
+      operators: items.filter(i => i.category === 'operators').length,
+      finance: items.filter(i => i.category === 'finance').length,
+      warnings: items.filter(i => i.category === 'warnings').length,
+      system: items.filter(i => i.category === 'system').length,
+    };
 
-        MILESTONES.forEach(ms => {
-          if (baseEarn >= ms) {
-            if (accKey1) passedMilestonesRef.current.add(`${accKey1}-${ms}`);
-            if (accKey2) passedMilestonesRef.current.add(`${accKey2}-${ms}`);
-          }
-        });
-      });
+    const filtered = filter === 'all' ? items : items.filter(i => i.category === filter);
+    const displayed = isExpanded ? filtered : filtered.slice(0, 7);
 
-      initializedShiftRef.current = currentShiftIndex;
+    return { allList: items, visibleList: displayed, totalInFilter: filtered.length, counts: c };
+  }, [liveEventsMap, filter, isExpanded]);
+
+  const handleRowClick = (item: LiveFeedItem) => {
+    setSelectedDetailEvent(item);
+  };
+
+  const getVisualIndicator = (item: LiveFeedItem) => {
+    if (item.category === 'system') {
+      return <Zap size={14} className="text-violet-400 shrink-0" />;
     }
-
-    // 3. Check for new milestones passed during the active session
-    const newMilestones: EventFeedItem[] = [];
-
-    accounts.forEach(acc => {
-      if (isAccountHidden(acc.name)) return;
-      const accKey1 = String(acc.id || '');
-      const accKey2 = String(acc.platform_account_id || '');
-      const baseEarn = (acc.earnings_breakdown && acc.earnings_breakdown[currentShiftIndex]) || 0;
-      const addedEarn = (accKey1 && liveIncomeByAccount[accKey1]) || (accKey2 && liveIncomeByAccount[accKey2]) || 0;
-      const totalShiftEarn = baseEarn + addedEarn;
-
-      MILESTONES.forEach(ms => {
-        if (totalShiftEarn >= ms) {
-          const k1 = accKey1 ? `${accKey1}-${ms}` : '';
-          const k2 = accKey2 ? `${accKey2}-${ms}` : '';
-          const alreadyPassed = (k1 && passedMilestonesRef.current.has(k1)) || (k2 && passedMilestonesRef.current.has(k2));
-
-          if (!alreadyPassed) {
-            if (k1) passedMilestonesRef.current.add(k1);
-            if (k2) passedMilestonesRef.current.add(k2);
-
-            newMilestones.push({
-              id: `milestone-${acc.id || acc.platform_account_id}-${ms}-${Date.now()}`,
-              event_type: 'income.milestone',
-              account_id: acc.id,
-              platform_account_id: acc.platform_account_id,
-              payload: {
-                payload: {
-                  threshold: ms,
-                  model_name: acc.name,
-                  account_id: acc.id || acc.platform_account_id,
-                }
-              },
-              event_timestamp: new Date().toISOString(),
-              received_at: new Date().toISOString(),
-            });
-          }
-        }
-      });
-    });
-
-    if (newMilestones.length > 0) {
-      setLiveMilestoneEvents(prev => [...prev, ...newMilestones]);
+    if (item.status === 'resolved' || (item.severity === 'green' && item.category !== 'finance')) {
+      return <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />;
     }
-  }, [events, accounts, MILESTONES]);
-
-  const formattedList = useMemo(() => {
-    const combinedEvents = [...events, ...liveMilestoneEvents];
-
-    return combinedEvents
-      .filter(e => {
-        const rawPayload = e.payload || {};
-        const p = rawPayload.payload || rawPayload;
-        const rawAccId = e.account_id || e.platform_account_id || p.account_id || p.platform_account_id || '';
-        const modelName = accountsMap.get(String(rawAccId)) || '';
-        if (modelName && isAccountHidden(modelName)) {
-          return false;
-        }
-        return true;
-      })
-      .map(e => {
-        const formatted = formatEventForFeed(e, accountsMap, operators);
-        return {
-          event: e,
-          formatted
-        };
-      });
-  }, [events, liveMilestoneEvents, accountsMap, operators]);
-
-  const counts = useMemo(() => {
-    const c: Record<string, number> = { all: formattedList.length, finance: 0, accounts: 0, operators: 0, warnings: 0 };
-    formattedList.forEach(item => {
-      if (c[item.formatted.category] !== undefined) {
-        c[item.formatted.category]++;
-      }
-    });
-    return c;
-  }, [formattedList]);
-
-  const visibleList = useMemo(() => {
-    if (filter === 'all') return formattedList;
-    return formattedList.filter(item => item.formatted.category === filter);
-  }, [formattedList, filter]);
-
-  const handleRowClick = (item: EventFeedItem) => {
-    const rawPayload = item.payload || {};
-    const p = rawPayload.payload || rawPayload;
-    const accId = item.account_id || item.platform_account_id || p.account_id || p.platform_account_id;
-
-    if (!accId) return;
-
-    const foundAcc = accounts.find(
-      a => String(a.id) === String(accId) || String(a.platform_account_id) === String(accId)
-    );
-
-    onNavigateToAccountsTab();
-
-    if (foundAcc) {
-      onAccountClick(foundAcc);
+    if (item.severity === 'red') {
+      return (
+        <span className="relative flex h-2.5 w-2.5 shrink-0">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+        </span>
+      );
     }
+    if (item.severity === 'amber') {
+      return <span className="h-2.5 w-2.5 rounded-full bg-amber-400 shrink-0" />;
+    }
+    if (item.category === 'finance') {
+      if (item.title.includes('РЕЗУЛЬТАТ')) return <Award size={14} className="text-amber-400 shrink-0" />;
+      if (item.title.includes('СЕРИЯ')) return <Flame size={14} className="text-amber-400 shrink-0" />;
+      return <DollarSign size={14} className="text-emerald-400 shrink-0" />;
+    }
+    return <span className="h-2.5 w-2.5 rounded-full bg-slate-400 shrink-0" />;
   };
 
   return (
-    <div className="glass-card p-4 sm:p-5 rounded-3xl border border-white/10 bg-slate-950/60 shadow-lg space-y-3 font-mono">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2.5">
-        <div className="flex items-center gap-2.5">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-          </span>
-          <h3 className="text-xs font-black uppercase text-white tracking-wider flex items-center gap-2">
-            <Activity size={15} className="text-emerald-400" />
-            ЛЕНТА СОБЫТИЙ В РЕАЛЬНОМ ВРЕМЕНИ
-            <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] px-2 py-0.5 rounded-full font-bold">
-              LIVE
+    <>
+      <div className="glass-card p-4 sm:p-5 rounded-3xl border border-white/10 bg-slate-950/60 shadow-lg space-y-3 font-mono">
+        {/* Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
-            <span className="bg-violet-500/10 text-violet-300 border border-violet-500/20 text-[9px] px-2 py-0.5 rounded-full font-mono font-medium hidden sm:inline-block">
-              Смена {activeShiftRef.current?.label}
-            </span>
-          </h3>
-        </div>
-        <div className="text-[10px] text-slate-400 flex items-center gap-2">
-          {isTruncated && (
-            <span className="text-[9px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md font-bold">
-              последние 500 событий
-            </span>
-          )}
-          <div className="flex items-center gap-1.5">
-            <Clock size={12} className="text-slate-500" />
-            Авто-обновление каждые 10с
+            <h3 className="text-xs font-black uppercase text-white tracking-wider flex items-center gap-2">
+              <Activity size={15} className="text-emerald-400" />
+              LIVE-ЛЕНТА СОБЫТИЙ
+              <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] px-2 py-0.5 rounded-full font-bold">
+                LIVE
+              </span>
+              <span className="bg-violet-500/10 text-violet-300 border border-violet-500/20 text-[9px] px-2 py-0.5 rounded-full font-mono font-medium hidden sm:inline-block">
+                Смена {activeShiftRef.current?.label}
+              </span>
+            </h3>
+          </div>
+
+          <div className="text-[10px] text-slate-400 flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <Clock size={12} className="text-slate-500" />
+              Авто-обновление 10с
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="flex flex-wrap items-center gap-1.5 pt-1">
-        {[
-          { id: 'all', label: 'Все', count: counts.all },
-          { id: 'finance', label: 'Финансы', count: counts.finance },
-          { id: 'accounts', label: 'Аккаунты', count: counts.accounts },
-          { id: 'operators', label: 'Операторы', count: counts.operators },
-          { id: 'warnings', label: 'Предупреждения', count: counts.warnings },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setFilter(tab.id as any)}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 ${
-              filter === tab.id
-                ? 'bg-violet-600 text-white shadow-md shadow-violet-950/40 border border-violet-400/30'
-                : 'bg-slate-900/80 text-slate-400 border border-white/5 hover:bg-slate-800 hover:text-slate-200'
-            }`}
-          >
-            <span>{tab.label}</span>
-            <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-extrabold ${
-              filter === tab.id ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
-            }`}>
-              {tab.count}
-            </span>
-          </button>
-        ))}
-      </div>
+        {/* Filter Categories Tabs */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          {[
+            { id: 'all', label: 'Все', count: counts.all },
+            { id: 'operators', label: 'Операторы', count: counts.operators },
+            { id: 'finance', label: 'Финансы', count: counts.finance },
+            { id: 'warnings', label: 'Блокировки', count: counts.warnings },
+            { id: 'system', label: 'Система', count: counts.system },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setFilter(tab.id as LiveEventCategory)}
+              className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 ${
+                filter === tab.id
+                  ? 'bg-violet-600 text-white shadow-md shadow-violet-950/40 border border-violet-400/30'
+                  : 'bg-slate-900/80 text-slate-400 border border-white/5 hover:bg-slate-800 hover:text-slate-200'
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                filter === tab.id ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
 
-      <div className="max-h-[380px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-        {isLoading && events.length === 0 ? (
-          <div className="text-center py-6 text-xs text-slate-500 animate-pulse">
-            Загрузка ленты событий...
-          </div>
-        ) : visibleList.length === 0 ? (
-          <div className="text-center py-6 text-xs text-slate-500 italic">
-            {events.length === 0 ? 'Нет зарегистрированных событий' : 'Нет событий в этой категории'}
-          </div>
-        ) : (
-          visibleList.map(({ event, formatted }) => {
-            const rawPayload = event.payload || {};
-            const p = rawPayload.payload || rawPayload;
-            const hasAcc = Boolean(event.account_id || event.platform_account_id || p.account_id || p.platform_account_id);
-            const ts = event.event_timestamp || event.received_at;
+        {/* Event List Container */}
+        <div className="space-y-1.5 pr-1">
+          {isLoading && liveEventsMap.size === 0 ? (
+            <div className="text-center py-6 text-xs text-slate-500 animate-pulse">
+              Загрузка ключевых событий смены...
+            </div>
+          ) : visibleList.length === 0 ? (
+            <div className="text-center py-6 text-xs text-slate-500 italic bg-slate-900/20 rounded-2xl border border-white/5 p-4">
+              {liveEventsMap.size === 0
+                ? 'Нет критических событий за смену — все показатели в норме'
+                : 'Нет событий в выбранной категории'}
+            </div>
+          ) : (
+            visibleList.map(event => {
+              const ts = event.updated_at || event.created_at;
 
-            const isMilestone = (formatted as any).isMilestone;
-            const isLargeSale = (formatted as any).isLargeSale;
+              const isCritical = event.severity === 'red' && event.status === 'active';
+              const isWarning = event.severity === 'amber' && event.status === 'active';
+              const isResolved = event.status === 'resolved';
 
-            const itemBgClass = isMilestone
-              ? 'bg-gradient-to-r from-amber-950/40 via-slate-900/80 to-slate-900/60 border-amber-500/40 shadow-sm shadow-amber-500/10'
-              : isLargeSale
-              ? 'bg-gradient-to-r from-emerald-950/40 via-slate-900/80 to-slate-900/60 border-emerald-500/40 shadow-sm shadow-emerald-500/10'
-              : 'bg-slate-900/40 border-white/[0.03] hover:bg-slate-900/80';
+              const itemBgClass = isCritical
+                ? 'bg-gradient-to-r from-rose-950/40 via-slate-900/90 to-slate-900/60 border-rose-500/30 hover:border-rose-400/50'
+                : isWarning
+                ? 'bg-gradient-to-r from-amber-950/30 via-slate-900/90 to-slate-900/60 border-amber-500/30 hover:border-amber-400/50'
+                : isResolved
+                ? 'bg-slate-900/40 border-emerald-500/20 hover:border-emerald-500/40'
+                : 'bg-slate-900/60 border-white/5 hover:border-violet-500/40';
 
-            return (
-              <div
-                key={event.id}
-                onClick={() => hasAcc && handleRowClick(event)}
-                className={`p-2.5 rounded-xl border transition-all flex items-center justify-between gap-3 ${itemBgClass} ${
-                  hasAcc ? 'cursor-pointer hover:border-violet-500/30 group' : ''
-                }`}
-              >
-                <div className="flex flex-col min-w-0">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className={`h-2 w-2 rounded-full shrink-0 ${formatted.dotColor}`} />
-                    <span className={`text-xs font-semibold truncate ${formatted.colorClass}`}>
-                      {formatted.text}
-                    </span>
-                  </div>
-                  {(formatted as any).subtitle && (
-                    <div className="text-[10px] text-slate-400 font-normal pl-4.5 pt-0.5 truncate">
-                      {(formatted as any).subtitle}
+              return (
+                <div
+                  key={event.id}
+                  onClick={() => handleRowClick(event)}
+                  className={`p-2.5 sm:p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 cursor-pointer group ${itemBgClass}`}
+                  title="Нажмите для просмотра подробностей и метрик"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center justify-center shrink-0">
+                      {getVisualIndicator(event)}
                     </div>
-                  )}
-                </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[10px] text-slate-500 font-bold whitespace-nowrap">
-                    {formatEventRelativeTime(ts, now)}
-                  </span>
-                  {hasAcc && (
-                    <ChevronRight size={13} className="text-slate-600 group-hover:text-violet-400 transition-colors" />
-                  )}
+                    <div className="flex flex-col min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`text-xs font-bold truncate ${
+                          isCritical
+                            ? 'text-rose-200'
+                            : isWarning
+                            ? 'text-amber-200'
+                            : isResolved
+                            ? 'text-emerald-300'
+                            : 'text-slate-200'
+                        }`}>
+                          {event.title}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                        {event.description}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] text-slate-500 font-bold whitespace-nowrap">
+                      {formatEventRelativeTime(ts, now)}
+                    </span>
+                    <ChevronRight size={14} className="text-slate-600 group-hover:text-violet-400 transition-colors" />
+                  </div>
                 </div>
-              </div>
-            );
-          })
+              );
+            })
+          )}
+        </div>
+
+        {/* Expand / Collapse Toggle if more than 7 events */}
+        {(filter === 'all' ? counts.all : counts[filter as keyof typeof counts]) > 7 && (
+          <div className="pt-1 text-center border-t border-white/5">
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="text-[11px] font-bold uppercase text-slate-400 hover:text-violet-300 transition-colors inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:bg-white/5"
+            >
+              {isExpanded ? 'Свернуть до 7 событий' : `Показать все (${filter === 'all' ? counts.all : counts[filter as keyof typeof counts]})`}
+              <ChevronDown size={13} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
         )}
       </div>
-    </div>
+
+      {/* Detail Modal */}
+      {selectedDetailEvent && (
+        <LiveFeedDetailModal
+          event={selectedDetailEvent}
+          accounts={accounts}
+          onClose={() => setSelectedDetailEvent(null)}
+          onNavigateToAccount={(acc) => {
+            onNavigateToAccountsTab();
+            onAccountClick(acc);
+          }}
+          onNavigateToOperators={onNavigateToOperatorsTab}
+        />
+      )}
+    </>
   );
 };
 
 export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, userRole }) => {
-  // Sub-tabs state
-  const [activeSubTab, setActiveSubTab] = useState<'accounts' | 'operator_metrics'>('accounts');
+  // Sub-tabs state: 'live' (default), 'models', 'operator_metrics'
+  const [activeSubTab, setActiveSubTab] = useState<'live' | 'models' | 'operator_metrics'>('live');
+  const [alertSeverityFilter, setAlertSeverityFilter] = useState<'all' | 'red' | 'amber'>('all');
 
   // Accounts & API state
   const [accounts, setAccounts] = useState<OnlyMonsterAccount[]>([]);
@@ -2188,7 +2668,29 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
     oldestUnansweredTsByAccount,
   ]);
 
-  const visibleAlerts = showAlertsExpanded ? attentionAlerts : attentionAlerts.slice(0, 8);
+  const redAlertsCount = useMemo(() => attentionAlerts.filter(a => a.severity === 'red').length, [attentionAlerts]);
+  const amberAlertsCount = useMemo(() => attentionAlerts.filter(a => a.severity === 'amber').length, [attentionAlerts]);
+
+  const filteredAttentionAlerts = useMemo(() => {
+    if (alertSeverityFilter === 'all') return attentionAlerts;
+    return attentionAlerts.filter(a => a.severity === alertSeverityFilter);
+  }, [attentionAlerts, alertSeverityFilter]);
+
+  const visibleAlerts = showAlertsExpanded ? filteredAttentionAlerts : filteredAttentionAlerts.slice(0, 8);
+
+  const totalTodaySum = useMemo(() => {
+    return accounts.reduce((sum, acc) => {
+      return sum + (typeof acc.today_earnings === 'number' ? acc.today_earnings : 0);
+    }, 0);
+  }, [accounts]);
+
+  const totalUnansweredCount = useMemo(() => {
+    return Object.values(unansweredCountsByAccount).reduce((sum, val) => sum + (Number(val) || 0), 0);
+  }, [unansweredCountsByAccount]);
+
+  const activeOpsCount = useMemo(() => {
+    return operators.filter(o => (o.messages_count || 0) > 0 && !isOperatorHidden(o.name)).length;
+  }, [operators]);
 
   const handleAlertClick = (alert: AttentionAlert) => {
     if (
@@ -2219,11 +2721,17 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
       alert.type === 'account_idle' ||
       alert.type === 'unanswered_messages' ||
       alert.type === 'waiting_reply' ||
-      alert.type === 'account_overload'
+      alert.type === 'account_overload' ||
+      alert.type === 'operator_missing'
     ) {
-      setActiveSubTab('accounts');
+      setActiveSubTab('models');
       if (alert.accountObj) {
         handleAccountClick(alert.accountObj);
+      } else if (alert.accountId) {
+        const found = accounts.find(a => a.id === alert.accountId || a.platform_account_id === alert.accountId);
+        if (found) {
+          handleAccountClick(found);
+        }
       }
     }
   };
@@ -2484,12 +2992,14 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
     }
   };
 
-  const handleSubTabChange = (tab: 'accounts' | 'operator_metrics') => {
+  const handleSubTabChange = (tab: 'live' | 'models' | 'operator_metrics') => {
     setActiveSubTab(tab);
-    if (tab === 'operator_metrics') {
+    if (tab === 'models' || tab === 'live') {
       if (accounts.length === 0 && !isLoading) {
         fetchAccounts();
       }
+    }
+    if (tab === 'operator_metrics' || tab === 'live') {
       if (!hasLoadedOperators) {
         fetchShiftOperators(periodMode, selectedShiftIndex, sortBy, sortDir);
       }
@@ -2688,99 +3198,44 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
         </div>
       </div>
 
-      {/* "ТРЕБУЕТ ВНИМАНИЯ" BLOCK */}
-      {attentionAlerts.length > 0 && (
-        <div className="glass-card p-4 sm:p-5 rounded-3xl border border-rose-500/20 bg-gradient-to-r from-rose-950/20 via-slate-950/60 to-slate-950/60 shadow-lg space-y-3 font-mono">
-          <div className="flex items-center justify-between gap-3 border-b border-white/5 pb-2.5">
-            <div className="flex items-center gap-2.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
-              <h3 className="text-xs font-black uppercase text-rose-300 tracking-wider flex items-center gap-2">
-                <AlertTriangle size={15} className="text-rose-400" />
-                ТРЕБУЕТ ВНИМАНИЯ
-                <span className="bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold ml-1">
-                  {attentionAlerts.length}
-                </span>
-              </h3>
-            </div>
-            <p className="text-[10px] text-slate-400 hidden sm:block">
-              Автоматические предупреждения за выбранную смену/период
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-            {visibleAlerts.map((alert) => (
-              <div
-                key={alert.id}
-                onClick={() => handleAlertClick(alert)}
-                className={`p-2.5 rounded-xl border flex items-center gap-2.5 transition-all cursor-pointer group ${
-                  alert.severity === 'red'
-                    ? 'bg-rose-950/40 border-rose-500/30 text-rose-200 hover:border-rose-400/60 hover:bg-rose-900/40'
-                    : alert.severity === 'amber'
-                    ? 'bg-amber-950/30 border-amber-500/30 text-amber-200 hover:border-amber-400/60 hover:bg-amber-900/40'
-                    : 'bg-slate-900/60 border-white/10 text-slate-300 hover:border-violet-500/40 hover:bg-slate-800'
-                }`}
-                title="Нажмите для перехода к деталям"
-              >
-                <span className="shrink-0 flex items-center justify-center">
-                  {alert.severity === 'red' && (
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
-                    </span>
-                  )}
-                  {alert.severity === 'amber' && (
-                    <span className="h-2.5 w-2.5 rounded-full bg-amber-400 shrink-0" />
-                  )}
-                  {alert.severity === 'slate' && (
-                    <span className="h-2.5 w-2.5 rounded-full bg-slate-500 shrink-0" />
-                  )}
-                </span>
-
-                <span className="text-xs font-bold leading-tight truncate flex-1">
-                  {alert.text}
-                </span>
-
-                <ChevronRight size={14} className="text-slate-500 group-hover:text-white transition-colors shrink-0" />
-              </div>
-            ))}
-          </div>
-
-          {attentionAlerts.length > 8 && (
-            <div className="pt-1 text-center">
-              <button
-                onClick={() => setShowAlertsExpanded(!showAlertsExpanded)}
-                className="text-[11px] font-bold uppercase text-slate-400 hover:text-violet-300 transition-colors inline-flex items-center gap-1 py-1 px-3 rounded-lg hover:bg-white/5"
-              >
-                {showAlertsExpanded ? 'Свернуть' : `Показать все (${attentionAlerts.length})`}
-                <ChevronDown size={12} className={`transition-transform ${showAlertsExpanded ? 'rotate-180' : ''}`} />
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* REAL-TIME EVENT FEED */}
-      <RealtimeEventFeed
-        accounts={accounts}
-        onAccountClick={(acc) => handleAccountClick(acc)}
-        onNavigateToAccountsTab={() => setActiveSubTab('accounts')}
-        onUpdateLastOutgoingMap={(mapUpdater) => {
-          setLastOutgoingAtByAccount(prev => mapUpdater(prev));
-        }}
-      />
-
-      {/* SUB-TABS NAVIGATION */}
-      <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+      {/* SUB-TABS NAVIGATION (1. LIVE [default], 2. МОДЕЛИ, 3. ОПЕРАТОРЫ) */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-3">
         <button
-          onClick={() => handleSubTabChange('accounts')}
+          onClick={() => handleSubTabChange('live')}
           className={`px-4 py-2.5 rounded-xl font-mono text-xs font-bold uppercase transition-all flex items-center gap-2 ${
-            activeSubTab === 'accounts'
+            activeSubTab === 'live'
+              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-950/50 border border-emerald-400/30'
+              : 'bg-slate-900/60 text-slate-400 border border-white/5 hover:bg-slate-800 hover:text-slate-200'
+          }`}
+        >
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+          </span>
+          <Activity size={15} />
+          LIVE
+          {attentionAlerts.length > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse">
+              {attentionAlerts.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => handleSubTabChange('models')}
+          className={`px-4 py-2.5 rounded-xl font-mono text-xs font-bold uppercase transition-all flex items-center gap-2 ${
+            activeSubTab === 'models'
               ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-950/50 border border-violet-400/30'
               : 'bg-slate-900/60 text-slate-400 border border-white/5 hover:bg-slate-800 hover:text-slate-200'
           }`}
         >
           <Users size={15} />
-          Подключенные Аккаунты
+          Модели
+          {filteredAccounts.length > 0 && (
+            <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-slate-300">
+              {filteredAccounts.length}
+            </span>
+          )}
         </button>
 
         <button
@@ -2792,12 +3247,272 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
           }`}
         >
           <UserCheck size={15} />
-          Метрики Оператора
+          Операторы
+          {operators.length > 0 && (
+            <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-slate-300">
+              {operators.length}
+            </span>
+          )}
         </button>
       </div>
 
-      {/* STATUS & FEEDBACK NOTIFICATION FOR ACCOUNTS TAB */}
-      {activeSubTab === 'accounts' && statusMessage && connStatus !== 'live' && (
+      {/* ========================================================================= */}
+      {/* 1. TAB "LIVE" (DEFAULT): ATTENTION ALERTS + REALTIME EVENT FEED + PULSE */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'live' && (
+        <div className="space-y-6">
+          {/* 1) "ТРЕБУЕТ ВНИМАНИЯ" BLOCK */}
+          <div className={`glass-card p-4 sm:p-5 rounded-3xl border transition-all font-mono ${
+            attentionAlerts.length > 0
+              ? 'border-rose-500/20 bg-gradient-to-r from-rose-950/25 via-slate-950/70 to-slate-950/70 shadow-lg'
+              : 'border-emerald-500/20 bg-gradient-to-r from-emerald-950/20 via-slate-950/60 to-slate-950/60'
+          }`}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 pb-3">
+              <div className="flex items-center gap-2.5">
+                {attentionAlerts.length > 0 ? (
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+                ) : (
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                )}
+                <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
+                  <AlertTriangle size={16} className={attentionAlerts.length > 0 ? 'text-rose-400' : 'text-emerald-400'} />
+                  <span className={attentionAlerts.length > 0 ? 'text-rose-300' : 'text-emerald-300'}>
+                    ТРЕБУЕТ ВНИМАНИЯ
+                  </span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ml-1 border ${
+                    attentionAlerts.length > 0
+                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  }`}>
+                    {attentionAlerts.length}
+                  </span>
+                </h3>
+              </div>
+
+              {/* SEVERITY FILTERS */}
+              {attentionAlerts.length > 0 && (
+                <div className="flex items-center gap-1.5 text-[10px]">
+                  <button
+                    onClick={() => setAlertSeverityFilter('all')}
+                    className={`px-2.5 py-1 rounded-lg font-bold uppercase transition-all ${
+                      alertSeverityFilter === 'all'
+                        ? 'bg-white/15 text-white'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Все ({attentionAlerts.length})
+                  </button>
+                  {redAlertsCount > 0 && (
+                    <button
+                      onClick={() => setAlertSeverityFilter('red')}
+                      className={`px-2.5 py-1 rounded-lg font-bold uppercase transition-all flex items-center gap-1 ${
+                        alertSeverityFilter === 'red'
+                          ? 'bg-rose-500/30 text-rose-200 border border-rose-500/40'
+                          : 'text-rose-400 hover:text-rose-200'
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                      Критические ({redAlertsCount})
+                    </button>
+                  )}
+                  {amberAlertsCount > 0 && (
+                    <button
+                      onClick={() => setAlertSeverityFilter('amber')}
+                      className={`px-2.5 py-1 rounded-lg font-bold uppercase transition-all flex items-center gap-1 ${
+                        alertSeverityFilter === 'amber'
+                          ? 'bg-amber-500/30 text-amber-200 border border-amber-500/40'
+                          : 'text-amber-400 hover:text-amber-200'
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                      Предупреждения ({amberAlertsCount})
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ALERTS GRID OR ALL-CLEAR STATE */}
+            {attentionAlerts.length === 0 ? (
+              <div className="py-4 flex items-center justify-between flex-wrap gap-3 text-xs">
+                <div className="flex items-center gap-2.5 text-emerald-300">
+                  <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+                  <span>Все операционные показатели смены в норме. Критических задержек и простоев не зафиксировано.</span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  Смена активна • Мониторинг 24/7
+                </span>
+              </div>
+            ) : (
+              <div className="space-y-3 pt-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  {visibleAlerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      onClick={() => handleAlertClick(alert)}
+                      className={`p-3 rounded-2xl border flex items-center gap-2.5 transition-all cursor-pointer group shadow-sm ${
+                        alert.severity === 'red'
+                          ? 'bg-rose-950/50 border-rose-500/30 text-rose-200 hover:border-rose-400/60 hover:bg-rose-900/50'
+                          : alert.severity === 'amber'
+                          ? 'bg-amber-950/40 border-amber-500/30 text-amber-200 hover:border-amber-400/60 hover:bg-amber-900/50'
+                          : 'bg-slate-900/60 border-white/10 text-slate-300 hover:border-violet-500/40 hover:bg-slate-800'
+                      }`}
+                      title="Нажмите для перехода к оператору или модели"
+                    >
+                      <span className="shrink-0 flex items-center justify-center">
+                        {alert.severity === 'red' && (
+                          <span className="relative flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                          </span>
+                        )}
+                        {alert.severity === 'amber' && (
+                          <span className="h-2.5 w-2.5 rounded-full bg-amber-400 shrink-0" />
+                        )}
+                        {alert.severity === 'slate' && (
+                          <span className="h-2.5 w-2.5 rounded-full bg-slate-500 shrink-0" />
+                        )}
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <span className="text-xs font-bold leading-snug line-clamp-2 block">
+                          {alert.text}
+                        </span>
+                        <span className="text-[9px] text-slate-400 uppercase tracking-wider block mt-0.5">
+                          {alert.type === 'slow_reply' && 'Задержка ответа'}
+                          {alert.type === 'ppv_no_sales' && 'PPV без продаж'}
+                          {alert.type === 'low_messages_hour' && 'Падение темпа'}
+                          {alert.type === 'low_messages' && 'Мало сообщений'}
+                          {alert.type === 'operator_missing' && 'Оператор не на линии'}
+                          {alert.type === 'account_idle' && 'Простой диалогов'}
+                          {alert.type === 'unanswered_messages' && 'Неотвеченные чаты'}
+                          {alert.type === 'account_overload' && 'Перегруз аккаунта'}
+                        </span>
+                      </div>
+
+                      <ChevronRight size={14} className="text-slate-500 group-hover:text-white transition-colors shrink-0 ml-1" />
+                    </div>
+                  ))}
+                </div>
+
+                {filteredAttentionAlerts.length > 8 && (
+                  <div className="pt-1 text-center">
+                    <button
+                      onClick={() => setShowAlertsExpanded(!showAlertsExpanded)}
+                      className="text-[11px] font-bold uppercase text-slate-400 hover:text-violet-300 transition-colors inline-flex items-center gap-1 py-1 px-3 rounded-lg hover:bg-white/5"
+                    >
+                      {showAlertsExpanded ? 'Свернуть' : `Показать все (${filteredAttentionAlerts.length})`}
+                      <ChevronDown size={12} className={`transition-transform ${showAlertsExpanded ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 2) "ЛЕНТА СОБЫТИЙ В РЕАЛЬНОМ ВРЕМЕНИ" (RealtimeEventFeed) */}
+          <RealtimeEventFeed
+            accounts={accounts}
+            operators={operators}
+            onAccountClick={(acc) => handleAccountClick(acc)}
+            onNavigateToAccountsTab={() => setActiveSubTab('models')}
+            onNavigateToOperatorsTab={() => handleSubTabChange('operator_metrics')}
+            onUpdateLastOutgoingMap={(mapUpdater) => {
+              setLastOutgoingAtByAccount(prev => mapUpdater(prev));
+            }}
+          />
+
+          {/* 3) ОПЕРАТИВНЫЙ ПУЛЬС СМЕНЫ (Quick Shift Snapshot) */}
+          <div className="glass-card p-5 rounded-3xl border border-white/10 bg-slate-950/60 space-y-4 font-mono">
+            <div className="flex items-center justify-between gap-3 border-b border-white/5 pb-3">
+              <h3 className="text-xs sm:text-sm font-black uppercase text-white tracking-wider flex items-center gap-2">
+                <Zap size={16} className="text-amber-400" />
+                ОПЕРАТИВНАЯ СВОДКА СМЕНЫ (KYIV TIME)
+              </h3>
+              <span className="text-[10px] text-slate-400">
+                {shiftInfo?.label || `Смена ${currentKyivShiftIndex}`}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-3.5 bg-slate-900/70 rounded-2xl border border-white/5 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
+                  <Clock size={12} className="text-violet-400" />
+                  Активная смена
+                </span>
+                <p className="text-sm font-black text-white">
+                  {currentKyivShiftIndex === 1 && '02:00 – 08:00'}
+                  {currentKyivShiftIndex === 2 && '08:00 – 14:00'}
+                  {currentKyivShiftIndex === 3 && '14:00 – 20:00'}
+                  {currentKyivShiftIndex === 4 && '20:00 – 02:00'}
+                </p>
+                <span className="text-[9px] text-emerald-400 block font-bold">● В процессе</span>
+              </div>
+
+              <div className="p-3.5 bg-slate-900/70 rounded-2xl border border-white/5 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
+                  <DollarSign size={12} className="text-emerald-400" />
+                  Доход сегодня
+                </span>
+                <p className="text-sm font-black text-emerald-400">
+                  +${totalTodaySum.toLocaleString()}
+                </p>
+                <span className="text-[9px] text-slate-400 block">
+                  {filteredAccounts.length} активных моделей
+                </span>
+              </div>
+
+              <div className="p-3.5 bg-slate-900/70 rounded-2xl border border-white/5 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
+                  <UserCheck size={12} className="text-cyan-400" />
+                  Операторов на линии
+                </span>
+                <p className="text-sm font-black text-cyan-400">
+                  {activeOpsCount} <span className="text-xs font-normal text-slate-400">/ {operators.length}</span>
+                </p>
+                <span className="text-[9px] text-slate-400 block">
+                  отвечают в чатах
+                </span>
+              </div>
+
+              <div className="p-3.5 bg-slate-900/70 rounded-2xl border border-white/5 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
+                  <MessageSquare size={12} className={totalUnansweredCount > 0 ? 'text-amber-400' : 'text-slate-400'} />
+                  Неотвеченных чатов
+                </span>
+                <p className={`text-sm font-black ${totalUnansweredCount > 0 ? 'text-amber-400' : 'text-slate-300'}`}>
+                  {totalUnansweredCount}
+                </p>
+                <span className="text-[9px] text-slate-400 block">
+                  по всем моделям
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-white/5">
+              <button
+                onClick={() => handleSubTabChange('models')}
+                className="px-3 py-1.5 bg-slate-900 border border-white/10 hover:border-violet-500/40 text-xs font-bold text-slate-200 rounded-xl transition-all flex items-center gap-1.5"
+              >
+                <Users size={13} className="text-violet-400" />
+                Все Модели
+              </button>
+              <button
+                onClick={() => handleSubTabChange('operator_metrics')}
+                className="px-3 py-1.5 bg-slate-900 border border-white/10 hover:border-violet-500/40 text-xs font-bold text-slate-200 rounded-xl transition-all flex items-center gap-1.5"
+              >
+                <UserCheck size={13} className="text-cyan-400" />
+                Метрики Операторов
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 2. TAB "МОДЕЛИ": CONNECTED MODEL ACCOUNTS */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'models' && statusMessage && connStatus !== 'live' && (
         <div className={`p-4 rounded-2xl border flex gap-3 items-start font-mono text-xs ${
           connStatus === 'error'
             ? 'bg-rose-950/30 border-rose-500/30 text-rose-300'
@@ -2812,8 +3527,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
         </div>
       )}
 
-      {/* SUB-TAB 1: CONNECTED MODEL ACCOUNTS LIST */}
-      {activeSubTab === 'accounts' && (
+      {activeSubTab === 'models' && (
         <div className="glass-card p-6 rounded-3xl border border-white/10 bg-slate-950/60 space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/5 pb-4">
             <div>
