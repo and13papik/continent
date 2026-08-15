@@ -777,6 +777,9 @@ export const IDLE_NO_ACTIVITY_MINUTES = 15;
 export const SLOW_REPLY_WAITING_MINUTES = 10;
 export const OVERLOAD_UNANSWERED_THRESHOLD = 10;
 export const BIG_SALE_THRESHOLD = 49.99;
+export const EARNINGS_SPIKE_WINDOW_MINUTES = 15;
+export const EARNINGS_SPIKE_RATIO = 2.0; // рост в 2 раза считается "резким"
+export const EARNINGS_DROP_RATIO = 0.3; // падение до 30% от предыдущего окна
 export const PURCHASE_BURST_COUNT = 3;
 export const PURCHASE_BURST_WINDOW_MINUTES = 10;
 export const VIOLATION_BURST_COUNT = 3;
@@ -1194,6 +1197,9 @@ export const DEFAULT_SHIFT_MESSAGE_TARGET = 300; // Target messages per 6h shift
 export const LARGE_TRANSACTION_THRESHOLD = 49.99;
 export const PURCHASE_BURST_AMOUNT = 100;
 export const SHIFT_REVENUE_MILESTONES = [100, 250, 500, 1000];
+export const REVENUE_COMPARISON_WINDOW_MINUTES = 30;
+export const MINIMUM_BASELINE_REVENUE = 20;
+export const REVENUE_CHANGE_THRESHOLD_PERCENT = 50;
 export const BLOCKED_EVENTS_THRESHOLD = 3;
 export const BLOCKED_EVENTS_WINDOW_MINUTES = 15;
 export const BLOCKED_REPEATED_WINDOW_MINUTES = 30;
@@ -1484,6 +1490,8 @@ export const RealtimeEventFeed: React.FC<{
   // Milestones tracker for current shift
   const passedMilestonesRef = useRef<Set<string>>(new Set());
   const initializedShiftRef = useRef<number | null>(null);
+  // Revenue comparison baseline tracker (30m windows)
+  const revenueWindowMapRef = useRef<Record<string, { lastWindowTs: number; lastWindowAmt: number }>>({});
 
   const accountsMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -1556,45 +1564,21 @@ export const RealtimeEventFeed: React.FC<{
         }
       }
 
-      // ─── Financial Webhook Events (Confirmed Transactions) ───
-      if (
-        type === 'fans.tip.received' ||
-        type === 'fans.ppv.purchased' ||
-        type === 'fans.message.purchased' ||
-        type === 'fans.post.purchased' ||
-        type === 'payment.received'
-      ) {
-        const amt = Number(p.price_gross ?? p.amount_gross ?? p.amount ?? p.price ?? 0);
-        const isTip = type === 'fans.tip.received' || Boolean(p.is_tip);
-        const txId = p.tip_id || p.transaction_id || p.tx_id || p.id || e.id;
-
-        // Determine exact transaction type description
-        let txType = isTip ? 'Payment for tip' : 'Payment for message';
-        if (p.transaction_type) {
-          txType = p.transaction_type;
-        } else if (p.type_label) {
-          txType = p.type_label;
-        } else if (p.content_type === 'post') {
-          txType = 'Payment for post';
-        } else if (p.content_type === 'message') {
-          txType = 'Payment for message';
-        } else if (isTip) {
-          txType = 'Payment for tip';
-        }
-
-        const currSym = p.currency === 'EUR' ? '€' : p.currency === 'GBP' ? '£' : '$';
-        const formattedAmt = `${currSym}${amt >= 100 && amt % 1 === 0 ? amt.toFixed(0) : amt.toFixed(2)}`;
+      // ─── Financial Webhook Events ───
+      if (type === 'fans.tip.received' || type === 'fans.ppv.purchased') {
+        const amt = Number(p.price_gross ?? p.amount_gross ?? p.amount ?? 0);
+        const isTip = type === 'fans.tip.received';
+        const txId = p.tip_id || p.id || e.id;
 
         if (rawAccId && amt > 0) {
           shiftIncomeByAccount[rawAccId] = (shiftIncomeByAccount[rawAccId] || 0) + amt;
 
-          // 1. Large Transaction (>= $49.99)
-          // $49.98 -> ignored, $49.99 -> shown, $50.00 -> shown, $85.00 -> shown
+          // Check Large Transaction (>= $49.99)
           if (amt >= LARGE_TRANSACTION_THRESHOLD) {
             const dedupeKey = `large_transaction:${txId}`;
             if (!nextEvents.has(dedupeKey)) {
               nextEvents.set(dedupeKey, {
-                id: `ltx-${txId}`,
+                id: `ltx-${e.id}`,
                 dedupe_key: dedupeKey,
                 category: 'finance',
                 event_type: 'finance.large_transaction',
@@ -1603,17 +1587,10 @@ export const RealtimeEventFeed: React.FC<{
                 account_name: modelName,
                 shift_id: String(shiftIndex),
                 shift_label: shiftLabel,
-                title: `💰 КРУПНАЯ ТРАНЗАКЦИЯ`,
-                description: `${modelName} · +${formattedAmt} · Тип: ${txType}`,
-                subtitle: `Тип: ${txType}`,
+                title: `💰 КРУПНАЯ ТРАНЗАКЦИЯ +$${amt.toFixed(0)}`,
+                description: `${modelName} · получено +$${amt.toFixed(2)} (${isTip ? 'чаевые' : 'продажа PPV'})`,
                 threshold_text: `Порог: от $${LARGE_TRANSACTION_THRESHOLD}`,
-                current_val_text: `+${formattedAmt}`,
-                metrics: {
-                  amount: amt,
-                  currency: p.currency || 'USD',
-                  transaction_type: txType,
-                  transaction_id: txId,
-                },
+                current_val_text: `+$${amt.toFixed(2)}`,
                 status: 'active',
                 created_at: new Date(eventTs).toISOString(),
                 updated_at: nowIso,
@@ -1622,7 +1599,7 @@ export const RealtimeEventFeed: React.FC<{
             }
           }
 
-          // 2. Buffer for Purchase Burst within 10-minute window
+          // Buffer for Purchase Burst within 10-minute window
           const window10m = Math.floor(eventTs / (PURCHASE_BURST_WINDOW_MINUTES * 60 * 1000));
           const burstBucketKey = `${rawAccId}_${window10m}`;
           if (!recentTxByAccount[burstBucketKey]) {
@@ -1661,13 +1638,10 @@ export const RealtimeEventFeed: React.FC<{
       if (bData.count >= PURCHASE_BURST_COUNT || bData.total >= PURCHASE_BURST_AMOUNT) {
         const dedupeKey = `purchase_burst:${accId}:${window10mStr}`;
         const existing = nextEvents.get(dedupeKey);
-        const formattedTotal = bData.total >= 100 && bData.total % 1 === 0 ? bData.total.toFixed(0) : bData.total.toFixed(2);
-        const txWord = bData.count === 1 ? 'транзакция' : (bData.count >= 2 && bData.count <= 4) ? 'транзакции' : 'транзакций';
 
         if (existing) {
-          existing.description = `${modelName} · ${bData.count} ${txWord} за 10 минут · Общая сумма: +$${formattedTotal}`;
-          existing.subtitle = `Общая сумма: +$${formattedTotal}`;
-          existing.current_val_text = `${bData.count} tx / +$${formattedTotal}`;
+          existing.description = `${modelName} · ${bData.count} транзакции за 10 минут (+$${bData.total.toFixed(0)})`;
+          existing.current_val_text = `${bData.count} покупок / +$${bData.total.toFixed(0)}`;
           existing.updated_at = nowIso;
         } else {
           nextEvents.set(dedupeKey, {
@@ -1680,11 +1654,10 @@ export const RealtimeEventFeed: React.FC<{
             account_name: modelName,
             shift_id: String(shiftIndex),
             shift_label: shiftLabel,
-            title: `🔥 СЕРИЯ ТРАНЗАКЦИЙ`,
-            description: `${modelName} · ${bData.count} ${txWord} за 10 минут · Общая сумма: +$${formattedTotal}`,
-            subtitle: `Общая сумма: +$${formattedTotal}`,
-            threshold_text: `Порог: ≥${PURCHASE_BURST_COUNT} tx или ≥$${PURCHASE_BURST_AMOUNT} за ${PURCHASE_BURST_WINDOW_MINUTES} мин`,
-            current_val_text: `${bData.count} tx (+$${formattedTotal})`,
+            title: `🔥 СЕРИЯ ТРАНЗАКЦИЙ (${bData.count} за 10м)`,
+            description: `${modelName} · ${bData.count} транзакции за 10 минут (+$${bData.total.toFixed(0)})`,
+            threshold_text: `Порог: ≥3 tx или ≥$100 за 10 мин`,
+            current_val_text: `${bData.count} транзакций (+$${bData.total.toFixed(0)})`,
             status: 'active',
             created_at: new Date(bData.latestTs).toISOString(),
             updated_at: nowIso,
@@ -2095,6 +2068,7 @@ export const RealtimeEventFeed: React.FC<{
           resolvedKeysRef.current.clear();
           passedMilestonesRef.current.clear();
           initializedShiftRef.current = null;
+          revenueWindowMapRef.current = {};
 
           if (isMounted) {
             const shiftStartEvent: LiveFeedItem = {
