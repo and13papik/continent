@@ -362,7 +362,6 @@ async function handleShiftOperators(req: any, res: any, queryParams: Record<stri
 
   if (queryParams.from && queryParams.to) {
     range = {
-      index: 0 as any,
       label: 'Скользящее окно',
       start: String(queryParams.from),
       end: String(queryParams.to)

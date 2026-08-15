@@ -681,7 +681,19 @@ function decodeHtmlEntities(str: string): string {
     .replace(/&apos;/g, "'");
 }
 
-export const IDLE_THRESHOLD_MINUTES = 10;
+export const IDLE_THRESHOLD_MINUTES = 15;
+export const IDLE_NO_ACTIVITY_MINUTES = 15;
+export const SLOW_REPLY_WAITING_MINUTES = 10;
+export const OVERLOAD_UNANSWERED_THRESHOLD = 10;
+export const BIG_SALE_THRESHOLD = 49.99;
+export const EARNINGS_SPIKE_WINDOW_MINUTES = 15;
+export const EARNINGS_SPIKE_RATIO = 2.0; // рост в 2 раза считается "резким"
+export const EARNINGS_DROP_RATIO = 0.3; // падение до 30% от предыдущего окна
+export const PURCHASE_BURST_COUNT = 3;
+export const PURCHASE_BURST_WINDOW_MINUTES = 10;
+export const VIOLATION_BURST_COUNT = 3;
+export const VIOLATION_BURST_WINDOW_MINUTES = 15;
+export const VIOLATION_REPEAT_WINDOW_MINUTES = 60; // для "блокировки повторяются на одном аккаунте"
 
 // временно скрытые аккаунты, не показываем в UI
 export const HIDDEN_ACCOUNT_NAMES = ['Catherine'];
@@ -710,9 +722,98 @@ export function isOperatorHidden(name?: string): boolean {
   });
 }
 
+export interface EventFeedItem {
+  id: number | string;
+  event_type: string;
+  account_id?: string;
+  platform_account_id?: string;
+  payload?: any;
+  received_at?: string;
+  event_timestamp?: string;
+}
+
+export interface EventWindowFilter {
+  entityIdField?: 'account_id' | 'user_id' | 'platform_account_id';
+  entityId?: string | number;
+  eventType?: string;
+  eventTypes?: string[];
+  windowMinutes: number;
+  now?: number;
+}
+
+/**
+ * Переиспользуемый хелпер: подсчитывает число событий в скользящем окне N минут от now
+ */
+export function countEventsInWindow(
+  events: EventFeedItem[],
+  filter: EventWindowFilter
+): number {
+  const now = filter.now || Date.now();
+  const windowMs = filter.windowMinutes * 60 * 1000;
+  const cutoff = now - windowMs;
+
+  return events.filter(e => {
+    const rawPayload = e.payload || {};
+    const p = rawPayload.payload || rawPayload;
+    const tsStr = e.event_timestamp || e.received_at;
+    const ts = tsStr ? new Date(tsStr).getTime() : 0;
+    if (ts < cutoff || ts > now + 60000) return false;
+
+    // Check eventType
+    if (filter.eventType) {
+      if (filter.eventType.endsWith('*')) {
+        const prefix = filter.eventType.slice(0, -1);
+        if (!e.event_type || !e.event_type.startsWith(prefix)) return false;
+      } else if (e.event_type !== filter.eventType) {
+        return false;
+      }
+    }
+
+    // Check eventTypes
+    if (filter.eventTypes && filter.eventTypes.length > 0) {
+      const match = filter.eventTypes.some(type => {
+        if (type.endsWith('*')) return e.event_type && e.event_type.startsWith(type.slice(0, -1));
+        return e.event_type === type;
+      });
+      if (!match) return false;
+    }
+
+    // Check entityId
+    if (filter.entityId !== undefined && filter.entityId !== null && filter.entityId !== '') {
+      const target = String(filter.entityId);
+      const accId1 = e.account_id ? String(e.account_id) : '';
+      const accId2 = e.platform_account_id ? String(e.platform_account_id) : '';
+      const pAccId1 = p.account_id ? String(p.account_id) : '';
+      const pAccId2 = p.platform_account_id ? String(p.platform_account_id) : '';
+      const pCreatorId = p.creator_id ? String(p.creator_id) : '';
+      const pUserId = p.user_id ? String(p.user_id) : '';
+      const pOperatorId = p.operator_id ? String(p.operator_id) : '';
+
+      if (filter.entityIdField === 'user_id') {
+        if (pUserId !== target && pOperatorId !== target) return false;
+      } else {
+        const matchesAcc = [accId1, accId2, pAccId1, pAccId2, pCreatorId].includes(target);
+        if (!matchesAcc) return false;
+      }
+    }
+
+    return true;
+  }).length;
+}
+
 export interface AttentionAlert {
   id: string;
-  type: 'slow_reply' | 'ppv_no_sales' | 'low_messages' | 'low_messages_hour' | 'no_operator' | 'account_idle' | 'unanswered_messages';
+  type:
+    | 'slow_reply'
+    | 'ppv_no_sales'
+    | 'low_messages'
+    | 'low_messages_hour'
+    | 'no_operator'
+    | 'account_idle'
+    | 'unanswered_messages'
+    | 'waiting_reply'
+    | 'operator_missing'
+    | 'account_overload';
   severity: 'red' | 'amber' | 'slate';
   text: string;
   operatorName?: string;
@@ -743,11 +844,12 @@ export function computeAttentionAlerts(
   lastOutgoingAtByAccount?: Record<string, number>,
   now: number = Date.now(),
   unansweredCountsByAccount?: Record<string, number>,
-  lastHourOperatorMessages?: Record<string, { count: number; name: string }>
+  lastHourOperatorMessages?: Record<string, { count: number; name: string }>,
+  oldestUnansweredTsByAccount?: Record<string, number>
 ): AttentionAlert[] {
   const alerts: AttentionAlert[] = [];
 
-  // Operator rules (1, 2, 3, 8)
+  // Operator rules (1, 2, 3, 4, 8)
   if (operators && operators.length > 0) {
     const activeOps = operators.filter(o => !isOperatorHidden(o.name));
     const operatorsWithMessages = activeOps.filter(o => (o.messages_count || 0) > 0);
@@ -798,11 +900,11 @@ export function computeAttentionAlerts(
         });
       }
 
-      // Low messages alerts handling: deduplicate per operator (prefer specific hourly alert over general shift low alert)
+      // 🟠 3 / 8. Velocity alert deduplication (Map per operator: prefer hourly alert over shift low alert)
       let hourlyAlertCandidate: AttentionAlert | null = null;
       let shiftLowAlertCandidate: AttentionAlert | null = null;
 
-      // 🟠 8. Less than 55 messages in the last hour (only if shift started >= 60 mins ago and operator has at least 3 messages)
+      // 8. Less than 55 messages in the last hour (only if shift started >= 60 mins ago and operator has at least 3 messages)
       if (lastHourOperatorMessages && lastHourOperatorMessages[op.user_id]) {
         const hData = lastHourOperatorMessages[op.user_id];
         const hCount = hData ? hData.count : 0;
@@ -811,14 +913,14 @@ export function computeAttentionAlerts(
             id: `low-hour-${op.user_id}`,
             type: 'low_messages_hour',
             severity: 'amber',
-            text: `${op.name} — ${hCount} сообщений за последний час (норма 55+)`,
+            text: `${op.name} — отстаёт от темпа (${hCount} сообщ/час, норма 55+)`,
             operatorName: op.name,
             userId: op.user_id,
           };
         }
       }
 
-      // 🟠 3. Low messages for whole shift (messages_count < teamAvgMessages * 0.3 AND messages_count >= 3)
+      // 3. Low messages for whole shift (messages_count < teamAvgMessages * 0.3 AND messages_count >= 3)
       if (!skipLowMessages && teamAvgMessages > 0) {
         if (msgCount >= 3 && msgCount < teamAvgMessages * 0.3) {
           shiftLowAlertCandidate = {
@@ -832,52 +934,107 @@ export function computeAttentionAlerts(
         }
       }
 
-      // If hourly alert triggered, show hourly alert (it's more specific). Otherwise show shift low alert if present.
       if (hourlyAlertCandidate) {
         alerts.push(hourlyAlertCandidate);
       } else if (shiftLowAlertCandidate) {
         alerts.push(shiftLowAlertCandidate);
       }
+
+      // 🟠 4. Operator missing from assigned account:
+      // Operator is assigned (creator_ids contains this account), but has 0 messages on this shift (shift started >= 30m)
+      if (accounts && accounts.length > 0 && Array.isArray(op.creator_ids) && op.creator_ids.length > 0) {
+        if (shiftElapsedMs >= 30 * 60 * 1000 && msgCount === 0) {
+          op.creator_ids.forEach(cid => {
+            const matchedAcc = accounts.find(a => String(a.id) === String(cid) || String(a.platform_account_id) === String(cid));
+            if (matchedAcc && matchedAcc.status !== 'inactive' && !isAccountHidden(matchedAcc.name)) {
+              alerts.push({
+                id: `missing-op-${op.user_id}-${matchedAcc.id}`,
+                type: 'operator_missing',
+                severity: 'amber',
+                text: `${op.name} назначен на ${matchedAcc.name}, но не отвечал за всю смену`,
+                operatorName: op.name,
+                userId: op.user_id,
+                accountName: matchedAcc.name,
+                accountId: matchedAcc.platform_account_id || matchedAcc.id,
+                accountObj: matchedAcc,
+              });
+            }
+          });
+        }
+      }
     });
   }
 
-  // Account rules (4. no operator, 5. idle account, 2. unanswered messages)
+  // Account rules (1. idle account, 2. slow reply waiting, 5. overload, no operator)
   if (accounts && accounts.length > 0) {
     accounts.forEach((acc) => {
       if (acc.status === 'inactive') return;
       if (isAccountHidden(acc.name)) return;
 
       const accId = acc.platform_account_id || acc.id;
-
-      // 🔴 2. 10+ unanswered messages
-      if (unansweredCountsByAccount) {
-        const k1 = String(acc.id || '');
-        const k2 = String(acc.platform_account_id || '');
-        const unansweredCount = (k1 && unansweredCountsByAccount[k1]) || (k2 && unansweredCountsByAccount[k2]) || 0;
-        if (unansweredCount >= 10) {
-          alerts.push({
-            id: `unanswered-${acc.id}`,
-            type: 'unanswered_messages',
-            severity: 'red',
-            text: `🔴 ${acc.name} — ${unansweredCount} сообщений без ответа`,
-            accountName: acc.name,
-            accountId: acc.platform_account_id || acc.id,
-            accountObj: acc,
-          });
-        }
-      }
+      const k1 = String(acc.id || '');
+      const k2 = String(acc.platform_account_id || '');
 
       let realOpCount = 0;
       if (operators && operators.length > 0) {
         const uniqueUsers = new Set<string>();
         operators.forEach(op => {
-          if (Array.isArray(op.creator_ids) && op.creator_ids.some(cid => String(cid) === String(accId) || String(cid) === String(acc.id))) {
+          if (!isOperatorHidden(op.name) && Array.isArray(op.creator_ids) && op.creator_ids.some(cid => String(cid) === String(accId) || String(cid) === String(acc.id))) {
             uniqueUsers.add(op.user_id);
           }
         });
         realOpCount = uniqueUsers.size;
       }
 
+      // 🔴 5. Overload (unanswered >= 10 and exactly 1 operator assigned) vs regular 10+ unanswered
+      if (unansweredCountsByAccount) {
+        const unansweredCount = (k1 && unansweredCountsByAccount[k1]) || (k2 && unansweredCountsByAccount[k2]) || 0;
+        if (unansweredCount >= OVERLOAD_UNANSWERED_THRESHOLD) {
+          if (realOpCount === 1) {
+            alerts.push({
+              id: `overload-${acc.id}`,
+              type: 'account_overload',
+              severity: 'red',
+              text: `🔴 ${acc.name} — перегрузка, ${unansweredCount} сообщений ждут при 1 операторе`,
+              accountName: acc.name,
+              accountId: acc.platform_account_id || acc.id,
+              accountObj: acc,
+            });
+          } else {
+            alerts.push({
+              id: `unanswered-${acc.id}`,
+              type: 'unanswered_messages',
+              severity: 'red',
+              text: `🔴 ${acc.name} — ${unansweredCount} сообщений без ответа`,
+              accountName: acc.name,
+              accountId: acc.platform_account_id || acc.id,
+              accountObj: acc,
+            });
+          }
+        }
+      }
+
+      // 🔴 2. Specific message waiting for reply > SLOW_REPLY_WAITING_MINUTES (10m)
+      if (oldestUnansweredTsByAccount) {
+        const oldestTs = (k1 && oldestUnansweredTsByAccount[k1]) || (k2 && oldestUnansweredTsByAccount[k2]) || 0;
+        if (oldestTs > 0) {
+          const waitMs = Math.max(0, now - oldestTs);
+          const waitMins = waitMs / (60 * 1000);
+          if (waitMins >= SLOW_REPLY_WAITING_MINUTES) {
+            alerts.push({
+              id: `waiting-${acc.id}`,
+              type: 'waiting_reply',
+              severity: 'red',
+              text: `🔴 ${acc.name} — сообщение ждёт ответа ${formatAlertDuration(waitMs / 1000)}`,
+              accountName: acc.name,
+              accountId: acc.platform_account_id || acc.id,
+              accountObj: acc,
+            });
+          }
+        }
+      }
+
+      // ⚪ No operator
       if (realOpCount === 0) {
         alerts.push({
           id: `no-op-${acc.id}`,
@@ -889,17 +1046,15 @@ export function computeAttentionAlerts(
           accountObj: acc,
         });
       } else {
-        // 🟠 5. Account idle (only if operator IS assigned AND lastOutgoingAtByAccount is known)
+        // 🟠 1. Account idle (no activity IDLE_NO_ACTIVITY_MINUTES (15 min) while operator is assigned)
         if (lastOutgoingAtByAccount) {
-          const key1 = String(acc.id || '');
-          const key2 = String(acc.platform_account_id || '');
-          const lastTs = (key1 && lastOutgoingAtByAccount[key1]) || (key2 && lastOutgoingAtByAccount[key2]);
+          const lastTs = (k1 && lastOutgoingAtByAccount[k1]) || (k2 && lastOutgoingAtByAccount[k2]);
 
           if (typeof lastTs === 'number' && lastTs > 0) {
             const elapsedMs = Math.max(0, now - lastTs);
             const elapsedMins = elapsedMs / (60 * 1000);
 
-            if (elapsedMins >= IDLE_THRESHOLD_MINUTES) {
+            if (elapsedMins >= IDLE_NO_ACTIVITY_MINUTES) {
               alerts.push({
                 id: `idle-${acc.id}`,
                 type: 'account_idle',
@@ -916,6 +1071,16 @@ export function computeAttentionAlerts(
     });
   }
 
+  // Deduplicate alerts by ID
+  const uniqueAlertsMap = new Map<string, AttentionAlert>();
+  alerts.forEach(a => {
+    if (!uniqueAlertsMap.has(a.id)) {
+      uniqueAlertsMap.set(a.id, a);
+    }
+  });
+
+  const finalAlerts = Array.from(uniqueAlertsMap.values());
+
   // Sort alerts: 🔴 -> 🟠 -> ⚪
   const severityWeight: Record<string, number> = {
     red: 1,
@@ -923,19 +1088,9 @@ export function computeAttentionAlerts(
     slate: 3,
   };
 
-  alerts.sort((a, b) => severityWeight[a.severity] - severityWeight[b.severity]);
+  finalAlerts.sort((a, b) => severityWeight[a.severity] - severityWeight[b.severity]);
 
-  return alerts;
-}
-
-export interface EventFeedItem {
-  id: number | string;
-  event_type: string;
-  account_id?: string;
-  platform_account_id?: string;
-  payload?: any;
-  received_at?: string;
-  event_timestamp?: string;
+  return finalAlerts;
 }
 
 export type EventCategory = 'finance' | 'accounts' | 'operators' | 'warnings';
@@ -953,11 +1108,12 @@ export function formatEventForFeed(
 
   const type = event.event_type || '';
 
+  // 1. Income Milestones
   if (type === 'income.milestone') {
     const threshold = p.threshold || 0;
     return {
       category: 'finance' as EventCategory,
-      text: `🎉 ${modelName} преодолела $${threshold} за смену`,
+      text: `🎉 ${modelName} преодолела ${threshold} за смену`,
       colorClass: 'text-amber-300 font-extrabold text-sm sm:text-base',
       badgeBg: 'bg-amber-500/20 border-amber-500/40 text-amber-300 font-black',
       dotColor: 'bg-amber-400',
@@ -965,6 +1121,85 @@ export function formatEventForFeed(
     };
   }
 
+  // 2. Pace recovered
+  if (type === 'operator.pace_recovered') {
+    const opName = p.operator_name || 'Оператор';
+    const hCount = p.hourly_count || 0;
+    return {
+      category: 'operators' as EventCategory,
+      text: `✅ ${opName} восстановил темп (${hCount} сообщений/час)`,
+      colorClass: 'text-emerald-300 font-bold',
+      badgeBg: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-bold',
+      dotColor: 'bg-emerald-400',
+    };
+  }
+
+  // 3. Earnings Spike
+  if (type === 'finance.earnings_spike') {
+    const currentAmt = Number(p.current_amt || 0).toFixed(0);
+    const prevAmt = Number(p.prev_amt || 0).toFixed(0);
+    return {
+      category: 'finance' as EventCategory,
+      text: `📈 ${modelName}: рост дохода — ${currentAmt} за ${EARNINGS_SPIKE_WINDOW_MINUTES} мин (было ${prevAmt})`,
+      colorClass: 'text-emerald-300 font-bold text-xs sm:text-sm',
+      badgeBg: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-bold',
+      dotColor: 'bg-emerald-400',
+    };
+  }
+
+  // 4. Earnings Drop
+  if (type === 'finance.earnings_drop') {
+    const currentAmt = Number(p.current_amt || 0).toFixed(0);
+    const prevAmt = Number(p.prev_amt || 0).toFixed(0);
+    return {
+      category: 'finance' as EventCategory,
+      text: `📉 ${modelName}: падение активности — ${currentAmt} за ${EARNINGS_SPIKE_WINDOW_MINUTES} мин (было ${prevAmt})`,
+      colorClass: 'text-amber-300 font-medium',
+      badgeBg: 'bg-amber-500/20 border-amber-500/30 text-amber-300 font-medium',
+      dotColor: 'bg-amber-400',
+    };
+  }
+
+  // 5. Purchase Burst
+  if (type === 'finance.purchase_burst') {
+    const count = p.count || 0;
+    const mins = p.window_minutes || PURCHASE_BURST_WINDOW_MINUTES;
+    return {
+      category: 'finance' as EventCategory,
+      text: `🔥 ${modelName}: серия покупок — ${count} за ${mins} минут`,
+      colorClass: 'text-amber-300 font-extrabold text-xs sm:text-sm',
+      badgeBg: 'bg-amber-500/25 border-amber-500/50 text-amber-300 font-black shadow-sm',
+      dotColor: 'bg-amber-400',
+    };
+  }
+
+  // 6. Security Violations Burst (Org-wide)
+  if (type === 'security.violation_burst') {
+    const count = p.count || 0;
+    const mins = p.window_minutes || VIOLATION_BURST_WINDOW_MINUTES;
+    return {
+      category: 'warnings' as EventCategory,
+      text: `⚠️ ${count} блокировок Message Guard за ${mins} минут — возможна системная проблема`,
+      colorClass: 'text-rose-400 font-bold',
+      badgeBg: 'bg-rose-500/20 border-rose-500/40 text-rose-300 font-bold',
+      dotColor: 'bg-rose-500',
+    };
+  }
+
+  // 7. Security Violations Repeat (Single Account)
+  if (type === 'security.violation_repeat') {
+    const count = p.count || 0;
+    const mins = p.window_minutes || VIOLATION_REPEAT_WINDOW_MINUTES;
+    return {
+      category: 'warnings' as EventCategory,
+      text: `🔁 ${modelName}: повторные блокировки Message Guard (${count} за ${mins} мин)`,
+      colorClass: 'text-rose-400 font-extrabold text-xs sm:text-sm',
+      badgeBg: 'bg-rose-950/80 border-rose-500/60 text-rose-300 font-extrabold shadow-sm',
+      dotColor: 'bg-rose-400',
+    };
+  }
+
+  // 8. Idle Resumed
   if (type === 'idle.resumed') {
     const diffMs = p.idle_duration_ms || 0;
     const durationText = formatAlertDuration(diffMs / 1000);
@@ -977,13 +1212,15 @@ export function formatEventForFeed(
     };
   }
 
+  // 9. Tips and PPV (Big Sale threshold = 49.99)
   if (type === 'fans.tip.received' || type === 'fans.ppv.purchased') {
     const isTip = type === 'fans.tip.received';
     const contentType = p.content_type === 'message' ? 'сообщение' : 'пост';
-    const amt = p.price_gross ?? p.amount_gross ?? p.amount ?? 0;
+    const amt = Number(p.price_gross ?? p.amount_gross ?? p.amount ?? 0);
+    const isBigSale = amt >= BIG_SALE_THRESHOLD;
 
     let subtitle: string | undefined = undefined;
-    if (amt >= 50 && operators && operators.length > 0 && rawAccId) {
+    if (isBigSale && operators && operators.length > 0 && rawAccId) {
       const assignedOps = operators.filter(op =>
         Array.isArray(op.creator_ids) && op.creator_ids.some(cid => String(cid) === String(rawAccId))
       );
@@ -994,10 +1231,10 @@ export function formatEventForFeed(
       }
     }
 
-    if (amt >= 50) {
+    if (isBigSale) {
       return {
         category: 'finance' as EventCategory,
-        text: `💰 Крупная продажа $${amt} на ${modelName}`,
+        text: `💰 Крупная продажа ${amt} на ${modelName}`,
         subtitle,
         colorClass: 'text-emerald-300 font-extrabold text-xs sm:text-sm',
         badgeBg: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-bold',
@@ -1009,7 +1246,7 @@ export function formatEventForFeed(
     if (isTip) {
       return {
         category: 'finance' as EventCategory,
-        text: `${modelName}: чаевые +$${amt}`,
+        text: `${modelName}: чаевые +${amt}`,
         colorClass: 'text-emerald-400',
         badgeBg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
         dotColor: 'bg-emerald-400',
@@ -1017,7 +1254,7 @@ export function formatEventForFeed(
     } else {
       return {
         category: 'finance' as EventCategory,
-        text: `${modelName}: PPV ${contentType} куплен +$${amt}`,
+        text: `${modelName}: PPV ${contentType} куплен +${amt}`,
         colorClass: 'text-emerald-400',
         badgeBg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
         dotColor: 'bg-emerald-400',
@@ -1692,6 +1929,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
 
   // New signals state
   const [unansweredCountsByAccount, setUnansweredCountsByAccount] = useState<Record<string, number>>({});
+  const [oldestUnansweredTsByAccount, setOldestUnansweredTsByAccount] = useState<Record<string, number>>({});
   const [lastHourOperatorMessages, setLastHourOperatorMessages] = useState<Record<string, { count: number; name: string }>>({});
 
   useEffect(() => {
@@ -1701,7 +1939,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
     return () => clearInterval(ticker);
   }, []);
 
-  // Poll unanswered messages count every 30s
+  // Poll unanswered messages count & oldest unreplied ts every 30s
   useEffect(() => {
     let isMounted = true;
     const fetchUnanswered = async () => {
@@ -1709,8 +1947,13 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
         const res = await fetch('/api/onlymonster/admin?resource=unanswered-counts');
         if (!res.ok) return;
         const data = await res.json();
-        if (isMounted && data.success && data.unansweredCounts) {
-          setUnansweredCountsByAccount(data.unansweredCounts);
+        if (isMounted && data.success) {
+          if (data.unansweredCounts) {
+            setUnansweredCountsByAccount(data.unansweredCounts);
+          }
+          if (data.oldestUnansweredTsByAccount) {
+            setOldestUnansweredTsByAccount(data.oldestUnansweredTsByAccount);
+          }
         }
       } catch (err) {
         console.error('[OnlyMonsterTab] Error fetching unanswered-counts:', err);
@@ -1806,14 +2049,31 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
       lastOutgoingAtByAccount,
       nowTime,
       unansweredCountsByAccount,
-      lastHourOperatorMessages
+      lastHourOperatorMessages,
+      oldestUnansweredTsByAccount
     );
-  }, [operators, accounts, periodMode, shiftInfo, lastOutgoingAtByAccount, nowTime, unansweredCountsByAccount, lastHourOperatorMessages]);
+  }, [
+    operators,
+    accounts,
+    periodMode,
+    shiftInfo,
+    lastOutgoingAtByAccount,
+    nowTime,
+    unansweredCountsByAccount,
+    lastHourOperatorMessages,
+    oldestUnansweredTsByAccount,
+  ]);
 
   const visibleAlerts = showAlertsExpanded ? attentionAlerts : attentionAlerts.slice(0, 8);
 
   const handleAlertClick = (alert: AttentionAlert) => {
-    if (alert.type === 'slow_reply' || alert.type === 'ppv_no_sales' || alert.type === 'low_messages' || alert.type === 'low_messages_hour') {
+    if (
+      alert.type === 'slow_reply' ||
+      alert.type === 'ppv_no_sales' ||
+      alert.type === 'low_messages' ||
+      alert.type === 'low_messages_hour' ||
+      alert.type === 'operator_missing'
+    ) {
       if (!hasLoadedOperators) {
         fetchShiftOperators(periodMode, selectedShiftIndex, sortBy, sortDir);
       }
@@ -1830,7 +2090,13 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
           setHighlightedOpId(null);
         }, 2500);
       }
-    } else if (alert.type === 'no_operator' || alert.type === 'account_idle' || alert.type === 'unanswered_messages') {
+    } else if (
+      alert.type === 'no_operator' ||
+      alert.type === 'account_idle' ||
+      alert.type === 'unanswered_messages' ||
+      alert.type === 'waiting_reply' ||
+      alert.type === 'account_overload'
+    ) {
       setActiveSubTab('accounts');
       if (alert.accountObj) {
         handleAccountClick(alert.accountObj);

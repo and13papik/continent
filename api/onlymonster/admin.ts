@@ -245,25 +245,34 @@ async function handleUnansweredCounts(req: any, res: any) {
     });
 
     const unansweredCounts: Record<string, number> = {};
+    const oldestUnansweredTsByAccount: Record<string, number> = {};
 
     Object.keys(eventsByAccount).forEach((accKey) => {
       const lastOutTs = lastOutgoingMap[accKey] || 0;
-      const count = eventsByAccount[accKey].filter(
+      const unanswered = eventsByAccount[accKey].filter(
         item => item.isIncoming && item.ts > lastOutTs
-      ).length;
-      unansweredCounts[accKey] = count;
+      );
+      unansweredCounts[accKey] = unanswered.length;
+      if (unanswered.length > 0) {
+        const oldestTs = Math.min(...unanswered.map(u => u.ts));
+        if (oldestTs > 0 && isFinite(oldestTs)) {
+          oldestUnansweredTsByAccount[accKey] = oldestTs;
+        }
+      }
     });
 
     return sendJson(res, 200, {
       success: true,
-      unansweredCounts
+      unansweredCounts,
+      oldestUnansweredTsByAccount
     });
   } catch (err: any) {
     console.error('[UnansweredCounts] Exception:', err);
     return sendJson(res, 200, {
       success: false,
       error: err.message || String(err),
-      unansweredCounts: {}
+      unansweredCounts: {},
+      oldestUnansweredTsByAccount: {}
     });
   }
 }
