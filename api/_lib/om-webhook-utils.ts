@@ -303,3 +303,183 @@ export function parseChatMessageDirection(
   };
 }
 
+export interface ChatMessageClassification {
+  accountId: string | null;
+  platformAccountId: string | null;
+  messageId: string | null;
+  direction: 'out' | 'in' | 'unknown';
+  authorId: string | null;
+  authorType: 'operator' | 'fan' | 'automated' | 'system' | 'unknown';
+  isAutomated: boolean;
+  classifiedAsHumanOperator: boolean;
+  classificationReason: string;
+  timestamp: number | null;
+}
+
+export function classifyChatMessage(
+  rawEventOrPayload: any,
+  rowPlatformAccountId?: string | null,
+  knownOperatorIds?: Set<string> | string[]
+): ChatMessageClassification {
+  const rawPayload = rawEventOrPayload?.payload || rawEventOrPayload || {};
+  const p = rawPayload.payload || rawPayload;
+  const msg = p.message || rawPayload.message || {};
+  const acc = p.account || rawPayload.account || {};
+
+  const dir = parseChatMessageDirection(rawEventOrPayload, rowPlatformAccountId);
+  const accountId = dir.accountId;
+  const platformAccountId = dir.platformAccountId;
+
+  const messageId =
+    msg.id ??
+    msg.message_id ??
+    p.message_id ??
+    rawPayload.message_id ??
+    rawEventOrPayload?.id ??
+    null;
+
+  const strMessageId = messageId != null ? String(messageId).trim() : null;
+
+  // Author / Operator ID extraction
+  const rawAuthorId =
+    msg.operator_id ??
+    p.operator_id ??
+    rawPayload.operator_id ??
+    msg.user_id ??
+    p.user_id ??
+    rawPayload.user_id ??
+    msg.member_id ??
+    p.member_id ??
+    rawPayload.member_id ??
+    msg.author_id ??
+    p.author_id ??
+    rawPayload.author_id ??
+    msg.staff_id ??
+    p.staff_id ??
+    null;
+
+  const authorId = rawAuthorId != null ? String(rawAuthorId).trim() : null;
+
+  // Automated message detection
+  const isAutomated = Boolean(
+    msg.is_automated === true ||
+    p.is_automated === true ||
+    rawPayload.is_automated === true ||
+    msg.is_auto === true ||
+    p.is_auto === true ||
+    msg.is_mass === true ||
+    p.is_mass === true ||
+    msg.mass_message_id ||
+    p.mass_message_id ||
+    msg.is_script === true ||
+    p.is_script === true ||
+    msg.type === 'automated' ||
+    msg.type === 'mass' ||
+    p.type === 'automated' ||
+    p.type === 'mass' ||
+    msg.sender === 'bot' ||
+    p.sender === 'bot' ||
+    msg.sender === 'system' ||
+    p.sender === 'system'
+  );
+
+  // Timestamp extraction
+  const rawTs =
+    msg.created_at ??
+    msg.timestamp ??
+    p.created_at ??
+    p.timestamp ??
+    rawEventOrPayload?.event_timestamp ??
+    rawEventOrPayload?.received_at ??
+    null;
+
+  let timestamp: number | null = null;
+  if (rawTs) {
+    const d = new Date(rawTs).getTime();
+    if (!isNaN(d) && isFinite(d) && d > 0) {
+      timestamp = d;
+    }
+  }
+
+  // Known operator ID set check if provided
+  const opSet = knownOperatorIds
+    ? (knownOperatorIds instanceof Set ? knownOperatorIds : new Set(knownOperatorIds.map(id => String(id).trim())))
+    : null;
+
+  const isKnownOp = authorId && opSet ? opSet.has(authorId) : true;
+
+  if (dir.isIncoming) {
+    return {
+      accountId,
+      platformAccountId,
+      messageId: strMessageId,
+      direction: 'in',
+      authorId: dir.fanId || dir.fromId || authorId,
+      authorType: 'fan',
+      isAutomated: false,
+      classifiedAsHumanOperator: false,
+      classificationReason: 'Incoming fan message, ignored in operator activity',
+      timestamp
+    };
+  }
+
+  if (dir.isOutgoing) {
+    if (isAutomated) {
+      return {
+        accountId,
+        platformAccountId,
+        messageId: strMessageId,
+        direction: 'out',
+        authorId,
+        authorType: 'automated',
+        isAutomated: true,
+        classifiedAsHumanOperator: false,
+        classificationReason: 'Automated or mass message, ignored in human operator activity',
+        timestamp
+      };
+    }
+
+    if (opSet && !isKnownOp) {
+      return {
+        accountId,
+        platformAccountId,
+        messageId: strMessageId,
+        direction: 'out',
+        authorId,
+        authorType: 'unknown',
+        isAutomated: false,
+        classifiedAsHumanOperator: false,
+        classificationReason: `Author ID '${authorId}' is not in known operator roster`,
+        timestamp
+      };
+    }
+
+    return {
+      accountId,
+      platformAccountId,
+      messageId: strMessageId,
+      direction: 'out',
+      authorId: authorId || dir.fromId,
+      authorType: 'operator',
+      isAutomated: false,
+      classifiedAsHumanOperator: true,
+      classificationReason: 'Real human operator outgoing message',
+      timestamp
+    };
+  }
+
+  return {
+    accountId,
+    platformAccountId,
+    messageId: strMessageId,
+    direction: 'unknown',
+    authorId,
+    authorType: 'unknown',
+    isAutomated,
+    classifiedAsHumanOperator: false,
+    classificationReason: 'Uncertain message direction and origin',
+    timestamp
+  };
+}
+
+

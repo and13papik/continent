@@ -1,5 +1,5 @@
 import { getSupabaseClient, getSupabaseCredentials, listExistingSupabaseTables } from '../_lib/supabase.js';
-import { parseChatMessageDirection } from '../_lib/om-webhook-utils.js';
+import { parseChatMessageDirection, classifyChatMessage } from '../_lib/om-webhook-utils.js';
 
 function sendJson(res: any, status: number, data: any) {
   if (typeof res.status === 'function' && typeof res.json === 'function') {
@@ -252,9 +252,9 @@ async function handleLastActivity(req: any, res: any, queryParams: Record<string
     const ingestRow = (row: any) => {
       const rawPayload = row.payload || {};
       const p = rawPayload.payload || rawPayload;
-      const parsedDir = parseChatMessageDirection(row, row.platform_account_id);
+      const classification = classifyChatMessage(row, row.platform_account_id);
 
-      if (parsedDir.isOutgoing) {
+      if (classification.classifiedAsHumanOperator && classification.direction === 'out') {
         const rawAccIds = [
           row.account_id,
           row.platform_account_id,
@@ -265,8 +265,8 @@ async function handleLastActivity(req: any, res: any, queryParams: Record<string
           p.account?.id,
           p.account?.account_id,
           p.account?.platform_account_id,
-          parsedDir.accountId,
-          parsedDir.platformAccountId
+          classification.accountId,
+          classification.platformAccountId
         ].filter(Boolean);
 
         const rawTs = p.message?.created_at ||

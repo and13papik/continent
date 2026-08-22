@@ -772,8 +772,10 @@ function decodeHtmlEntities(str: string): string {
     .replace(/&apos;/g, "'");
 }
 
-export const IDLE_THRESHOLD_MINUTES = 15;
-export const IDLE_NO_ACTIVITY_MINUTES = 15;
+export const ACCOUNT_OPERATOR_INACTIVITY_MINUTES = 20;
+export const ACCOUNT_OPERATOR_GRACE_PERIOD_MINUTES = 20;
+export const IDLE_THRESHOLD_MINUTES = 20;
+export const IDLE_NO_ACTIVITY_MINUTES = 20;
 export const SLOW_REPLY_WAITING_MINUTES = 10;
 export const OVERLOAD_UNANSWERED_THRESHOLD = 10;
 export const BIG_SALE_THRESHOLD = 49.99;
@@ -1328,7 +1330,7 @@ export function computeAttentionAlerts(
           accountObj: acc,
         });
       } else {
-        // 🟠 / 🔴 1. Account idle (15+ min with no answers, account-centric attribution)
+        // 🟠 / 🔴 1. Account idle (20+ min with no answers from any operator, account-centric attribution)
         if (isActivitySyncFresh && lastOutgoingAtByAccount) {
           const k3 = String((acc as any).account_id || '');
           const timestamps = [
@@ -1343,27 +1345,31 @@ export function computeAttentionAlerts(
           const elapsedMs = lastOutgoingMs !== null ? Math.max(0, now - lastOutgoingMs) : null;
           const elapsedMins = elapsedMs !== null ? Math.floor(elapsedMs / (60 * 1000)) : null;
 
-          if (elapsedMins !== null && elapsedMins >= IDLE_NO_ACTIVITY_MINUTES) {
+          // Check shift start grace period (20m from shift start if no messages yet in shift)
+          let inGracePeriod = false;
+          if (shiftInfo?.start) {
+            const shiftStartMs = new Date(shiftInfo.start).getTime();
+            const shiftElapsedMs = now - shiftStartMs;
+            if (shiftElapsedMs >= 0 && shiftElapsedMs < ACCOUNT_OPERATOR_GRACE_PERIOD_MINUTES * 60 * 1000) {
+              if (lastOutgoingMs === null || lastOutgoingMs < shiftStartMs) {
+                inGracePeriod = true;
+              }
+            }
+          }
+
+          if (!inGracePeriod && elapsedMins !== null && elapsedMins >= ACCOUNT_OPERATOR_INACTIVITY_MINUTES) {
             const formattedDuration = formatAlertDuration((elapsedMs || 0) / 1000);
             const opAnalysis = getAccountShiftOperators(acc, operators || [], shiftInfo?.start, lastOutgoingAtByAccount);
 
-            const count1 = (k1 && unansweredCountsByAccount?.[k1]) || 0;
-            const count2 = (k2 && unansweredCountsByAccount?.[k2]) || 0;
-            const count3 = (k3 && unansweredCountsByAccount?.[k3]) || 0;
-            const unansweredCount = Math.max(count1, count2, count3);
-            const hasWaitingFans = unansweredCount > 0;
-
-            const severity: 'red' | 'amber' = hasWaitingFans ? 'red' : 'amber';
-            const fanText = hasWaitingFans 
-              ? `${unansweredCount} ${getPluralMessages(unansweredCount)} ждут ответа` 
-              : 'фанаты не писали';
-            const contextText = `${fanText} • ${opAnalysis.operatorContextText}`;
+            const lastActTimeStr = lastOutgoingMs ? new Date(lastOutgoingMs).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
+            const lastActText = lastActTimeStr ? ` (посл. активность: ${lastActTimeStr})` : '';
+            const contextText = `Операторы не писали в чатах ${formattedDuration}${lastActText} • ${opAnalysis.operatorContextText}`;
 
             alerts.push({
               id: `idle-${acc.id}`,
               type: 'account_idle',
-              severity,
-              text: `${hasWaitingFans ? '🔴' : '🟠'} ${acc.name} — нет ответов ${formattedDuration}`,
+              severity: 'red',
+              text: `🔴 ${acc.name} — операторы не писали в чатах ${formattedDuration}`,
               contextText,
               accountName: acc.name,
               accountId: acc.platform_account_id || acc.id,
@@ -1400,7 +1406,7 @@ export function computeAttentionAlerts(
 // ==========================================
 // LIVE EVENT FEED TYPES & THRESHOLDS
 // ==========================================
-export const OPERATOR_INACTIVE_MINUTES = 15;
+export const OPERATOR_INACTIVE_MINUTES = 20;
 export const RESPONSE_TIME_THRESHOLD_MINUTES = 5; // 300 seconds
 export const RESPONSE_TIME_VIOLATION_DURATION_MINUTES = 10;
 export const MINIMUM_SHIFT_ELAPSED_MINUTES = 30;
@@ -2048,7 +2054,7 @@ export const RealtimeEventFeed: React.FC<{
       }
     });
 
-    // ─── Account Inactivity Evaluation (15 minutes threshold on Model level, not operator blame) ───
+    // ─── Account Operator Inactivity Evaluation (20 minutes threshold on Model level across all assigned operators) ───
     accounts.forEach(acc => {
       if (acc.status === 'inactive' || isAccountHidden(acc.name)) return;
       const accId = String(acc.platform_account_id || acc.id || '');
@@ -2067,33 +2073,32 @@ export const RealtimeEventFeed: React.FC<{
       const latestActivityTs = timestamps.length > 0 ? Math.max(...timestamps) : 0;
       const opAnalysis = getAccountShiftOperators(acc, operators || [], currentShift.start, outMap);
       const isOperatorAssigned = opAnalysis.allAssignedOperators.length > 0;
-      const inactiveDedupeKey = `account_inactivity:${accId}:${shiftIndex}`;
-      const existingInactive = nextEvents.get(inactiveDedupeKey);
+      const inactiveDedupeKey = `account_operator_inactivity:${accId}:${shiftIndex}`;
+      const legacyInactiveDedupeKey = `account_inactivity:${accId}:${shiftIndex}`;
+      const existingInactive = nextEvents.get(inactiveDedupeKey) || nextEvents.get(legacyInactiveDedupeKey);
 
-      // Only check inactivity if we have real historical outgoing activity, operator is assigned, and sync is fresh
-      if (isActivitySyncFresh && latestActivityTs > 0 && isOperatorAssigned) {
+      // Check shift start grace period (20m from shift start if no messages yet in shift)
+      const shiftStartTs = new Date(currentShift.start).getTime();
+      const shiftElapsedMinutes = Math.floor(Math.max(0, nowTs - shiftStartTs) / (60 * 1000));
+      const inGracePeriod = shiftElapsedMinutes < ACCOUNT_OPERATOR_GRACE_PERIOD_MINUTES && (latestActivityTs === 0 || latestActivityTs < shiftStartTs);
+
+      // Only check inactivity if we have real historical outgoing activity, operator is assigned, sync is fresh, and not in grace period
+      if (isActivitySyncFresh && latestActivityTs > 0 && isOperatorAssigned && !inGracePeriod) {
         const inactiveDiffMs = Math.max(0, nowTs - latestActivityTs);
         const inactiveMinutes = Math.floor(inactiveDiffMs / (60 * 1000));
 
-        const count1 = (accNumId && unansweredCountsByAccount?.[accNumId]) || 0;
-        const count2 = (accId && unansweredCountsByAccount?.[accId]) || 0;
-        const count3 = (accAccountId && unansweredCountsByAccount?.[accAccountId]) || 0;
-        const unansweredCount = Math.max(count1, count2, count3);
-        const hasWaitingFans = unansweredCount > 0;
-        const fanText = hasWaitingFans 
-          ? `${unansweredCount} ${getPluralMessages(unansweredCount)} ждут ответа` 
-          : 'фанаты не писали';
         const formattedDuration = formatAlertDuration(inactiveDiffMs / 1000);
-        const alertSeverity: LiveEventSeverity = hasWaitingFans ? 'red' : 'amber';
-        const alertTitle = hasWaitingFans ? `🔴 НЕТ ОТВЕТОВ (${modelName})` : `🟠 НЕТ ОТВЕТОВ (${modelName})`;
-        const alertSubtitle = `${fanText} • ${opAnalysis.operatorContextText} | ${shiftLabel}`;
+        const lastActTimeStr = latestActivityTs ? new Date(latestActivityTs).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
+        const lastActText = lastActTimeStr ? ` (посл. активность: ${lastActTimeStr})` : '';
+        const alertTitle = `🔴 ОПЕРАТОРЫ НЕАКТИВНЫ (${modelName})`;
+        const alertSubtitle = `Операторы не писали в чатах ${formattedDuration}${lastActText} • ${opAnalysis.operatorContextText} | ${shiftLabel}`;
 
-        if (inactiveMinutes >= OPERATOR_INACTIVE_MINUTES) {
+        if (inactiveMinutes >= ACCOUNT_OPERATOR_INACTIVITY_MINUTES) {
           if (existingInactive) {
             existingInactive.title = alertTitle;
-            existingInactive.description = `${modelName} · нет ответов ${formattedDuration}`;
+            existingInactive.description = `${modelName} · операторы не писали в чатах ${formattedDuration}`;
             existingInactive.subtitle = alertSubtitle;
-            existingInactive.severity = alertSeverity;
+            existingInactive.severity = 'red';
             existingInactive.current_val_text = formattedDuration;
             existingInactive.duration_text = `${inactiveMinutes}м`;
             existingInactive.updated_at = nowIso;
@@ -2104,15 +2109,15 @@ export const RealtimeEventFeed: React.FC<{
               dedupe_key: inactiveDedupeKey,
               category: 'warnings',
               event_type: 'account.inactive',
-              severity: alertSeverity,
+              severity: 'red',
               account_id: accId,
               account_name: modelName,
               shift_id: String(shiftIndex),
               shift_label: shiftLabel,
               title: alertTitle,
-              description: `${modelName} · нет ответов ${formattedDuration}`,
+              description: `${modelName} · операторы не писали в чатах ${formattedDuration}`,
               subtitle: alertSubtitle,
-              threshold_text: `Порог: ${OPERATOR_INACTIVE_MINUTES} минут без ответов`,
+              threshold_text: `Порог: ${ACCOUNT_OPERATOR_INACTIVITY_MINUTES} минут без сообщений операторов`,
               current_val_text: formattedDuration,
               duration_text: `${inactiveMinutes}м`,
               status: 'active',
@@ -2124,8 +2129,8 @@ export const RealtimeEventFeed: React.FC<{
         } else if (existingInactive && existingInactive.status === 'active') {
           // Account resumed activity (or elapsed < threshold) -> mark warning as resolved & emit single recovery event
           existingInactive.status = 'resolved';
-          existingInactive.title = `🟢 ВОЗОБНОВЛЕНО (${modelName})`;
-          existingInactive.description = `${modelName} · ответы отправляются`;
+          existingInactive.title = `🟢 АКТИВНОСТЬ ВОССТАНОВЛЕНА (${modelName})`;
+          existingInactive.description = `${modelName} · оператор снова начал отвечать в чатах`;
           existingInactive.severity = 'green';
           existingInactive.updated_at = nowIso;
 
@@ -2142,8 +2147,9 @@ export const RealtimeEventFeed: React.FC<{
               account_name: modelName,
               shift_id: String(shiftIndex),
               shift_label: shiftLabel,
-              title: `🟢 ОТВЕТЫ ВОЗОБНОВЛЕНЫ (${modelName})`,
-              description: `${modelName} возобновила отправку ответов фанатам`,
+              title: `🟢 АКТИВНОСТЬ ВОССТАНОВЛЕНА (${modelName})`,
+              description: `Оператор снова начал отвечать в чатах (простой: ${inactiveMinutes}м)`,
+              subtitle: `${opAnalysis.operatorContextText} | ${shiftLabel}`,
               status: 'resolved',
               related_event_id: existingInactive.id,
               created_at: nowIso,
@@ -2155,7 +2161,7 @@ export const RealtimeEventFeed: React.FC<{
       } else if (existingInactive && existingInactive.status === 'active') {
         // If reliable activity timestamp is not available or operator unassigned, mark resolved
         existingInactive.status = 'resolved';
-        existingInactive.title = `🟢 ВОЗОБНОВЛЕНО (${modelName})`;
+        existingInactive.title = `🟢 АКТИВНОСТЬ ВОССТАНОВЛЕНА (${modelName})`;
         existingInactive.description = `${modelName} · активность актуальна`;
         existingInactive.severity = 'green';
         existingInactive.updated_at = nowIso;
