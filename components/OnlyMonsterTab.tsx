@@ -921,6 +921,77 @@ export function getPluralMessages(count: number): string {
   return 'сообщений';
 }
 
+export function parseChatMessageDirection(
+  rawEventOrPayload: any,
+  rowPlatformAccountId?: string | null
+): {
+  isOutgoing: boolean;
+  isIncoming: boolean;
+  fromId: string | null;
+  fanId: string | null;
+  platformAccountId: string | null;
+  accountId: string | null;
+} {
+  const rawPayload = rawEventOrPayload?.payload || rawEventOrPayload || {};
+  const p = rawPayload.payload || rawPayload;
+  const msg = p.message || rawPayload.message || {};
+  const acc = p.account || rawPayload.account || {};
+
+  const fromId = msg.from_id ?? p.from_id ?? rawPayload.from_id ?? null;
+  const fanId = msg.fan_id ?? p.fan_id ?? rawPayload.fan_id ?? null;
+  const platId =
+    acc.platform_account_id ??
+    p.platform_account_id ??
+    rawPayload.platform_account_id ??
+    rowPlatformAccountId ??
+    rawEventOrPayload?.platform_account_id ??
+    null;
+  const accId =
+    acc.account_id ??
+    acc.id ??
+    p.account_id ??
+    rawPayload.account_id ??
+    rawEventOrPayload?.account_id ??
+    null;
+
+  const strFromId = fromId != null ? String(fromId).trim() : '';
+  const strFanId = fanId != null ? String(fanId).trim() : '';
+  const strPlatId = platId != null ? String(platId).trim() : '';
+
+  const sender = String(msg.sender || p.sender || '').toLowerCase().trim();
+  const direction = String(msg.direction || p.direction || '').toLowerCase().trim();
+  const isIncomingFlag = msg.is_incoming ?? p.is_incoming;
+
+  // 1. Explicit outgoing condition:
+  // from_id matches platform_account_id OR sender is operator/creator/model OR direction is 'out' OR is_incoming === false
+  const isOutgoing = Boolean(
+    (strFromId && strPlatId && strFromId === strPlatId) ||
+    sender === 'operator' ||
+    sender === 'creator' ||
+    sender === 'model' ||
+    direction === 'out' ||
+    isIncomingFlag === false
+  );
+
+  // 2. Explicit incoming condition:
+  // from_id matches fan_id OR sender is fan OR direction is 'in' OR is_incoming === true
+  const isIncoming = Boolean(
+    (strFromId && strFanId && strFromId === strFanId) ||
+    sender === 'fan' ||
+    direction === 'in' ||
+    isIncomingFlag === true
+  );
+
+  return {
+    isOutgoing: isOutgoing && !isIncoming,
+    isIncoming: isIncoming && !isOutgoing,
+    fromId: strFromId || null,
+    fanId: strFanId || null,
+    platformAccountId: strPlatId || null,
+    accountId: accId ? String(accId).trim() : null
+  };
+}
+
 /**
  * Helper to determine if an operator in current shift is a "handoff tail" (передал смену).
  * Criterion: messages_count in current shift < 5 AND (if shift has run > 15 min),
@@ -1684,13 +1755,8 @@ export const RealtimeEventFeed: React.FC<{
 
       // Track outgoing messages for activity timestamps
       const isChatMessage = type === 'chat.message';
-      const isIncoming = isChatMessage && Boolean(
-        (p.from_id && p.fan_id && String(p.from_id) === String(p.fan_id)) ||
-        p.is_incoming === true ||
-        p.direction === 'in' ||
-        p.sender === 'fan'
-      );
-      const isOutgoing = isChatMessage && !isIncoming;
+      const parsedDir = isChatMessage ? parseChatMessageDirection(e, e.platform_account_id) : null;
+      const isOutgoing = Boolean(parsedDir?.isOutgoing);
 
       if (isOutgoing && rawAccId && eventTs > 0) {
         nextMap[rawAccId] = Math.max(nextMap[rawAccId] || 0, eventTs);

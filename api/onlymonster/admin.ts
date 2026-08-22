@@ -1,4 +1,5 @@
 import { getSupabaseClient, getSupabaseCredentials, listExistingSupabaseTables } from '../_lib/supabase.js';
+import { parseChatMessageDirection } from '../_lib/om-webhook-utils.js';
 
 function sendJson(res: any, status: number, data: any) {
   if (typeof res.status === 'function' && typeof res.json === 'function') {
@@ -196,21 +197,18 @@ async function handleLastActivity(req: any, res: any) {
     (data || []).forEach((row: any) => {
       const rawPayload = row.payload || {};
       const p = rawPayload.payload || rawPayload;
-      const isIncoming = Boolean(
-        (p.from_id && p.fan_id && String(p.from_id) === String(p.fan_id)) ||
-        p.is_incoming === true ||
-        p.direction === 'in' ||
-        p.sender === 'fan'
-      );
+      const parsedDir = parseChatMessageDirection(row, row.platform_account_id);
 
-      if (!isIncoming) {
+      if (parsedDir.isOutgoing) {
         const rawAccIds = [
           row.account_id,
           row.platform_account_id,
           p.account_id,
           p.platform_account_id,
           p.creator_id,
-          p.model_id
+          p.model_id,
+          parsedDir.accountId,
+          parsedDir.platformAccountId
         ].filter(Boolean);
 
         const tsStr = row.event_timestamp || row.received_at;
@@ -276,26 +274,20 @@ async function handleUnansweredCounts(req: any, res: any) {
     (data || []).forEach((row: any) => {
       const rawPayload = row.payload || {};
       const p = rawPayload.payload || rawPayload;
-      const rawAccId = row.account_id || row.platform_account_id || p.account_id || p.platform_account_id || p.creator_id || p.model_id;
+      const parsedDir = parseChatMessageDirection(row, row.platform_account_id);
+      const rawAccId = row.account_id || row.platform_account_id || p.account_id || p.platform_account_id || p.creator_id || p.model_id || parsedDir.accountId || parsedDir.platformAccountId;
       if (!rawAccId) return;
 
       const accKey = String(rawAccId);
       const ts = new Date(row.event_timestamp || row.received_at || 0).getTime();
       if (ts <= 0) return;
 
-      const isIncoming = Boolean(
-        (p.from_id && p.fan_id && String(p.from_id) === String(p.fan_id)) ||
-        p.is_incoming === true ||
-        p.direction === 'in' ||
-        p.sender === 'fan'
-      );
-
       if (!eventsByAccount[accKey]) {
         eventsByAccount[accKey] = [];
       }
-      eventsByAccount[accKey].push({ isIncoming, ts });
+      eventsByAccount[accKey].push({ isIncoming: parsedDir.isIncoming, ts });
 
-      if (!isIncoming) {
+      if (parsedDir.isOutgoing) {
         if (!lastOutgoingMap[accKey] || ts > lastOutgoingMap[accKey]) {
           lastOutgoingMap[accKey] = ts;
         }
@@ -332,6 +324,81 @@ async function handleUnansweredCounts(req: any, res: any) {
       unansweredCounts: {},
       oldestUnansweredTsByAccount: {}
     });
+  }
+}
+
+async function handleRawDiagnostic(req: any, res: any, queryParams: Record<string, string>) {
+  try {
+    const supabase = await getSupabaseClient();
+    if (!supabase) {
+      return sendJson(res, 200, {
+        success: false,
+        message: 'Supabase is not configured'
+      });
+    }
+
+    const accountFilter = queryParams.account_id || queryParams.account || '';
+    const limit = Math.min(Math.max(parseInt(queryParams.limit || '20', 10) || 20, 1), 100);
+
+    let query = supabase
+      .from('om_webhook_events')
+      .select('id, event_type, account_id, platform_account_id, payload, event_timestamp, received_at')
+      .eq('event_type', 'chat.message')
+      .order('received_at', { ascending: false })
+      .limit(limit);
+
+    if (accountFilter) {
+      query = query.or(`account_id.eq.${accountFilter},platform_account_id.eq.${accountFilter}`);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      return sendJson(res, 200, { success: false, error: error.message });
+    }
+
+    const rows = (data || []).map((r: any) => {
+      const p = r.payload?.payload || r.payload || {};
+      const msg = p.message || {};
+      const acc = p.account || {};
+
+      const from_id = msg.from_id ?? p.from_id ?? null;
+      const fan_id = msg.fan_id ?? p.fan_id ?? null;
+      const payload_platform_account_id = acc.platform_account_id ?? p.platform_account_id ?? null;
+
+      const old_isIncoming = Boolean(
+        (p.from_id && p.fan_id && String(p.from_id) === String(p.fan_id)) ||
+        p.is_incoming === true ||
+        p.direction === 'in' ||
+        p.sender === 'fan'
+      );
+      const old_isOutgoing = !old_isIncoming;
+
+      const parsed = parseChatMessageDirection(r, r.platform_account_id);
+
+      return {
+        id: r.id,
+        event_type: r.event_type,
+        account_id: r.account_id,
+        platform_account_id: r.platform_account_id,
+        from_id,
+        fan_id,
+        payload_platform_account_id,
+        event_timestamp: r.event_timestamp,
+        received_at: r.received_at,
+        old_isOutgoing,
+        new_isOutgoing: parsed.isOutgoing,
+        new_isIncoming: parsed.isIncoming,
+        text: msg.text || p.text || ''
+      };
+    });
+
+    return sendJson(res, 200, {
+      success: true,
+      count: rows.length,
+      rows
+    });
+  } catch (err: any) {
+    return sendJson(res, 200, { success: false, error: err.message || String(err) });
   }
 }
 
@@ -479,6 +546,8 @@ export default async function handler(req: any, res: any) {
 
   if (resource === 'events') {
     return handleEvents(req, res, queryParams);
+  } else if (resource === 'raw-diagnostic' || resource === 'raw-events' || resource === 'raw_events') {
+    return handleRawDiagnostic(req, res, queryParams);
   } else if (resource === 'live-events' || resource === 'live_events') {
     return handleLiveEvents(req, res, queryParams);
   } else if (resource === 'cleanup-live-events' || resource === 'cleanup_live_events') {
