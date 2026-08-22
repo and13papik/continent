@@ -237,6 +237,38 @@ async function handleLastActivity(req: any, res: any, queryParams: Record<string
       }
     });
 
+    // Cross-propagate max outgoing timestamp across all aliases in the same row
+    (data || []).forEach((row: any) => {
+      const rawPayload = row.payload || {};
+      const p = rawPayload.payload || rawPayload;
+      const parsedDir = parseChatMessageDirection(row, row.platform_account_id);
+      const rawAccIds = [
+        row.account_id,
+        row.platform_account_id,
+        p.account_id,
+        p.platform_account_id,
+        p.creator_id,
+        p.model_id,
+        p.account?.id,
+        p.account?.account_id,
+        p.account?.platform_account_id,
+        parsedDir.accountId,
+        parsedDir.platformAccountId
+      ].filter(Boolean).map(id => String(id).trim()).filter(Boolean);
+
+      let maxOut = 0;
+      rawAccIds.forEach(id => {
+        if (lastOutgoingMap[id] && lastOutgoingMap[id] > maxOut) {
+          maxOut = lastOutgoingMap[id];
+        }
+      });
+      if (maxOut > 0) {
+        rawAccIds.forEach(id => {
+          lastOutgoingMap[id] = Math.max(lastOutgoingMap[id] || 0, maxOut);
+        });
+      }
+    });
+
     const specificTs = accountFilter ? (lastOutgoingMap[accountFilter] || 0) : undefined;
 
     return sendJson(res, 200, {

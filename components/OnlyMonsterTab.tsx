@@ -1329,40 +1329,59 @@ export function computeAttentionAlerts(
       } else {
         // 🟠 / 🔴 1. Account idle (15+ min with no answers, account-centric attribution)
         if (lastOutgoingAtByAccount) {
-          const ts1 = (k1 && lastOutgoingAtByAccount[k1]) || 0;
-          const ts2 = (k2 && lastOutgoingAtByAccount[k2]) || 0;
-          const lastTs = Math.max(ts1, ts2);
+          const k3 = String((acc as any).account_id || '');
+          const timestamps = [
+            k1 ? lastOutgoingAtByAccount[k1] : undefined,
+            k2 ? lastOutgoingAtByAccount[k2] : undefined,
+            k3 ? lastOutgoingAtByAccount[k3] : undefined,
+          ]
+            .map(value => (value !== undefined && value !== null ? new Date(value).getTime() : NaN))
+            .filter(Number.isFinite);
 
-          if (typeof lastTs === 'number' && lastTs > 0) {
-            const elapsedMs = Math.max(0, now - lastTs);
-            const elapsedMins = Math.floor(elapsedMs / (60 * 1000));
+          const lastOutgoingMs = timestamps.length > 0 ? Math.max(...timestamps) : null;
+          const elapsedMs = lastOutgoingMs !== null ? Math.max(0, now - lastOutgoingMs) : null;
+          const elapsedMins = elapsedMs !== null ? Math.floor(elapsedMs / (60 * 1000)) : null;
 
-            if (elapsedMins >= IDLE_NO_ACTIVITY_MINUTES) {
-              const formattedDuration = formatAlertDuration(elapsedMs / 1000);
-              const opAnalysis = getAccountShiftOperators(acc, operators || [], shiftInfo?.start, lastOutgoingAtByAccount);
+          // Diagnostic output for Mermaid / 20400
+          if (acc.name?.toLowerCase().includes('mermaid') || k1 === '20400' || k2 === 'u105837242') {
+            console.log('[Diagnostic:Mermaid]', {
+              name: acc.name,
+              accountId: acc.id,
+              platformAccountId: acc.platform_account_id,
+              activityByAccountId: k1 ? lastOutgoingAtByAccount[k1] : undefined,
+              activityByPlatformAccountId: k2 ? lastOutgoingAtByAccount[k2] : undefined,
+              selectedLastOutgoing: lastOutgoingMs,
+              selectedLastOutgoingISO: lastOutgoingMs ? new Date(lastOutgoingMs).toISOString() : null,
+              elapsedMinutes: elapsedMins,
+            });
+          }
 
-              const count1 = (k1 && unansweredCountsByAccount?.[k1]) || 0;
-              const count2 = (k2 && unansweredCountsByAccount?.[k2]) || 0;
-              const unansweredCount = Math.max(count1, count2);
-              const hasWaitingFans = unansweredCount > 0;
+          if (elapsedMins !== null && elapsedMins >= IDLE_NO_ACTIVITY_MINUTES) {
+            const formattedDuration = formatAlertDuration((elapsedMs || 0) / 1000);
+            const opAnalysis = getAccountShiftOperators(acc, operators || [], shiftInfo?.start, lastOutgoingAtByAccount);
 
-              const severity: 'red' | 'amber' = hasWaitingFans ? 'red' : 'amber';
-              const fanText = hasWaitingFans 
-                ? `${unansweredCount} ${getPluralMessages(unansweredCount)} ждут ответа` 
-                : 'фанаты не писали';
-              const contextText = `${fanText} • ${opAnalysis.operatorContextText}`;
+            const count1 = (k1 && unansweredCountsByAccount?.[k1]) || 0;
+            const count2 = (k2 && unansweredCountsByAccount?.[k2]) || 0;
+            const count3 = (k3 && unansweredCountsByAccount?.[k3]) || 0;
+            const unansweredCount = Math.max(count1, count2, count3);
+            const hasWaitingFans = unansweredCount > 0;
 
-              alerts.push({
-                id: `idle-${acc.id}`,
-                type: 'account_idle',
-                severity,
-                text: `${hasWaitingFans ? '🔴' : '🟠'} ${acc.name} — нет ответов ${formattedDuration}`,
-                contextText,
-                accountName: acc.name,
-                accountId: acc.platform_account_id || acc.id,
-                accountObj: acc,
-              });
-            }
+            const severity: 'red' | 'amber' = hasWaitingFans ? 'red' : 'amber';
+            const fanText = hasWaitingFans 
+              ? `${unansweredCount} ${getPluralMessages(unansweredCount)} ждут ответа` 
+              : 'фанаты не писали';
+            const contextText = `${fanText} • ${opAnalysis.operatorContextText}`;
+
+            alerts.push({
+              id: `idle-${acc.id}`,
+              type: 'account_idle',
+              severity,
+              text: `${hasWaitingFans ? '🔴' : '🟠'} ${acc.name} — нет ответов ${formattedDuration}`,
+              contextText,
+              accountName: acc.name,
+              accountId: acc.platform_account_id || acc.id,
+              accountObj: acc,
+            });
           }
         }
       }
@@ -2045,25 +2064,32 @@ export const RealtimeEventFeed: React.FC<{
       if (acc.status === 'inactive' || isAccountHidden(acc.name)) return;
       const accId = String(acc.platform_account_id || acc.id || '');
       const accNumId = String(acc.id || '');
+      const accAccountId = String((acc as any).account_id || '');
       const modelName = acc.name;
 
-      let latestActivityTs = 0;
-      const ts1 = outMap[accId];
-      const ts2 = outMap[accNumId];
-      if (typeof ts1 === 'number' && ts1 > 0) latestActivityTs = Math.max(latestActivityTs, ts1);
-      if (typeof ts2 === 'number' && ts2 > 0) latestActivityTs = Math.max(latestActivityTs, ts2);
+      const timestamps = [
+        accId ? outMap[accId] : undefined,
+        accNumId ? outMap[accNumId] : undefined,
+        accAccountId ? outMap[accAccountId] : undefined,
+      ]
+        .map(value => (value !== undefined && value !== null ? new Date(value).getTime() : NaN))
+        .filter(Number.isFinite);
 
+      const latestActivityTs = timestamps.length > 0 ? Math.max(...timestamps) : 0;
       const opAnalysis = getAccountShiftOperators(acc, operators || [], currentShift.start, outMap);
       const isOperatorAssigned = opAnalysis.allAssignedOperators.length > 0;
+      const inactiveDedupeKey = `account_inactivity:${accId}:${shiftIndex}`;
+      const existingInactive = nextEvents.get(inactiveDedupeKey);
 
       // Only check inactivity if we have real historical activity and operator is assigned
       if (latestActivityTs > 0 && isOperatorAssigned) {
         const inactiveDiffMs = Math.max(0, nowTs - latestActivityTs);
         const inactiveMinutes = Math.floor(inactiveDiffMs / (60 * 1000));
-        const inactiveDedupeKey = `account_inactivity:${accId}:${shiftIndex}`;
-        const existingInactive = nextEvents.get(inactiveDedupeKey);
 
-        const unansweredCount = (accNumId && unansweredCountsByAccount?.[accNumId]) || (accId && unansweredCountsByAccount?.[accId]) || 0;
+        const count1 = (accNumId && unansweredCountsByAccount?.[accNumId]) || 0;
+        const count2 = (accId && unansweredCountsByAccount?.[accId]) || 0;
+        const count3 = (accAccountId && unansweredCountsByAccount?.[accAccountId]) || 0;
+        const unansweredCount = Math.max(count1, count2, count3);
         const hasWaitingFans = unansweredCount > 0;
         const fanText = hasWaitingFans 
           ? `${unansweredCount} ${getPluralMessages(unansweredCount)} ждут ответа` 
@@ -2107,7 +2133,7 @@ export const RealtimeEventFeed: React.FC<{
             });
           }
         } else if (existingInactive && existingInactive.status === 'active') {
-          // Account resumed activity -> mark warning as resolved & emit single recovery event
+          // Account resumed activity (or elapsed < threshold) -> mark warning as resolved & emit single recovery event
           existingInactive.status = 'resolved';
           existingInactive.updated_at = nowIso;
 
@@ -2134,6 +2160,10 @@ export const RealtimeEventFeed: React.FC<{
             });
           }
         }
+      } else if (existingInactive && existingInactive.status === 'active') {
+        // If condition no longer holds, resolve immediately
+        existingInactive.status = 'resolved';
+        existingInactive.updated_at = nowIso;
       }
     });
 
