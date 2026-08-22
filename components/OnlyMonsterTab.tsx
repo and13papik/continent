@@ -904,11 +904,127 @@ export interface AttentionAlert {
     | 'account_overload';
   severity: 'red' | 'amber' | 'slate';
   text: string;
+  contextText?: string;
   operatorName?: string;
   userId?: string;
   accountName?: string;
   accountId?: string;
   accountObj?: OnlyMonsterAccount;
+}
+
+export function getPluralMessages(count: number): string {
+  const c = Math.abs(count) % 100;
+  const c10 = c % 10;
+  if (c > 10 && c < 20) return 'сообщений';
+  if (c10 > 1 && c10 < 5) return 'сообщения';
+  if (c10 === 1) return 'сообщение';
+  return 'сообщений';
+}
+
+/**
+ * Helper to determine if an operator in current shift is a "handoff tail" (передал смену).
+ * Criterion: messages_count in current shift < 5 AND (if shift has run > 15 min),
+ * their activity was only within the first ~15 minutes of the shift.
+ */
+export function isHandoverTailOperator(
+  op: ShiftOperator,
+  shiftStartIso?: string,
+  lastOutgoingMap?: Record<string, number>
+): boolean {
+  const msgCount = op.messages_count || 0;
+  if (msgCount <= 0 || msgCount >= 5) return false;
+  if (!shiftStartIso) return false;
+
+  const shiftStartTs = new Date(shiftStartIso).getTime();
+  if (isNaN(shiftStartTs) || shiftStartTs <= 0) return false;
+
+  const nowTs = Date.now();
+  const handoverWindowMs = 15 * 60 * 1000; // 15 min from shift start
+  if (nowTs - shiftStartTs <= handoverWindowMs) {
+    return false; // shift just started, too early to classify as handoff tail
+  }
+
+  // Check operator's last message time if available
+  let opLastTs = 0;
+  if (lastOutgoingMap && op.creator_ids) {
+    op.creator_ids.forEach(cid => {
+      const ts = lastOutgoingMap[String(cid)];
+      if (typeof ts === 'number' && ts > opLastTs) {
+        opLastTs = ts;
+      }
+    });
+  }
+
+  if (opLastTs > 0 && opLastTs <= shiftStartTs + handoverWindowMs) {
+    return true;
+  }
+  if (opLastTs === 0 && msgCount < 3) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Helper to analyze operators assigned to an account in the current shift,
+ * separating primary active operators from handover tail operators.
+ */
+export function getAccountShiftOperators(
+  account: OnlyMonsterAccount,
+  operators: ShiftOperator[],
+  shiftStartIso?: string,
+  lastOutgoingMap?: Record<string, number>
+): {
+  primaryOperators: ShiftOperator[];
+  handoverOperators: ShiftOperator[];
+  allAssignedOperators: ShiftOperator[];
+  operatorContextText: string;
+} {
+  const accId = String(account.platform_account_id || account.id || '');
+  const accNumId = String(account.id || '');
+
+  const assigned = (operators || []).filter(op => {
+    if (isOperatorHidden(op.name)) return false;
+    if (!Array.isArray(op.creator_ids)) return false;
+    return op.creator_ids.some(cid => String(cid) === accId || String(cid) === accNumId);
+  });
+
+  const primaryOperators: ShiftOperator[] = [];
+  const handoverOperators: ShiftOperator[] = [];
+
+  assigned.forEach(op => {
+    if (isHandoverTailOperator(op, shiftStartIso, lastOutgoingMap)) {
+      handoverOperators.push(op);
+    } else {
+      primaryOperators.push(op);
+    }
+  });
+
+  let operatorContextText = '';
+  if (primaryOperators.length === 1) {
+    operatorContextText = `назначен: ${primaryOperators[0].name}`;
+    if (handoverOperators.length > 0) {
+      operatorContextText += ` (передал смену: ${handoverOperators.map(h => h.name).join(', ')})`;
+    }
+  } else if (primaryOperators.length > 1) {
+    operatorContextText = `назначены: ${primaryOperators.map(p => p.name).join(', ')}`;
+    if (handoverOperators.length > 0) {
+      operatorContextText += ` (передал смену: ${handoverOperators.map(h => h.name).join(', ')})`;
+    }
+  } else if (handoverOperators.length > 0) {
+    operatorContextText = `передал смену: ${handoverOperators.map(h => h.name).join(', ')}`;
+  } else if (assigned.length > 0) {
+    operatorContextText = `назначены: ${assigned.map(a => a.name).join(', ')}`;
+  } else {
+    operatorContextText = 'нет назначенного оператора';
+  }
+
+  return {
+    primaryOperators,
+    handoverOperators,
+    allAssignedOperators: assigned,
+    operatorContextText,
+  };
 }
 
 export function formatAlertDuration(seconds: number): string {
@@ -1134,20 +1250,33 @@ export function computeAttentionAlerts(
           accountObj: acc,
         });
       } else {
-        // 🟠 1. Account idle (no activity IDLE_NO_ACTIVITY_MINUTES (15 min) while operator is assigned)
+        // 🟠 / 🔴 1. Account idle (15+ min with no answers, account-centric attribution)
         if (lastOutgoingAtByAccount) {
           const lastTs = (k1 && lastOutgoingAtByAccount[k1]) || (k2 && lastOutgoingAtByAccount[k2]);
 
           if (typeof lastTs === 'number' && lastTs > 0) {
             const elapsedMs = Math.max(0, now - lastTs);
-            const elapsedMins = elapsedMs / (60 * 1000);
+            const elapsedMins = Math.floor(elapsedMs / (60 * 1000));
 
             if (elapsedMins >= IDLE_NO_ACTIVITY_MINUTES) {
+              const formattedDuration = formatAlertDuration(elapsedMs / 1000);
+              const opAnalysis = getAccountShiftOperators(acc, operators || [], shiftInfo?.start, lastOutgoingAtByAccount);
+
+              const unansweredCount = (k1 && unansweredCountsByAccount?.[k1]) || (k2 && unansweredCountsByAccount?.[k2]) || 0;
+              const hasWaitingFans = unansweredCount > 0;
+
+              const severity: 'red' | 'amber' = hasWaitingFans ? 'red' : 'amber';
+              const fanText = hasWaitingFans 
+                ? `${unansweredCount} ${getPluralMessages(unansweredCount)} ждут ответа` 
+                : 'фанаты не писали';
+              const contextText = `${fanText} • ${opAnalysis.operatorContextText}`;
+
               alerts.push({
                 id: `idle-${acc.id}`,
                 type: 'account_idle',
-                severity: 'amber',
-                text: `${acc.name} — простой ${formatAlertDuration(elapsedMs / 1000)}`,
+                severity,
+                text: `${hasWaitingFans ? '🔴' : '🟠'} ${acc.name} — нет ответов ${formattedDuration}`,
+                contextText,
                 accountName: acc.name,
                 accountId: acc.platform_account_id || acc.id,
                 accountObj: acc,
@@ -1457,6 +1586,7 @@ export const RealtimeEventFeed: React.FC<{
   onNavigateToAccountsTab: () => void;
   onNavigateToOperatorsTab?: () => void;
   lastOutgoingAtByAccount?: Record<string, number>;
+  unansweredCountsByAccount?: Record<string, number>;
   onUpdateLastOutgoingMap?: (mapUpdater: (prev: Record<string, number>) => Record<string, number>) => void;
 }> = ({
   accounts,
@@ -1465,6 +1595,7 @@ export const RealtimeEventFeed: React.FC<{
   onNavigateToAccountsTab,
   onNavigateToOperatorsTab,
   lastOutgoingAtByAccount,
+  unansweredCountsByAccount,
   onUpdateLastOutgoingMap,
 }) => {
   const [filter, setFilter] = useState<LiveEventCategory>('all');
@@ -1817,6 +1948,103 @@ export const RealtimeEventFeed: React.FC<{
       }
     });
 
+    // ─── Account Inactivity Evaluation (15 minutes threshold on Model level, not operator blame) ───
+    accounts.forEach(acc => {
+      if (acc.status === 'inactive' || isAccountHidden(acc.name)) return;
+      const accId = String(acc.platform_account_id || acc.id || '');
+      const accNumId = String(acc.id || '');
+      const modelName = acc.name;
+
+      let latestActivityTs = 0;
+      const ts1 = outMap[accId];
+      const ts2 = outMap[accNumId];
+      if (typeof ts1 === 'number' && ts1 > 0) latestActivityTs = Math.max(latestActivityTs, ts1);
+      if (typeof ts2 === 'number' && ts2 > 0) latestActivityTs = Math.max(latestActivityTs, ts2);
+
+      const opAnalysis = getAccountShiftOperators(acc, operators || [], currentShift.start, outMap);
+      const isOperatorAssigned = opAnalysis.allAssignedOperators.length > 0;
+
+      // Only check inactivity if we have real historical activity and operator is assigned
+      if (latestActivityTs > 0 && isOperatorAssigned) {
+        const inactiveDiffMs = Math.max(0, nowTs - latestActivityTs);
+        const inactiveMinutes = Math.floor(inactiveDiffMs / (60 * 1000));
+        const inactiveDedupeKey = `account_inactivity:${accId}:${shiftIndex}`;
+        const existingInactive = nextEvents.get(inactiveDedupeKey);
+
+        const unansweredCount = (accNumId && unansweredCountsByAccount?.[accNumId]) || (accId && unansweredCountsByAccount?.[accId]) || 0;
+        const hasWaitingFans = unansweredCount > 0;
+        const fanText = hasWaitingFans 
+          ? `${unansweredCount} ${getPluralMessages(unansweredCount)} ждут ответа` 
+          : 'фанаты не писали';
+        const formattedDuration = formatAlertDuration(inactiveDiffMs / 1000);
+        const alertSeverity: LiveEventSeverity = hasWaitingFans ? 'red' : 'amber';
+        const alertTitle = hasWaitingFans ? `🔴 НЕТ ОТВЕТОВ (${modelName})` : `🟠 НЕТ ОТВЕТОВ (${modelName})`;
+        const alertSubtitle = `${fanText} • ${opAnalysis.operatorContextText} | ${shiftLabel}`;
+
+        if (inactiveMinutes >= OPERATOR_INACTIVE_MINUTES) {
+          if (existingInactive) {
+            existingInactive.title = alertTitle;
+            existingInactive.description = `${modelName} · нет ответов ${formattedDuration}`;
+            existingInactive.subtitle = alertSubtitle;
+            existingInactive.severity = alertSeverity;
+            existingInactive.current_val_text = formattedDuration;
+            existingInactive.duration_text = `${inactiveMinutes}м`;
+            existingInactive.updated_at = nowIso;
+            existingInactive.status = 'active';
+          } else {
+            nextEvents.set(inactiveDedupeKey, {
+              id: `acc-inact-${accId}-${shiftIndex}`,
+              dedupe_key: inactiveDedupeKey,
+              category: 'warnings',
+              event_type: 'account.inactive',
+              severity: alertSeverity,
+              account_id: accId,
+              account_name: modelName,
+              shift_id: String(shiftIndex),
+              shift_label: shiftLabel,
+              title: alertTitle,
+              description: `${modelName} · нет ответов ${formattedDuration}`,
+              subtitle: alertSubtitle,
+              threshold_text: `Порог: ${OPERATOR_INACTIVE_MINUTES} минут без ответов`,
+              current_val_text: formattedDuration,
+              duration_text: `${inactiveMinutes}м`,
+              status: 'active',
+              created_at: nowIso,
+              updated_at: nowIso,
+              expires_at: expiresIso,
+            });
+          }
+        } else if (existingInactive && existingInactive.status === 'active') {
+          // Account resumed activity -> mark warning as resolved & emit single recovery event
+          existingInactive.status = 'resolved';
+          existingInactive.updated_at = nowIso;
+
+          const resumeDedupeKey = `account_recovered_activity:${accId}:${shiftIndex}`;
+          if (!resolvedKeysRef.current.has(resumeDedupeKey)) {
+            resolvedKeysRef.current.add(resumeDedupeKey);
+            nextEvents.set(resumeDedupeKey, {
+              id: `acc-resumed-${accId}-${shiftIndex}-${nowTs}`,
+              dedupe_key: resumeDedupeKey,
+              category: 'warnings',
+              event_type: 'account.activity_resumed',
+              severity: 'green',
+              account_id: accId,
+              account_name: modelName,
+              shift_id: String(shiftIndex),
+              shift_label: shiftLabel,
+              title: `🟢 ОТВЕТЫ ВОЗОБНОВЛЕНЫ (${modelName})`,
+              description: `${modelName} возобновила отправку ответов фанатам`,
+              status: 'resolved',
+              related_event_id: existingInactive.id,
+              created_at: nowIso,
+              updated_at: nowIso,
+              expires_at: expiresIso,
+            });
+          }
+        }
+      }
+    });
+
     // ─── Operator Metrics Evaluation ───
     if (operators && operators.length > 0) {
       operators.forEach(op => {
@@ -1830,85 +2058,6 @@ export const RealtimeEventFeed: React.FC<{
           .map(id => accountsMap.get(id) || id)
           .filter(Boolean);
         const modelNamesStr = assignedModelNames.length > 0 ? assignedModelNames.join(', ') : 'Назначенные модели';
-
-        // 1. Inactivity Check (15 minutes threshold based on true last outgoing message)
-        if (assignedAccIds.length > 0) {
-          let latestActivityTs = 0;
-          assignedAccIds.forEach(id => {
-            const ts = outMap[id];
-            if (typeof ts === 'number' && ts > 0 && ts > latestActivityTs) {
-              latestActivityTs = ts;
-            }
-          });
-
-          // Only proceed if we have a real historical outgoing message (unknown = do not show alert)
-          if (latestActivityTs > 0) {
-            const inactiveDiffMs = Math.max(0, nowTs - latestActivityTs);
-            const inactiveMinutes = Math.floor(inactiveDiffMs / (60 * 1000));
-            const inactiveDedupeKey = `operator_inactive:${opId}:${shiftIndex}`;
-            const existingInactive = nextEvents.get(inactiveDedupeKey);
-
-            if (inactiveMinutes >= OPERATOR_INACTIVE_MINUTES) {
-              const formattedDuration = formatAlertDuration(inactiveDiffMs / 1000);
-              if (existingInactive) {
-                existingInactive.description = `@${opName} · нет активности ${formattedDuration} (${modelNamesStr})`;
-                existingInactive.current_val_text = formattedDuration;
-                existingInactive.duration_text = `${inactiveMinutes}м`;
-                existingInactive.updated_at = nowIso;
-                existingInactive.status = 'active';
-              } else {
-                nextEvents.set(inactiveDedupeKey, {
-                  id: `op-inact-${opId}-${shiftIndex}`,
-                  dedupe_key: inactiveDedupeKey,
-                  category: 'operators',
-                  event_type: 'operator.inactive',
-                  severity: 'red',
-                  operator_id: opId,
-                  operator_name: opName,
-                  shift_id: String(shiftIndex),
-                  shift_label: shiftLabel,
-                  title: `🔴 НЕТ АКТИВНОСТИ (@${opName})`,
-                  description: `@${opName} · нет активности ${formattedDuration} (${modelNamesStr})`,
-                  subtitle: `Аккаунты: ${modelNamesStr} | ${shiftLabel}`,
-                  threshold_text: `Порог: ${OPERATOR_INACTIVE_MINUTES} минут без сообщений`,
-                  current_val_text: formattedDuration,
-                  duration_text: `${inactiveMinutes}м`,
-                  status: 'active',
-                  created_at: nowIso,
-                  updated_at: nowIso,
-                  expires_at: expiresIso,
-                });
-              }
-            } else if (existingInactive && existingInactive.status === 'active') {
-              // Operator resumed activity -> mark warning as resolved & emit single recovery event
-              existingInactive.status = 'resolved';
-              existingInactive.updated_at = nowIso;
-
-              const resumeDedupeKey = `operator_recovered_activity:${opId}:${shiftIndex}`;
-              if (!resolvedKeysRef.current.has(resumeDedupeKey)) {
-                resolvedKeysRef.current.add(resumeDedupeKey);
-                nextEvents.set(resumeDedupeKey, {
-                  id: `op-resumed-${opId}-${shiftIndex}-${nowTs}`,
-                  dedupe_key: resumeDedupeKey,
-                  category: 'operators',
-                  event_type: 'operator.activity_resumed',
-                  severity: 'green',
-                  operator_id: opId,
-                  operator_name: opName,
-                  shift_id: String(shiftIndex),
-                  shift_label: shiftLabel,
-                  title: `🟢 АКТИВНОСТЬ ВОЗОБНОВЛЕНА`,
-                  description: `@${opName} возобновил отправку сообщений на ${modelNamesStr}`,
-                  status: 'resolved',
-                  related_event_id: existingInactive.id,
-                  created_at: nowIso,
-                  updated_at: nowIso,
-                  expires_at: expiresIso,
-                });
-              }
-            }
-          }
-        }
 
         // 2. Slow Response Time (> 5m for >= 10m)
         const avgReplyTimeSec = Number(op.reply_time_avg || 0);
@@ -2228,7 +2377,7 @@ export const RealtimeEventFeed: React.FC<{
       isMounted = false;
       clearInterval(interval);
     };
-  }, [accounts, operators]);
+  }, [accounts, operators, unansweredCountsByAccount]);
 
   // Periodic evaluator for live durations
   useEffect(() => {
@@ -2238,7 +2387,7 @@ export const RealtimeEventFeed: React.FC<{
       });
     }, 5000);
     return () => clearInterval(evaluator);
-  }, [accounts, operators]);
+  }, [accounts, operators, unansweredCountsByAccount]);
 
   // Filtered & Sorted Event List
   const { allList, visibleList, counts } = useMemo(() => {
@@ -2733,8 +2882,13 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
   }, [unansweredCountsByAccount]);
 
   const activeOpsCount = useMemo(() => {
-    return operators.filter(o => (o.messages_count || 0) > 0 && !isOperatorHidden(o.name)).length;
-  }, [operators]);
+    return operators.filter(o => {
+      if (isOperatorHidden(o.name)) return false;
+      if ((o.messages_count || 0) === 0) return false;
+      const isHandover = isHandoverTailOperator(o, shiftInfo?.start, lastOutgoingAtByAccount);
+      return !isHandover;
+    }).length;
+  }, [operators, shiftInfo, lastOutgoingAtByAccount]);
 
   const handleAlertClick = (alert: AttentionAlert) => {
     if (
@@ -3422,6 +3576,11 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                         <span className="text-xs font-bold leading-snug line-clamp-2 block">
                           {alert.text}
                         </span>
+                        {alert.contextText && (
+                          <span className="text-[10px] text-slate-300 font-mono block mt-0.5 leading-tight">
+                            {alert.contextText}
+                          </span>
+                        )}
                         <span className="text-[9px] text-slate-400 uppercase tracking-wider block mt-0.5">
                           {alert.type === 'slow_reply' && 'Задержка ответа'}
                           {alert.type === 'ppv_no_sales' && 'PPV без продаж'}
@@ -3459,6 +3618,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
             accounts={accounts}
             operators={operators}
             lastOutgoingAtByAccount={lastOutgoingAtByAccount}
+            unansweredCountsByAccount={unansweredCountsByAccount}
             onAccountClick={(acc) => handleAccountClick(acc)}
             onNavigateToAccountsTab={() => setActiveSubTab('models')}
             onNavigateToOperatorsTab={() => handleSubTabChange('operator_metrics')}
@@ -4238,9 +4398,16 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                           })()}
 
                           <div className="min-w-0 flex-1">
-                            <h4 className="text-sm font-black text-white truncate group-hover:text-violet-300 transition-colors">
-                              {op.name}
-                            </h4>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h4 className="text-sm font-black text-white truncate group-hover:text-violet-300 transition-colors">
+                                {op.name}
+                              </h4>
+                              {isHandoverTailOperator(op, shiftInfo?.start, lastOutgoingAtByAccount) && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-white/10 inline-flex items-center shrink-0">
+                                  Передал смену
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[10px] text-slate-400 block truncate">
                               ID: {op.user_id || '—'}
                             </span>
