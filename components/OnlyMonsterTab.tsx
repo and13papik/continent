@@ -1120,7 +1120,8 @@ export function computeAttentionAlerts(
   now: number = Date.now(),
   unansweredCountsByAccount?: Record<string, number>,
   lastHourOperatorMessages?: Record<string, { count: number; name: string }>,
-  oldestUnansweredTsByAccount?: Record<string, number>
+  oldestUnansweredTsByAccount?: Record<string, number>,
+  isActivitySyncFresh: boolean = true
 ): AttentionAlert[] {
   const alerts: AttentionAlert[] = [];
 
@@ -1328,7 +1329,7 @@ export function computeAttentionAlerts(
         });
       } else {
         // 🟠 / 🔴 1. Account idle (15+ min with no answers, account-centric attribution)
-        if (lastOutgoingAtByAccount) {
+        if (isActivitySyncFresh && lastOutgoingAtByAccount) {
           const k3 = String((acc as any).account_id || '');
           const timestamps = [
             k1 ? lastOutgoingAtByAccount[k1] : undefined,
@@ -1341,20 +1342,6 @@ export function computeAttentionAlerts(
           const lastOutgoingMs = timestamps.length > 0 ? Math.max(...timestamps) : null;
           const elapsedMs = lastOutgoingMs !== null ? Math.max(0, now - lastOutgoingMs) : null;
           const elapsedMins = elapsedMs !== null ? Math.floor(elapsedMs / (60 * 1000)) : null;
-
-          // Diagnostic output for Mermaid / 20400
-          if (acc.name?.toLowerCase().includes('mermaid') || k1 === '20400' || k2 === 'u105837242') {
-            console.log('[Diagnostic:Mermaid]', {
-              name: acc.name,
-              accountId: acc.id,
-              platformAccountId: acc.platform_account_id,
-              activityByAccountId: k1 ? lastOutgoingAtByAccount[k1] : undefined,
-              activityByPlatformAccountId: k2 ? lastOutgoingAtByAccount[k2] : undefined,
-              selectedLastOutgoing: lastOutgoingMs,
-              selectedLastOutgoingISO: lastOutgoingMs ? new Date(lastOutgoingMs).toISOString() : null,
-              elapsedMinutes: elapsedMins,
-            });
-          }
 
           if (elapsedMins !== null && elapsedMins >= IDLE_NO_ACTIVITY_MINUTES) {
             const formattedDuration = formatAlertDuration((elapsedMs || 0) / 1000);
@@ -1688,6 +1675,7 @@ export const RealtimeEventFeed: React.FC<{
   lastOutgoingAtByAccount?: Record<string, number>;
   unansweredCountsByAccount?: Record<string, number>;
   onUpdateLastOutgoingMap?: (mapUpdater: (prev: Record<string, number>) => Record<string, number>) => void;
+  isActivitySyncFresh?: boolean;
 }> = ({
   accounts,
   operators,
@@ -1697,6 +1685,7 @@ export const RealtimeEventFeed: React.FC<{
   lastOutgoingAtByAccount,
   unansweredCountsByAccount,
   onUpdateLastOutgoingMap,
+  isActivitySyncFresh = true,
 }) => {
   const [filter, setFilter] = useState<LiveEventCategory>('all');
   const [now, setNow] = useState<number>(Date.now());
@@ -2081,8 +2070,8 @@ export const RealtimeEventFeed: React.FC<{
       const inactiveDedupeKey = `account_inactivity:${accId}:${shiftIndex}`;
       const existingInactive = nextEvents.get(inactiveDedupeKey);
 
-      // Only check inactivity if we have real historical outgoing activity and operator is assigned
-      if (latestActivityTs > 0 && isOperatorAssigned) {
+      // Only check inactivity if we have real historical outgoing activity, operator is assigned, and sync is fresh
+      if (isActivitySyncFresh && latestActivityTs > 0 && isOperatorAssigned) {
         const inactiveDiffMs = Math.max(0, nowTs - latestActivityTs);
         const inactiveMinutes = Math.floor(inactiveDiffMs / (60 * 1000));
 
@@ -2851,6 +2840,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
   const [showAlertsExpanded, setShowAlertsExpanded] = useState(false);
   const [highlightedOpId, setHighlightedOpId] = useState<string | null>(null);
   const [lastOutgoingAtByAccount, setLastOutgoingAtByAccount] = useState<Record<string, number>>({});
+  const [lastActivitySyncAt, setLastActivitySyncAt] = useState<number | null>(null);
+  const [lastActivitySyncSuccess, setLastActivitySyncSuccess] = useState<boolean>(false);
   const [nowTime, setNowTime] = useState<number>(Date.now());
 
   // New signals state
@@ -2937,36 +2928,55 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
           .join(',');
         const url = '/api/onlymonster/admin?resource=last-activity' + (accParam ? `&accounts=${encodeURIComponent(accParam)}` : '');
         const res = await fetch(url);
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (isMounted) setLastActivitySyncSuccess(false);
+          return;
+        }
         const data = await res.json();
         if (isMounted && data.success && data.lastOutgoingAtByAccount) {
-          const rawIncoming: Record<string, number> = data.lastOutgoingAtByAccount;
+          const rawIncoming: Record<string, number | null> = data.lastOutgoingAtByAccount;
+          const nowTs = Date.now();
+          setLastActivitySyncAt(nowTs);
+          setLastActivitySyncSuccess(true);
+
           setLastOutgoingAtByAccount(prev => {
             const next = { ...prev };
+            // Full bulk check: If an account was explicitly requested and received null/0 in the fresh response,
+            // we remove any stale positive value from next so it doesn't cause false inactivity calculations.
+            accounts.forEach(acc => {
+              const keys = [
+                String(acc.id || ''),
+                String(acc.platform_account_id || ''),
+                String((acc as any).account_id || '')
+              ].filter(Boolean);
+
+              const hasExplicitEntry = keys.some(k => k in rawIncoming);
+              if (hasExplicitEntry) {
+                const maxFresh = Math.max(...keys.map(k => Number(rawIncoming[k]) || 0));
+                if (maxFresh > 0) {
+                  keys.forEach(k => { next[k] = Math.max(next[k] || 0, maxFresh); });
+                } else {
+                  // Explicitly confirmed as having no outgoing activity in full check
+                  keys.forEach(k => { delete next[k]; });
+                }
+              }
+            });
+
+            // Also ingest any other keys returned
             Object.entries(rawIncoming).forEach(([key, ts]) => {
               const numTs = Number(ts);
               if (numTs > 0) {
                 next[key] = Math.max(next[key] || 0, numTs);
               }
             });
-            accounts.forEach(acc => {
-              const k1 = String(acc.id || '');
-              const k2 = String(acc.platform_account_id || '');
-              const k3 = String((acc as any).account_id || '');
-              const ts1 = next[k1] || 0;
-              const ts2 = next[k2] || 0;
-              const ts3 = next[k3] || 0;
-              const maxTs = Math.max(ts1, ts2, ts3);
-              if (maxTs > 0) {
-                if (k1) next[k1] = maxTs;
-                if (k2) next[k2] = maxTs;
-                if (k3) next[k3] = maxTs;
-              }
-            });
+
             return next;
           });
+        } else if (isMounted) {
+          setLastActivitySyncSuccess(false);
         }
       } catch (err) {
+        if (isMounted) setLastActivitySyncSuccess(false);
         console.error('[OnlyMonsterTab] Error fetching last-activity:', err);
       }
     };
@@ -2978,6 +2988,12 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
     };
   }, [accounts]);
 
+  const isActivitySyncFresh = useMemo(() => {
+    if (!lastActivitySyncSuccess || !lastActivitySyncAt) return false;
+    // Considered stale if no successful sync for > 90 seconds
+    return (nowTime - lastActivitySyncAt) <= 90 * 1000;
+  }, [lastActivitySyncSuccess, lastActivitySyncAt, nowTime]);
+
   const attentionAlerts = useMemo(() => {
     return computeAttentionAlerts(
       operators,
@@ -2988,7 +3004,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
       nowTime,
       unansweredCountsByAccount,
       lastHourOperatorMessages,
-      oldestUnansweredTsByAccount
+      oldestUnansweredTsByAccount,
+      isActivitySyncFresh
     );
   }, [
     operators,
@@ -3000,6 +3017,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
     unansweredCountsByAccount,
     lastHourOperatorMessages,
     oldestUnansweredTsByAccount,
+    isActivitySyncFresh,
   ]);
 
   const redAlertsCount = useMemo(() => attentionAlerts.filter(a => a.severity === 'red').length, [attentionAlerts]);
@@ -3760,6 +3778,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
             operators={operators}
             lastOutgoingAtByAccount={lastOutgoingAtByAccount}
             unansweredCountsByAccount={unansweredCountsByAccount}
+            isActivitySyncFresh={isActivitySyncFresh}
             onAccountClick={(acc) => handleAccountClick(acc)}
             onNavigateToAccountsTab={() => setActiveSubTab('models')}
             onNavigateToOperatorsTab={() => handleSubTabChange('operator_metrics')}

@@ -164,6 +164,47 @@ async function handleWebhooks(req: any, res: any) {
   }
 }
 
+export function normalizeTimestampMs(val: any): number | null {
+  if (val === null || val === undefined || val === '') return null;
+
+  if (typeof val === 'number') {
+    if (isNaN(val) || !isFinite(val) || val <= 0) return null;
+    // Unix timestamp in seconds (e.g. 1755850530, < 100 billion)
+    if (val < 100000000000) {
+      return Math.floor(val * 1000);
+    }
+    return Math.floor(val);
+  }
+
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed) return null;
+
+    // Numeric timestamp as string
+    if (/^\d+$/.test(trimmed)) {
+      const num = Number(trimmed);
+      if (isNaN(num) || num <= 0) return null;
+      if (num < 100000000000) {
+        return Math.floor(num * 1000);
+      }
+      return Math.floor(num);
+    }
+
+    // Standard date / ISO string
+    const parsed = new Date(trimmed).getTime();
+    if (!isNaN(parsed) && isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  if (val instanceof Date) {
+    const t = val.getTime();
+    return (!isNaN(t) && isFinite(t) && t > 0) ? t : null;
+  }
+
+  return null;
+}
+
 async function handleLastActivity(req: any, res: any, queryParams: Record<string, string> = {}) {
   try {
     const supabase = await getSupabaseClient();
@@ -228,9 +269,15 @@ async function handleLastActivity(req: any, res: any, queryParams: Record<string
           parsedDir.platformAccountId
         ].filter(Boolean);
 
-        const tsStr = row.event_timestamp || row.received_at;
-        const ts = tsStr ? new Date(tsStr).getTime() : 0;
-        if (ts > 0) {
+        const rawTs = p.message?.created_at ||
+          p.message?.timestamp ||
+          p.created_at ||
+          p.timestamp ||
+          row.event_timestamp ||
+          row.received_at;
+
+        const ts = normalizeTimestampMs(rawTs);
+        if (ts && ts > 0) {
           rawAccIds.forEach(id => {
             const accKey = String(id).trim();
             if (accKey) {
@@ -305,18 +352,43 @@ async function handleLastActivity(req: any, res: any, queryParams: Record<string
       }
     });
 
-    const specificTs = accountFilter ? (lastOutgoingMap[accountFilter] || 0) : undefined;
-    const elapsedMinutes = (specificTs && specificTs > 0)
-      ? Math.max(0, Math.floor((Date.now() - specificTs) / 60000))
-      : null;
+    const nowMs = Date.now();
+    const MAX_FUTURE_DRIFT_MS = 60 * 1000; // Allow 1 min clock drift
+
+    let specificTs: number | null = null;
+    let lastOutgoingIso: string | null = null;
+    let elapsedMinutes: number | null = null;
+    let diagnosticError: string | null = null;
+
+    if (accountFilter) {
+      const rawVal = lastOutgoingMap[accountFilter];
+      if (rawVal && !isNaN(rawVal) && rawVal > 0) {
+        specificTs = rawVal;
+        lastOutgoingIso = new Date(specificTs).toISOString();
+
+        if (specificTs > nowMs + MAX_FUTURE_DRIFT_MS) {
+          diagnosticError = `Timestamp ${specificTs} (${lastOutgoingIso}) is in the future relative to server time ${nowMs} (${new Date(nowMs).toISOString()})`;
+          elapsedMinutes = null;
+        } else {
+          elapsedMinutes = Math.max(0, Math.floor((nowMs - specificTs) / 60000));
+        }
+
+        // Strict mathematical consistency verification
+        const verifiedIso = new Date(specificTs).toISOString();
+        if (verifiedIso !== lastOutgoingIso) {
+          diagnosticError = `ISO mismatch: generated '${lastOutgoingIso}' !== recomputed '${verifiedIso}'`;
+        }
+      }
+    }
 
     return sendJson(res, 200, {
       success: true,
       ...(accountFilter ? {
         account_id: accountFilter,
-        last_outgoing_at: specificTs || null,
-        last_outgoing_iso: specificTs ? new Date(specificTs).toISOString() : null,
-        elapsed_minutes: elapsedMinutes
+        last_outgoing_at: specificTs,
+        last_outgoing_iso: lastOutgoingIso,
+        elapsed_minutes: elapsedMinutes,
+        ...(diagnosticError ? { diagnostic_error: diagnosticError } : {})
       } : {}),
       lastOutgoingAtByAccount: lastOutgoingMap
     });
