@@ -2017,19 +2017,38 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
     return (nowTime - lastActivitySyncAt) <= 90 * 1000;
   }, [lastActivitySyncSuccess, lastActivitySyncAt, nowTime]);
 
+  /**
+   * Unified Helper: Calculate NET earnings for a model for the given day mode ('today' | 'yesterday').
+   * - For 'today': Sums NET earnings from 02:00 Kyiv Time up to the current active shift (1..currentKyivShiftIndex).
+   * - For 'yesterday': Sums NET earnings for the entire operational day (shifts 1..4).
+   */
+  const calculateModelNet = (
+    acc: { today_earnings?: number | null; earnings_breakdown?: { 1?: number; 2?: number; 3?: number; 4?: number } | null },
+    dayMode: 'today' | 'yesterday' = accountsEarningsDay
+  ): number | null => {
+    if (acc.earnings_breakdown) {
+      if (dayMode === 'today') {
+        let sum = 0;
+        for (let s = 1; s <= currentKyivShiftIndex; s++) {
+          sum += Number(acc.earnings_breakdown[s as 1 | 2 | 3 | 4]) || 0;
+        }
+        return Math.round(sum * 100) / 100;
+      } else {
+        const b = acc.earnings_breakdown;
+        const sum = (Number(b[1]) || 0) + (Number(b[2]) || 0) + (Number(b[3]) || 0) + (Number(b[4]) || 0);
+        return Math.round(sum * 100) / 100;
+      }
+    }
+    if (typeof acc.today_earnings === 'number') {
+      return Math.round(acc.today_earnings * 100) / 100;
+    }
+    return null;
+  };
+
   const totalTodaySum = useMemo(() => {
     return filteredAccounts.reduce((sum, acc) => {
-      if (acc.earnings_breakdown) {
-        let accDaySum = 0;
-        for (let s = 1; s <= currentKyivShiftIndex; s++) {
-          const val = acc.earnings_breakdown[s as 1 | 2 | 3 | 4];
-          if (typeof val === 'number') {
-            accDaySum += val;
-          }
-        }
-        return sum + accDaySum;
-      }
-      return sum + (typeof acc.today_earnings === 'number' ? acc.today_earnings : 0);
+      const modelNet = calculateModelNet(acc, 'today');
+      return sum + (modelNet !== null ? modelNet : 0);
     }, 0);
   }, [filteredAccounts, currentKyivShiftIndex]);
 
@@ -2622,13 +2641,13 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
               <div className="p-3.5 bg-slate-900/70 rounded-2xl border border-white/5 space-y-1">
                 <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
                   <DollarSign size={12} className="text-emerald-400" />
-                  Доход смены
+                  ДОХОД СМЕНЫ · NET
                 </span>
                 <p className="text-sm sm:text-base font-black text-emerald-400">
                   +${totalShiftRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <span className="text-[10px] text-slate-400 block">
-                  Сегодня: ${totalTodaySum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <span className="text-[10px] text-slate-400 block font-mono">
+                  Сегодня · NET: ${totalTodaySum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
             </div>
@@ -2826,21 +2845,24 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
 
                       <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
                         <span className="text-[8px] uppercase text-slate-500 font-bold block truncate">
-                          Доход {acc.earnings_label ? acc.earnings_label.toLowerCase() : (accountsEarningsDay === 'today' ? 'сегодня' : 'вчера')}
+                          {accountsEarningsDay === 'today' ? 'ДОХОД СЕГОДНЯ · NET' : 'ДОХОД ВЧЕРА · NET'}
                         </span>
-                        {isEarningsLoading && acc.today_earnings === undefined ? (
+                        {isEarningsLoading && (acc.today_earnings === undefined && !acc.earnings_breakdown) ? (
                           <span className="flex items-center justify-center mt-1">
                             <RefreshCw size={12} className="animate-spin text-violet-400" />
                           </span>
-                        ) : typeof acc.today_earnings === 'number' ? (
-                          <span className="text-xs font-black text-emerald-400 block mt-0.5">
-                            +${acc.today_earnings}
-                          </span>
-                        ) : (
-                          <span className="text-xs font-black text-slate-500 block mt-0.5">
-                            —
-                          </span>
-                        )}
+                        ) : (() => {
+                          const netVal = calculateModelNet(acc, accountsEarningsDay);
+                          return typeof netVal === 'number' ? (
+                            <span className="text-xs font-black text-emerald-400 block mt-0.5">
+                              +${netVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          ) : (
+                            <span className="text-xs font-black text-slate-500 block mt-0.5">
+                              —
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
 

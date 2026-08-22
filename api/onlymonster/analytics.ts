@@ -137,9 +137,47 @@ async function getAccountEarnings(
           status === 'chargeback';
 
         if (!isExcludedStatus) {
-          const rawAmt = tx.amount !== undefined ? tx.amount : tx.sum;
-          const val = typeof rawAmt === 'number' ? rawAmt : parseFloat(rawAmt);
-          if (!isNaN(val)) {
+          // Extract NET amount from OnlyMonster/OnlyFans transaction data
+          let val: number | null = null;
+
+          // 1. Direct NET fields from OnlyMonster / OnlyFans API
+          const netCandidate =
+            tx.net_amount !== undefined ? tx.net_amount :
+            tx.net !== undefined ? tx.net :
+            tx.netAmount !== undefined ? tx.netAmount :
+            tx.creator_amount !== undefined ? tx.creator_amount :
+            tx.creatorAmount !== undefined ? tx.creatorAmount :
+            tx.amount_net !== undefined ? tx.amount_net :
+            tx.payout_amount !== undefined ? tx.payout_amount :
+            undefined;
+
+          if (netCandidate !== undefined && netCandidate !== null) {
+            const parsed = typeof netCandidate === 'number' ? netCandidate : parseFloat(netCandidate);
+            if (!isNaN(parsed)) val = parsed;
+          }
+
+          // 2. If gross and fee are provided separately
+          if (val === null && tx.gross !== undefined && tx.fee !== undefined) {
+            const gross = typeof tx.gross === 'number' ? tx.gross : parseFloat(tx.gross);
+            const fee = typeof tx.fee === 'number' ? tx.fee : parseFloat(tx.fee);
+            if (!isNaN(gross) && !isNaN(fee)) val = gross - fee;
+          }
+
+          // 3. If amount and fee are provided
+          if (val === null && tx.amount !== undefined && tx.fee !== undefined && Number(tx.fee) > 0 && Number(tx.amount) > Number(tx.fee)) {
+            const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount);
+            const fee = typeof tx.fee === 'number' ? tx.fee : parseFloat(tx.fee);
+            if (!isNaN(amt) && !isNaN(fee)) val = amt - fee;
+          }
+
+          // 4. Fallback to amount / sum
+          if (val === null) {
+            const rawAmt = tx.amount !== undefined ? tx.amount : tx.sum;
+            const parsed = typeof rawAmt === 'number' ? rawAmt : parseFloat(rawAmt);
+            if (!isNaN(parsed)) val = parsed;
+          }
+
+          if (val !== null && !isNaN(val)) {
             txCount++;
             totalAmount += val;
 
