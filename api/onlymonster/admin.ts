@@ -622,30 +622,98 @@ async function handleLiveEvents(req: any, res: any, queryParams: Record<string, 
       });
     }
 
+    // POST: Insert or upsert milestone live events
+    if (req.method === 'POST') {
+      let body = req.body;
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch (e) { body = {}; }
+      }
+      const rawEvents = Array.isArray(body?.events) ? body.events : (body ? [body] : []);
+      if (rawEvents.length === 0) {
+        return sendJson(res, 400, { success: false, error: 'No events provided in request body' });
+      }
+
+      const rowsToInsert = rawEvents.map((ev: any) => {
+        const nowIso = new Date().toISOString();
+        const expiresIso = ev.expires_at || new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+        return {
+          dedupe_key: ev.dedupe_key,
+          event_type: ev.event_type || 'account_shift_revenue_milestone',
+          category: ev.category || 'finance',
+          account_id: ev.account_id ? String(ev.account_id) : null,
+          account_name: ev.account_name || null,
+          shift_id: String(ev.shift_id || ''),
+          milestone: Number(ev.milestone || 0),
+          amount: ev.amount !== undefined ? Number(ev.amount) : null,
+          currency: ev.currency || 'USD',
+          title: ev.title,
+          status: ev.status || 'active',
+          created_at: ev.created_at || nowIso,
+          updated_at: ev.updated_at || nowIso,
+          expires_at: expiresIso,
+        };
+      });
+
+      // Try inserting into live_events first, fallback to om_live_events
+      let insertRes = await supabase
+        .from('live_events')
+        .upsert(rowsToInsert, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+
+      if (insertRes.error && insertRes.error.message?.includes('does not exist')) {
+        insertRes = await supabase
+          .from('om_live_events')
+          .upsert(rowsToInsert, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+      }
+
+      if (insertRes.error) {
+        console.error('[LiveEvents] Upsert error:', insertRes.error);
+        return sendJson(res, 500, { success: false, error: insertRes.error.message });
+      }
+
+      return sendJson(res, 200, {
+        success: true,
+        inserted_count: rowsToInsert.length
+      });
+    }
+
+    // GET: Query unexpired financial milestone events
     const nowIso = new Date().toISOString();
     const limit = Math.min(Math.max(parseInt(queryParams.limit || '100', 10) || 100, 1), 500);
-    const category = queryParams.category;
-    const status = queryParams.status;
     const shiftId = queryParams.shift_id;
 
+    // Requirement 9: WHERE expires_at > now() AND event_type = 'account_shift_revenue_milestone'
     let query = supabase
-      .from('om_live_events')
+      .from('live_events')
       .select('*')
       .gt('expires_at', nowIso)
-      .order('updated_at', { ascending: false })
+      .eq('event_type', 'account_shift_revenue_milestone')
+      .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (category && category !== 'all') {
-      query = query.eq('category', category);
-    }
-    if (status) {
-      query = query.eq('status', status);
-    }
     if (shiftId) {
       query = query.eq('shift_id', shiftId);
     }
 
-    const { data, error } = await query;
+    let { data, error } = await query;
+
+    if (error && error.message?.includes('does not exist')) {
+      // Fallback query to om_live_events
+      let fallbackQuery = supabase
+        .from('om_live_events')
+        .select('*')
+        .gt('expires_at', nowIso)
+        .eq('event_type', 'account_shift_revenue_milestone')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (shiftId) {
+        fallbackQuery = fallbackQuery.eq('shift_id', shiftId);
+      }
+
+      const fbResult = await fallbackQuery;
+      data = fbResult.data;
+      error = fbResult.error;
+    }
 
     if (error) {
       return sendJson(res, 200, {
@@ -688,10 +756,21 @@ async function handleCleanupLiveEvents(req: any, res: any, queryParams: Record<s
     }
 
     const nowIso = new Date().toISOString();
-    const { error, count } = await supabase
-      .from('om_live_events')
+    
+    // Only delete expired rows from live_events / om_live_events where expires_at <= now()
+    let { error, count } = await supabase
+      .from('live_events')
       .delete({ count: 'exact' })
       .lte('expires_at', nowIso);
+
+    if (error && error.message?.includes('does not exist')) {
+      const fb = await supabase
+        .from('om_live_events')
+        .delete({ count: 'exact' })
+        .lte('expires_at', nowIso);
+      error = fb.error;
+      count = fb.count;
+    }
 
     if (error) {
       return sendJson(res, 200, {
