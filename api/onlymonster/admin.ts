@@ -174,12 +174,13 @@ async function handleLastActivity(req: any, res: any) {
       });
     }
 
+    // Query last outgoing chat messages without shift boundaries across full webhook history
     const { data, error } = await supabase
       .from('om_webhook_events')
       .select('account_id, platform_account_id, payload, event_timestamp, received_at')
       .eq('event_type', 'chat.message')
       .order('received_at', { ascending: false })
-      .limit(500);
+      .limit(2000);
 
     if (error) {
       console.error('[LastActivity] Error fetching from Supabase:', error);
@@ -203,15 +204,26 @@ async function handleLastActivity(req: any, res: any) {
       );
 
       if (!isIncoming) {
-        const rawAccId = row.account_id || row.platform_account_id || p.account_id || p.platform_account_id || p.creator_id || p.model_id;
-        if (rawAccId) {
-          const accKey = String(rawAccId);
-          const ts = new Date(row.event_timestamp || row.received_at || 0).getTime();
-          if (ts > 0) {
-            if (!lastOutgoingMap[accKey] || ts > lastOutgoingMap[accKey]) {
-              lastOutgoingMap[accKey] = ts;
+        const rawAccIds = [
+          row.account_id,
+          row.platform_account_id,
+          p.account_id,
+          p.platform_account_id,
+          p.creator_id,
+          p.model_id
+        ].filter(Boolean);
+
+        const tsStr = row.event_timestamp || row.received_at;
+        const ts = tsStr ? new Date(tsStr).getTime() : 0;
+        if (ts > 0) {
+          rawAccIds.forEach(id => {
+            const accKey = String(id).trim();
+            if (accKey) {
+              if (!lastOutgoingMap[accKey] || ts > lastOutgoingMap[accKey]) {
+                lastOutgoingMap[accKey] = ts;
+              }
             }
-          }
+          });
         }
       }
     });

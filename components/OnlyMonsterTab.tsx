@@ -1456,6 +1456,7 @@ export const RealtimeEventFeed: React.FC<{
   onAccountClick: (acc: OnlyMonsterAccount) => void;
   onNavigateToAccountsTab: () => void;
   onNavigateToOperatorsTab?: () => void;
+  lastOutgoingAtByAccount?: Record<string, number>;
   onUpdateLastOutgoingMap?: (mapUpdater: (prev: Record<string, number>) => Record<string, number>) => void;
 }> = ({
   accounts,
@@ -1463,6 +1464,7 @@ export const RealtimeEventFeed: React.FC<{
   onAccountClick,
   onNavigateToAccountsTab,
   onNavigateToOperatorsTab,
+  lastOutgoingAtByAccount,
   onUpdateLastOutgoingMap,
 }) => {
   const [filter, setFilter] = useState<LiveEventCategory>('all');
@@ -1476,6 +1478,18 @@ export const RealtimeEventFeed: React.FC<{
   const lastKnownIdRef = useRef<number | string | null>(null);
   const lastOutgoingMapRef = useRef<Record<string, number>>({});
   const activeShiftRef = useRef<KyivShiftRange>(getKyivShiftRange(new Date()));
+
+  // Synchronize incoming lastOutgoingAtByAccount without ever wiping existing valid timestamps
+  useEffect(() => {
+    if (lastOutgoingAtByAccount && Object.keys(lastOutgoingAtByAccount).length > 0) {
+      Object.entries(lastOutgoingAtByAccount).forEach(([k, ts]) => {
+        const numTs = Number(ts);
+        if (numTs > 0) {
+          lastOutgoingMapRef.current[k] = Math.max(lastOutgoingMapRef.current[k] || 0, numTs);
+        }
+      });
+    }
+  }, [lastOutgoingAtByAccount]);
 
   // Operator reply time violation duration tracker
   const operatorSlowReplyStartRef = useRef<Record<string, number>>({});
@@ -1817,76 +1831,81 @@ export const RealtimeEventFeed: React.FC<{
           .filter(Boolean);
         const modelNamesStr = assignedModelNames.length > 0 ? assignedModelNames.join(', ') : 'Назначенные модели';
 
-        // 1. Inactivity Check (15 minutes)
+        // 1. Inactivity Check (15 minutes threshold based on true last outgoing message)
         if (assignedAccIds.length > 0) {
-          let latestActivityTs = shiftStartTs;
+          let latestActivityTs = 0;
           assignedAccIds.forEach(id => {
-            if (outMap[id] && outMap[id] > latestActivityTs) {
-              latestActivityTs = outMap[id];
+            const ts = outMap[id];
+            if (typeof ts === 'number' && ts > 0 && ts > latestActivityTs) {
+              latestActivityTs = ts;
             }
           });
 
-          const inactiveDiffMs = Math.max(0, nowTs - latestActivityTs);
-          const inactiveMinutes = Math.floor(inactiveDiffMs / (60 * 1000));
-          const inactiveDedupeKey = `operator_inactive:${opId}:${shiftIndex}`;
-          const existingInactive = nextEvents.get(inactiveDedupeKey);
+          // Only proceed if we have a real historical outgoing message (unknown = do not show alert)
+          if (latestActivityTs > 0) {
+            const inactiveDiffMs = Math.max(0, nowTs - latestActivityTs);
+            const inactiveMinutes = Math.floor(inactiveDiffMs / (60 * 1000));
+            const inactiveDedupeKey = `operator_inactive:${opId}:${shiftIndex}`;
+            const existingInactive = nextEvents.get(inactiveDedupeKey);
 
-          if (inactiveMinutes >= OPERATOR_INACTIVE_MINUTES) {
-            if (existingInactive) {
-              existingInactive.description = `@${opName} · нет активности ${inactiveMinutes} минут (${modelNamesStr})`;
-              existingInactive.current_val_text = `${inactiveMinutes} минут`;
-              existingInactive.duration_text = `${inactiveMinutes}м`;
+            if (inactiveMinutes >= OPERATOR_INACTIVE_MINUTES) {
+              const formattedDuration = formatAlertDuration(inactiveDiffMs / 1000);
+              if (existingInactive) {
+                existingInactive.description = `@${opName} · нет активности ${formattedDuration} (${modelNamesStr})`;
+                existingInactive.current_val_text = formattedDuration;
+                existingInactive.duration_text = `${inactiveMinutes}м`;
+                existingInactive.updated_at = nowIso;
+                existingInactive.status = 'active';
+              } else {
+                nextEvents.set(inactiveDedupeKey, {
+                  id: `op-inact-${opId}-${shiftIndex}`,
+                  dedupe_key: inactiveDedupeKey,
+                  category: 'operators',
+                  event_type: 'operator.inactive',
+                  severity: 'red',
+                  operator_id: opId,
+                  operator_name: opName,
+                  shift_id: String(shiftIndex),
+                  shift_label: shiftLabel,
+                  title: `🔴 НЕТ АКТИВНОСТИ (@${opName})`,
+                  description: `@${opName} · нет активности ${formattedDuration} (${modelNamesStr})`,
+                  subtitle: `Аккаунты: ${modelNamesStr} | ${shiftLabel}`,
+                  threshold_text: `Порог: ${OPERATOR_INACTIVE_MINUTES} минут без сообщений`,
+                  current_val_text: formattedDuration,
+                  duration_text: `${inactiveMinutes}м`,
+                  status: 'active',
+                  created_at: nowIso,
+                  updated_at: nowIso,
+                  expires_at: expiresIso,
+                });
+              }
+            } else if (existingInactive && existingInactive.status === 'active') {
+              // Operator resumed activity -> mark warning as resolved & emit single recovery event
+              existingInactive.status = 'resolved';
               existingInactive.updated_at = nowIso;
-              existingInactive.status = 'active';
-            } else {
-              nextEvents.set(inactiveDedupeKey, {
-                id: `op-inact-${opId}-${shiftIndex}`,
-                dedupe_key: inactiveDedupeKey,
-                category: 'operators',
-                event_type: 'operator.inactive',
-                severity: 'red',
-                operator_id: opId,
-                operator_name: opName,
-                shift_id: String(shiftIndex),
-                shift_label: shiftLabel,
-                title: `🔴 НЕТ АКТИВНОСТИ (@${opName})`,
-                description: `@${opName} · нет активности ${inactiveMinutes} минут (${modelNamesStr})`,
-                subtitle: `Аккаунты: ${modelNamesStr} | ${shiftLabel}`,
-                threshold_text: `Порог: ${OPERATOR_INACTIVE_MINUTES} минут без сообщений`,
-                current_val_text: `${inactiveMinutes} минут`,
-                duration_text: `${inactiveMinutes}м`,
-                status: 'active',
-                created_at: nowIso,
-                updated_at: nowIso,
-                expires_at: expiresIso,
-              });
-            }
-          } else if (existingInactive && existingInactive.status === 'active') {
-            // Operator resumed activity -> mark warning as resolved & emit single recovery event
-            existingInactive.status = 'resolved';
-            existingInactive.updated_at = nowIso;
 
-            const resumeDedupeKey = `operator_recovered_activity:${opId}:${shiftIndex}`;
-            if (!resolvedKeysRef.current.has(resumeDedupeKey)) {
-              resolvedKeysRef.current.add(resumeDedupeKey);
-              nextEvents.set(resumeDedupeKey, {
-                id: `op-resumed-${opId}-${shiftIndex}-${nowTs}`,
-                dedupe_key: resumeDedupeKey,
-                category: 'operators',
-                event_type: 'operator.activity_resumed',
-                severity: 'green',
-                operator_id: opId,
-                operator_name: opName,
-                shift_id: String(shiftIndex),
-                shift_label: shiftLabel,
-                title: `🟢 АКТИВНОСТЬ ВОЗОБНОВЛЕНА`,
-                description: `@${opName} возобновил отправку сообщений на ${modelNamesStr}`,
-                status: 'resolved',
-                related_event_id: existingInactive.id,
-                created_at: nowIso,
-                updated_at: nowIso,
-                expires_at: expiresIso,
-              });
+              const resumeDedupeKey = `operator_recovered_activity:${opId}:${shiftIndex}`;
+              if (!resolvedKeysRef.current.has(resumeDedupeKey)) {
+                resolvedKeysRef.current.add(resumeDedupeKey);
+                nextEvents.set(resumeDedupeKey, {
+                  id: `op-resumed-${opId}-${shiftIndex}-${nowTs}`,
+                  dedupe_key: resumeDedupeKey,
+                  category: 'operators',
+                  event_type: 'operator.activity_resumed',
+                  severity: 'green',
+                  operator_id: opId,
+                  operator_name: opName,
+                  shift_id: String(shiftIndex),
+                  shift_label: shiftLabel,
+                  title: `🟢 АКТИВНОСТЬ ВОЗОБНОВЛЕНА`,
+                  description: `@${opName} возобновил отправку сообщений на ${modelNamesStr}`,
+                  status: 'resolved',
+                  related_event_id: existingInactive.id,
+                  created_at: nowIso,
+                  updated_at: nowIso,
+                  expires_at: expiresIso,
+                });
+              }
             }
           }
         }
@@ -2091,10 +2110,12 @@ export const RealtimeEventFeed: React.FC<{
         ) {
           activeShiftRef.current = currentShift;
           lastKnownIdRef.current = null;
-          lastOutgoingMapRef.current = {};
+          // CRITICAL: Preserve lastOutgoingMapRef across shifts - do NOT reset to {}
+          // Only reset shift-specific cumulative milestones, tempo warnings & resolution trackers
           resolvedKeysRef.current.clear();
           passedMilestonesRef.current.clear();
           initializedShiftRef.current = null;
+          operatorSlowReplyStartRef.current = {};
 
           if (isMounted) {
             const shiftStartEvent: LiveFeedItem = {
@@ -2114,9 +2135,28 @@ export const RealtimeEventFeed: React.FC<{
             };
             setLiveEventsMap(new Map([[shiftStartEvent.dedupe_key, shiftStartEvent]]));
           }
-          if (onUpdateLastOutgoingMap) {
-            onUpdateLastOutgoingMap(() => ({}));
+
+          // Fetch fresh global last-activity across entire history on shift transition
+          try {
+            const actRes = await fetch('/api/onlymonster/admin?resource=last-activity');
+            if (actRes.ok) {
+              const actData = await actRes.json();
+              if (actData.success && actData.lastOutgoingAtByAccount) {
+                Object.entries(actData.lastOutgoingAtByAccount).forEach(([k, ts]) => {
+                  const numTs = Number(ts);
+                  if (numTs > 0) {
+                    lastOutgoingMapRef.current[k] = Math.max(lastOutgoingMapRef.current[k] || 0, numTs);
+                  }
+                });
+                if (onUpdateLastOutgoingMap) {
+                  onUpdateLastOutgoingMap(prev => ({ ...prev, ...lastOutgoingMapRef.current }));
+                }
+              }
+            }
+          } catch (e) {
+            console.error('[RealtimeEventFeed] Error refreshing last-activity on shift rollover:', e);
           }
+
           isInitial = true;
         }
 
@@ -2641,7 +2681,11 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
       }
     };
     fetchInitialLastActivity();
-    return () => { isMounted = false; };
+    const interval = setInterval(fetchInitialLastActivity, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [accounts]);
 
   const attentionAlerts = useMemo(() => {
@@ -3414,6 +3458,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
           <RealtimeEventFeed
             accounts={accounts}
             operators={operators}
+            lastOutgoingAtByAccount={lastOutgoingAtByAccount}
             onAccountClick={(acc) => handleAccountClick(acc)}
             onNavigateToAccountsTab={() => setActiveSubTab('models')}
             onNavigateToOperatorsTab={() => handleSubTabChange('operator_metrics')}
