@@ -1263,7 +1263,9 @@ export function computeAttentionAlerts(
 
       // 🔴 5. Overload (unanswered >= 10 and exactly 1 operator assigned) vs regular 10+ unanswered
       if (unansweredCountsByAccount) {
-        const unansweredCount = (k1 && unansweredCountsByAccount[k1]) || (k2 && unansweredCountsByAccount[k2]) || 0;
+        const count1 = (k1 && unansweredCountsByAccount[k1]) || 0;
+        const count2 = (k2 && unansweredCountsByAccount[k2]) || 0;
+        const unansweredCount = Math.max(count1, count2);
         if (unansweredCount >= OVERLOAD_UNANSWERED_THRESHOLD) {
           if (realOpCount === 1) {
             alerts.push({
@@ -1291,7 +1293,11 @@ export function computeAttentionAlerts(
 
       // 🔴 2. Specific message waiting for reply > SLOW_REPLY_WAITING_MINUTES (10m)
       if (oldestUnansweredTsByAccount) {
-        const oldestTs = (k1 && oldestUnansweredTsByAccount[k1]) || (k2 && oldestUnansweredTsByAccount[k2]) || 0;
+        const oldestCandidates = [
+          k1 && oldestUnansweredTsByAccount[k1],
+          k2 && oldestUnansweredTsByAccount[k2]
+        ].filter((t): t is number => typeof t === 'number' && t > 0);
+        const oldestTs = oldestCandidates.length > 0 ? Math.min(...oldestCandidates) : 0;
         if (oldestTs > 0) {
           const waitMs = Math.max(0, now - oldestTs);
           const waitMins = waitMs / (60 * 1000);
@@ -1323,7 +1329,9 @@ export function computeAttentionAlerts(
       } else {
         // 🟠 / 🔴 1. Account idle (15+ min with no answers, account-centric attribution)
         if (lastOutgoingAtByAccount) {
-          const lastTs = (k1 && lastOutgoingAtByAccount[k1]) || (k2 && lastOutgoingAtByAccount[k2]);
+          const ts1 = (k1 && lastOutgoingAtByAccount[k1]) || 0;
+          const ts2 = (k2 && lastOutgoingAtByAccount[k2]) || 0;
+          const lastTs = Math.max(ts1, ts2);
 
           if (typeof lastTs === 'number' && lastTs > 0) {
             const elapsedMs = Math.max(0, now - lastTs);
@@ -1333,7 +1341,9 @@ export function computeAttentionAlerts(
               const formattedDuration = formatAlertDuration(elapsedMs / 1000);
               const opAnalysis = getAccountShiftOperators(acc, operators || [], shiftInfo?.start, lastOutgoingAtByAccount);
 
-              const unansweredCount = (k1 && unansweredCountsByAccount?.[k1]) || (k2 && unansweredCountsByAccount?.[k2]) || 0;
+              const count1 = (k1 && unansweredCountsByAccount?.[k1]) || 0;
+              const count2 = (k2 && unansweredCountsByAccount?.[k2]) || 0;
+              const unansweredCount = Math.max(count1, count2);
               const hasWaitingFans = unansweredCount > 0;
 
               const severity: 'red' | 'amber' = hasWaitingFans ? 'red' : 'amber';
@@ -1749,22 +1759,38 @@ export const RealtimeEventFeed: React.FC<{
       const rawPayload = e.payload || {};
       const p = rawPayload.payload || rawPayload;
       const type = (e.event_type || '').toLowerCase().trim();
-      const rawAccId = String(e.account_id || e.platform_account_id || p.account_id || p.platform_account_id || p.creator_id || '');
-      const modelName = accountsMap.get(rawAccId) || (rawAccId ? `Модель ${rawAccId}` : 'Модель');
-      const eventTs = new Date(e.event_timestamp || e.received_at || Date.now()).getTime();
-
-      // Track outgoing messages for activity timestamps
       const isChatMessage = type === 'chat.message';
       const parsedDir = isChatMessage ? parseChatMessageDirection(e, e.platform_account_id) : null;
       const isOutgoing = Boolean(parsedDir?.isOutgoing);
 
-      if (isOutgoing && rawAccId && eventTs > 0) {
-        nextMap[rawAccId] = Math.max(nextMap[rawAccId] || 0, eventTs);
-        const matchingAcc = accounts.find(a => String(a.id) === rawAccId || String(a.platform_account_id) === rawAccId);
-        if (matchingAcc) {
-          if (matchingAcc.id) nextMap[String(matchingAcc.id)] = Math.max(nextMap[String(matchingAcc.id)] || 0, eventTs);
-          if (matchingAcc.platform_account_id) nextMap[String(matchingAcc.platform_account_id)] = Math.max(nextMap[String(matchingAcc.platform_account_id)] || 0, eventTs);
-        }
+      const rawAccIds = [
+        e.account_id,
+        e.platform_account_id,
+        p.account_id,
+        p.platform_account_id,
+        p.creator_id,
+        p.model_id,
+        p.account?.id,
+        p.account?.account_id,
+        p.account?.platform_account_id,
+        parsedDir?.accountId,
+        parsedDir?.platformAccountId
+      ].filter(Boolean).map(id => String(id).trim()).filter(Boolean);
+
+      const rawAccId = rawAccIds[0] || '';
+      const modelName = accountsMap.get(rawAccId) || (rawAccId ? `Модель ${rawAccId}` : 'Модель');
+      const eventTs = new Date(e.event_timestamp || e.received_at || Date.now()).getTime();
+
+      // Track outgoing messages for activity timestamps across all aliases
+      if (isOutgoing && rawAccIds.length > 0 && eventTs > 0) {
+        rawAccIds.forEach(id => {
+          nextMap[id] = Math.max(nextMap[id] || 0, eventTs);
+          const matchingAcc = accounts.find(a => String(a.id) === id || String(a.platform_account_id) === id);
+          if (matchingAcc) {
+            if (matchingAcc.id) nextMap[String(matchingAcc.id)] = Math.max(nextMap[String(matchingAcc.id)] || 0, eventTs);
+            if (matchingAcc.platform_account_id) nextMap[String(matchingAcc.platform_account_id)] = Math.max(nextMap[String(matchingAcc.platform_account_id)] || 0, eventTs);
+          }
+        });
       }
 
       // ─── Financial Webhook Events (Confirmed Transactions) ───

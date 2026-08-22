@@ -164,7 +164,7 @@ async function handleWebhooks(req: any, res: any) {
   }
 }
 
-async function handleLastActivity(req: any, res: any) {
+async function handleLastActivity(req: any, res: any, queryParams: Record<string, string> = {}) {
   try {
     const supabase = await getSupabaseClient();
     if (!supabase) {
@@ -175,13 +175,21 @@ async function handleLastActivity(req: any, res: any) {
       });
     }
 
-    // Query last outgoing chat messages without shift boundaries across full webhook history
-    const { data, error } = await supabase
+    const accountFilter = queryParams.account_id || queryParams.account || '';
+
+    // Query last outgoing chat messages across full webhook history
+    let query = supabase
       .from('om_webhook_events')
       .select('account_id, platform_account_id, payload, event_timestamp, received_at')
       .eq('event_type', 'chat.message')
       .order('received_at', { ascending: false })
       .limit(2000);
+
+    if (accountFilter) {
+      query = query.or(`account_id.eq.${accountFilter},platform_account_id.eq.${accountFilter}`);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('[LastActivity] Error fetching from Supabase:', error);
@@ -207,6 +215,9 @@ async function handleLastActivity(req: any, res: any) {
           p.platform_account_id,
           p.creator_id,
           p.model_id,
+          p.account?.id,
+          p.account?.account_id,
+          p.account?.platform_account_id,
           parsedDir.accountId,
           parsedDir.platformAccountId
         ].filter(Boolean);
@@ -226,8 +237,16 @@ async function handleLastActivity(req: any, res: any) {
       }
     });
 
+    const specificTs = accountFilter ? (lastOutgoingMap[accountFilter] || 0) : undefined;
+
     return sendJson(res, 200, {
       success: true,
+      ...(accountFilter ? {
+        account_id: accountFilter,
+        last_outgoing_at: specificTs || null,
+        last_outgoing_iso: specificTs ? new Date(specificTs).toISOString() : null,
+        elapsed_minutes: specificTs ? Math.floor((Date.now() - specificTs) / 60000) : null
+      } : {}),
       lastOutgoingAtByAccount: lastOutgoingMap
     });
   } catch (err: any) {
@@ -267,7 +286,7 @@ async function handleUnansweredCounts(req: any, res: any) {
       });
     }
 
-    // First find last outgoing timestamp per account
+    // First find last outgoing timestamp across all aliases per account
     const lastOutgoingMap: Record<string, number> = {};
     const eventsByAccount: Record<string, Array<{ isIncoming: boolean; ts: number }>> = {};
 
@@ -275,22 +294,69 @@ async function handleUnansweredCounts(req: any, res: any) {
       const rawPayload = row.payload || {};
       const p = rawPayload.payload || rawPayload;
       const parsedDir = parseChatMessageDirection(row, row.platform_account_id);
-      const rawAccId = row.account_id || row.platform_account_id || p.account_id || p.platform_account_id || p.creator_id || p.model_id || parsedDir.accountId || parsedDir.platformAccountId;
-      if (!rawAccId) return;
+      
+      const rawAccIds = [
+        row.account_id,
+        row.platform_account_id,
+        p.account_id,
+        p.platform_account_id,
+        p.creator_id,
+        p.model_id,
+        p.account?.id,
+        p.account?.account_id,
+        p.account?.platform_account_id,
+        parsedDir.accountId,
+        parsedDir.platformAccountId
+      ].filter(Boolean).map(id => String(id).trim()).filter(Boolean);
 
-      const accKey = String(rawAccId);
+      if (rawAccIds.length === 0) return;
+
       const ts = new Date(row.event_timestamp || row.received_at || 0).getTime();
       if (ts <= 0) return;
 
-      if (!eventsByAccount[accKey]) {
-        eventsByAccount[accKey] = [];
-      }
-      eventsByAccount[accKey].push({ isIncoming: parsedDir.isIncoming, ts });
-
-      if (parsedDir.isOutgoing) {
-        if (!lastOutgoingMap[accKey] || ts > lastOutgoingMap[accKey]) {
-          lastOutgoingMap[accKey] = ts;
+      rawAccIds.forEach(accKey => {
+        if (!eventsByAccount[accKey]) {
+          eventsByAccount[accKey] = [];
         }
+        eventsByAccount[accKey].push({ isIncoming: parsedDir.isIncoming, ts });
+
+        if (parsedDir.isOutgoing) {
+          if (!lastOutgoingMap[accKey] || ts > lastOutgoingMap[accKey]) {
+            lastOutgoingMap[accKey] = ts;
+          }
+        }
+      });
+    });
+
+    // Cross-propagate max outgoing timestamp across all aliases in the same row
+    (data || []).forEach((row: any) => {
+      const rawPayload = row.payload || {};
+      const p = rawPayload.payload || rawPayload;
+      const parsedDir = parseChatMessageDirection(row, row.platform_account_id);
+      const rawAccIds = [
+        row.account_id,
+        row.platform_account_id,
+        p.account_id,
+        p.platform_account_id,
+        p.creator_id,
+        p.model_id,
+        p.account?.id,
+        p.account?.account_id,
+        p.account?.platform_account_id,
+        parsedDir.accountId,
+        parsedDir.platformAccountId
+      ].filter(Boolean).map(id => String(id).trim()).filter(Boolean);
+
+      let maxOut = 0;
+      rawAccIds.forEach(id => {
+        if (lastOutgoingMap[id] && lastOutgoingMap[id] > maxOut) {
+          maxOut = lastOutgoingMap[id];
+        }
+      });
+      if (maxOut > 0) {
+        rawAccIds.forEach(id => {
+          lastOutgoingMap[id] = Math.max(lastOutgoingMap[id] || 0, maxOut);
+        });
       }
     });
 
@@ -553,7 +619,7 @@ export default async function handler(req: any, res: any) {
   } else if (resource === 'cleanup-live-events' || resource === 'cleanup_live_events') {
     return handleCleanupLiveEvents(req, res, queryParams);
   } else if (resource === 'last-activity' || resource === 'last_activity') {
-    return handleLastActivity(req, res);
+    return handleLastActivity(req, res, queryParams);
   } else if (resource === 'unanswered-counts' || resource === 'unanswered_counts') {
     return handleUnansweredCounts(req, res);
   } else if (resource === 'db-tables' || resource === 'tables') {
