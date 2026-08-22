@@ -1622,7 +1622,7 @@ export const RealtimeEventFeed: React.FC<{
     <>
       <div className="glass-card p-4 sm:p-5 rounded-3xl border border-white/10 bg-slate-950/60 shadow-lg space-y-3 font-mono">
         {/* Header Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2.5">
+        <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2.5">
           <div className="flex items-center gap-2.5">
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -1630,21 +1630,13 @@ export const RealtimeEventFeed: React.FC<{
             </span>
             <h3 className="text-xs font-black uppercase text-white tracking-wider flex items-center gap-2">
               <Activity size={15} className="text-emerald-400" />
-              LIVE-ЛЕНТА СОБЫТИЙ
-              <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] px-2 py-0.5 rounded-full font-bold">
-                LIVE
-              </span>
-              <span className="bg-violet-500/10 text-violet-300 border border-violet-500/20 text-[9px] px-2 py-0.5 rounded-full font-mono font-medium hidden sm:inline-block">
-                Смена {activeShiftRef.current?.label}
-              </span>
+              LIVE
             </h3>
           </div>
 
-          <div className="text-[10px] text-slate-400 flex items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <Clock size={12} className="text-slate-500" />
-              Авто-обновление 10с
-            </div>
+          <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
+            <Clock size={12} className="text-slate-500" />
+            Обновление 10с
           </div>
         </div>
 
@@ -1792,6 +1784,16 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
   const [searchQuery, setSearchQuery] = useState('');
   const [accountsEarningsDay, setAccountsEarningsDay] = useState<'today' | 'yesterday'>('today');
   const [showShiftBreakdown, setShowShiftBreakdown] = useState<boolean>(false);
+
+  // Filter accounts by search query and HIDDEN_ACCOUNT_NAMES
+  const filteredAccounts = useMemo(() => {
+    return accounts.filter(acc => 
+      !isAccountHidden(acc.name) && (
+        acc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (acc.handle && acc.handle.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    );
+  }, [accounts, searchQuery]);
 
   // Shift Operator Metrics state
   const getClientKyivShiftIndex = (): 1 | 2 | 3 | 4 => {
@@ -2016,10 +2018,29 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
   }, [lastActivitySyncSuccess, lastActivitySyncAt, nowTime]);
 
   const totalTodaySum = useMemo(() => {
-    return accounts.reduce((sum, acc) => {
+    return filteredAccounts.reduce((sum, acc) => {
       return sum + (typeof acc.today_earnings === 'number' ? acc.today_earnings : 0);
     }, 0);
-  }, [accounts]);
+  }, [filteredAccounts]);
+
+  const totalShiftRevenue = useMemo(() => {
+    return filteredAccounts.reduce((sum, acc) => {
+      const shiftIncome = (acc.earnings_breakdown && typeof acc.earnings_breakdown[currentKyivShiftIndex] === 'number')
+        ? Number(acc.earnings_breakdown[currentKyivShiftIndex])
+        : 0;
+      return sum + shiftIncome;
+    }, 0);
+  }, [filteredAccounts, currentKyivShiftIndex]);
+
+  const currentShiftTimeRange = useMemo(() => {
+    switch (currentKyivShiftIndex) {
+      case 1: return '02:00 — 08:00';
+      case 2: return '08:00 — 14:00';
+      case 3: return '14:00 — 20:00';
+      case 4: return '20:00 — 02:00';
+      default: return '14:00 — 20:00';
+    }
+  }, [currentKyivShiftIndex]);
 
   const totalUnansweredCount = useMemo(() => {
     return Object.values(unansweredCountsByAccount).reduce((sum, val) => sum + (Number(val) || 0), 0);
@@ -2473,27 +2494,14 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
     }
   }, []);
 
-  // Filter accounts by search query and HIDDEN_ACCOUNT_NAMES
-  const filteredAccounts = accounts.filter(acc => 
-    !isAccountHidden(acc.name) && (
-      acc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (acc.handle && acc.handle.toLowerCase().includes(searchQuery.toLowerCase()))
-    )
-  );
-
   return (
     <div className="space-y-6">
       {/* HEADER BAR */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-white/10">
-        <div>
-          <h2 className="text-base sm:text-lg font-black uppercase text-white tracking-wider font-mono flex items-center gap-2.5">
-            <RefreshCw size={20} className="text-violet-400" />
-            Синхронизация OnlyMonster Browser
-          </h2>
-          <p className="text-xs text-slate-400 font-mono mt-0.5">
-            Мониторинг аккаунтов моделей, показателей операторов и автоматические предупреждения
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/10">
+        <h2 className="text-base sm:text-lg font-black uppercase text-white tracking-wider font-mono flex items-center gap-2.5">
+          <RefreshCw size={20} className="text-violet-400" />
+          ONLYMONSTER
+        </h2>
       </div>
 
       {/* SUB-TABS NAVIGATION (1. LIVE [default], 2. МОДЕЛИ, 3. ОПЕРАТОРЫ) */}
@@ -2561,29 +2569,26 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
             onNavigateToAccountsTab={() => setActiveSubTab('models')}
           />
 
-          {/* 3) ОПЕРАТИВНЫЙ ПУЛЬС СМЕНЫ (Quick Shift Snapshot) */}
-          <div className="glass-card p-5 rounded-3xl border border-white/10 bg-slate-950/60 space-y-4 font-mono">
-            <div className="flex items-center justify-between gap-3 border-b border-white/5 pb-3">
-              <h3 className="text-xs sm:text-sm font-black uppercase text-white tracking-wider flex items-center gap-2">
-                <Zap size={16} className="text-amber-400" />
-                ОПЕРАТИВНАЯ СВОДКА СМЕНЫ (KYIV TIME)
+          {/* 2) ТЕКУЩАЯ СМЕНА (Оперативная сводка) */}
+          <div className="glass-card p-4 sm:p-5 rounded-3xl border border-white/10 bg-slate-950/60 space-y-3 font-mono">
+            <div className="flex items-center justify-between gap-3 border-b border-white/5 pb-2.5">
+              <h3 className="text-xs font-black uppercase text-white tracking-wider flex items-center gap-2">
+                <Zap size={15} className="text-amber-400" />
+                ТЕКУЩАЯ СМЕНА
               </h3>
-              <span className="text-[10px] text-slate-400">
-                {shiftInfo?.label || `Смена ${currentKyivShiftIndex}`}
+              <span className="text-[10px] text-slate-400 font-mono">
+                {currentShiftTimeRange.replace(' — ', '–')}
               </span>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
               <div className="p-3.5 bg-slate-900/70 rounded-2xl border border-white/5 space-y-1">
                 <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
                   <Clock size={12} className="text-violet-400" />
                   Активная смена
                 </span>
-                <p className="text-sm font-black text-white">
-                  {currentKyivShiftIndex === 1 && '02:00 – 08:00'}
-                  {currentKyivShiftIndex === 2 && '08:00 – 14:00'}
-                  {currentKyivShiftIndex === 3 && '14:00 – 20:00'}
-                  {currentKyivShiftIndex === 4 && '20:00 – 02:00'}
+                <p className="text-sm sm:text-base font-black text-white">
+                  {currentShiftTimeRange}
                 </p>
                 <span className="text-[9px] text-emerald-400 block font-bold">● В процессе</span>
               </div>
@@ -2591,58 +2596,15 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
               <div className="p-3.5 bg-slate-900/70 rounded-2xl border border-white/5 space-y-1">
                 <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
                   <DollarSign size={12} className="text-emerald-400" />
-                  Доход сегодня
+                  Доход смены
                 </span>
-                <p className="text-sm font-black text-emerald-400">
-                  +${totalTodaySum.toLocaleString()}
+                <p className="text-sm sm:text-base font-black text-emerald-400">
+                  +${totalShiftRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <span className="text-[9px] text-slate-400 block">
-                  {filteredAccounts.length} активных моделей
+                <span className="text-[10px] text-slate-400 block">
+                  Сегодня: ${totalTodaySum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
-
-              <div className="p-3.5 bg-slate-900/70 rounded-2xl border border-white/5 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
-                  <UserCheck size={12} className="text-cyan-400" />
-                  Операторов на линии
-                </span>
-                <p className="text-sm font-black text-cyan-400">
-                  {activeOpsCount} <span className="text-xs font-normal text-slate-400">/ {operators.length}</span>
-                </p>
-                <span className="text-[9px] text-slate-400 block">
-                  отвечают в чатах
-                </span>
-              </div>
-
-              <div className="p-3.5 bg-slate-900/70 rounded-2xl border border-white/5 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
-                  <MessageSquare size={12} className={totalUnansweredCount > 0 ? 'text-amber-400' : 'text-slate-400'} />
-                  Неотвеченных чатов
-                </span>
-                <p className={`text-sm font-black ${totalUnansweredCount > 0 ? 'text-amber-400' : 'text-slate-300'}`}>
-                  {totalUnansweredCount}
-                </p>
-                <span className="text-[9px] text-slate-400 block">
-                  по всем моделям
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-white/5">
-              <button
-                onClick={() => handleSubTabChange('models')}
-                className="px-3 py-1.5 bg-slate-900 border border-white/10 hover:border-violet-500/40 text-xs font-bold text-slate-200 rounded-xl transition-all flex items-center gap-1.5"
-              >
-                <Users size={13} className="text-violet-400" />
-                Все Модели
-              </button>
-              <button
-                onClick={() => handleSubTabChange('operator_metrics')}
-                className="px-3 py-1.5 bg-slate-900 border border-white/10 hover:border-violet-500/40 text-xs font-bold text-slate-200 rounded-xl transition-all flex items-center gap-1.5"
-              >
-                <UserCheck size={13} className="text-cyan-400" />
-                Метрики Операторов
-              </button>
             </div>
           </div>
         </div>
