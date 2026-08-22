@@ -187,6 +187,10 @@ export async function getAllAccountsShiftEarnings(
 ): Promise<{ 1: number; 2: number; 3: number; 4: number }> {
   const shiftTotals = { 1: 0, 2: 0, 3: 0, 4: 0 };
   try {
+    if (!token || !token.trim() || token.startsWith("om_token_fc269e0")) {
+      return shiftTotals;
+    }
+
     let platformAccountIds: string[] = providedAccountIds && providedAccountIds.length > 0
       ? providedAccountIds
       : [];
@@ -196,12 +200,16 @@ export async function getAllAccountsShiftEarnings(
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'x-om-auth-token': token
+          'x-om-auth-token': token.trim()
         }
       });
 
       if (!accRes.ok) {
-        console.error(`[getAllAccountsShiftEarnings] Failed to fetch accounts from OnlyMonster API. Status: ${accRes.status}`);
+        if (accRes.status === 401) {
+          console.warn(`[getAllAccountsShiftEarnings] OnlyMonster API authentication failed (Status: 401). Please verify ONLYMONSTER_API_KEY.`);
+        } else {
+          console.warn(`[getAllAccountsShiftEarnings] Could not fetch accounts from OnlyMonster API. Status: ${accRes.status}`);
+        }
         return shiftTotals;
       }
 
@@ -222,7 +230,6 @@ export async function getAllAccountsShiftEarnings(
     }
 
     if (platformAccountIds.length === 0) {
-      console.error('[getAllAccountsShiftEarnings] No platform account IDs found.');
       return shiftTotals;
     }
 
