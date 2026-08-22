@@ -2081,7 +2081,7 @@ export const RealtimeEventFeed: React.FC<{
       const inactiveDedupeKey = `account_inactivity:${accId}:${shiftIndex}`;
       const existingInactive = nextEvents.get(inactiveDedupeKey);
 
-      // Only check inactivity if we have real historical activity and operator is assigned
+      // Only check inactivity if we have real historical outgoing activity and operator is assigned
       if (latestActivityTs > 0 && isOperatorAssigned) {
         const inactiveDiffMs = Math.max(0, nowTs - latestActivityTs);
         const inactiveMinutes = Math.floor(inactiveDiffMs / (60 * 1000));
@@ -2135,6 +2135,9 @@ export const RealtimeEventFeed: React.FC<{
         } else if (existingInactive && existingInactive.status === 'active') {
           // Account resumed activity (or elapsed < threshold) -> mark warning as resolved & emit single recovery event
           existingInactive.status = 'resolved';
+          existingInactive.title = `🟢 ВОЗОБНОВЛЕНО (${modelName})`;
+          existingInactive.description = `${modelName} · ответы отправляются`;
+          existingInactive.severity = 'green';
           existingInactive.updated_at = nowIso;
 
           const resumeDedupeKey = `account_recovered_activity:${accId}:${shiftIndex}`;
@@ -2161,8 +2164,11 @@ export const RealtimeEventFeed: React.FC<{
           }
         }
       } else if (existingInactive && existingInactive.status === 'active') {
-        // If condition no longer holds, resolve immediately
+        // If reliable activity timestamp is not available or operator unassigned, mark resolved
         existingInactive.status = 'resolved';
+        existingInactive.title = `🟢 ВОЗОБНОВЛЕНО (${modelName})`;
+        existingInactive.description = `${modelName} · активность актуальна`;
+        existingInactive.severity = 'green';
         existingInactive.updated_at = nowIso;
       }
     });
@@ -2409,7 +2415,12 @@ export const RealtimeEventFeed: React.FC<{
 
           // Fetch fresh global last-activity across entire history on shift transition
           try {
-            const actRes = await fetch('/api/onlymonster/admin?resource=last-activity');
+            const accParam = (accounts || [])
+              .map(a => [a.id, a.platform_account_id, (a as any).account_id].filter(Boolean))
+              .flat()
+              .join(',');
+            const actUrl = '/api/onlymonster/admin?resource=last-activity' + (accParam ? `&accounts=${encodeURIComponent(accParam)}` : '');
+            const actRes = await fetch(actUrl);
             if (actRes.ok) {
               const actData = await actRes.json();
               if (actData.success && actData.lastOutgoingAtByAccount) {
@@ -2475,7 +2486,7 @@ export const RealtimeEventFeed: React.FC<{
             );
             lastOutgoingMapRef.current = nextMap;
             if (onUpdateLastOutgoingMap) {
-              onUpdateLastOutgoingMap(() => nextMap);
+              onUpdateLastOutgoingMap(prev => ({ ...prev, ...nextMap }));
             }
 
             const evaluated = evaluateDynamicRules(shift, nextMap, nextEvents);
@@ -2920,7 +2931,12 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
     let isMounted = true;
     const fetchInitialLastActivity = async () => {
       try {
-        const res = await fetch('/api/onlymonster/admin?resource=last-activity');
+        const accParam = (accounts || [])
+          .map(a => [a.id, a.platform_account_id, (a as any).account_id].filter(Boolean))
+          .flat()
+          .join(',');
+        const url = '/api/onlymonster/admin?resource=last-activity' + (accParam ? `&accounts=${encodeURIComponent(accParam)}` : '');
+        const res = await fetch(url);
         if (!res.ok) return;
         const data = await res.json();
         if (isMounted && data.success && data.lastOutgoingAtByAccount) {
@@ -2936,12 +2952,15 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
             accounts.forEach(acc => {
               const k1 = String(acc.id || '');
               const k2 = String(acc.platform_account_id || '');
+              const k3 = String((acc as any).account_id || '');
               const ts1 = next[k1] || 0;
               const ts2 = next[k2] || 0;
-              const maxTs = Math.max(ts1, ts2);
+              const ts3 = next[k3] || 0;
+              const maxTs = Math.max(ts1, ts2, ts3);
               if (maxTs > 0) {
                 if (k1) next[k1] = maxTs;
                 if (k2) next[k2] = maxTs;
+                if (k3) next[k3] = maxTs;
               }
             });
             return next;

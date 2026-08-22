@@ -176,16 +176,21 @@ async function handleLastActivity(req: any, res: any, queryParams: Record<string
     }
 
     const accountFilter = queryParams.account_id || queryParams.account || '';
+    const accountsParam = queryParams.accounts || '';
+    const requestedAccountIds = [
+      ...accountFilter.split(','),
+      ...accountsParam.split(',')
+    ].map(s => s.trim()).filter(Boolean);
 
-    // Query last outgoing chat messages across full webhook history
+    // 1. First fetch latest batch of chat messages across history (large window)
     let query = supabase
       .from('om_webhook_events')
       .select('account_id, platform_account_id, payload, event_timestamp, received_at')
       .eq('event_type', 'chat.message')
       .order('received_at', { ascending: false })
-      .limit(2000);
+      .limit(5000);
 
-    if (accountFilter) {
+    if (accountFilter && requestedAccountIds.length === 1) {
       query = query.or(`account_id.eq.${accountFilter},platform_account_id.eq.${accountFilter}`);
     }
 
@@ -200,9 +205,10 @@ async function handleLastActivity(req: any, res: any, queryParams: Record<string
       });
     }
 
+    const allRows: any[] = [...(data || [])];
     const lastOutgoingMap: Record<string, number> = {};
 
-    (data || []).forEach((row: any) => {
+    const ingestRow = (row: any) => {
       const rawPayload = row.payload || {};
       const p = rawPayload.payload || rawPayload;
       const parsedDir = parseChatMessageDirection(row, row.platform_account_id);
@@ -235,10 +241,40 @@ async function handleLastActivity(req: any, res: any, queryParams: Record<string
           });
         }
       }
-    });
+    };
 
-    // Cross-propagate max outgoing timestamp across all aliases in the same row
-    (data || []).forEach((row: any) => {
+    allRows.forEach(ingestRow);
+
+    // 2. Targeted fallback for any explicitly requested accounts not found in top batch
+    const missingAccounts = requestedAccountIds.filter(id => !lastOutgoingMap[id]);
+    if (missingAccounts.length > 0) {
+      const uniqueMissing = Array.from(new Set(missingAccounts)).slice(0, 30);
+      await Promise.all(
+        uniqueMissing.map(async (accId) => {
+          try {
+            const { data: targetedData } = await supabase
+              .from('om_webhook_events')
+              .select('account_id, platform_account_id, payload, event_timestamp, received_at')
+              .eq('event_type', 'chat.message')
+              .or(`account_id.eq.${accId},platform_account_id.eq.${accId}`)
+              .order('received_at', { ascending: false })
+              .limit(50);
+
+            if (Array.isArray(targetedData)) {
+              targetedData.forEach(row => {
+                allRows.push(row);
+                ingestRow(row);
+              });
+            }
+          } catch (e) {
+            console.warn(`[LastActivity] Targeted query error for account ${accId}:`, e);
+          }
+        })
+      );
+    }
+
+    // 3. Cross-propagate max outgoing timestamp across all aliases in the same row
+    allRows.forEach((row: any) => {
       const rawPayload = row.payload || {};
       const p = rawPayload.payload || rawPayload;
       const parsedDir = parseChatMessageDirection(row, row.platform_account_id);
@@ -270,6 +306,9 @@ async function handleLastActivity(req: any, res: any, queryParams: Record<string
     });
 
     const specificTs = accountFilter ? (lastOutgoingMap[accountFilter] || 0) : undefined;
+    const elapsedMinutes = (specificTs && specificTs > 0)
+      ? Math.max(0, Math.floor((Date.now() - specificTs) / 60000))
+      : null;
 
     return sendJson(res, 200, {
       success: true,
@@ -277,7 +316,7 @@ async function handleLastActivity(req: any, res: any, queryParams: Record<string
         account_id: accountFilter,
         last_outgoing_at: specificTs || null,
         last_outgoing_iso: specificTs ? new Date(specificTs).toISOString() : null,
-        elapsed_minutes: specificTs ? Math.floor((Date.now() - specificTs) / 60000) : null
+        elapsed_minutes: elapsedMinutes
       } : {}),
       lastOutgoingAtByAccount: lastOutgoingMap
     });
