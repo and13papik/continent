@@ -611,16 +611,52 @@ async function handleRawDiagnostic(req: any, res: any, queryParams: Record<strin
   }
 }
 
+// In-memory fallback/cache for live events
+const serverLiveEventsStore = new Map<string, any>();
+
+export async function purgeExpiredLiveEvents(): Promise<{ deleted_count: number; cleaned_at: string }> {
+  const nowIso = new Date().toISOString();
+  const nowMs = Date.now();
+  let count = 0;
+
+  // Clean in-memory store
+  for (const [key, ev] of serverLiveEventsStore.entries()) {
+    const expMs = new Date(ev.expires_at || 0).getTime();
+    if (expMs <= nowMs) {
+      serverLiveEventsStore.delete(key);
+      count++;
+    }
+  }
+
+  try {
+    const supabase = await getSupabaseClient();
+    if (supabase) {
+      let { error, count: dbCount } = await supabase
+        .from('live_events')
+        .delete({ count: 'exact' })
+        .lte('expires_at', nowIso);
+
+      if (error && error.message?.includes('does not exist')) {
+        const fb = await supabase
+          .from('om_live_events')
+          .delete({ count: 'exact' })
+          .lte('expires_at', nowIso);
+        dbCount = fb.count;
+      }
+      count = Math.max(count, dbCount || 0);
+    }
+  } catch (e) {
+    console.error('[purgeExpiredLiveEvents] DB cleanup error:', e);
+  }
+
+  return { deleted_count: count, cleaned_at: nowIso };
+}
+
 async function handleLiveEvents(req: any, res: any, queryParams: Record<string, string>) {
   try {
     const supabase = await getSupabaseClient();
-    if (!supabase) {
-      return sendJson(res, 200, {
-        success: true,
-        events: [],
-        message: 'Supabase is not configured'
-      });
-    }
+    const nowIso = new Date().toISOString();
+    const nowMs = Date.now();
 
     // POST: Insert or upsert milestone live events
     if (req.method === 'POST') {
@@ -634,40 +670,49 @@ async function handleLiveEvents(req: any, res: any, queryParams: Record<string, 
       }
 
       const rowsToInsert = rawEvents.map((ev: any) => {
-        const nowIso = new Date().toISOString();
         const expiresIso = ev.expires_at || new Date(Date.now() + 24 * 3600 * 1000).toISOString();
-        return {
-          dedupe_key: ev.dedupe_key,
+        const row = {
+          dedupe_key: String(ev.dedupe_key || ''),
           event_type: ev.event_type || 'account_shift_revenue_milestone',
           category: ev.category || 'finance',
           account_id: ev.account_id ? String(ev.account_id) : null,
           account_name: ev.account_name || null,
           shift_id: String(ev.shift_id || ''),
           milestone: Number(ev.milestone || 0),
-          amount: ev.amount !== undefined ? Number(ev.amount) : null,
+          amount: ev.amount !== undefined && ev.amount !== null ? Number(ev.amount) : null,
           currency: ev.currency || 'USD',
-          title: ev.title,
+          title: ev.title || '',
+          description: ev.description || '',
           status: ev.status || 'active',
           created_at: ev.created_at || nowIso,
           updated_at: ev.updated_at || nowIso,
           expires_at: expiresIso,
         };
+
+        if (row.dedupe_key) {
+          serverLiveEventsStore.set(row.dedupe_key, row);
+        }
+        return row;
       });
 
-      // Try inserting into live_events first, fallback to om_live_events
-      let insertRes = await supabase
-        .from('live_events')
-        .upsert(rowsToInsert, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+      if (supabase) {
+        try {
+          let insertRes = await supabase
+            .from('live_events')
+            .upsert(rowsToInsert, { onConflict: 'dedupe_key', ignoreDuplicates: false });
 
-      if (insertRes.error && insertRes.error.message?.includes('does not exist')) {
-        insertRes = await supabase
-          .from('om_live_events')
-          .upsert(rowsToInsert, { onConflict: 'dedupe_key', ignoreDuplicates: true });
-      }
+          if (insertRes.error && insertRes.error.message?.includes('does not exist')) {
+            insertRes = await supabase
+              .from('om_live_events')
+              .upsert(rowsToInsert, { onConflict: 'dedupe_key', ignoreDuplicates: false });
+          }
 
-      if (insertRes.error) {
-        console.error('[LiveEvents] Upsert error:', insertRes.error);
-        return sendJson(res, 500, { success: false, error: insertRes.error.message });
+          if (insertRes.error) {
+            console.error('[LiveEvents] Upsert error into DB:', insertRes.error);
+          }
+        } catch (dbErr) {
+          console.error('[LiveEvents] DB upsert exception:', dbErr);
+        }
       }
 
       return sendJson(res, 200, {
@@ -677,55 +722,76 @@ async function handleLiveEvents(req: any, res: any, queryParams: Record<string, 
     }
 
     // GET: Query unexpired financial milestone events
-    const nowIso = new Date().toISOString();
     const limit = Math.min(Math.max(parseInt(queryParams.limit || '100', 10) || 100, 1), 500);
     const shiftId = queryParams.shift_id;
 
-    // Requirement 9: WHERE expires_at > now() AND event_type = 'account_shift_revenue_milestone'
-    let query = supabase
-      .from('live_events')
-      .select('*')
-      .gt('expires_at', nowIso)
-      .eq('event_type', 'account_shift_revenue_milestone')
-      .order('created_at', { ascending: false })
-      .limit(limit);
+    const eventsMap = new Map<string, any>();
 
-    if (shiftId) {
-      query = query.eq('shift_id', shiftId);
-    }
-
-    let { data, error } = await query;
-
-    if (error && error.message?.includes('does not exist')) {
-      // Fallback query to om_live_events
-      let fallbackQuery = supabase
-        .from('om_live_events')
-        .select('*')
-        .gt('expires_at', nowIso)
-        .eq('event_type', 'account_shift_revenue_milestone')
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (shiftId) {
-        fallbackQuery = fallbackQuery.eq('shift_id', shiftId);
+    // First, populate from in-memory server store
+    for (const [key, ev] of serverLiveEventsStore.entries()) {
+      const expMs = new Date(ev.expires_at || 0).getTime();
+      if (expMs > nowMs) {
+        if (!shiftId || ev.shift_id === shiftId) {
+          eventsMap.set(key, ev);
+        }
+      } else {
+        serverLiveEventsStore.delete(key);
       }
-
-      const fbResult = await fallbackQuery;
-      data = fbResult.data;
-      error = fbResult.error;
     }
 
-    if (error) {
-      return sendJson(res, 200, {
-        success: true,
-        events: [],
-        warning: error.message
-      });
+    // If Supabase is available, query unexpired events and merge
+    if (supabase) {
+      try {
+        let query = supabase
+          .from('live_events')
+          .select('*')
+          .gt('expires_at', nowIso)
+          .eq('event_type', 'account_shift_revenue_milestone')
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (shiftId) {
+          query = query.eq('shift_id', shiftId);
+        }
+
+        let { data, error } = await query;
+
+        if (error && error.message?.includes('does not exist')) {
+          let fallbackQuery = supabase
+            .from('om_live_events')
+            .select('*')
+            .gt('expires_at', nowIso)
+            .eq('event_type', 'account_shift_revenue_milestone')
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+          if (shiftId) {
+            fallbackQuery = fallbackQuery.eq('shift_id', shiftId);
+          }
+
+          const fbResult = await fallbackQuery;
+          data = fbResult.data;
+          error = fbResult.error;
+        }
+
+        if (!error && Array.isArray(data)) {
+          data.forEach((row: any) => {
+            if (row.dedupe_key) {
+              eventsMap.set(row.dedupe_key, row);
+              serverLiveEventsStore.set(row.dedupe_key, row);
+            }
+          });
+        }
+      } catch (dbQueryErr) {
+        console.error('[LiveEvents] DB query exception:', dbQueryErr);
+      }
     }
+
+    const mergedEvents = Array.from(eventsMap.values()).slice(0, limit);
 
     return sendJson(res, 200, {
       success: true,
-      events: data || []
+      events: mergedEvents
     });
   } catch (err: any) {
     console.error('[LiveEvents] Exception:', err);
@@ -747,42 +813,11 @@ async function handleCleanupLiveEvents(req: any, res: any, queryParams: Record<s
       return sendJson(res, 401, { success: false, error: 'Unauthorized: Invalid cron secret' });
     }
 
-    const supabase = await getSupabaseClient();
-    if (!supabase) {
-      return sendJson(res, 200, {
-        success: false,
-        message: 'Supabase is not configured'
-      });
-    }
-
-    const nowIso = new Date().toISOString();
-    
-    // Only delete expired rows from live_events / om_live_events where expires_at <= now()
-    let { error, count } = await supabase
-      .from('live_events')
-      .delete({ count: 'exact' })
-      .lte('expires_at', nowIso);
-
-    if (error && error.message?.includes('does not exist')) {
-      const fb = await supabase
-        .from('om_live_events')
-        .delete({ count: 'exact' })
-        .lte('expires_at', nowIso);
-      error = fb.error;
-      count = fb.count;
-    }
-
-    if (error) {
-      return sendJson(res, 200, {
-        success: false,
-        error: error.message
-      });
-    }
-
+    const result = await purgeExpiredLiveEvents();
     return sendJson(res, 200, {
       success: true,
-      deleted_count: count ?? 0,
-      cleaned_at: nowIso
+      deleted_count: result.deleted_count,
+      cleaned_at: result.cleaned_at
     });
   } catch (err: any) {
     console.error('[CleanupLiveEvents] Exception:', err);

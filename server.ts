@@ -11,7 +11,7 @@ import {
 import onlyMonsterConfigHandler from "./api/onlymonster/config.js";
 import onlyMonsterProxyHandler from "./api/onlymonster/proxy.js";
 import onlyMonsterAnalyticsHandler from "./api/onlymonster/analytics.js";
-import onlyMonsterAdminHandler from "./api/onlymonster/admin.js";
+import onlyMonsterAdminHandler, { purgeExpiredLiveEvents } from "./api/onlymonster/admin.js";
 import webhookHandler from "./api/webhook.js";
 
 async function startServer() {
@@ -512,7 +512,7 @@ async function startServer() {
     res.status(result.statusCode).json(result.body);
   });
 
-  // OnlyMonster Configuration, proxy, analytics handlers
+  // OnlyMonster Configuration, proxy, analytics, and admin/live-events handlers
   app.all("/api/onlymonster/config", (req, res) => onlyMonsterConfigHandler(req, res));
   app.all("/api/onlymonster/proxy", (req, res) => onlyMonsterProxyHandler(req, res));
   app.all("/api/onlymonster/analytics", (req, res) => onlyMonsterAnalyticsHandler(req, res));
@@ -521,6 +521,15 @@ async function startServer() {
   app.all("/api/onlymonster/shift-comparison", (req, res) => onlyMonsterAnalyticsHandler(req, res));
   app.all("/api/onlymonster/operator-model-breakdown", (req, res) => onlyMonsterAnalyticsHandler(req, res));
   app.all("/api/onlymonster/account-detail", (req, res) => onlyMonsterAnalyticsHandler(req, res));
+  app.all("/api/onlymonster/admin", (req, res) => onlyMonsterAdminHandler(req, res));
+  app.all("/api/onlymonster/live-events", (req, res) => onlyMonsterAdminHandler(req, res));
+
+  // Periodic lightweight cleanup for live events older than 24h (every 30 minutes)
+  setInterval(() => {
+    purgeExpiredLiveEvents().catch(err => {
+      console.error('[PeriodicCleanup] Error purging expired live events:', err);
+    });
+  }, 30 * 60 * 1000);
 
   // Vite middleware
   if (process.env.NODE_ENV !== "production") {

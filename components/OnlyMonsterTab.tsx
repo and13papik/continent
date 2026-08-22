@@ -1098,7 +1098,7 @@ export const ACCOUNT_SHIFT_REVENUE_MILESTONES = [100, 200, 500];
 export type LiveEventCategory = 'operators' | 'finance' | 'warnings' | 'system';
 export type LiveEventFilter = 'all' | LiveEventCategory;
 export type LiveEventSeverity = 'red' | 'amber' | 'green' | 'blue' | 'slate';
-export type LiveEventStatus = 'active' | 'acknowledged' | 'resolved' | 'expired';
+export type LiveEventStatus = 'active' | 'acknowledged' | 'resolved' | 'expired' | 'silently_passed';
 
 export interface LiveFeedItem {
   id: string;
@@ -1343,26 +1343,63 @@ export const RealtimeEventFeed: React.FC<{
         const accId = String(acc.platform_account_id || acc.id || '');
         if (!accId) return;
 
-        const baseRevenue = (acc.earnings_breakdown && typeof acc.earnings_breakdown[shiftIndex] === 'number')
-          ? acc.earnings_breakdown[shiftIndex]
-          : (typeof acc.today_earnings === 'number' ? acc.today_earnings : 0);
+        // Requirement 1 & 9: Exclusively calculate from current active shift revenue, NOT calendar day earnings
+        const baseShiftRevenue = (acc.earnings_breakdown && typeof acc.earnings_breakdown[shiftIndex] === 'number')
+          ? Number(acc.earnings_breakdown[shiftIndex])
+          : 0;
 
         const liveWebhookRevenue = liveWebhookIncomeByAccountRef.current[accId] || 0;
-        const accountShiftRevenue = Math.max(0, baseRevenue + liveWebhookRevenue);
+        const accountShiftRevenue = Math.max(0, baseShiftRevenue + liveWebhookRevenue);
 
-        ACCOUNT_SHIFT_REVENUE_MILESTONES.forEach(milestone => {
-          if (accountShiftRevenue >= milestone) {
-            const dedupeKey = `account_shift_revenue_milestone:${accId}:${shiftId}:${milestone}`;
-            const existing = next.get(dedupeKey);
+        // Find all reached thresholds among [100, 200, 500]
+        const reachedMilestones = ACCOUNT_SHIFT_REVENUE_MILESTONES.filter(m => accountShiftRevenue >= m);
+        if (reachedMilestones.length === 0) return;
 
-            if (!existing) {
-              const formattedEarn = accountShiftRevenue >= 100 && accountShiftRevenue % 1 === 0
-                ? accountShiftRevenue.toFixed(0)
-                : accountShiftRevenue.toFixed(2);
+        // Find which reached milestones have NOT yet been triggered
+        const untriggered = reachedMilestones.filter(m => {
+          const dedupeKey = `account_shift_revenue_milestone:${accId}:${shiftId}:${m}`;
+          return !next.has(dedupeKey);
+        });
 
-              const item: LiveFeedItem = {
-                id: `ms-${accId}-${shiftId}-${milestone}`,
-                dedupe_key: dedupeKey,
+        if (untriggered.length > 0) {
+          // Requirement 4: On first sync or sudden revenue jump past multiple thresholds,
+          // only create a visible event for the HIGHEST reached milestone.
+          const highestMilestone = Math.max(...untriggered);
+          const formattedEarn = accountShiftRevenue.toFixed(2);
+
+          // 1. Create visible event for the highest reached milestone
+          const activeDedupeKey = `account_shift_revenue_milestone:${accId}:${shiftId}:${highestMilestone}`;
+          const activeItem: LiveFeedItem = {
+            id: `ms-${accId}-${shiftId}-${highestMilestone}`,
+            dedupe_key: activeDedupeKey,
+            category: 'finance',
+            event_type: 'account_shift_revenue_milestone',
+            severity: 'green',
+            account_id: accId,
+            account_name: acc.name,
+            shift_id: shiftId,
+            shift_label: shiftLabel,
+            milestone: highestMilestone,
+            amount: accountShiftRevenue,
+            currency: 'USD',
+            title: `🏆 ${acc.name} достигла $${highestMilestone} за текущую смену`,
+            description: `Текущий результат: $${formattedEarn}`,
+            status: 'active',
+            created_at: nowIso,
+            updated_at: nowIso,
+            expires_at: expiresIso,
+          };
+          next.set(activeDedupeKey, activeItem);
+          newMilestoneEvents.push(activeItem);
+          changed = true;
+
+          // 2. Mark all lower untriggered milestones as silently_passed so they are deduplicated and never spawn
+          untriggered.forEach(lowerMilestone => {
+            if (lowerMilestone < highestMilestone) {
+              const silentDedupeKey = `account_shift_revenue_milestone:${accId}:${shiftId}:${lowerMilestone}`;
+              const silentItem: LiveFeedItem = {
+                id: `ms-${accId}-${shiftId}-${lowerMilestone}`,
+                dedupe_key: silentDedupeKey,
                 category: 'finance',
                 event_type: 'account_shift_revenue_milestone',
                 severity: 'green',
@@ -1370,63 +1407,47 @@ export const RealtimeEventFeed: React.FC<{
                 account_name: acc.name,
                 shift_id: shiftId,
                 shift_label: shiftLabel,
-                milestone: milestone,
+                milestone: lowerMilestone,
                 amount: accountShiftRevenue,
                 currency: 'USD',
-                title: `🏆 ${acc.name} достигла $${milestone} за текущую смену`,
+                title: `🏆 ${acc.name} достигла $${lowerMilestone} за текущую смену`,
                 description: `Текущий результат: $${formattedEarn}`,
-                status: 'active',
+                status: 'silently_passed',
                 created_at: nowIso,
                 updated_at: nowIso,
                 expires_at: expiresIso,
               };
-              next.set(dedupeKey, item);
-              newMilestoneEvents.push(item);
-              changed = true;
-            } else if (existing.amount !== accountShiftRevenue) {
-              const formattedEarn = accountShiftRevenue >= 100 && accountShiftRevenue % 1 === 0
-                ? accountShiftRevenue.toFixed(0)
-                : accountShiftRevenue.toFixed(2);
-              existing.amount = accountShiftRevenue;
-              existing.description = `Текущий результат: $${formattedEarn}`;
-              existing.updated_at = nowIso;
+              next.set(silentDedupeKey, silentItem);
+              newMilestoneEvents.push(silentItem);
               changed = true;
             }
+          });
+        } else {
+          // All reached milestones already triggered. Update amount & current result description of highest existing active milestone
+          const highestReached = Math.max(...reachedMilestones);
+          const highestDedupeKey = `account_shift_revenue_milestone:${accId}:${shiftId}:${highestReached}`;
+          const existing = next.get(highestDedupeKey);
+          if (existing && existing.amount !== accountShiftRevenue) {
+            const formattedEarn = accountShiftRevenue.toFixed(2);
+            existing.amount = accountShiftRevenue;
+            existing.description = `Текущий результат: $${formattedEarn}`;
+            existing.updated_at = nowIso;
+            changed = true;
           }
-        });
+        }
       });
 
       return changed ? next : prev;
     });
 
-    // Save newly generated milestone events to backend
+    // Save newly generated milestone events to backend in batch
     if (newMilestoneEvents.length > 0) {
-      newMilestoneEvents.forEach(async (ev) => {
-        try {
-          await fetch('/api/onlymonster/admin?resource=live-events', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              dedupe_key: ev.dedupe_key,
-              event_type: ev.event_type,
-              category: ev.category,
-              severity: ev.severity,
-              account_id: ev.account_id,
-              account_name: ev.account_name,
-              shift_id: ev.shift_id,
-              shift_label: ev.shift_label,
-              milestone: ev.milestone,
-              amount: ev.amount,
-              currency: ev.currency,
-              title: ev.title,
-              description: ev.description,
-              status: ev.status,
-              expires_at: ev.expires_at,
-            }),
-          });
-        } catch (e) {
-          // Non-blocking
-        }
+      fetch('/api/onlymonster/admin?resource=live-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ events: newMilestoneEvents }),
+      }).catch(e => {
+        console.error('[RealtimeEventFeed] Error posting new milestones:', e);
       });
     }
   }, [accounts]);
@@ -1513,6 +1534,9 @@ export const RealtimeEventFeed: React.FC<{
   const { allList, visibleList, counts } = useMemo(() => {
     const nowTs = Date.now();
     const items = Array.from(liveEventsMap.values()).filter(item => {
+      // Exclude silently_passed milestone events (used only for deduplication)
+      if (item.status === 'silently_passed') return false;
+
       // 24-hour expiration filter
       const expTs = new Date(item.expires_at).getTime();
       if (expTs <= nowTs) return false;
