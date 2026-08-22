@@ -2019,9 +2019,19 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
 
   const totalTodaySum = useMemo(() => {
     return filteredAccounts.reduce((sum, acc) => {
+      if (acc.earnings_breakdown) {
+        let accDaySum = 0;
+        for (let s = 1; s <= currentKyivShiftIndex; s++) {
+          const val = acc.earnings_breakdown[s as 1 | 2 | 3 | 4];
+          if (typeof val === 'number') {
+            accDaySum += val;
+          }
+        }
+        return sum + accDaySum;
+      }
       return sum + (typeof acc.today_earnings === 'number' ? acc.today_earnings : 0);
     }, 0);
-  }, [filteredAccounts]);
+  }, [filteredAccounts, currentKyivShiftIndex]);
 
   const totalShiftRevenue = useMemo(() => {
     return filteredAccounts.reduce((sum, acc) => {
@@ -2362,10 +2372,26 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
               };
             }
 
-            const rawTotal = typeof entry.total === 'number' ? entry.total : (typeof entry.today === 'number' ? entry.today : null);
+            let computedEarnings: number | null = null;
+            if (entry.breakdown) {
+              if (dayMode === 'today') {
+                let sSum = 0;
+                for (let s = 1; s <= currentKyivShiftIndex; s++) {
+                  sSum += Number(entry.breakdown[s as 1 | 2 | 3 | 4]) || 0;
+                }
+                computedEarnings = Math.round(sSum * 100) / 100;
+              } else {
+                const b = entry.breakdown;
+                computedEarnings = Math.round(((Number(b[1]) || 0) + (Number(b[2]) || 0) + (Number(b[3]) || 0) + (Number(b[4]) || 0)) * 100) / 100;
+              }
+            } else {
+              const rawTotal = typeof entry.total === 'number' ? entry.total : (typeof entry.today === 'number' ? entry.today : null);
+              computedEarnings = rawTotal !== null ? Math.round(rawTotal * 100) / 100 : null;
+            }
+
             return {
               ...acc,
-              today_earnings: rawTotal !== null ? Math.round(rawTotal * 100) / 100 : null,
+              today_earnings: computedEarnings,
               tx_count: typeof entry.tx_count === 'number' ? entry.tx_count : null,
               earnings_label: entry.label || (dayMode === 'today' ? 'Сегодня' : 'Вчера'),
               earnings_breakdown: entry.breakdown || null

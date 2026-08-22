@@ -64,6 +64,9 @@ async function getAccountEarnings(
   let page = 0;
   const maxPages = 5;
 
+  const startTs = new Date(startISO).getTime();
+  const endTs = new Date(endISO).getTime();
+
   try {
     do {
       page++;
@@ -113,6 +116,15 @@ async function getAccountEarnings(
       }
 
       for (const tx of items) {
+        // Enforce strict operational day range filtering for every transaction
+        const rawTs = tx.timestamp || tx.created_at || tx.date || tx.createdAt || tx.time;
+        if (!rawTs) continue;
+        const txDate = new Date(rawTs);
+        const txTs = txDate.getTime();
+        if (isNaN(txTs) || txTs < startTs || txTs >= endTs) {
+          continue;
+        }
+
         const status = (tx.status || tx.tx_status || tx.state || '').toString().toLowerCase();
         const isExcludedStatus =
           status.includes('return') ||
@@ -125,29 +137,23 @@ async function getAccountEarnings(
           status === 'chargeback';
 
         if (!isExcludedStatus) {
-          txCount++;
           const rawAmt = tx.amount !== undefined ? tx.amount : tx.sum;
           const val = typeof rawAmt === 'number' ? rawAmt : parseFloat(rawAmt);
           if (!isNaN(val)) {
+            txCount++;
             totalAmount += val;
 
             if (includeBreakdown) {
-              const rawTs = tx.timestamp || tx.created_at || tx.date || tx.createdAt || tx.time;
-              if (rawTs) {
-                const txDate = new Date(rawTs);
-                if (!isNaN(txDate.getTime())) {
-                  const hourFormatter = new Intl.DateTimeFormat("en-US", {
-                    timeZone: "Europe/Kyiv",
-                    hour: "numeric",
-                    hour12: false
-                  });
-                  const h = parseInt(hourFormatter.format(txDate), 10) || 0;
-                  if (h >= 2 && h < 8) shiftTotals[1] += val;
-                  else if (h >= 8 && h < 14) shiftTotals[2] += val;
-                  else if (h >= 14 && h < 20) shiftTotals[3] += val;
-                  else shiftTotals[4] += val;
-                }
-              }
+              const hourFormatter = new Intl.DateTimeFormat("en-US", {
+                timeZone: "Europe/Kyiv",
+                hour: "numeric",
+                hour12: false
+              });
+              const h = parseInt(hourFormatter.format(txDate), 10) || 0;
+              if (h >= 2 && h < 8) shiftTotals[1] += val;
+              else if (h >= 8 && h < 14) shiftTotals[2] += val;
+              else if (h >= 14 && h < 20) shiftTotals[3] += val;
+              else shiftTotals[4] += val;
             }
           }
         }
