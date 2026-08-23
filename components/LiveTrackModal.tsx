@@ -849,200 +849,28 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Fetch updated data for track (15-second polling)
+  // Paused track data fetching to prevent database overload
   const fetchTrackData = async () => {
     setIsRefreshing(true);
     try {
-      const params = new URLSearchParams();
-      if (periodMode === 'today' || periodMode === 'yesterday') {
-        params.append('period', 'shift');
-        params.append('day', periodMode);
-        params.append('shift', String(selectedShiftIndex));
-      } else if (periodMode === 'week') {
-        params.append('period', 'week');
-      } else if (periodMode === 'month') {
-        params.append('period', 'month');
-      }
-      params.append('sortBy', sortBy);
-      params.append('sortDir', sortDir);
-      params.set('resource', 'shift-operators');
-
-      const url = `/api/onlymonster/analytics?${params.toString()}`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.operators) {
-          const newOps: ShiftOperator[] = data.operators;
-          setOperators(newOps);
-          updateAnimStatesForOperators(newOps);
-          if (data.shift) setShiftInfo(data.shift);
-          setLastUpdated(new Date());
-          setSecondsAgo(0);
-
-          // Compare snapshot to trigger live race events
-          const sortedNew = [...newOps].sort((a, b) => b.messages_count - a.messages_count);
-          const currentRanks = new Map<string, number>();
-          sortedNew.forEach((op, idx) => currentRanks.set(op.user_id, idx + 1));
-
-          const newEvents: RaceEvent[] = [];
-          const nextOvertakes = new Map<string, number>();
-          const nextNewLaps = new Set<string>();
-          const prevSnap = prevSnapshotRef.current;
-
-          if (Object.keys(prevSnap).length > 0) {
-            sortedNew.forEach((op) => {
-              const prev = prevSnap[op.user_id];
-              const currRank = currentRanks.get(op.user_id) || 999;
-              const currLaps = Math.floor(op.messages_count / MESSAGES_PER_LAP);
-
-              if (prev) {
-                const deltaMsgs = op.messages_count - prev.messages;
-
-                // 1. Gain Event
-                if (deltaMsgs > 0) {
-                  newEvents.push({
-                    id: `gain-${op.user_id}-${Date.now()}-${Math.random()}`,
-                    type: 'gain',
-                    text: `⚡ ${op.name}: +${deltaMsgs} ${deltaMsgs === 1 ? 'сообщение' : deltaMsgs < 5 ? 'сообщения' : 'сообщений'}`,
-                    timestamp: Date.now()
-                  });
-                }
-
-                // 2. Overtake Event
-                if (currRank < prev.rank) {
-                  const rankDelta = prev.rank - currRank;
-                  nextOvertakes.set(op.user_id, rankDelta);
-                  const victim = sortedNew.find(other => currentRanks.get(other.user_id) === currRank + 1);
-                  const victimName = victim ? victim.name : '';
-                  newEvents.push({
-                    id: `overtake-${op.user_id}-${Date.now()}`,
-                    type: 'overtake',
-                    text: `🔥 ${op.name} ${victimName ? `обошёл ${victimName} и ` : ''}вышел на #${currRank}`,
-                    timestamp: Date.now()
-                  });
-                }
-
-                // 3. Lap Completion Event
-                if (currLaps > prev.completedLaps) {
-                  nextNewLaps.add(op.user_id);
-                  newEvents.push({
-                    id: `lap-${op.user_id}-${Date.now()}`,
-                    type: 'lap',
-                    text: `🏁 ${op.name} завершил ${currLaps}-й круг`,
-                    timestamp: Date.now()
-                  });
-                }
-
-                // 4. Leader Change Event
-                if (currRank === 1 && prev.rank !== 1) {
-                  newEvents.push({
-                    id: `leader-${op.user_id}-${Date.now()}`,
-                    type: 'leader',
-                    text: `👑 НОВЫЙ ЛИДЕР — ${op.name}`,
-                    timestamp: Date.now()
-                  });
-                }
-
-                // 5. Gap Reduction Event
-                if (deltaMsgs > 0 && currRank > 1 && currRank === prev.rank) {
-                  const leader = sortedNew[0];
-                  if (leader && leader.user_id !== op.user_id) {
-                    const prevLeaderMsgs = prevSnap[leader.user_id]?.messages || leader.messages_count;
-                    const prevGap = prevLeaderMsgs - prev.messages;
-                    const currGap = leader.messages_count - op.messages_count;
-                    const reducedBy = prevGap - currGap;
-                    if (reducedBy > 0) {
-                      newEvents.push({
-                        id: `gap-${op.user_id}-${Date.now()}`,
-                        type: 'gap',
-                        text: `🚀 ${op.name} сократил разрыв до лидера на ${reducedBy} ${reducedBy === 1 ? 'сообщение' : reducedBy < 5 ? 'сообщения' : 'сообщений'}`,
-                        timestamp: Date.now()
-                      });
-                    }
-                  }
-                }
-              }
-            });
-          }
-
-          // Save next snapshot
-          const nextSnap: Record<string, { messages: number; rank: number; completedLaps: number }> = {};
-          sortedNew.forEach((op) => {
-            nextSnap[op.user_id] = {
-              messages: op.messages_count,
-              rank: currentRanks.get(op.user_id) || 999,
-              completedLaps: Math.floor(op.messages_count / MESSAGES_PER_LAP)
-            };
-          });
-          prevSnapshotRef.current = nextSnap;
-
-          if (newEvents.length > 0) {
-            setEventsFeed(prev => [...newEvents, ...prev].slice(0, 3));
-          }
-
-          if (nextOvertakes.size > 0) {
-            setOvertakingOpIds(nextOvertakes);
-            setTimeout(() => setOvertakingOpIds(new Map()), 3500);
-          }
-
-          if (nextNewLaps.size > 0) {
-            setNewLapOpIds(nextNewLaps);
-            setStartLineFlash(true);
-            setTimeout(() => {
-              setNewLapOpIds(new Set());
-              setStartLineFlash(false);
-            }, 3500);
-          }
-        }
-      }
+      // Re-sync with existing operators from props without querying backend/database
+      setOperators(initialOperators);
+      updateAnimStatesForOperators(initialOperators);
+      if (initialShiftInfo) setShiftInfo(initialShiftInfo);
+      setLastUpdated(new Date());
+      setSecondsAgo(0);
     } catch (e) {
-      console.error('Failed to auto-refresh track data', e);
+      console.error('Failed to sync track data', e);
     } finally {
       setIsRefreshing(false);
     }
   };
 
-  // 15-second polling timer with tab visibility handling
+  // Background polling disabled to avoid any load on the database
   useEffect(() => {
     if (!isOpen) return;
-
-    let pollInterval: NodeJS.Timeout | null = null;
-
-    const startPolling = () => {
-      if (!pollInterval) {
-        pollInterval = setInterval(() => {
-          if (!document.hidden) {
-            fetchTrackData();
-          }
-        }, 15000);
-      }
-    };
-
-    const stopPolling = () => {
-      if (pollInterval) {
-        clearInterval(pollInterval);
-        pollInterval = null;
-      }
-    };
-
-    startPolling();
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        stopPolling();
-      } else {
-        fetchTrackData();
-        startPolling();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      stopPolling();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isOpen, periodMode, selectedShiftIndex, sortBy, sortDir]);
+    // Auto-polling is stopped
+  }, [isOpen]);
 
   // "Seconds ago" ticker
   useEffect(() => {
@@ -1529,23 +1357,12 @@ export const LiveTrackModal: React.FC<LiveTrackModalProps> = ({
               </div>
             )}
 
-            {/* Live Data Status Indicator */}
+            {/* Live Data Status Indicator (Paused) */}
             <div className="px-3 py-1.5 bg-slate-900 border border-white/10 rounded-xl flex items-center gap-2 text-xs">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isRefreshing ? 'bg-cyan-400' : 'bg-emerald-400'} opacity-75`}></span>
-                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isRefreshing ? 'bg-cyan-500' : 'bg-emerald-500'}`}></span>
-              </span>
+              <span className="w-2 h-2 rounded-full bg-amber-400"></span>
               <span className="text-[11px] text-slate-300 font-bold">
-                {isRefreshing ? 'Обновление...' : secondsAgo === 0 ? 'Обновлено только что' : `Обновлено ${secondsAgo}с назад`}
+                Связь с БД приостановлена
               </span>
-              <button 
-                onClick={fetchTrackData}
-                disabled={isRefreshing}
-                title="Обновить вручную"
-                className="p-1 text-slate-400 hover:text-cyan-300 transition-colors disabled:opacity-50"
-              >
-                <RefreshCw size={12} className={isRefreshing ? 'animate-spin text-cyan-400' : ''} />
-              </button>
             </div>
 
 
