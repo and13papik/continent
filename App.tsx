@@ -218,27 +218,44 @@ const App: React.FC = () => {
       <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-200">
         <nav className="w-full md:w-64 bg-slate-950/80 backdrop-blur-3xl border-r border-white/5 flex flex-col sticky top-0 h-auto md:h-screen z-50 overflow-hidden">
           {/* Header Section */}
-          <div className="p-6 shrink-0">
-            <div className="flex items-center gap-3.5 mb-8">
-              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-blue-700 rounded-xl flex items-center justify-center shadow-[0_8px_20px_-5px_rgba(79,70,229,0.5)] shrink-0 group hover:rotate-12 transition-transform cursor-pointer">
-                <span className="text-white font-outfit text-xl font-black">C</span>
+          <div className="p-4 pb-3 shrink-0 flex flex-col gap-2.5 border-b border-white/5 bg-slate-950/60 backdrop-blur-xl">
+            {/* Logo Continental - Laconic and Simple */}
+            <div className="flex items-center gap-2.5 px-0.5 pt-0.5">
+              <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md shadow-indigo-600/30 shrink-0">
+                <span className="text-white font-outfit text-sm font-black tracking-tight">C</span>
               </div>
-              <div className="flex flex-col min-w-0">
-                 <span className="font-outfit text-xl font-black tracking-tighter text-white leading-none truncate">Continental</span>
-                 <span className="text-[8px] font-black uppercase tracking-[0.3em] text-slate-500 mt-1.5 opacity-80">Management Hub</span>
-              </div>
+              <span className="font-outfit text-lg font-bold tracking-tight text-white leading-none">
+                Continental
+              </span>
             </div>
 
-            {location.pathname !== '/reports' && <PeriodSelector state={state} updateState={updateState} />}
+            {/* Active Period */}
+            <PeriodSelector state={state} updateState={updateState} />
+
+            {/* Quick Actions: Доход & Аванс */}
+            <div className="grid grid-cols-2 gap-2">
+              <QuickActionButton 
+                to="/add-income" 
+                icon={<ICONS.Plus size={13} />} 
+                label="Доход" 
+                variant="indigo"
+              />
+              <QuickActionButton 
+                to="/advance-request" 
+                icon={<ICONS.HandCoins size={13} />} 
+                label="Аванс" 
+                variant="amber"
+              />
+            </div>
 
             {cloudStatus === 'conflict' && (
               <motion.div 
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 onClick={forcePull}
-                className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-2xl cursor-pointer group transition-all mt-4 hover:bg-rose-500/20"
+                className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl cursor-pointer group transition-all hover:bg-rose-500/20"
               >
-                <div className="flex items-center gap-2 mb-1.5">
+                <div className="flex items-center gap-2 mb-1">
                   <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
                   <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest leading-none">Sync Conflict</p>
                 </div>
@@ -248,36 +265,11 @@ const App: React.FC = () => {
           </div>
 
           {/* Scrollable Navigation Section */}
-          <div className="flex-1 overflow-y-auto no-scrollbar px-5 py-2 space-y-8">
-            <div className="space-y-4">
-               <div className="flex items-center justify-between px-1">
-                  <div className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-400/60">Fast Access</div>
-                  <div className="w-1 h-1 rounded-full bg-indigo-500/40" />
-               </div>
-               
-               <div className="grid grid-cols-2 gap-3">
-                  <NavLink 
-                    to="/add-income" 
-                    icon={<ICONS.Plus size={18} />} 
-                    label="Доход" 
-                    action 
-                    subLabel="NEW"
-                  />
-                  <NavLink 
-                    to="/advance-request" 
-                    icon={<ICONS.HandCoins size={18} />} 
-                    label="Аванс" 
-                    action
-                    variant="amber"
-                    subLabel="REQ"
-                  />
-               </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-3 mb-4 px-1">
-                 <span className="text-[7.5px] font-black uppercase tracking-[0.3em] text-slate-700 whitespace-nowrap">Main Navigation</span>
-                 <div className="h-[1px] flex-1 bg-slate-900" />
+          <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-3 space-y-6">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 mb-2 px-1">
+                 <span className="text-[7.5px] font-black uppercase tracking-[0.25em] text-slate-500 whitespace-nowrap">Main Navigation</span>
+                 <div className="h-[1px] flex-1 bg-white/5" />
               </div>
               <NavLink to="/" icon={<ICONS.Dashboard size={14} />} label="Dashboard" primary />
               <NavLink to="/metrics" icon={<ICONS.Reports size={14} />} label="Метрика" />
@@ -394,6 +386,40 @@ const App: React.FC = () => {
         </main>
       </div>
     </HashRouter>
+  );
+};
+
+const QuickActionButton: React.FC<{
+  to: string;
+  icon: React.ReactNode;
+  label: string;
+  variant: 'indigo' | 'amber';
+}> = ({ to, icon, label, variant }) => {
+  const location = useLocation();
+  const isActive = location.pathname === to;
+  const isAmber = variant === 'amber';
+
+  return (
+    <Link to={to} className="block group flex-1">
+      <motion.div
+        whileHover={{ y: -1, scale: 1.01 }}
+        whileTap={{ scale: 0.98 }}
+        className={`flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl border transition-all duration-300 ${
+          isActive
+            ? isAmber
+              ? 'bg-amber-500 text-white border-amber-400 shadow-[0_4px_14px_-3px_rgba(245,158,11,0.5)] font-bold'
+              : 'bg-indigo-600 text-white border-indigo-500 shadow-[0_4px_14px_-3px_rgba(79,70,229,0.5)] font-bold'
+            : isAmber
+              ? 'bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20 hover:border-amber-500/40 hover:text-white font-semibold'
+              : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20 hover:bg-indigo-500/20 hover:border-indigo-500/40 hover:text-white font-semibold'
+        }`}
+      >
+        <span className={`${isActive ? 'text-white' : isAmber ? 'text-amber-400 group-hover:text-white' : 'text-indigo-400 group-hover:text-white'} transition-colors`}>
+          {icon}
+        </span>
+        <span className="text-[10.5px] font-bold tracking-wider uppercase leading-none">{label}</span>
+      </motion.div>
+    </Link>
   );
 };
 
