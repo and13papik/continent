@@ -74,40 +74,9 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // Save event to Supabase
-    const supabase = await getSupabaseClient();
-    if (!supabase) {
-      console.error('[Webhook] Supabase client is not configured. Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY in environment variables or Vercel KV.');
-      return sendJson(res, 500, { 
-        success: false, 
-        error: 'Database client not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel Environment Variables.' 
-      });
-    }
-
-    const { error: dbError } = await supabase
-      .from('om_webhook_events')
-      .upsert(
-        {
-          event_type: eventType,
-          dedup_key: dedupKey,
-          account_id: accountId,
-          platform_account_id: platformAccountId,
-          payload: parsedPayload,
-          webhook_delivery_id: deliveryId,
-          event_timestamp: eventTimestamp,
-          signature_valid: true,
-          processed: false
-        },
-        { onConflict: 'event_type,dedup_key', ignoreDuplicates: true }
-      );
-
-    if (dbError) {
-      console.error('[Webhook] Supabase insert error:', dbError);
-      return sendJson(res, 500, { success: false, error: `Database insert failed: ${dbError.message}` });
-    }
-
-    // Return 200 OK immediately after successful DB write
-    return sendJson(res, 200, { success: true, received: true });
+    // Webhook event database persistence is temporarily paused to protect Supabase from overload
+    // Returning 200 OK immediately with paused: true so OnlyMonster will not trigger retries
+    return sendJson(res, 200, { success: true, received: true, paused: true });
   } catch (err: any) {
     console.error('[Webhook] Exception in webhook handler:', err);
     return sendJson(res, 500, { success: false, error: err.message || 'Internal server error' });
