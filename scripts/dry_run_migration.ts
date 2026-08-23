@@ -208,14 +208,14 @@ export function runMigrationDryRun(state: AppState): MigrationDryRunResult {
     const paypal = Number(rawPp);
     const crypto = Number(rawCr);
 
-    const isInvalidOf = !Number.isFinite(onlyFans) || onlyFans < 0;
-    const isInvalidPp = !Number.isFinite(paypal) || paypal < 0;
-    const isInvalidCr = !Number.isFinite(crypto) || crypto < 0;
+    const isInvalidOf = !Number.isFinite(onlyFans);
+    const isInvalidPp = !Number.isFinite(paypal);
+    const isInvalidCr = !Number.isFinite(crypto);
 
     // Normalize legacy computed total if present
     const rawTotal = inc.total ?? (onlyFans + paypal + crypto);
     const total = Number(rawTotal);
-    const isInvalidTotal = !Number.isFinite(total) || total < 0;
+    const isInvalidTotal = !Number.isFinite(total);
 
     if (isInvalidOf || isInvalidPp || isInvalidCr || isInvalidTotal) {
       invalidMonetaryValues++;
