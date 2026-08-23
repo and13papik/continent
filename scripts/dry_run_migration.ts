@@ -45,6 +45,8 @@ export interface MigrationDryRunResult {
     owners: number;
     admins: number;
     owner_period_shares: number;
+    model_period_rates: number;
+    admin_period_rates: number;
     income_records: number;
     financial_operations: number;
     agency_transactions: number;
@@ -125,27 +127,53 @@ export function runMigrationDryRun(state: AppState): MigrationDryRunResult {
   const ownerMap = new Map<string, string>();
   const adminMap = new Map<string, string>();
 
-  // Deduplicate and register Operators
-  const allOperatorNames = new Set<string>();
-  operatorsList.forEach((op: string) => allOperatorNames.add(op.trim()));
-  incomeRecords.forEach((inc: IncomeRecord) => { if (inc.operator) allOperatorNames.add(inc.operator.trim()); });
-  opsRecords.forEach((op: OperationRecord) => { if (op.operator) allOperatorNames.add(op.operator.trim()); });
-  roster.forEach((r: RosterEntry) => { if (r.operator) allOperatorNames.add(r.operator.trim()); });
+  // Canonical Owners: exactly 2 owners with alias mapping
+  // Andrey aliases: 'andrey', 'андрей' -> owner_andrey
+  // Anton aliases: 'anton', 'антон' -> owner_anton
+  ownerMap.set('andrey', 'owner_andrey');
+  ownerMap.set('андрей', 'owner_andrey');
+  ownerMap.set('anton', 'owner_anton');
+  ownerMap.set('антон', 'owner_anton');
 
-  let opIdx = 1;
-  allOperatorNames.forEach((name: string) => {
-    if (name) {
-      operatorMap.set(name.toLowerCase(), `op_${opIdx++}`);
+  // Register Admins (gather from global adminsList and period admins)
+  const allAdminNames = new Map<string, string>(); // lowerName -> id
+  adminsList.forEach((adm: Admin, idx: number) => {
+    if (adm.name && adm.name.trim()) {
+      const lower = adm.name.trim().toLowerCase();
+      if (!allAdminNames.has(lower)) {
+        allAdminNames.set(lower, adm.id || `adm_${idx + 1}`);
+      }
+    }
+  });
+  periods.forEach((p: AccountingPeriod) => {
+    if (p.admins && Array.isArray(p.admins)) {
+      p.admins.forEach((adm: Admin, idx: number) => {
+        if (adm.name && adm.name.trim()) {
+          const lower = adm.name.trim().toLowerCase();
+          if (!allAdminNames.has(lower)) {
+            allAdminNames.set(lower, adm.id || `adm_p_${idx + 1}`);
+          }
+        }
+      });
     }
   });
 
-  // Deduplicate and register Models
+  allAdminNames.forEach((id, lowerName) => {
+    adminMap.set(lowerName, id);
+  });
+
+  // Deduplicate and register Models (active and historical)
   const allModelNames = new Set<string>();
-  modelsList.forEach((m: string) => allModelNames.add(m.trim()));
-  incomeRecords.forEach((inc: IncomeRecord) => { if (inc.model) allModelNames.add(inc.model.trim()); });
-  opsRecords.forEach((op: OperationRecord) => { if (op.model) allModelNames.add(op.model.trim()); });
-  modelBonuses.forEach((b: ModelBonus) => { if (b.model) allModelNames.add(b.model.trim()); });
-  totalEntries.forEach((t: DailyTotalEntry) => { if (t.modelName) allModelNames.add(t.modelName.trim()); });
+  modelsList.forEach((m: string) => { if (m && m.trim()) allModelNames.add(m.trim()); });
+  incomeRecords.forEach((inc: IncomeRecord) => { if (inc.model && inc.model.trim()) allModelNames.add(inc.model.trim()); });
+  opsRecords.forEach((op: OperationRecord) => { if (op.model && op.model.trim()) allModelNames.add(op.model.trim()); });
+  modelBonuses.forEach((b: ModelBonus) => { if (b.model && b.model.trim()) allModelNames.add(b.model.trim()); });
+  totalEntries.forEach((t: DailyTotalEntry) => { if (t.modelName && t.modelName.trim()) allModelNames.add(t.modelName.trim()); });
+  periods.forEach((p: AccountingPeriod) => {
+    if (p.models && Array.isArray(p.models)) {
+      p.models.forEach((m: string) => { if (m && m.trim()) allModelNames.add(m.trim()); });
+    }
+  });
 
   let modIdx = 1;
   allModelNames.forEach((name: string) => {
@@ -154,23 +182,43 @@ export function runMigrationDryRun(state: AppState): MigrationDryRunResult {
     }
   });
 
-  // Deduplicate and register Owners
-  const allOwnerNames = new Set<string>(['Андрей', 'Антон', 'Andrey', 'Anton']);
-  ownerAdv.forEach((adv: OwnerAdvance) => { if (adv.ownerName) allOwnerNames.add(adv.ownerName.trim()); });
-  let ownerIdx = 1;
-  allOwnerNames.forEach((name: string) => {
-    if (name) {
-      ownerMap.set(name.toLowerCase(), `owner_${ownerIdx++}`);
+  // Deduplicate and register Operators EXCLUDING Admins
+  const allOperatorNames = new Set<string>();
+  operatorsList.forEach((op: string) => {
+    if (op && op.trim() && !adminMap.has(op.trim().toLowerCase())) {
+      allOperatorNames.add(op.trim());
+    }
+  });
+  incomeRecords.forEach((inc: IncomeRecord) => {
+    if (inc.operator && inc.operator.trim() && !adminMap.has(inc.operator.trim().toLowerCase())) {
+      allOperatorNames.add(inc.operator.trim());
+    }
+  });
+  opsRecords.forEach((op: OperationRecord) => {
+    // If an operation targets an admin, it belongs to admins, not operators
+    if (op.operator && op.operator.trim() && !adminMap.has(op.operator.trim().toLowerCase())) {
+      allOperatorNames.add(op.operator.trim());
+    }
+  });
+  roster.forEach((r: RosterEntry) => {
+    if (r.operator && r.operator.trim() && !adminMap.has(r.operator.trim().toLowerCase())) {
+      allOperatorNames.add(r.operator.trim());
+    }
+  });
+  periods.forEach((p: AccountingPeriod) => {
+    if (p.operators && Array.isArray(p.operators)) {
+      p.operators.forEach((op: string) => {
+        if (op && op.trim() && !adminMap.has(op.trim().toLowerCase())) {
+          allOperatorNames.add(op.trim());
+        }
+      });
     }
   });
 
-  // Deduplicate Admins
-  adminsList.forEach((adm: Admin, idx: number) => {
-    if (!adm.name) {
-      unresolvedAdminRefs++;
-      issues.push(`Admin at index ${idx} has no name`);
-    } else {
-      adminMap.set(adm.name.trim().toLowerCase(), adm.id || `adm_${idx + 1}`);
+  let opIdx = 1;
+  allOperatorNames.forEach((name: string) => {
+    if (name) {
+      operatorMap.set(name.toLowerCase(), `op_${opIdx++}`);
     }
   });
 
@@ -198,8 +246,6 @@ export function runMigrationDryRun(state: AppState): MigrationDryRunResult {
       issues.push(`IncomeRecord [${inc.id}]: unresolved model '${inc.model}'`);
     }
 
-    // Explicit normalization of platform monetary values:
-    // Missing platforms (undefined / null) in historical records are normalized to 0
     const rawOf = inc.onlyFans ?? 0;
     const rawPp = inc.paypal ?? 0;
     const rawCr = inc.crypto ?? 0;
@@ -212,7 +258,6 @@ export function runMigrationDryRun(state: AppState): MigrationDryRunResult {
     const isInvalidPp = !Number.isFinite(paypal);
     const isInvalidCr = !Number.isFinite(crypto);
 
-    // Normalize legacy computed total if present
     const rawTotal = inc.total ?? (onlyFans + paypal + crypto);
     const total = Number(rawTotal);
     const isInvalidTotal = !Number.isFinite(total);
@@ -242,6 +287,18 @@ export function runMigrationDryRun(state: AppState): MigrationDryRunResult {
       unrepresentableRecords++;
       issues.push(`OperationRecord [${op.id}]: unknown type '${op.type}'`);
     }
+
+    // Verify Target Reference: operator, model or admin
+    const targetName = (op.operator || '').trim().toLowerCase();
+    const isOp = operatorMap.has(targetName);
+    const isAdmin = adminMap.has(targetName);
+    const isModel = op.model && modelMap.has(op.model.trim().toLowerCase());
+
+    if (!isOp && !isAdmin && !isModel) {
+      unresolvedOperatorRefs++;
+      issues.push(`OperationRecord [${op.id}]: unresolved participant '${op.operator}'`);
+    }
+
     const amount = Number(op.amount ?? 0);
     if (!Number.isFinite(amount) || amount <= 0) {
       invalidMonetaryValues++;
@@ -280,7 +337,32 @@ export function runMigrationDryRun(state: AppState): MigrationDryRunResult {
     }
   });
 
-  // 4. Calculate Target Row Counts
+  // 4. Calculate Normalized Rates Row Counts
+  // Total model_period_rates rows = periods * unique models per period
+  let totalModelPeriodRates = 0;
+  periods.forEach((p: AccountingPeriod) => {
+    const periodModels = new Set<string>();
+    if (p.models && Array.isArray(p.models)) {
+      p.models.forEach((m: string) => { if (m && m.trim()) periodModels.add(m.trim().toLowerCase()); });
+    }
+    // Also include any model with income in that period
+    incomeRecords.forEach((inc: IncomeRecord) => {
+      if (inc.periodId === p.id && inc.model && inc.model.trim()) {
+        periodModels.add(inc.model.trim().toLowerCase());
+      }
+    });
+    totalModelPeriodRates += periodModels.size;
+  });
+
+  // Total admin_period_rates rows = count of admin rates across all periods
+  let totalAdminPeriodRates = 0;
+  periods.forEach((p: AccountingPeriod) => {
+    if (p.admins && Array.isArray(p.admins)) {
+      totalAdminPeriodRates += p.admins.length;
+    }
+  });
+
+  // 5. Calculate Target Row Counts
   let totalShiftBalanceEntries = 0;
   totalEntries.forEach(() => {
     totalShiftBalanceEntries += 4; // night, morning, day, evening
@@ -293,13 +375,17 @@ export function runMigrationDryRun(state: AppState): MigrationDryRunResult {
     }
   });
 
+  const canonicalOwnersCount = 2; // owner_andrey, owner_anton
+
   const targetRowCounts = {
     accounting_periods: periods.length,
     operators: operatorMap.size,
     models: modelMap.size,
-    owners: ownerMap.size,
+    owners: canonicalOwnersCount,
     admins: adminMap.size,
-    owner_period_shares: periods.length * ownerMap.size,
+    owner_period_shares: periods.length * canonicalOwnersCount,
+    model_period_rates: totalModelPeriodRates,
+    admin_period_rates: totalAdminPeriodRates,
     income_records: incomeRecords.length,
     financial_operations: opsRecords.length,
     agency_transactions: ownerExp.length + ownerManualInc.length,

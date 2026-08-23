@@ -534,6 +534,14 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                         <span className="font-bold text-white">{dryRunResult.targetRowCounts.owner_period_shares}</span>
                       </div>
                       <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">model_period_rates rows:</span>
+                        <span className="font-bold text-white">{dryRunResult.targetRowCounts.model_period_rates}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">admin_period_rates rows:</span>
+                        <span className="font-bold text-white">{dryRunResult.targetRowCounts.admin_period_rates}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
                         <span className="text-slate-400">income_records rows:</span>
                         <span className="font-bold text-emerald-400">{dryRunResult.targetRowCounts.income_records}</span>
                       </div>
