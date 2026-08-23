@@ -197,9 +197,29 @@ export function runMigrationDryRun(state: AppState): MigrationDryRunResult {
       unresolvedModelRefs++;
       issues.push(`IncomeRecord [${inc.id}]: unresolved model '${inc.model}'`);
     }
-    if (isNaN(inc.onlyFans) || inc.onlyFans < 0 || isNaN(inc.paypal) || inc.paypal < 0 || isNaN(inc.crypto) || inc.crypto < 0) {
+
+    // Explicit normalization of platform monetary values:
+    // Missing platforms (undefined / null) in historical records are normalized to 0
+    const rawOf = inc.onlyFans ?? 0;
+    const rawPp = inc.paypal ?? 0;
+    const rawCr = inc.crypto ?? 0;
+
+    const onlyFans = Number(rawOf);
+    const paypal = Number(rawPp);
+    const crypto = Number(rawCr);
+
+    const isInvalidOf = !Number.isFinite(onlyFans) || onlyFans < 0;
+    const isInvalidPp = !Number.isFinite(paypal) || paypal < 0;
+    const isInvalidCr = !Number.isFinite(crypto) || crypto < 0;
+
+    // Normalize legacy computed total if present
+    const rawTotal = inc.total ?? (onlyFans + paypal + crypto);
+    const total = Number(rawTotal);
+    const isInvalidTotal = !Number.isFinite(total) || total < 0;
+
+    if (isInvalidOf || isInvalidPp || isInvalidCr || isInvalidTotal) {
       invalidMonetaryValues++;
-      issues.push(`IncomeRecord [${inc.id}]: invalid monetary values`);
+      issues.push(`IncomeRecord [${inc.id}]: invalid monetary values (of: ${inc.onlyFans}, pp: ${inc.paypal}, cr: ${inc.crypto}, total: ${inc.total})`);
     }
   });
 
@@ -222,7 +242,8 @@ export function runMigrationDryRun(state: AppState): MigrationDryRunResult {
       unrepresentableRecords++;
       issues.push(`OperationRecord [${op.id}]: unknown type '${op.type}'`);
     }
-    if (isNaN(op.amount) || op.amount <= 0) {
+    const amount = Number(op.amount ?? 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
       invalidMonetaryValues++;
       issues.push(`OperationRecord [${op.id}]: invalid amount ${op.amount}`);
     }
@@ -235,7 +256,8 @@ export function runMigrationDryRun(state: AppState): MigrationDryRunResult {
       invalidOrMissingPeriodId++;
       issues.push(`OwnerExpense [${exp.id}]: referenced periodId '${exp.periodId}' does not exist`);
     }
-    if (isNaN(exp.amount) || exp.amount <= 0) {
+    const amount = Number(exp.amount ?? 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
       invalidMonetaryValues++;
       issues.push(`OwnerExpense [${exp.id}]: invalid amount ${exp.amount}`);
     }
@@ -251,7 +273,8 @@ export function runMigrationDryRun(state: AppState): MigrationDryRunResult {
       unresolvedOwnerRefs++;
       issues.push(`OwnerAdvance [${adv.id}]: unresolved owner '${adv.ownerName}'`);
     }
-    if (isNaN(adv.amount) || adv.amount <= 0) {
+    const amount = Number(adv.amount ?? 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
       invalidMonetaryValues++;
       issues.push(`OwnerAdvance [${adv.id}]: invalid amount ${adv.amount}`);
     }
