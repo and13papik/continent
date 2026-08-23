@@ -44,7 +44,12 @@ import {
   History,
   Star,
   TrendingUp,
-  Clock
+  Clock,
+  Database,
+  Activity,
+  FileText,
+  Layers,
+  CheckCircle2
 } from 'lucide-react';
 
 export const ICONS: Record<string, any> = {
@@ -98,7 +103,12 @@ export const ICONS: Record<string, any> = {
   History: History,
   Empty: ClipboardList,
   Star: Star,
-  Clock: Clock
+  Clock: Clock,
+  Database: Database,
+  Activity: Activity,
+  FileText: FileText,
+  Layers: Layers,
+  CheckCircle: CheckCircle2
 };
 
 export const PLATFORM_NAMES: Record<string, string> = {
