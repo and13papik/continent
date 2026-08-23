@@ -13,6 +13,7 @@ import onlyMonsterProxyHandler from "./api/onlymonster/proxy.js";
 import onlyMonsterAnalyticsHandler from "./api/onlymonster/analytics.js";
 import onlyMonsterAdminHandler, { purgeExpiredLiveEvents } from "./api/onlymonster/admin.js";
 import webhookHandler from "./api/webhook.js";
+import { runMigrationDryRun } from "./scripts/dry_run_migration";
 
 async function startServer() {
   const app = express();
@@ -510,6 +511,21 @@ async function startServer() {
   app.post("/api/integrations/onlymonster/sync", async (req, res) => {
     const result = await handleOnlyMonsterSync(req.body);
     res.status(result.statusCode).json(result.body);
+  });
+
+  // Dry-Run Migration Auditor (Phase 2 Read-Only)
+  app.post("/api/admin/dry-run", (req, res) => {
+    try {
+      const state = req.body;
+      if (!state || typeof state !== 'object') {
+        return res.status(400).json({ error: "Invalid AppState payload" });
+      }
+      const result = runMigrationDryRun(state);
+      res.json(result);
+    } catch (err: any) {
+      console.error("Dry run migration execution error:", err);
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // OnlyMonster Configuration, proxy, analytics, and admin/live-events handlers

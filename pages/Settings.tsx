@@ -4,6 +4,7 @@ import { AppState, CloudSnapshot, AccountingPeriod } from '../types';
 import { ICONS } from '../constants';
 import { fetchFromCloud, testDatabaseConnection, listCloudSnapshots, createEmergencyBackup, restoreEmergencyBackup, reindexAllDataByDate, forcePushToCloud } from '../store';
 import PeriodBadge from '../components/PeriodBadge';
+import { runMigrationDryRun, MigrationDryRunResult } from '../scripts/dry_run_migration';
 
 interface SettingsProps {
   state: AppState;
@@ -51,6 +52,12 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
   
   const [snapshots, setSnapshots] = useState<CloudSnapshot[]>([]);
   const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
+  const [dryRunResult, setDryRunResult] = useState<MigrationDryRunResult | null>(null);
+
+  const handleRunDryRun = () => {
+    const res = runMigrationDryRun(state);
+    setDryRunResult(res);
+  };
 
   // Инструмент починки данных
   const homelessCount = useMemo(() => {
@@ -394,6 +401,264 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                   ))
                 )}
              </div>
+          </div>
+        )}
+
+        {userRole === 'owner' && (
+          <div className="xl:col-span-3 glass-card p-8 rounded-[32px] border-slate-800 shadow-2xl space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <ICONS.Database size={20} className="text-indigo-400" /> Dry-Run Migration Audit (Phase 2 Read-Only)
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  100% безопасная проверка текущего состояния CRM без внесения изменений в базу данных.
+                </p>
+              </div>
+              <button 
+                onClick={handleRunDryRun} 
+                className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-2xl font-bold text-xs shadow-lg shadow-indigo-600/20 transition-all active:scale-95 flex items-center gap-2"
+              >
+                <ICONS.Activity size={16} /> Запустить Dry-Run Аудит
+              </button>
+            </div>
+
+            {dryRunResult && (
+              <div className="space-y-6 pt-4 border-t border-slate-800">
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-900/60 border border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
+                      dryRunResult.isPassed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                    }`}>
+                      {dryRunResult.isPassed ? 'DRY RUN RESULT: PASS' : 'DRY RUN RESULT: FAIL'}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      Всего записей дохода и операций: {dryRunResult.sourceCounts.incomeData + dryRunResult.sourceCounts.operationsData}
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold text-slate-400">
+                    Ошибок / Конфликтов: {dryRunResult.issues.length}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Source Counts */}
+                  <div className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                      <ICONS.FileText size={14} className="text-indigo-400" /> Исходные записи (Source: app_storage.main)
+                    </h3>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">accountingPeriods:</span>
+                        <span className="font-bold text-white">{dryRunResult.sourceCounts.accountingPeriods}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">operators:</span>
+                        <span className="font-bold text-white">{dryRunResult.sourceCounts.operators}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">models:</span>
+                        <span className="font-bold text-white">{dryRunResult.sourceCounts.models}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">admins:</span>
+                        <span className="font-bold text-white">{dryRunResult.sourceCounts.admins}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">incomeData:</span>
+                        <span className="font-bold text-emerald-400">{dryRunResult.sourceCounts.incomeData}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">operationsData:</span>
+                        <span className="font-bold text-indigo-400">{dryRunResult.sourceCounts.operationsData}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">ownerExpenses:</span>
+                        <span className="font-bold text-white">{dryRunResult.sourceCounts.ownerExpenses}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">ownerManualIncomes:</span>
+                        <span className="font-bold text-white">{dryRunResult.sourceCounts.ownerManualIncomes}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">ownerAdvances:</span>
+                        <span className="font-bold text-white">{dryRunResult.sourceCounts.ownerAdvances}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">modelBonuses:</span>
+                        <span className="font-bold text-white">{dryRunResult.sourceCounts.modelBonuses}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">paidStatuses:</span>
+                        <span className="font-bold text-white">{dryRunResult.sourceCounts.paidStatuses}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">modelMonthlyPlans:</span>
+                        <span className="font-bold text-white">{dryRunResult.sourceCounts.modelMonthlyPlans}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">totalTableEntries:</span>
+                        <span className="font-bold text-white">{dryRunResult.sourceCounts.totalTableEntries}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">rosterData:</span>
+                        <span className="font-bold text-white">{dryRunResult.sourceCounts.rosterData}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Target Relational Row Counts */}
+                  <div className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                      <ICONS.Layers size={14} className="text-emerald-400" /> Целевые таблицы (Target Relational Schema)
+                    </h3>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">accounting_periods rows:</span>
+                        <span className="font-bold text-white">{dryRunResult.targetRowCounts.accounting_periods}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">operators rows:</span>
+                        <span className="font-bold text-white">{dryRunResult.targetRowCounts.operators}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">models rows:</span>
+                        <span className="font-bold text-white">{dryRunResult.targetRowCounts.models}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">admins rows:</span>
+                        <span className="font-bold text-white">{dryRunResult.targetRowCounts.admins}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">owner_period_shares rows:</span>
+                        <span className="font-bold text-white">{dryRunResult.targetRowCounts.owner_period_shares}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">income_records rows:</span>
+                        <span className="font-bold text-emerald-400">{dryRunResult.targetRowCounts.income_records}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">financial_operations rows:</span>
+                        <span className="font-bold text-indigo-400">{dryRunResult.targetRowCounts.financial_operations}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">agency_transactions rows:</span>
+                        <span className="font-bold text-white">{dryRunResult.targetRowCounts.agency_transactions}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">owner_draws rows:</span>
+                        <span className="font-bold text-white">{dryRunResult.targetRowCounts.owner_draws}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">model_period_bonuses rows:</span>
+                        <span className="font-bold text-white">{dryRunResult.targetRowCounts.model_period_bonuses}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">payout_settlement_flags:</span>
+                        <span className="font-bold text-white">{dryRunResult.targetRowCounts.payout_settlement_flags}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">model_monthly_plans rows:</span>
+                        <span className="font-bold text-white">{dryRunResult.targetRowCounts.model_monthly_plans}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">shift_balance_entries rows:</span>
+                        <span className="font-bold text-white">{dryRunResult.targetRowCounts.shift_balance_entries}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">roster_shifts rows:</span>
+                        <span className="font-bold text-white">{dryRunResult.targetRowCounts.roster_shifts}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                        <span className="text-slate-400">roster_shift_models rows:</span>
+                        <span className="font-bold text-white">{dryRunResult.targetRowCounts.roster_shift_models}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Diagnostics Breakdown */}
+                <div className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                    <ICONS.CheckCircle size={14} className="text-emerald-400" /> Диагностика целостности и ограничений
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-xs">
+                    <div className="flex justify-between py-1 border-b border-slate-800/60">
+                      <span className="text-slate-400">orphan records count:</span>
+                      <span className={`font-bold ${dryRunResult.diagnostics.orphanRecordsCount === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {dryRunResult.diagnostics.orphanRecordsCount}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-800/60">
+                      <span className="text-slate-400">unresolved operator references:</span>
+                      <span className={`font-bold ${dryRunResult.diagnostics.unresolvedOperatorRefs === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {dryRunResult.diagnostics.unresolvedOperatorRefs}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-800/60">
+                      <span className="text-slate-400">unresolved model references:</span>
+                      <span className={`font-bold ${dryRunResult.diagnostics.unresolvedModelRefs === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {dryRunResult.diagnostics.unresolvedModelRefs}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-800/60">
+                      <span className="text-slate-400">unresolved admin references:</span>
+                      <span className={`font-bold ${dryRunResult.diagnostics.unresolvedAdminRefs === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {dryRunResult.diagnostics.unresolvedAdminRefs}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-800/60">
+                      <span className="text-slate-400">unresolved owner references:</span>
+                      <span className={`font-bold ${dryRunResult.diagnostics.unresolvedOwnerRefs === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {dryRunResult.diagnostics.unresolvedOwnerRefs}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-800/60">
+                      <span className="text-slate-400">invalid/missing period_id:</span>
+                      <span className={`font-bold ${dryRunResult.diagnostics.invalidOrMissingPeriodId === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {dryRunResult.diagnostics.invalidOrMissingPeriodId}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-800/60">
+                      <span className="text-slate-400">UNIQUE constraint conflicts:</span>
+                      <span className={`font-bold ${dryRunResult.diagnostics.uniqueConstraintConflicts === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {dryRunResult.diagnostics.uniqueConstraintConflicts}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-800/60">
+                      <span className="text-slate-400">duplicate business keys:</span>
+                      <span className={`font-bold ${dryRunResult.diagnostics.duplicateBusinessKeys === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {dryRunResult.diagnostics.duplicateBusinessKeys}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-800/60">
+                      <span className="text-slate-400">invalid monetary values:</span>
+                      <span className={`font-bold ${dryRunResult.diagnostics.invalidMonetaryValues === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {dryRunResult.diagnostics.invalidMonetaryValues}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-800/60">
+                      <span className="text-slate-400">unrepresentable records:</span>
+                      <span className={`font-bold ${dryRunResult.diagnostics.unrepresentableRecords === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {dryRunResult.diagnostics.unrepresentableRecords}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Issues List if any */}
+                {dryRunResult.issues.length > 0 && (
+                  <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl space-y-2">
+                    <h4 className="text-xs font-bold text-rose-400 uppercase tracking-wider">Список обнаруженных проблем ({dryRunResult.issues.length}):</h4>
+                    <ul className="text-xs text-rose-300/80 space-y-1 max-h-40 overflow-y-auto pl-4 list-disc">
+                      {dryRunResult.issues.map((iss, idx) => (
+                        <li key={idx}>{iss}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
