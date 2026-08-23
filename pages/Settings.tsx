@@ -53,10 +53,92 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
   const [snapshots, setSnapshots] = useState<CloudSnapshot[]>([]);
   const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
   const [dryRunResult, setDryRunResult] = useState<MigrationDryRunResult | null>(null);
+  const [bundleResult, setBundleResult] = useState<{
+    success: boolean;
+    targetSqlFile: string;
+    fileSizeKb: string;
+    lineCount: number;
+    fingerprint: {
+      snapshotUpdatedAt: string;
+      sourceRecordCount: number;
+      deterministicHash: string;
+    };
+    targetRowCounts: Record<string, number>;
+    sqlContent?: string;
+  } | null>(null);
+  const [isGeneratingBundle, setIsGeneratingBundle] = useState(false);
+  const [bundleError, setBundleError] = useState<string | null>(null);
 
   const handleRunDryRun = () => {
     const res = runMigrationDryRun(state);
     setDryRunResult(res);
+  };
+
+  const handleGenerateProductionBundle = async () => {
+    setIsGeneratingBundle(true);
+    setBundleError(null);
+    try {
+      // 1. Fetch fresh production state from Supabase if credentials available
+      let freshState = state;
+      let updatedAt = new Date().toISOString();
+      let rawStateJson = '';
+
+      if (state.syncUrl && state.syncKey) {
+        const cleanUrl = state.syncUrl.trim().replace(/\/$/, '');
+        const res = await fetch(`${cleanUrl}/rest/v1/app_storage?id=eq.main&select=id,state,updated_at`, {
+          headers: { 'apikey': state.syncKey.trim(), 'Authorization': `Bearer ${state.syncKey.trim()}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.length > 0) {
+            freshState = data[0].state;
+            updatedAt = data[0].updated_at || updatedAt;
+            rawStateJson = JSON.stringify(data[0].state);
+          }
+        }
+      }
+
+      // 2. Call backend generator to write to migrations/production_migration_bundle.sql
+      const response = await fetch('/api/admin/generate-bundle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          state: freshState,
+          updatedAt,
+          rawStateJson: rawStateJson || JSON.stringify(freshState),
+          syncUrl: state.syncUrl,
+          syncKey: state.syncKey
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to generate migration bundle');
+      }
+
+      setBundleResult(result);
+    } catch (err: any) {
+      console.error('Bundle Generation Error:', err);
+      setBundleError(err.message || 'Ошибка генерации бандла миграции');
+    } finally {
+      setIsGeneratingBundle(false);
+    }
+  };
+
+  const handleDownloadBundleDirectly = () => {
+    if (bundleResult?.sqlContent) {
+      const blob = new Blob([bundleResult.sqlContent], { type: 'text/sql;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'production_migration_bundle.sql';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else {
+      window.location.href = '/api/admin/download-bundle';
+    }
   };
 
   // Инструмент починки данных
@@ -667,6 +749,84 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                 )}
               </div>
             )}
+
+            {/* Production SQL Bundle Generator Section */}
+            <div className="pt-6 border-t border-slate-800/80 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <ICONS.Download size={16} className="text-emerald-400" /> Генератор Production Migration Bundle (.sql)
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Формирует атомарный SQL-бандл с PostgreSQL-side JSONB hash guard, row-level FOR UPDATE lock (15s) и 10min timeout.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleGenerateProductionBundle}
+                    disabled={isGeneratingBundle}
+                    className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-5 py-2.5 rounded-2xl font-bold text-xs shadow-lg shadow-emerald-600/20 transition-all active:scale-95 flex items-center gap-2 whitespace-nowrap"
+                  >
+                    {isGeneratingBundle ? (
+                      <>
+                        <ICONS.RefreshCw size={14} className="animate-spin" /> Генерация...
+                      </>
+                    ) : (
+                      <>
+                        <ICONS.FileText size={14} /> Сгенерировать Bundle
+                      </>
+                    )}
+                  </button>
+
+                  {bundleResult && (
+                    <button
+                      onClick={handleDownloadBundleDirectly}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-2xl font-bold text-xs shadow-lg shadow-indigo-600/20 transition-all active:scale-95 flex items-center gap-2 whitespace-nowrap"
+                    >
+                      <ICONS.Download size={14} /> Скачать .SQL ({bundleResult.fileSizeKb} KB)
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {bundleError && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300">
+                  {bundleError}
+                </div>
+              )}
+
+              {bundleResult && (
+                <div className="p-5 rounded-2xl bg-slate-900/60 border border-emerald-500/30 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+                      <ICONS.CheckCircle size={14} /> Bundle готов: {bundleResult.targetSqlFile}
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">
+                      {bundleResult.lineCount} строк • {bundleResult.fileSizeKb} KB
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                    <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 space-y-1">
+                      <div className="text-slate-500 text-[10px] uppercase tracking-wider">Source Fingerprint</div>
+                      <div className="text-slate-300">Updated At: <span className="text-white font-bold">{bundleResult.fingerprint.snapshotUpdatedAt}</span></div>
+                      <div className="text-slate-300">Source Count: <span className="text-white font-bold">{bundleResult.fingerprint.sourceRecordCount}</span></div>
+                      <div className="text-slate-400 truncate text-[10px]">Hash: {bundleResult.fingerprint.deterministicHash}</div>
+                    </div>
+
+                    <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 space-y-1">
+                      <div className="text-slate-500 text-[10px] uppercase tracking-wider">Target Rows (18 tables)</div>
+                      <div className="grid grid-cols-2 gap-x-2 text-[11px]">
+                        <span className="text-slate-400">income_records: <strong className="text-emerald-400">{bundleResult.targetRowCounts.income_records}</strong></span>
+                        <span className="text-slate-400">financial_ops: <strong className="text-emerald-400">{bundleResult.targetRowCounts.financial_operations}</strong></span>
+                        <span className="text-slate-400">model_rates: <strong className="text-emerald-400">{bundleResult.targetRowCounts.model_period_rates}</strong></span>
+                        <span className="text-slate-400">roster_shifts: <strong className="text-emerald-400">{bundleResult.targetRowCounts.roster_shifts}</strong></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

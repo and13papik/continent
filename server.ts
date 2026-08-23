@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import fetch from "node-fetch";
 import FormData from "form-data";
@@ -14,6 +15,7 @@ import onlyMonsterAnalyticsHandler from "./api/onlymonster/analytics.js";
 import onlyMonsterAdminHandler, { purgeExpiredLiveEvents } from "./api/onlymonster/admin.js";
 import webhookHandler from "./api/webhook.js";
 import { runMigrationDryRun } from "./scripts/dry_run_migration";
+import { runMigrationPreparation, generateAtomicSqlBundle } from "./scripts/execute_migration";
 
 async function startServer() {
   const app = express();
@@ -526,6 +528,74 @@ async function startServer() {
       console.error("Dry run migration execution error:", err);
       res.status(500).json({ error: err.message });
     }
+  });
+
+  // Production Migration SQL Bundle Generator (Generates SQL file without executing it)
+  app.post("/api/admin/generate-bundle", async (req, res) => {
+    try {
+      const { state: providedState, updatedAt: providedUpdatedAt, rawStateJson: providedRawJson, syncUrl, syncKey } = req.body;
+
+      let state = providedState;
+      let updatedAt = providedUpdatedAt || new Date().toISOString();
+      let rawStateJson = providedRawJson || '';
+
+      // If sync credentials provided and no full state, fetch fresh from Supabase
+      if ((!state || syncUrl) && syncUrl && syncKey) {
+        const cleanUrl = syncUrl.trim().replace(/\/$/, '');
+        const response = await fetch(`${cleanUrl}/rest/v1/app_storage?id=eq.main&select=id,state,updated_at`, {
+          headers: { 'apikey': syncKey.trim(), 'Authorization': `Bearer ${syncKey.trim()}` }
+        });
+        if (!response.ok) {
+          return res.status(502).json({ error: `Failed to fetch fresh state from Supabase: ${response.statusText}` });
+        }
+        const data: any = await response.json();
+        if (!data || data.length === 0) {
+          return res.status(404).json({ error: "app_storage.main record not found in Supabase" });
+        }
+        state = data[0].state;
+        updatedAt = data[0].updated_at || updatedAt;
+        rawStateJson = JSON.stringify(data[0].state);
+      }
+
+      if (!state) {
+        return res.status(400).json({ error: "AppState is required to generate migration bundle" });
+      }
+
+      const targetSqlFile = path.join(process.cwd(), 'migrations', 'production_migration_bundle.sql');
+      const result = await runMigrationPreparation(state, targetSqlFile, updatedAt, rawStateJson);
+
+      if (!result.success) {
+        return res.status(422).json({
+          error: "Reconciliation or validation failed during bundle preparation",
+          reconciliation: result.reconciliation
+        });
+      }
+
+      const fileContent = fs.readFileSync(targetSqlFile, 'utf-8');
+
+      res.json({
+        success: true,
+        targetSqlFile: 'migrations/production_migration_bundle.sql',
+        fileSizeKb: (fileContent.length / 1024).toFixed(1),
+        lineCount: fileContent.split('\n').length,
+        fingerprint: result.fingerprint,
+        targetRowCounts: Object.fromEntries(Object.entries(result.payload).map(([k, v]) => [k, v.length])),
+        reconciliation: result.reconciliation,
+        sqlContent: fileContent
+      });
+    } catch (err: any) {
+      console.error("Bundle generation error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Download Bundle endpoint
+  app.get("/api/admin/download-bundle", (req, res) => {
+    const filePath = path.join(process.cwd(), 'migrations', 'production_migration_bundle.sql');
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "production_migration_bundle.sql does not exist yet. Please generate it first." });
+    }
+    res.download(filePath, 'production_migration_bundle.sql');
   });
 
   // OnlyMonster Configuration, proxy, analytics, and admin/live-events handlers
