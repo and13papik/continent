@@ -49,7 +49,9 @@ import {
   Activity,
   FileText,
   Layers,
-  CheckCircle2
+  CheckCircle2,
+  Download,
+  RefreshCw
 } from 'lucide-react';
 
 export const ICONS: Record<string, any> = {
@@ -108,7 +110,9 @@ export const ICONS: Record<string, any> = {
   Activity: Activity,
   FileText: FileText,
   Layers: Layers,
-  CheckCircle: CheckCircle2
+  CheckCircle: CheckCircle2,
+  Download: Download,
+  RefreshCw: RefreshCw
 };
 
 export const PLATFORM_NAMES: Record<string, string> = {
