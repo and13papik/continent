@@ -78,37 +78,22 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
     setIsGeneratingBundle(true);
     setBundleError(null);
     try {
-      // 1. Fetch fresh production state from Supabase if credentials available
-      let freshState = state;
-      let updatedAt = new Date().toISOString();
-      let rawStateJson = '';
-
-      if (state.syncUrl && state.syncKey) {
-        const cleanUrl = state.syncUrl.trim().replace(/\/$/, '');
-        const res = await fetch(`${cleanUrl}/rest/v1/app_storage?id=eq.main&select=id,state,updated_at`, {
-          headers: { 'apikey': state.syncKey.trim(), 'Authorization': `Bearer ${state.syncKey.trim()}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.length > 0) {
-            freshState = data[0].state;
-            updatedAt = data[0].updated_at || updatedAt;
-            rawStateJson = JSON.stringify(data[0].state);
+      // Pass sync credentials so the server fetches app_storage.main directly from Supabase.
+      // If no credentials, fallback to sending state.
+      const payloadBody = (state.syncUrl && state.syncKey)
+        ? {
+            syncUrl: state.syncUrl,
+            syncKey: state.syncKey
           }
-        }
-      }
+        : {
+            state,
+            updatedAt: new Date().toISOString()
+          };
 
-      // 2. Call backend generator to write to migrations/production_migration_bundle.sql
       const response = await fetch('/api/admin/generate-bundle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          state: freshState,
-          updatedAt,
-          rawStateJson: rawStateJson || JSON.stringify(freshState),
-          syncUrl: state.syncUrl,
-          syncKey: state.syncKey
-        })
+        body: JSON.stringify(payloadBody)
       });
 
       const contentType = response.headers.get('content-type') || '';
