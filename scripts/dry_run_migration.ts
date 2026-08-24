@@ -249,6 +249,30 @@ export function runMigrationDryRun(state: AppState): MigrationDryRunResult {
     }
   });
 
+  // Check Roster Shift Models Invariant & Uniqueness
+  const expectedRosterModelsCount = roster.reduce((sum, r) => {
+    if (r.models && Array.isArray(r.models)) {
+      const uniqueCleanModels = new Set(r.models.map(m => (m || '').trim().toLowerCase()).filter(Boolean));
+      return sum + uniqueCleanModels.size;
+    }
+    return sum;
+  }, 0);
+
+  if (payload.roster_shift_models.length !== expectedRosterModelsCount) {
+    issues.push(`Invariant violation: roster_shift_models payload count (${payload.roster_shift_models.length}) !== source clean models count (${expectedRosterModelsCount})`);
+  }
+
+  const seenRosterJunction = new Set<string>();
+  payload.roster_shift_models.forEach(rsm => {
+    const key = `${rsm.roster_shift_id}:${rsm.model_id}`;
+    if (seenRosterJunction.has(key)) {
+      duplicateBusinessKeys++;
+      uniqueConstraintConflicts++;
+      issues.push(`Duplicate roster_shift_models composite key: ${key}`);
+    }
+    seenRosterJunction.add(key);
+  });
+
   // 4. Target Row Counts directly from Payload
   const targetRowCounts = {
     accounting_periods: payload.accounting_periods.length,

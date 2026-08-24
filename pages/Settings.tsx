@@ -111,9 +111,24 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
         })
       });
 
-      const result = await response.json();
+      const contentType = response.headers.get('content-type') || '';
+      let result: any = null;
+      if (contentType.includes('application/json')) {
+        result = await response.json();
+      } else {
+        const rawText = await response.text();
+        throw new Error(rawText || `Сервер вернул ошибку с HTTP статусом ${response.status}`);
+      }
+
       if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Failed to generate migration bundle');
+        let msg = result.error || 'Ошибка при формировании бандла миграции';
+        if (result.reconciliation?.financialDiscrepancies?.length > 0) {
+          const details = result.reconciliation.financialDiscrepancies
+            .map((d: any) => `${d.periodName}: net_diff=$${d.netProfitDiff.toFixed(2)}, staff_diff=$${d.staffPoolDiff.toFixed(2)}`)
+            .join('; ');
+          msg += ` [Расхождения: ${details}]`;
+        }
+        throw new Error(msg);
       }
 
       setBundleResult(result);

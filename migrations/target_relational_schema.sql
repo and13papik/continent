@@ -105,6 +105,9 @@ CREATE TABLE IF NOT EXISTS public.income_records (
     percent_of NUMERIC(5, 2) NOT NULL DEFAULT 20.00,
     percent_pp NUMERIC(5, 2) NOT NULL DEFAULT 20.00,
     percent_crypto NUMERIC(5, 2) NOT NULL DEFAULT 20.00,
+    netto_of NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    netto_pp NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    netto_crypto NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
     version INT NOT NULL DEFAULT 1,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -256,7 +259,7 @@ WITH shift_accruals AS (
     SELECT 
         period_id,
         operator_id,
-        SUM((onlyfans_gross * percent_of / 100.0) + (paypal_gross * percent_pp / 100.0) + (crypto_gross * percent_crypto / 100.0)) AS shift_net_total,
+        SUM(netto_of + netto_pp + netto_crypto) AS shift_net_total,
         SUM(onlyfans_gross + paypal_gross + crypto_gross) AS shift_gross_total
     FROM public.income_records
     GROUP BY period_id, operator_id
@@ -268,7 +271,8 @@ op_operations AS (
         COALESCE(SUM(CASE WHEN type = 'advance' THEN amount ELSE 0 END), 0) AS total_advances,
         COALESCE(SUM(CASE WHEN type = 'penalty' THEN amount ELSE 0 END), 0) AS total_penalties,
         COALESCE(SUM(CASE WHEN type = 'bonus' THEN amount ELSE 0 END), 0) AS total_bonuses,
-        COALESCE(SUM(CASE WHEN type = 'training' THEN amount ELSE 0 END), 0) AS total_training,
+        COALESCE(SUM(CASE WHEN type = 'training' OR type = 'internship' THEN amount ELSE 0 END), 0) AS total_training,
+        COALESCE(SUM(CASE WHEN type = 'refund' THEN amount ELSE 0 END), 0) AS total_refunds,
         COALESCE(SUM(CASE WHEN type = 'salary_payment' THEN amount ELSE 0 END), 0) AS total_paid
     FROM public.financial_operations
     WHERE target_type = 'operator'
@@ -279,10 +283,16 @@ SELECT
     o.id AS operator_id,
     o.name AS operator_name,
     COALESCE(sa.shift_gross_total, 0) AS gross_total,
-    COALESCE(sa.shift_net_total, 0) + COALESCE(oo.total_bonuses, 0) - COALESCE(oo.total_penalties, 0) - COALESCE(oo.total_training, 0) AS total_accrued,
+    (
+        COALESCE(sa.shift_net_total, 0) - (COALESCE(oo.total_refunds, 0) * CASE WHEN COALESCE(sa.shift_gross_total, 0) > 0 THEN COALESCE(sa.shift_net_total, 0) / sa.shift_gross_total ELSE 0.20 END)
+        + COALESCE(oo.total_bonuses, 0) - COALESCE(oo.total_penalties, 0) - COALESCE(oo.total_training, 0)
+    ) AS total_accrued,
     COALESCE(oo.total_advances, 0) AS total_advances,
     COALESCE(oo.total_paid, 0) AS total_paid,
-    (COALESCE(sa.shift_net_total, 0) + COALESCE(oo.total_bonuses, 0) - COALESCE(oo.total_penalties, 0) - COALESCE(oo.total_training, 0)) - COALESCE(oo.total_advances, 0) - COALESCE(oo.total_paid, 0) AS balance_due,
+    (
+        COALESCE(sa.shift_net_total, 0) - (COALESCE(oo.total_refunds, 0) * CASE WHEN COALESCE(sa.shift_gross_total, 0) > 0 THEN COALESCE(sa.shift_net_total, 0) / sa.shift_gross_total ELSE 0.20 END)
+        + COALESCE(oo.total_bonuses, 0) - COALESCE(oo.total_penalties, 0) - COALESCE(oo.total_training, 0)
+    ) - COALESCE(oo.total_advances, 0) - COALESCE(oo.total_paid, 0) AS balance_due,
     COALESCE(ps.is_settled, false) AS is_settled
 FROM public.accounting_periods p
 CROSS JOIN public.operators o

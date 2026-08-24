@@ -293,11 +293,7 @@ export function computeRelationalPeriodFinancials(payload: RelationalMigrationPa
     const opIncomes = incomes.filter(i => i.operator_id === opId);
     const opOps = ops.filter(o => o.target_type === 'operator' && o.operator_id === opId);
 
-    const shiftNet = opIncomes.reduce((s, r) => s + (
-      (r.onlyfans_gross * r.percent_of / 100) +
-      (r.paypal_gross * r.percent_pp / 100) +
-      (r.crypto_gross * r.percent_crypto / 100)
-    ), 0);
+    const shiftNet = opIncomes.reduce((s, r) => s + ((r.netto_of ?? 0) + (r.netto_pp ?? 0) + (r.netto_crypto ?? 0)), 0);
     const shiftGross = opIncomes.reduce((s, r) => s + (r.onlyfans_gross + r.paypal_gross + r.crypto_gross), 0);
     const opRefunds = ops.filter(o => o.type === 'refund' && o.operator_id === opId).reduce((s, o) => s + o.amount, 0);
 

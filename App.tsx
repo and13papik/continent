@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { HashRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ICONS } from './constants';
 import { createInitialState, saveLocal, syncToCloud, fetchFromCloud, mergeStates } from './store';
@@ -286,8 +286,12 @@ const App: React.FC = () => {
               </div>
               <NavLink to="/total-table" icon={<ICONS.Transfer size={14} />} label="Total Table" admin />
               <NavLink to="/admin-table" icon={<ICONS.Internship size={14} />} label="Admin Table" admin />
-              <NavLink to="/owner-table" icon={<ICONS.Calendar size={14} />} label="Core Table" premium />
-              <NavLink to="/owner" icon={<ICONS.Owner size={14} />} label="Core Finance" premium />
+              {userRole === 'owner' && (
+                <>
+                  <NavLink to="/owner-table" icon={<ICONS.Calendar size={14} />} label="Core Table" premium />
+                  <NavLink to="/owner" icon={<ICONS.Owner size={14} />} label="Core Finance" premium />
+                </>
+              )}
             </div>
 
             <div className="pb-6">
@@ -376,8 +380,8 @@ const App: React.FC = () => {
               <Route path="/reports" element={<Reports state={state} updateState={updateState} />} />
               <Route path="/models" element={<Models state={state} updateState={updateState} />} />
               <Route path="/roster" element={<Roster state={state} updateState={updateState} />} />
-              <Route path="/owner" element={<Owner state={state} updateState={updateState} />} />
-              <Route path="/owner-table" element={<OwnerTable state={state} updateState={updateState} />} />
+              <Route path="/owner" element={userRole === 'owner' ? <Owner state={state} updateState={updateState} /> : <Navigate to="/" replace />} />
+              <Route path="/owner-table" element={userRole === 'owner' ? <OwnerTable state={state} updateState={updateState} /> : <Navigate to="/" replace />} />
               <Route path="/admin-table" element={<AdminTable state={state} updateState={updateState} />} />
               <Route path="/total-table" element={<TotalTable state={state} updateState={updateState} />} />
               <Route path="/settings" element={<Settings state={state} updateState={updateState} userRole={userRole} />} />

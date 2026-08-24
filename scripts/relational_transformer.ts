@@ -112,6 +112,9 @@ export interface IncomeRecordRow {
   percent_of: number;
   percent_pp: number;
   percent_crypto: number;
+  netto_of: number;
+  netto_pp: number;
+  netto_crypto: number;
   version: number;
   created_at: string;
   updated_at: string;
@@ -283,20 +286,20 @@ export function transformAppStateToRelational(state: AppState): RelationalTransf
   const now = new Date().toISOString();
 
   // 1. Source Collections
-  const periods: AccountingPeriod[] = state.accountingPeriods || [];
-  const operatorsList: string[] = state.operators || [];
-  const modelsList: string[] = state.models || [];
-  const adminsList: Admin[] = state.admins || [];
-  const incomeRecords: IncomeRecord[] = state.incomeData || [];
-  const opsRecords: OperationRecord[] = state.operationsData || [];
-  const ownerExp: OwnerManualExpense[] = state.ownerExpenses || [];
-  const ownerManualInc: OwnerManualIncome[] = state.ownerManualIncomes || [];
-  const ownerAdv: OwnerAdvance[] = state.ownerAdvances || [];
-  const modelBonuses: ModelBonus[] = state.modelBonuses || [];
-  const paidStatuses: PaidStatus[] = state.paidStatuses || [];
-  const monthlyPlans: Record<string, number> = state.modelMonthlyPlans || {};
-  const totalEntries: DailyTotalEntry[] = state.totalTableEntries || [];
-  const roster: RosterEntry[] = state.rosterData || [];
+  const periods: AccountingPeriod[] = Array.isArray(state.accountingPeriods) ? state.accountingPeriods : [];
+  const operatorsList: string[] = Array.isArray(state.operators) ? state.operators : [];
+  const modelsList: string[] = Array.isArray(state.models) ? state.models : [];
+  const adminsList: Admin[] = Array.isArray(state.admins) ? state.admins : [];
+  const incomeRecords: IncomeRecord[] = Array.isArray(state.incomeData) ? state.incomeData : [];
+  const opsRecords: OperationRecord[] = Array.isArray(state.operationsData) ? state.operationsData : [];
+  const ownerExp: OwnerManualExpense[] = Array.isArray(state.ownerExpenses) ? state.ownerExpenses : [];
+  const ownerManualInc: OwnerManualIncome[] = Array.isArray(state.ownerManualIncomes) ? state.ownerManualIncomes : [];
+  const ownerAdv: OwnerAdvance[] = Array.isArray(state.ownerAdvances) ? state.ownerAdvances : [];
+  const modelBonuses: ModelBonus[] = Array.isArray(state.modelBonuses) ? state.modelBonuses : [];
+  const paidStatuses: PaidStatus[] = Array.isArray(state.paidStatuses) ? state.paidStatuses : [];
+  const monthlyPlans: Record<string, number> = (state.modelMonthlyPlans && typeof state.modelMonthlyPlans === 'object' && !Array.isArray(state.modelMonthlyPlans)) ? state.modelMonthlyPlans : {};
+  const totalEntries: DailyTotalEntry[] = Array.isArray(state.totalTableEntries) ? state.totalTableEntries : [];
+  const roster: RosterEntry[] = Array.isArray(state.rosterData) ? state.rosterData : [];
 
   const periodIds = new Set<string>(periods.map(p => p.id));
   const operatorMap = new Map<string, string>();
@@ -533,6 +536,9 @@ export function transformAppStateToRelational(state: AppState): RelationalTransf
       percent_of: inc.percentOF ?? 20.00,
       percent_pp: inc.percentPP ?? 20.00,
       percent_crypto: inc.percentCrypto ?? 20.00,
+      netto_of: Number(inc.nettoOF ?? 0),
+      netto_pp: Number(inc.nettoPP ?? 0),
+      netto_crypto: Number(inc.nettoCrypto ?? 0),
       version: 1,
       created_at: inc.createdAt || now,
       updated_at: inc.updatedAt || now,
@@ -799,10 +805,14 @@ export function transformAppStateToRelational(state: AppState): RelationalTransf
     });
 
     if (r.models && Array.isArray(r.models)) {
+      const seenShiftModels = new Set<string>();
       r.models.forEach(m => {
+        if (!m || typeof m !== 'string') return;
         const modLower = m.trim().toLowerCase();
+        if (!modLower) return;
         const model_id = modelMap.get(modLower);
-        if (model_id) {
+        if (model_id && !seenShiftModels.has(model_id)) {
+          seenShiftModels.add(model_id);
           roster_shift_models.push({
             roster_shift_id: r.id,
             model_id,
