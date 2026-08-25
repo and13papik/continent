@@ -282,8 +282,8 @@ export function computeRelationalPeriodFinancials(payload: RelationalMigrationPa
   // 1. Staff (Operators)
   const operatorIds = Array.from(new Set([
     ...incomes.map(i => i.operator_id),
-    ...ops.filter(o => o.target_type === 'operator' && o.operator_id && !o.related_model_id).map(o => o.operator_id!)
-  ])).filter(Boolean);
+    ...ops.filter(o => o.target_type === 'operator' && o.operator_id).map(o => o.operator_id!)
+  ]));
 
   let staffPool = 0;
   let staffPaid = 0;
@@ -291,7 +291,7 @@ export function computeRelationalPeriodFinancials(payload: RelationalMigrationPa
 
   operatorIds.forEach(opId => {
     const opIncomes = incomes.filter(i => i.operator_id === opId);
-    const opOps = ops.filter(o => o.target_type === 'operator' && o.operator_id === opId && !o.related_model_id);
+    const opOps = ops.filter(o => o.target_type === 'operator' && o.operator_id === opId);
 
     const shiftNet = opIncomes.reduce((s, r) => s + ((r.netto_of ?? 0) + (r.netto_pp ?? 0) + (r.netto_crypto ?? 0)), 0);
     const shiftGross = opIncomes.reduce((s, r) => s + (r.onlyfans_gross + r.paypal_gross + r.crypto_gross), 0);
