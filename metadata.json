@@ -1,5 +1,6 @@
 {
   "name": "Continental Dashboard",
   "description": "A high-end, professional payroll and income tracking system for modern agencies, featuring platform-specific commission logic, accounting periods, and advanced reporting.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

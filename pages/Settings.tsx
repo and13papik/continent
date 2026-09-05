@@ -2,7 +2,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { AppState, CloudSnapshot, AccountingPeriod } from '../types';
 import { ICONS } from '../constants';
-import { fetchFromCloud, testDatabaseConnection, listCloudSnapshots, createEmergencyBackup, restoreEmergencyBackup, reindexAllDataByDate, forcePushToCloud } from '../store';
+import { 
+  fetchFromCloud, 
+  testDatabaseConnection, 
+  listCloudSnapshots, 
+  createEmergencyBackup, 
+  restoreEmergencyBackup, 
+  reindexAllDataByDate, 
+  forcePushToCloud,
+  getAllSystemModels,
+  inspectModelData,
+  purgeModelData,
+  ModelDataInspection,
+  PurgeModelStats
+} from '../store';
+import { Eraser, AlertTriangle, CheckCircle2, ShieldAlert, Sparkles, RefreshCw, X, Trash2 } from 'lucide-react';
 import PeriodBadge from '../components/PeriodBadge';
 import { runMigrationDryRun, MigrationDryRunResult } from '../scripts/dry_run_migration';
 
@@ -29,6 +43,85 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
   const currentAdmins = activePeriod?.admins || state.admins;
   const currentGoals = activePeriod?.modelDefaultGoals || state.modelDefaultGoals || {};
   const currentPlans = activePeriod?.modelMonthlyPlans || state.modelMonthlyPlans || {};
+
+  const [purgeModalOpen, setPurgeModalOpen] = useState(false);
+  const [purgeTargetModel, setPurgeTargetModel] = useState('');
+  const [purgeScope, setPurgeScope] = useState<'all' | 'period'>('all');
+  const [purgeRemoveFromList, setPurgeRemoveFromList] = useState(true);
+  const [isPurging, setIsPurging] = useState(false);
+  const [purgeSuccessResult, setPurgeSuccessResult] = useState<PurgeModelStats | null>(null);
+
+  const allSystemModels = useMemo(() => getAllSystemModels(state), [state]);
+
+  const modelsWithDataInPeriod = useMemo(() => {
+    const incomes = (state.incomeData || []).filter(i => i.periodId === activePeriodId).map(i => i.model);
+    const ops = (state.operationsData || []).filter(o => o.periodId === activePeriodId && o.model).map(o => o.model!);
+    const bonuses = (state.modelBonuses || []).filter(b => b.periodId === activePeriodId).map(b => b.model);
+    const entries = (state.totalTableEntries || []).filter(e => e.periodId === activePeriodId).map(e => e.modelName);
+    const roster = (state.rosterData || []).filter(r => r.periodId === activePeriodId).flatMap(r => r.models || []);
+    const allSet = new Set([...incomes, ...ops, ...bonuses, ...entries, ...roster]);
+    return Array.from(allSet).filter(Boolean);
+  }, [state.incomeData, state.operationsData, state.modelBonuses, state.totalTableEntries, state.rosterData, activePeriodId]);
+
+  const orphanedModelsInPeriod = useMemo(() => {
+    const currentSet = new Set(currentModels.map(m => m.trim().toLowerCase()));
+    return modelsWithDataInPeriod.filter(m => !currentSet.has(m.trim().toLowerCase()));
+  }, [modelsWithDataInPeriod, currentModels]);
+
+  const currentModelInspection = useMemo(() => {
+    if (!purgeTargetModel) return null;
+    return inspectModelData(state, purgeTargetModel);
+  }, [state, purgeTargetModel]);
+
+  const openPurgeForModel = (modelName: string) => {
+    setPurgeTargetModel(modelName);
+    setPurgeScope('all');
+    setPurgeRemoveFromList(true);
+    setPurgeSuccessResult(null);
+    setPurgeModalOpen(true);
+  };
+
+  const handleExecutePurge = async () => {
+    if (!purgeTargetModel) return;
+    setIsPurging(true);
+    try {
+      createEmergencyBackup(state);
+      const { newState, stats } = purgeModelData(state, {
+        modelName: purgeTargetModel,
+        scope: purgeScope,
+        periodId: activePeriodId,
+        removeFromModelList: purgeRemoveFromList
+      });
+
+      updateState(() => newState);
+
+      if (newState.syncUrl && newState.syncKey) {
+        await forcePushToCloud(newState);
+      }
+
+      setPurgeSuccessResult(stats);
+    } catch (err: any) {
+      alert('Ошибка при очистке данных: ' + (err.message || String(err)));
+    } finally {
+      setIsPurging(false);
+    }
+  };
+
+  const handleRestoreModelToPeriod = (modelName: string) => {
+    updateState(p => {
+      const activeP = p.accountingPeriods.find(ap => ap.id === p.selectedPeriodId);
+      const currentMods = activeP?.models || p.models;
+      if (currentMods.includes(modelName)) return p;
+      return {
+        ...p,
+        accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? {
+          ...ap,
+          models: [...currentMods, modelName],
+          updatedAt: new Date().toISOString()
+        } : ap)
+      };
+    });
+  };
 
   const handleAddAdmin = () => {
     if (!newAdminName) return;
@@ -948,9 +1041,56 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
         </div>
 
         <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <ICONS.Models size={18} className="text-indigo-400" /> Модели ({activePeriod?.label})
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <ICONS.Models size={18} className="text-indigo-400" /> Модели ({activePeriod?.label})
+            </h2>
+            <button 
+              onClick={() => {
+                const target = currentModels[0] || allSystemModels[0] || '';
+                openPurgeForModel(target);
+              }}
+              className="text-[11px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 transition-all shadow-sm"
+              title="Открыть инструмент очистки данных любой модели"
+            >
+              <Eraser size={13} />
+              <span>Очистить данные</span>
+            </button>
+          </div>
+
+          {orphanedModelsInPeriod.length > 0 && (
+            <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                  <AlertTriangle size={14} className="text-amber-400" /> Модели с данными вне списка ({orphanedModelsInPeriod.length})
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Следующие модели были удалены из списка на этот месяц, но по ним сохранились записи доходов или операций. Вы можете вернуть их в список или полностью очистить их данные в ноль:
+              </p>
+              <div className="space-y-1.5">
+                {orphanedModelsInPeriod.map(om => (
+                  <div key={om} className="flex items-center justify-between p-2 bg-slate-900/80 rounded-lg border border-slate-800">
+                    <span className="text-xs font-bold text-white font-mono">{om}</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleRestoreModelToPeriod(om)}
+                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] font-bold transition-all"
+                      >
+                        Вернуть в список
+                      </button>
+                      <button
+                        onClick={() => openPurgeForModel(om)}
+                        className="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded text-[10px] font-bold flex items-center gap-1 transition-all"
+                      >
+                        <Eraser size={11} /> Очистить данные
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex gap-2">
              <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Название..." value={newModel} onChange={e => setNewModel(e.target.value)}/>
              <button onClick={() => { 
@@ -986,12 +1126,24 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                  ) : (
                    <>
                      <span className="text-sm font-bold text-slate-200">{m}</span>
-                     <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => setEditModel({ old: m, current: m })} className="text-slate-500 hover:text-indigo-400"><ICONS.Edit size={14}/></button>
-                        <button onClick={() => updateState(p => ({
-                          ...p, 
-                          accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, models: (ap.models || p.models).filter(x => x !== m), updatedAt: new Date().toISOString() } : ap)
-                        }))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
+                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={() => openPurgeForModel(m)} 
+                          className="text-slate-400 hover:text-amber-400 p-1.5 rounded hover:bg-slate-800 flex items-center gap-1 transition-colors"
+                          title="Очистить данные модели в ноль"
+                        >
+                          <Eraser size={14}/>
+                          <span className="text-[10px] font-bold">Очистить</span>
+                        </button>
+                        <button onClick={() => setEditModel({ old: m, current: m })} className="text-slate-500 hover:text-indigo-400 p-1.5 rounded hover:bg-slate-800"><ICONS.Edit size={14}/></button>
+                        <button onClick={() => {
+                          if (confirm(`Удалить модель «${m}» из списка моделей за ${activePeriod?.label}?\n\n(Чтобы очистить все финансовые данные и обнулить балансы, нажмите кнопку «Очистить»).`)) {
+                            updateState(p => ({
+                              ...p, 
+                              accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, models: (ap.models || p.models).filter(x => x !== m), updatedAt: new Date().toISOString() } : ap)
+                            }));
+                          }
+                        }} className="text-slate-500 hover:text-rose-500 p-1.5 rounded hover:bg-slate-800"><ICONS.Trash size={14}/></button>
                      </div>
                    </>
                  )}
@@ -1101,7 +1253,312 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
              ))}
           </div>
         </div>
+
+        {/* Инструмент полной очистки данных модели */}
+        <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-5 md:col-span-2 border-l-4 border-l-rose-500">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Eraser size={20} className="text-rose-400" />
+                Очистка данных модели в ноль (из таблиц и базы)
+              </h2>
+              <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                Полное удаление всех доходов, связанных расходов и бонусов по выбранной модели (включая закрытые периоды, например Август). Балансы операторов, процент админов и чистая прибыль владельцев автоматически пересчитываются в ноль без этой модели.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                const target = currentModels[0] || allSystemModels[0] || '';
+                openPurgeForModel(target);
+              }}
+              className="px-4 py-2.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all border border-rose-500/30 whitespace-nowrap shadow-lg shadow-rose-950/20 self-start sm:self-auto"
+            >
+              <Eraser size={16} />
+              <span>Выбрать модель и очистить в ноль</span>
+            </button>
+          </div>
+
+          <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 flex flex-wrap items-center gap-4 text-xs text-slate-300">
+            <span className="text-slate-400 font-semibold">Все модели в системе ({allSystemModels.length}):</span>
+            <div className="flex flex-wrap gap-2">
+              {allSystemModels.map(m => {
+                const insp = inspectModelData(state, m);
+                const hasData = insp.incomeCount > 0 || insp.opsCount > 0 || insp.bonusesCount > 0;
+                return (
+                  <button
+                    key={m}
+                    onClick={() => openPurgeForModel(m)}
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-2 transition-all ${
+                      hasData 
+                        ? 'bg-slate-800 hover:bg-rose-950/40 border-slate-700 hover:border-rose-500/50 text-slate-200' 
+                        : 'bg-slate-950/40 border-slate-800/60 text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    <span>{m}</span>
+                    {hasData && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono">
+                        ${insp.incomeTotal.toFixed(0)}
+                      </span>
+                    )}
+                    <Eraser size={12} className="opacity-40 group-hover:opacity-100 hover:text-rose-400" />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Модальное окно полной очистки данных модели */}
+      {purgeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="glass-card w-full max-w-xl rounded-3xl border border-rose-500/30 p-6 space-y-6 shadow-2xl shadow-rose-950/40 max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 flex-shrink-0">
+                  <Eraser size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white">Очистка данных модели в ноль</h3>
+                  <p className="text-xs text-slate-400">Полное удаление из таблиц и базы с перерасчетом балансов</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setPurgeModalOpen(false); setPurgeSuccessResult(null); }}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* If success screen */}
+            {purgeSuccessResult ? (
+              <div className="space-y-5">
+                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                    <CheckCircle2 size={20} />
+                    <span>Данные модели «{purgeSuccessResult.modelName}» успешно очищены!</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Все финансовые записи модели были удалены. Зарплаты операторов, процент админов и чистая прибыль владельцев автоматически пересчитаны в ноль.
+                  </p>
+                </div>
+
+                <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2 text-xs">
+                  <div className="font-bold text-slate-300 mb-2">Сводка выполненной очистки:</div>
+                  <div className="flex justify-between py-1 border-b border-slate-800/60 text-slate-300">
+                    <span>Удалено записей доходов:</span>
+                    <span className="font-bold text-white font-mono">{purgeSuccessResult.deletedIncomeCount} (${purgeSuccessResult.deletedIncomeTotal.toFixed(2)})</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-800/60 text-slate-300">
+                    <span>Удалено связанных операций (выплаты/авансы):</span>
+                    <span className="font-bold text-white font-mono">{purgeSuccessResult.deletedOpsCount}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-800/60 text-slate-300">
+                    <span>Удалено бонусов модели:</span>
+                    <span className="font-bold text-white font-mono">{purgeSuccessResult.deletedBonusesCount}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-800/60 text-slate-300">
+                    <span>Удалено записей в Total Table:</span>
+                    <span className="font-bold text-white font-mono">{purgeSuccessResult.deletedTotalEntriesCount}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-800/60 text-slate-300">
+                    <span>Очищено смен в Roster:</span>
+                    <span className="font-bold text-white font-mono">{purgeSuccessResult.rosterEntriesUpdatedCount}</span>
+                  </div>
+                  <div className="flex justify-between py-1 text-slate-300">
+                    <span>Затронутые месяцы:</span>
+                    <span className="font-bold text-amber-400">{purgeSuccessResult.periodsAffected.join(', ') || 'Все'}</span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-xs text-indigo-300 flex items-center gap-2">
+                  <Sparkles size={16} className="text-indigo-400 flex-shrink-0" />
+                  <span>Резервная копия текущего состояния создана перед очисткой. Изменения зафиксированы в базе данных.</span>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={() => { setPurgeModalOpen(false); setPurgeSuccessResult(null); }}
+                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-indigo-600/30"
+                  >
+                    Готово
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* If confirmation form */
+              <div className="space-y-5">
+                {/* Select model */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300">Модель для очистки данных:</label>
+                  <select
+                    value={purgeTargetModel}
+                    onChange={e => { setPurgeTargetModel(e.target.value); setPurgeSuccessResult(null); }}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none focus:border-rose-500"
+                  >
+                    <option value="" disabled>-- Выберите модель --</option>
+                    {allSystemModels.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Inspection data card */}
+                {currentModelInspection && (
+                  <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                      <span>Найдено в базе данных для «{purgeTargetModel}»:</span>
+                      <span className="text-rose-400 font-mono font-bold">${currentModelInspection.incomeTotal.toFixed(2)}</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                      <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+                        <div className="text-[10px] text-slate-500 font-semibold">Доходы</div>
+                        <div className="text-sm font-black text-white font-mono">{currentModelInspection.incomeCount}</div>
+                      </div>
+                      <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+                        <div className="text-[10px] text-slate-500 font-semibold">Операции</div>
+                        <div className="text-sm font-black text-white font-mono">{currentModelInspection.opsCount}</div>
+                      </div>
+                      <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+                        <div className="text-[10px] text-slate-500 font-semibold">Бонусы</div>
+                        <div className="text-sm font-black text-white font-mono">{currentModelInspection.bonusesCount}</div>
+                      </div>
+                      <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+                        <div className="text-[10px] text-slate-500 font-semibold">Total / Roster</div>
+                        <div className="text-sm font-black text-white font-mono">{currentModelInspection.totalEntriesCount + currentModelInspection.rosterCount}</div>
+                      </div>
+                    </div>
+
+                    {currentModelInspection.periodsWithData.length > 0 ? (
+                      <div className="space-y-1.5 pt-1">
+                        <div className="text-[11px] font-semibold text-slate-400">Периоды с данными:</div>
+                        <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                          {currentModelInspection.periodsWithData.map(p => (
+                            <div key={p.periodId} className="flex items-center justify-between p-2 rounded-lg bg-slate-950/40 text-xs">
+                              <span className="font-bold text-white flex items-center gap-1.5">
+                                {p.periodLabel}
+                                {p.isClosed && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-normal">Закрыт</span>}
+                              </span>
+                              <span className="text-slate-300 font-mono text-[11px]">
+                                {p.incomeCount} дох. (${p.incomeTotal.toFixed(0)}) {p.opsCount > 0 ? `, ${p.opsCount} опер.` : ''}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-500 italic py-1">
+                        У этой модели нет финансовых записей в таблицах.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Scope selector */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-300">Область очистки:</label>
+                  <div className="space-y-2">
+                    <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                      purgeScope === 'all' 
+                        ? 'border-rose-500/60 bg-rose-500/10' 
+                        : 'border-slate-800 bg-slate-900/50 hover:border-slate-700'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="purgeScope"
+                        checked={purgeScope === 'all'}
+                        onChange={() => setPurgeScope('all')}
+                        className="mt-1 text-rose-500"
+                      />
+                      <div>
+                        <div className="text-xs font-black text-white">Во ВСЕХ месяцах (включая закрытые, например Август)</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                          Полное удаление данных модели за всё время. Очистит таблицы, а балансы операторов, админов и владельцев будут пересчитаны в ноль.
+                        </div>
+                      </div>
+                    </label>
+
+                    <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                      purgeScope === 'period' 
+                        ? 'border-rose-500/60 bg-rose-500/10' 
+                        : 'border-slate-800 bg-slate-900/50 hover:border-slate-700'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="purgeScope"
+                        checked={purgeScope === 'period'}
+                        onChange={() => setPurgeScope('period')}
+                        className="mt-1 text-rose-500"
+                      />
+                      <div>
+                        <div className="text-xs font-black text-white">Только в текущем месяце ({activePeriod?.label})</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                          Удалит данные модели только за выбранный месяц. Записи в других месяцах останутся нетронутыми.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Remove from list checkbox */}
+                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={purgeRemoveFromList}
+                    onChange={e => setPurgeRemoveFromList(e.target.checked)}
+                    className="rounded border-slate-700 text-rose-500 focus:ring-rose-500"
+                  />
+                  <span>Также удалить анкету модели из списков моделей (в периодах и глобально)</span>
+                </label>
+
+                {/* Warning notice */}
+                <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl space-y-1.5 text-xs text-rose-200">
+                  <div className="flex items-center gap-1.5 font-black text-rose-300">
+                    <ShieldAlert size={16} className="text-rose-400 flex-shrink-0" />
+                    <span>Подтверждение обнуления данных</span>
+                  </div>
+                  <p className="text-[11px] text-rose-200/90 leading-relaxed">
+                    Все финансовые записи выбранной модели будут стёрты, а зарплаты операторов, проценты админов и чистая прибыль владельцев автоматически пересчитаются в ноль без этой модели. Перед очисткой система создаст локальную резервную копию.
+                  </p>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    onClick={() => setPurgeModalOpen(false)}
+                    disabled={isPurging}
+                    className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs transition-colors"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    onClick={handleExecutePurge}
+                    disabled={isPurging || !purgeTargetModel}
+                    className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-xl font-black text-xs flex items-center gap-2 transition-all shadow-lg shadow-rose-600/30"
+                  >
+                    {isPurging ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin" />
+                        <span>Очистка данных...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eraser size={14} />
+                        <span>Очистить все данные в ноль</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };

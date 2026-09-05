@@ -1,5 +1,16 @@
 
-import { AppState, AccountingPeriod, Admin, CloudSnapshot, DailyTotalEntry } from './types';
+import { 
+  AppState, 
+  AccountingPeriod, 
+  Admin, 
+  CloudSnapshot, 
+  DailyTotalEntry, 
+  IncomeRecord, 
+  OperationRecord, 
+  ModelBonus, 
+  PaidStatus, 
+  OperatorAssessment 
+} from './types';
 
 const STORAGE_KEY = 'continental_dashboard_v3';
 const EMERGENCY_KEY = 'continental_emergency_backup';
@@ -444,3 +455,396 @@ export function reindexAllDataByDate(state: AppState): AppState {
     version: (state.version || 0) + 1
   };
 }
+
+export interface ModelDataInspection {
+  modelName: string;
+  existsInModelList: boolean;
+  isInActivePeriodList: boolean;
+  incomeCount: number;
+  incomeTotal: number;
+  opsCount: number;
+  bonusesCount: number;
+  bonusesTotal: number;
+  totalEntriesCount: number;
+  rosterCount: number;
+  periodsWithData: {
+    periodId: string;
+    periodLabel: string;
+    incomeCount: number;
+    incomeTotal: number;
+    opsCount: number;
+    bonusesCount: number;
+    isClosed: boolean;
+  }[];
+}
+
+export function getAllSystemModels(state: AppState): string[] {
+  const modelsSet = new Set<string>();
+
+  (state.models || []).forEach(m => { if (m?.trim()) modelsSet.add(m.trim()); });
+  (state.accountingPeriods || []).forEach(p => {
+    (p.models || []).forEach(m => { if (m?.trim()) modelsSet.add(m.trim()); });
+  });
+  (state.incomeData || []).forEach(i => { if (i.model?.trim()) modelsSet.add(i.model.trim()); });
+  (state.operationsData || []).forEach(o => { if (o.model?.trim()) modelsSet.add(o.model.trim()); });
+  (state.modelBonuses || []).forEach(b => { if (b.model?.trim()) modelsSet.add(b.model.trim()); });
+  (state.totalTableEntries || []).forEach(e => { if (e.modelName?.trim()) modelsSet.add(e.modelName.trim()); });
+  (state.rosterData || []).forEach(r => {
+    (r.models || []).forEach(m => { if (m?.trim()) modelsSet.add(m.trim()); });
+  });
+  Object.keys(state.modelDefaultGoals || {}).forEach(m => { if (m?.trim()) modelsSet.add(m.trim()); });
+  Object.keys(state.modelMonthlyPlans || {}).forEach(m => { if (m?.trim()) modelsSet.add(m.trim()); });
+  (state.inactiveModels || []).forEach(m => { if (m?.trim()) modelsSet.add(m.trim()); });
+  (state.priorityModels || []).forEach(m => { if (m?.trim()) modelsSet.add(m.trim()); });
+  (state.modelGroups || []).forEach(g => {
+    (g.members || []).forEach(m => { if (m?.trim()) modelsSet.add(m.trim()); });
+  });
+
+  return Array.from(modelsSet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+}
+
+export function inspectModelData(state: AppState, modelName: string): ModelDataInspection {
+  const norm = modelName.trim().toLowerCase();
+  const isMatch = (m?: string | null) => Boolean(m && m.trim().toLowerCase() === norm);
+
+  const activePeriod = state.accountingPeriods.find(p => p.id === state.selectedPeriodId);
+  const activePeriodModels = (activePeriod?.models && activePeriod.models.length > 0) ? activePeriod.models : state.models;
+  const isInActivePeriodList = activePeriodModels.some(m => isMatch(m));
+  const existsInModelList = (state.models || []).some(m => isMatch(m)) || 
+    state.accountingPeriods.some(p => (p.models || []).some(m => isMatch(m)));
+
+  const matchedIncomes = (state.incomeData || []).filter(i => isMatch(i.model));
+  const matchedDeletedIncomeIds = new Set(matchedIncomes.map(i => i.id));
+  const matchedOps = (state.operationsData || []).filter(o => 
+    (o.model && isMatch(o.model)) || (o.linkedIncomeId && matchedDeletedIncomeIds.has(o.linkedIncomeId))
+  );
+  const matchedBonuses = (state.modelBonuses || []).filter(b => isMatch(b.model));
+  const matchedTotalEntries = (state.totalTableEntries || []).filter(e => isMatch(e.modelName));
+  const matchedRoster = (state.rosterData || []).filter(r => (r.models || []).some(m => isMatch(m)));
+
+  const periodMap = new Map<string, {
+    periodId: string;
+    periodLabel: string;
+    incomeCount: number;
+    incomeTotal: number;
+    opsCount: number;
+    bonusesCount: number;
+    isClosed: boolean;
+  }>();
+
+  state.accountingPeriods.forEach(p => {
+    const pIncomes = matchedIncomes.filter(i => i.periodId === p.id);
+    const pOps = matchedOps.filter(o => o.periodId === p.id);
+    const pBonuses = matchedBonuses.filter(b => b.periodId === p.id);
+    const pEntries = matchedTotalEntries.filter(e => e.periodId === p.id);
+    const pRoster = matchedRoster.filter(r => r.periodId === p.id);
+
+    if (pIncomes.length > 0 || pOps.length > 0 || pBonuses.length > 0 || pEntries.length > 0 || pRoster.length > 0) {
+      periodMap.set(p.id, {
+        periodId: p.id,
+        periodLabel: p.label,
+        incomeCount: pIncomes.length,
+        incomeTotal: pIncomes.reduce((s, i) => s + (i.total || 0), 0),
+        opsCount: pOps.length,
+        bonusesCount: pBonuses.length,
+        isClosed: p.status === 'closed'
+      });
+    }
+  });
+
+  return {
+    modelName,
+    existsInModelList,
+    isInActivePeriodList,
+    incomeCount: matchedIncomes.length,
+    incomeTotal: matchedIncomes.reduce((s, i) => s + (i.total || 0), 0),
+    opsCount: matchedOps.length,
+    bonusesCount: matchedBonuses.length,
+    bonusesTotal: matchedBonuses.reduce((s, b) => s + (b.amount || 0), 0),
+    totalEntriesCount: matchedTotalEntries.length,
+    rosterCount: matchedRoster.length,
+    periodsWithData: Array.from(periodMap.values())
+  };
+}
+
+export interface PurgeModelOptions {
+  modelName: string;
+  scope: 'all' | 'period';
+  periodId?: string;
+  removeFromModelList?: boolean;
+}
+
+export interface PurgeModelStats {
+  modelName: string;
+  scope: 'all' | 'period';
+  periodLabel?: string;
+  deletedIncomeCount: number;
+  deletedIncomeTotal: number;
+  deletedOpsCount: number;
+  deletedBonusesCount: number;
+  deletedTotalEntriesCount: number;
+  rosterEntriesUpdatedCount: number;
+  deletedPaidStatusesCount: number;
+  periodsAffected: string[];
+}
+
+export function purgeModelData(
+  state: AppState,
+  options: PurgeModelOptions
+): { newState: AppState; stats: PurgeModelStats } {
+  const normTarget = options.modelName.trim().toLowerCase();
+  const isMatch = (name?: string | null) => Boolean(name && name.trim().toLowerCase() === normTarget);
+
+  const isTargetPeriod = (pId?: string | null) => {
+    if (options.scope === 'all') return true;
+    return pId === options.periodId;
+  };
+
+  const periodLabelMap = new Map<string, string>();
+  state.accountingPeriods.forEach(p => periodLabelMap.set(p.id, p.label));
+
+  const periodsAffectedSet = new Set<string>();
+
+  // 1. Incomes
+  const incomesToDelete: IncomeRecord[] = [];
+  const nextIncomes: IncomeRecord[] = [];
+  for (const inc of (state.incomeData || [])) {
+    if (isMatch(inc.model) && isTargetPeriod(inc.periodId)) {
+      incomesToDelete.push(inc);
+      if (inc.periodId && periodLabelMap.has(inc.periodId)) {
+        periodsAffectedSet.add(periodLabelMap.get(inc.periodId)!);
+      }
+    } else {
+      nextIncomes.push(inc);
+    }
+  }
+  const deletedIncomeIds = new Set(incomesToDelete.map(i => i.id));
+  const deletedIncomeTotal = incomesToDelete.reduce((sum, i) => sum + (i.total || 0), 0);
+
+  // 2. Operations (direct model operations, or operations linked to deleted income records)
+  const opsToDelete: OperationRecord[] = [];
+  const nextOps: OperationRecord[] = [];
+  for (const op of (state.operationsData || [])) {
+    const modelMatch = op.model && isMatch(op.model);
+    const linkedMatch = op.linkedIncomeId && deletedIncomeIds.has(op.linkedIncomeId);
+    if ((modelMatch || linkedMatch) && isTargetPeriod(op.periodId)) {
+      opsToDelete.push(op);
+      if (op.periodId && periodLabelMap.has(op.periodId)) {
+        periodsAffectedSet.add(periodLabelMap.get(op.periodId)!);
+      }
+    } else {
+      nextOps.push(op);
+    }
+  }
+  const deletedOpIds = opsToDelete.map(o => o.id);
+
+  // 3. Model Bonuses
+  const bonusesToDelete: ModelBonus[] = [];
+  const nextBonuses: ModelBonus[] = [];
+  for (const b of (state.modelBonuses || [])) {
+    if (isMatch(b.model) && isTargetPeriod(b.periodId)) {
+      bonusesToDelete.push(b);
+      if (b.periodId && periodLabelMap.has(b.periodId)) {
+        periodsAffectedSet.add(periodLabelMap.get(b.periodId)!);
+      }
+    } else {
+      nextBonuses.push(b);
+    }
+  }
+  const deletedBonusIds = bonusesToDelete.map(b => b.id);
+
+  // 4. Daily Total Table Entries
+  const entriesToDelete: DailyTotalEntry[] = [];
+  const nextEntries: DailyTotalEntry[] = [];
+  for (const entry of (state.totalTableEntries || [])) {
+    if (isMatch(entry.modelName) && isTargetPeriod(entry.periodId)) {
+      entriesToDelete.push(entry);
+      if (entry.periodId && periodLabelMap.has(entry.periodId)) {
+        periodsAffectedSet.add(periodLabelMap.get(entry.periodId)!);
+      }
+    } else {
+      nextEntries.push(entry);
+    }
+  }
+  const deletedEntryIds = entriesToDelete.map(e => e.id);
+
+  // 5. Paid Statuses
+  const paidStatusesToDelete: PaidStatus[] = [];
+  const nextPaidStatuses: PaidStatus[] = [];
+  for (const ps of (state.paidStatuses || [])) {
+    if (isMatch(ps.entityName) && ps.entityType === 'model' && isTargetPeriod(ps.periodId)) {
+      paidStatusesToDelete.push(ps);
+    } else {
+      nextPaidStatuses.push(ps);
+    }
+  }
+  const deletedPaidStatusIds = paidStatusesToDelete.map(p => p.id);
+
+  // 6. Operator Assessments
+  const assessmentsToDelete: OperatorAssessment[] = [];
+  const nextAssessments: OperatorAssessment[] = [];
+  for (const a of (state.operatorAssessments || [])) {
+    if (isMatch(a.modelName) && isTargetPeriod(a.periodId)) {
+      assessmentsToDelete.push(a);
+    } else {
+      nextAssessments.push(a);
+    }
+  }
+  const deletedAssessmentIds = assessmentsToDelete.map(a => a.id);
+
+  // 7. Roster Data
+  let rosterEntriesUpdatedCount = 0;
+  const nextRoster = (state.rosterData || []).map(r => {
+    if (isTargetPeriod(r.periodId) && r.models && r.models.some(m => isMatch(m))) {
+      rosterEntriesUpdatedCount++;
+      if (r.periodId && periodLabelMap.has(r.periodId)) {
+        periodsAffectedSet.add(periodLabelMap.get(r.periodId)!);
+      }
+      return {
+        ...r,
+        models: r.models.filter(m => !isMatch(m)),
+        updatedAt: new Date().toISOString()
+      };
+    }
+    return r;
+  });
+
+  // 8. Owner Tasks
+  const nextTasks = (state.ownerTasks || []).map(t => {
+    let changed = false;
+    let newModels = t.models;
+    let newModelId = t.modelId;
+    if (t.models && t.models.some(m => isMatch(m))) {
+      newModels = t.models.filter(m => !isMatch(m));
+      changed = true;
+    }
+    if (isMatch(t.modelId)) {
+      newModelId = undefined;
+      changed = true;
+    }
+    return changed ? { ...t, models: newModels, modelId: newModelId, updatedAt: new Date().toISOString() } : t;
+  });
+
+  // 9. Model Groups
+  const nextGroups = (state.modelGroups || []).map(g => {
+    if (g.members && g.members.some(m => isMatch(m))) {
+      return { ...g, members: g.members.filter(m => !isMatch(m)) };
+    }
+    return g;
+  }).filter(g => g.members.length > 0);
+
+  // 10. Priority and Inactive models
+  const nextPriority = (state.priorityModels || []).filter(m => !isMatch(m));
+  const nextInactive = (state.inactiveModels || []).filter(m => !isMatch(m));
+
+  // 11. Goals and Plans
+  const nextGlobalGoals = { ...(state.modelDefaultGoals || {}) };
+  Object.keys(nextGlobalGoals).forEach(k => {
+    if (isMatch(k)) delete nextGlobalGoals[k];
+  });
+  const nextGlobalPlans = { ...(state.modelMonthlyPlans || {}) };
+  Object.keys(nextGlobalPlans).forEach(k => {
+    if (isMatch(k)) delete nextGlobalPlans[k];
+  });
+
+  // 12. Accounting Periods
+  const nextPeriods = state.accountingPeriods.map(p => {
+    if (!isTargetPeriod(p.id)) return p;
+    let changed = false;
+    let pModels = p.models;
+    if (options.removeFromModelList && pModels) {
+      const filtered = pModels.filter(m => !isMatch(m));
+      if (filtered.length !== pModels.length) {
+        pModels = filtered;
+        changed = true;
+      }
+    }
+    let pGoals = p.modelDefaultGoals;
+    if (pGoals) {
+      const copy = { ...pGoals };
+      let hadKey = false;
+      Object.keys(copy).forEach(k => {
+        if (isMatch(k)) { delete copy[k]; hadKey = true; }
+      });
+      if (hadKey) { pGoals = copy; changed = true; }
+    }
+    let pPlans = p.modelMonthlyPlans;
+    if (pPlans) {
+      const copy = { ...pPlans };
+      let hadKey = false;
+      Object.keys(copy).forEach(k => {
+        if (isMatch(k)) { delete copy[k]; hadKey = true; }
+      });
+      if (hadKey) { pPlans = copy; changed = true; }
+    }
+
+    return changed ? {
+      ...p,
+      models: pModels,
+      modelDefaultGoals: pGoals,
+      modelMonthlyPlans: pPlans,
+      updatedAt: new Date().toISOString()
+    } : p;
+  });
+
+  // 13. Global models array
+  const nextGlobalModels = (options.removeFromModelList && (options.scope === 'all' || !options.periodId))
+    ? (state.models || []).filter(m => !isMatch(m))
+    : state.models;
+
+  // 14. Compile deletedIds to prevent resurrection in sync
+  const newlyDeletedIds = [
+    ...Array.from(deletedIncomeIds),
+    ...deletedOpIds,
+    ...deletedBonusIds,
+    ...deletedEntryIds,
+    ...deletedPaidStatusIds,
+    ...deletedAssessmentIds
+  ];
+
+  const nextDeletedIds = Array.from(new Set([
+    ...(state.deletedIds || []).map(id => String(id)),
+    ...newlyDeletedIds.map(id => String(id))
+  ]));
+
+  const targetPeriodObj = options.periodId ? state.accountingPeriods.find(p => p.id === options.periodId) : undefined;
+
+  const stats: PurgeModelStats = {
+    modelName: options.modelName,
+    scope: options.scope,
+    periodLabel: targetPeriodObj?.label,
+    deletedIncomeCount: incomesToDelete.length,
+    deletedIncomeTotal,
+    deletedOpsCount: opsToDelete.length,
+    deletedBonusesCount: bonusesToDelete.length,
+    deletedTotalEntriesCount: entriesToDelete.length,
+    rosterEntriesUpdatedCount,
+    deletedPaidStatusesCount: paidStatusesToDelete.length,
+    periodsAffected: Array.from(periodsAffectedSet)
+  };
+
+  const newState: AppState = {
+    ...state,
+    incomeData: nextIncomes,
+    operationsData: nextOps,
+    modelBonuses: nextBonuses,
+    totalTableEntries: nextEntries,
+    paidStatuses: nextPaidStatuses,
+    operatorAssessments: nextAssessments,
+    rosterData: nextRoster,
+    ownerTasks: nextTasks,
+    modelGroups: nextGroups,
+    priorityModels: nextPriority,
+    inactiveModels: nextInactive,
+    modelDefaultGoals: nextGlobalGoals,
+    modelMonthlyPlans: nextGlobalPlans,
+    models: nextGlobalModels,
+    accountingPeriods: nextPeriods,
+    deletedIds: nextDeletedIds,
+    version: (state.version || 0) + 1,
+    lastUpdated: Date.now()
+  };
+
+  return { newState, stats };
+}
+
