@@ -461,7 +461,7 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
 
     return (
       <div
-        className="relative p-2.5 rounded-2xl border flex flex-col items-center justify-between text-center font-mono transition-all duration-500 bg-slate-950/90 overflow-hidden"
+        className="relative p-2.5 rounded-2xl border flex flex-col items-center justify-between text-center font-mono transition-all duration-500 bg-slate-900/90 overflow-hidden"
         style={{
           borderColor: isCyanSuper ? '#00f0ff' : `${activeColor}60`,
           boxShadow: isCyanSuper
@@ -619,7 +619,7 @@ const MetricGauge: React.FC<MetricGaugeProps> = ({
 
           {/* Value Capsule Pill Overlay */}
           <div
-            className="absolute -bottom-1 px-3 py-0.5 rounded-full bg-slate-950/95 border-2 backdrop-blur-md transition-all duration-300 font-mono text-[11px] sm:text-[12px] font-black tracking-wider whitespace-nowrap flex items-center gap-1 shadow-lg"
+            className="absolute -bottom-1 px-3 py-0.5 rounded-full bg-slate-800/95 border-2 backdrop-blur-md transition-all duration-300 font-mono text-[11px] sm:text-[12px] font-black tracking-wider whitespace-nowrap flex items-center gap-1 shadow-lg"
             style={{
               borderColor: activeColor,
               color: activeColor,
@@ -1154,7 +1154,7 @@ export const LiveFeedDetailModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-mono">
-      <div className="glass-card w-full max-w-lg p-6 rounded-3xl border border-emerald-500/30 bg-slate-950/95 shadow-2xl space-y-5 text-white max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div className="glass-card w-full max-w-lg p-6 rounded-3xl border border-emerald-500/30 bg-slate-800/95 shadow-2xl space-y-5 text-white max-h-[90vh] overflow-y-auto custom-scrollbar">
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
           <div className="space-y-1.5">
@@ -1620,7 +1620,7 @@ export const RealtimeEventFeed: React.FC<{
 
   return (
     <>
-      <div className="glass-card p-4 sm:p-5 rounded-3xl border border-white/10 bg-slate-950/60 shadow-lg space-y-3 font-mono">
+      <div className="glass-card p-4 sm:p-5 rounded-3xl border border-white/10 bg-slate-800/85 shadow-lg space-y-3 font-mono">
         {/* Header Bar */}
         <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2.5">
           <div className="flex items-center gap-2.5">
@@ -2615,7 +2615,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
           />
 
           {/* 2) ТЕКУЩАЯ СМЕНА (Оперативная сводка) */}
-          <div className="glass-card p-4 sm:p-5 rounded-3xl border border-white/10 bg-slate-950/60 space-y-3 font-mono">
+          <div className="glass-card p-4 sm:p-5 rounded-3xl border border-white/10 bg-slate-800/85 space-y-3 font-mono">
             <div className="flex items-center justify-between gap-3 border-b border-white/5 pb-2.5">
               <h3 className="text-xs font-black uppercase text-white tracking-wider flex items-center gap-2">
                 <Zap size={15} className="text-amber-400" />
@@ -2674,7 +2674,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
       )}
 
       {activeSubTab === 'models' && (
-        <div className="glass-card p-6 rounded-3xl border border-white/10 bg-slate-950/60 space-y-5">
+        <div className="glass-card p-6 rounded-3xl border border-white/10 bg-slate-800/85 space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/5 pb-4">
             <div>
               <div className="flex flex-wrap items-center gap-3">
@@ -2819,14 +2819,14 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 pt-3 border-t border-white/5 font-mono text-center">
-                      <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                      <div className="p-2 bg-slate-800/85 rounded-xl border border-white/[0.02]">
                         <span className="text-[8px] uppercase text-slate-500 font-bold block">Операторов</span>
                         <span className={`text-xs font-black block mt-0.5 ${realOpCount > 0 ? 'text-violet-300' : 'text-slate-500'}`}>
                           {realOpCount}
                         </span>
                       </div>
 
-                      <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                      <div className="p-2 bg-slate-800/85 rounded-xl border border-white/[0.02]">
                         <span className="text-[8px] uppercase text-slate-500 font-bold block truncate">Транзакций</span>
                         {isEarningsLoading && acc.tx_count === undefined ? (
                           <span className="flex items-center justify-center mt-1">
@@ -2843,7 +2843,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                         )}
                       </div>
 
-                      <div className="p-2 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                      <div className="p-2 bg-slate-800/85 rounded-xl border border-white/[0.02]">
                         <span className="text-[8px] uppercase text-slate-500 font-bold block truncate">
                           {accountsEarningsDay === 'today' ? 'ДОХОД СЕГОДНЯ · NET' : 'ДОХОД ВЧЕРА · NET'}
                         </span>
@@ -2892,7 +2892,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                               className={`p-1.5 rounded-lg border transition-all ${
                                 isCurrentActive
                                   ? 'bg-violet-500/15 border-violet-500/40 shadow-sm'
-                                  : 'bg-slate-950/60 border-white/[0.03]'
+                                  : 'bg-slate-800/85 border-white/[0.03]'
                               }`}
                             >
                               <div className="flex items-center justify-center gap-1 text-[8px] text-slate-400 font-bold uppercase">
@@ -3002,7 +3002,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
           </div>
 
           {/* SUB-BLOCK: SHIFT COMPARISON */}
-          <div className="p-4 bg-slate-950/60 rounded-2xl border border-white/10 space-y-3 font-mono">
+          <div className="p-4 bg-slate-800/85 rounded-2xl border border-white/10 space-y-3 font-mono">
             <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/5">
               <div className="flex items-center gap-2">
                 <Clock size={15} className="text-violet-400" />
@@ -3052,7 +3052,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                       key={s.index}
                       className={`p-3 rounded-xl border transition-all relative overflow-hidden ${
                         s.isFuture
-                          ? 'bg-slate-950/40 border-white/5 opacity-50'
+                          ? 'bg-slate-800/80 border-white/5 opacity-50'
                           : isStrongest
                           ? 'bg-emerald-950/30 border-emerald-500/50 shadow-md shadow-emerald-950/40'
                           : isWeakest
@@ -3156,7 +3156,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                       disabled={isDisabled}
                       className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
                         isDisabled
-                          ? 'bg-slate-950/40 text-slate-600 border border-white/5 cursor-not-allowed opacity-50'
+                          ? 'bg-slate-800/80 text-slate-600 border border-white/5 cursor-not-allowed opacity-50'
                           : selectedShiftIndex === s.index
                           ? 'bg-violet-500/20 text-violet-300 border border-violet-500/50 shadow-md'
                           : 'bg-slate-900/70 text-slate-400 border border-white/10 hover:bg-slate-800 hover:text-slate-200'
@@ -3276,7 +3276,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                               : rank === 1 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
                               rank === 2 ? 'bg-slate-400/20 text-slate-300 border border-slate-400/40' :
                               rank === 3 ? 'bg-amber-700/20 text-amber-500 border border-amber-700/40' :
-                              'bg-slate-950 text-slate-400 border border-white/10'
+                              'bg-slate-900 text-slate-400 border border-white/10'
                           }`}>
                             {rank === 1 ? <Award size={16} /> : `#${rank}`}
                           </div>
@@ -3291,7 +3291,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                               return (
                                 <div 
                                   title="Нет привязанных моделей"
-                                  className="w-10 h-10 rounded-full bg-slate-950 border border-white/10 flex items-center justify-center text-slate-500 shrink-0 shadow-sm"
+                                  className="w-10 h-10 rounded-full bg-slate-900 border border-white/10 flex items-center justify-center text-slate-500 shrink-0 shadow-sm"
                                 >
                                   <User size={18} className="text-slate-500" />
                                 </div>
@@ -3669,7 +3669,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
           onClick={() => setSelectedAccountForDetail(null)}
         >
           <div 
-            className="bg-slate-950 border border-white/15 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-6 font-mono text-slate-200"
+            className="bg-slate-900 border border-white/15 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-6 font-mono text-slate-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}

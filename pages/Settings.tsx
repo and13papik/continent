@@ -528,62 +528,62 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        <div className="xl:col-span-1 glass-card p-8 rounded-[32px] border-indigo-500/20 shadow-2xl space-y-6">
+        <div className="xl:col-span-1 p-8 rounded-[2.5rem] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-6">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <ICONS.Dashboard size={20} className="text-indigo-400" /> Supabase Config
           </h2>
           
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Project URL</label>
-              <input className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3 text-sm text-white outline-none focus:border-indigo-500 transition-all" value={syncUrlInput} onChange={e => setSyncUrlInput(e.target.value)} placeholder="https://xxxx.supabase.co" />
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Project URL</label>
+              <input className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3 text-sm text-white outline-none focus:border-indigo-400 transition-all" value={syncUrlInput} onChange={e => setSyncUrlInput(e.target.value)} placeholder="https://xxxx.supabase.co" />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Anon Key</label>
-              <input type="password" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3 text-sm text-white outline-none focus:border-indigo-500 transition-all" value={syncKeyInput} onChange={e => setSyncKeyInput(e.target.value)} placeholder="eyJhb..." />
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Anon Key</label>
+              <input type="password" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3 text-sm text-white outline-none focus:border-indigo-400 transition-all" value={syncKeyInput} onChange={e => setSyncKeyInput(e.target.value)} placeholder="eyJhb..." />
             </div>
           </div>
 
           <div className="flex flex-col gap-3 pt-4">
-            <button onClick={handleApplySettings} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-2xl font-bold text-sm shadow-lg shadow-indigo-600/20 transition-all active:scale-95">Применить</button>
-            <button onClick={forcePull} disabled={isManualSyncing} className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50">Загрузить "main"</button>
+            <button onClick={handleApplySettings} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-2xl font-bold text-sm shadow-lg shadow-indigo-600/30 transition-all active:scale-95 cursor-pointer">Применить</button>
+            <button onClick={forcePull} disabled={isManualSyncing} className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer">Загрузить "main"</button>
             {userRole === 'owner' && (
-              <button onClick={handleWipeData} className="w-full bg-rose-600/20 hover:bg-rose-600/40 text-rose-500 border border-rose-500/30 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">Сбросить доходы</button>
+              <button onClick={handleWipeData} className="w-full bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/30 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer">Сбросить доходы</button>
             )}
           </div>
         </div>
 
         {userRole === 'owner' && (
-          <div className="xl:col-span-2 glass-card p-8 rounded-[32px] border-slate-800 shadow-2xl space-y-6">
+          <div className="xl:col-span-2 p-8 rounded-[2.5rem] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-6">
              <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   <ICONS.Calendar size={20} className="text-emerald-400" /> Облачные снапшоты (Бекапы)
                 </h2>
-                <button onClick={loadSnapshots} className="text-indigo-400 hover:text-white transition-all"><ICONS.RotateCcw size={18} className={isLoadingSnapshots ? 'animate-spin' : ''}/></button>
+                <button onClick={loadSnapshots} className="text-indigo-400 hover:text-white transition-all cursor-pointer"><ICONS.RotateCcw size={18} className={isLoadingSnapshots ? 'animate-spin' : ''}/></button>
              </div>
 
              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
                 {snapshots.length === 0 && !isLoadingSnapshots ? (
-                  <div className="p-10 text-center border-2 border-dashed border-slate-800 rounded-3xl text-slate-600">
+                  <div className="p-10 text-center border-2 border-dashed border-slate-700/80 rounded-3xl text-slate-400">
                     История изменений пуста или облако не подключено
                   </div>
                 ) : (
                   snapshots.map(snap => (
-                    <div key={snap.id} className="bg-slate-900/40 p-4 rounded-2xl border border-slate-800 flex items-center justify-between group hover:border-indigo-500/30 transition-all">
+                    <div key={snap.id} className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700 flex items-center justify-between group hover:border-indigo-400/50 transition-all">
                       <div className="flex items-center gap-4">
-                         <div className="w-10 h-10 rounded-xl bg-slate-950 flex items-center justify-center text-emerald-500 font-bold border border-slate-800">
+                         <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-emerald-400 font-bold border border-slate-700">
                            {snap.state.version || '?'}
                          </div>
                          <div>
                             <p className="text-sm font-bold text-white">{new Date(snap.updated_at).toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">
+                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">
                               {snap.state.incomeData.length} записей дохода • {snap.state.operationsData.length} операций
                             </p>
                          </div>
                       </div>
                       <button 
                         onClick={() => restoreFromSnapshot(snap)}
-                        className="opacity-0 group-hover:opacity-100 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                        className="opacity-0 group-hover:opacity-100 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
                       >
                         Восстановить
                       </button>
@@ -595,7 +595,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
         )}
 
         {userRole === 'owner' && (
-          <div className="xl:col-span-3 glass-card p-8 rounded-[32px] border-slate-800 shadow-2xl space-y-6">
+          <div className="xl:col-span-3 p-8 rounded-[32px] border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-6">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -941,58 +941,58 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {userRole === 'owner' && (
-          <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
+          <div className="p-6 rounded-[24px] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-6">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <ICONS.Calendar size={18} className="text-indigo-400" /> Управление периодами
             </h2>
-            <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl space-y-3">
-               <p className="text-[10px] text-slate-400 leading-relaxed">
+            <div className="p-4 bg-indigo-500/10 border border-indigo-400/30 rounded-xl space-y-3">
+               <p className="text-[10px] text-slate-300 leading-relaxed">
                  Если данные отображаются не в тех месяцах, используйте этот инструмент для автоматического перераспределения всех записей по датам.
                </p>
-               <button onClick={repairData} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">
+               <button onClick={repairData} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer">
                  Перераспределить данные
                </button>
                <button 
                   onClick={forcePush} 
                   disabled={isManualSyncing}
-                  className="w-full bg-rose-600/20 hover:bg-rose-600 text-rose-500 hover:text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border border-rose-500/30"
+                  className="w-full bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border border-rose-500/30 cursor-pointer"
                 >
                   {isManualSyncing ? 'Синхронизация...' : 'Force Push (Заменить облако)'}
                 </button>
             </div>
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
                {state.accountingPeriods.slice().reverse().map(p => (
-                 <div key={p.id} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
+                 <div key={p.id} className="flex justify-between items-center p-3 bg-slate-800/80 border border-slate-700/60 rounded-xl group hover:border-slate-600 transition-all">
                    {editPeriod?.id === p.id ? (
                      <div className="flex-1 flex gap-2">
-                       <input autoFocus className="flex-1 bg-slate-950 border border-indigo-500 rounded px-2 py-1 text-sm text-white outline-none" value={editPeriod.label} onChange={e => setEditPeriod({ ...editPeriod, label: e.target.value })} onKeyDown={e => e.key === 'Enter' && saveRenamePeriod()}/>
-                       <button onClick={saveRenamePeriod} className="text-emerald-400"><ICONS.Lock size={16}/></button>
+                       <input autoFocus className="flex-1 bg-slate-900 border border-indigo-400 rounded px-2 py-1 text-sm text-white outline-none" value={editPeriod.label} onChange={e => setEditPeriod({ ...editPeriod, label: e.target.value })} onKeyDown={e => e.key === 'Enter' && saveRenamePeriod()}/>
+                       <button onClick={saveRenamePeriod} className="text-emerald-400 cursor-pointer"><ICONS.Lock size={16}/></button>
                      </div>
                    ) : (
                      <>
                        <div className="flex flex-col">
-                          <span className="text-sm font-bold text-slate-200">{p.label}</span>
-                          <span className="text-[8px] text-slate-500 uppercase font-black">{p.status === 'closed' ? 'Закрыт 🔒' : 'Открыт 🟢'}</span>
+                          <span className="text-sm font-bold text-slate-100">{p.label}</span>
+                          <span className="text-[8px] text-slate-400 uppercase font-black">{p.status === 'closed' ? 'Закрыт 🔒' : 'Открыт 🟢'}</span>
                        </div>
                        <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => setEditPeriod({ id: p.id, label: p.label })} className="text-slate-500 hover:text-indigo-400"><ICONS.Edit size={14}/></button>
-                          <button onClick={() => deletePeriod(p.id)} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
+                          <button onClick={() => setEditPeriod({ id: p.id, label: p.label })} className="text-slate-400 hover:text-indigo-400 cursor-pointer"><ICONS.Edit size={14}/></button>
+                          <button onClick={() => deletePeriod(p.id)} className="text-slate-400 hover:text-rose-400 cursor-pointer"><ICONS.Trash size={14}/></button>
                        </div>
                      </>
                    )}
                  </div>
                ))}
             </div>
-            <p className="text-[9px] text-slate-500 italic">Здесь вы можете переименовать "Восстановленные" периоды в нормальные названия месяцев.</p>
+            <p className="text-[9px] text-slate-400 italic">Здесь вы можете переименовать "Восстановленные" периоды в нормальные названия месяцев.</p>
           </div>
         )}
 
-        <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
+        <div className="p-6 rounded-[24px] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <ICONS.Reports size={18} className="text-sky-400" /> Штат операторов ({activePeriod?.label})
           </h2>
           <div className="flex gap-2">
-             <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Имя..." value={newOp} onChange={e => setNewOp(e.target.value)}/>
+             <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-sky-400" placeholder="Имя..." value={newOp} onChange={e => setNewOp(e.target.value)}/>
              <button onClick={() => { 
                if(newOp) { 
                  updateState(p => {
@@ -1013,25 +1013,25 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                  }); 
                  setNewOp(''); 
                } 
-             }} className="bg-sky-600 px-3 rounded-lg"><ICONS.Plus size={18}/></button>
+             }} className="bg-sky-600 hover:bg-sky-500 text-white px-3 rounded-lg cursor-pointer transition-colors"><ICONS.Plus size={18}/></button>
           </div>
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
              {currentOperators.map(o => (
-               <div key={o} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
+               <div key={o} className="flex justify-between items-center p-3 bg-slate-800/80 border border-slate-700/60 rounded-xl group hover:border-slate-600 transition-all">
                  {editOp?.old === o ? (
                    <div className="flex-1 flex gap-2">
-                     <input autoFocus className="flex-1 bg-slate-950 border border-sky-500 rounded px-2 py-1 text-sm text-white outline-none" value={editOp.current} onChange={e => setEditOp({ ...editOp, current: e.target.value })} onKeyDown={e => e.key === 'Enter' && saveRenameOperator()}/>
-                     <button onClick={saveRenameOperator} className="text-emerald-400"><ICONS.Lock size={16}/></button>
+                     <input autoFocus className="flex-1 bg-slate-900 border border-sky-400 rounded px-2 py-1 text-sm text-white outline-none" value={editOp.current} onChange={e => setEditOp({ ...editOp, current: e.target.value })} onKeyDown={e => e.key === 'Enter' && saveRenameOperator()}/>
+                     <button onClick={saveRenameOperator} className="text-emerald-400 cursor-pointer"><ICONS.Lock size={16}/></button>
                    </div>
                  ) : (
                    <>
-                     <span className="text-sm font-bold text-slate-200">{o}</span>
+                     <span className="text-sm font-bold text-slate-100">{o}</span>
                      <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => setEditOp({ old: o, current: o })} className="text-slate-500 hover:text-sky-400"><ICONS.Edit size={14}/></button>
+                        <button onClick={() => setEditOp({ old: o, current: o })} className="text-slate-400 hover:text-sky-400 cursor-pointer"><ICONS.Edit size={14}/></button>
                         <button onClick={() => updateState(p => ({
                           ...p, 
                           accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, operators: (ap.operators || p.operators).filter(x => x !== o), updatedAt: new Date().toISOString() } : ap)
-                        }))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
+                        }))} className="text-slate-400 hover:text-rose-400 cursor-pointer"><ICONS.Trash size={14}/></button>
                      </div>
                    </>
                  )}
@@ -1040,7 +1040,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
           </div>
         </div>
 
-        <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
+        <div className="p-6 rounded-[24px] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <ICONS.Models size={18} className="text-indigo-400" /> Модели ({activePeriod?.label})
@@ -1050,7 +1050,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                 const target = currentModels[0] || allSystemModels[0] || '';
                 openPurgeForModel(target);
               }}
-              className="text-[11px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 transition-all shadow-sm"
+              className="text-[11px] bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-400/40 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
               title="Открыть инструмент очистки данных любой модели"
             >
               <Eraser size={13} />
@@ -1059,29 +1059,29 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
           </div>
 
           {orphanedModelsInPeriod.length > 0 && (
-            <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
+            <div className="p-3.5 bg-amber-500/15 border border-amber-400/40 rounded-xl space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
                   <AlertTriangle size={14} className="text-amber-400" /> Модели с данными вне списка ({orphanedModelsInPeriod.length})
                 </span>
               </div>
-              <p className="text-[11px] text-slate-300 leading-relaxed">
+              <p className="text-[11px] text-slate-200 leading-relaxed">
                 Следующие модели были удалены из списка на этот месяц, но по ним сохранились записи доходов или операций. Вы можете вернуть их в список или полностью очистить их данные в ноль:
               </p>
               <div className="space-y-1.5">
                 {orphanedModelsInPeriod.map(om => (
-                  <div key={om} className="flex items-center justify-between p-2 bg-slate-900/80 rounded-lg border border-slate-800">
+                  <div key={om} className="flex items-center justify-between p-2 bg-slate-900 rounded-lg border border-slate-700">
                     <span className="text-xs font-bold text-white font-mono">{om}</span>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleRestoreModelToPeriod(om)}
-                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] font-bold transition-all"
+                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[10px] font-bold transition-all cursor-pointer"
                       >
                         Вернуть в список
                       </button>
                       <button
                         onClick={() => openPurgeForModel(om)}
-                        className="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded text-[10px] font-bold flex items-center gap-1 transition-all"
+                        className="px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
                       >
                         <Eraser size={11} /> Очистить данные
                       </button>
@@ -1092,7 +1092,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
             </div>
           )}
           <div className="flex gap-2">
-             <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Название..." value={newModel} onChange={e => setNewModel(e.target.value)}/>
+             <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-indigo-400" placeholder="Название..." value={newModel} onChange={e => setNewModel(e.target.value)}/>
              <button onClick={() => { 
                if(newModel) { 
                  updateState(p => {
@@ -1113,29 +1113,29 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                  }); 
                  setNewModel(''); 
                } 
-             }} className="bg-indigo-600 px-3 rounded-lg"><ICONS.Plus size={18}/></button>
+             }} className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 rounded-lg cursor-pointer transition-colors"><ICONS.Plus size={18}/></button>
           </div>
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
              {currentModels.map(m => (
-               <div key={m} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
+               <div key={m} className="flex justify-between items-center p-3 bg-slate-800/80 border border-slate-700/60 rounded-xl group hover:border-slate-600 transition-all">
                  {editModel?.old === m ? (
                     <div className="flex-1 flex gap-2">
-                      <input autoFocus className="flex-1 bg-slate-950 border border-indigo-500 rounded px-2 py-1 text-sm text-white outline-none" value={editModel.current} onChange={e => setEditModel({ ...editModel, current: e.target.value })} onKeyDown={e => e.key === 'Enter' && saveRenameModel()}/>
-                      <button onClick={saveRenameModel} className="text-emerald-400"><ICONS.Lock size={16}/></button>
+                      <input autoFocus className="flex-1 bg-slate-900 border border-indigo-400 rounded px-2 py-1 text-sm text-white outline-none" value={editModel.current} onChange={e => setEditModel({ ...editModel, current: e.target.value })} onKeyDown={e => e.key === 'Enter' && saveRenameModel()}/>
+                      <button onClick={saveRenameModel} className="text-emerald-400 cursor-pointer"><ICONS.Lock size={16}/></button>
                     </div>
                  ) : (
                    <>
-                     <span className="text-sm font-bold text-slate-200">{m}</span>
+                     <span className="text-sm font-bold text-slate-100">{m}</span>
                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
                           onClick={() => openPurgeForModel(m)} 
-                          className="text-slate-400 hover:text-amber-400 p-1.5 rounded hover:bg-slate-800 flex items-center gap-1 transition-colors"
+                          className="text-slate-400 hover:text-amber-400 p-1.5 rounded hover:bg-slate-700/60 flex items-center gap-1 transition-colors cursor-pointer"
                           title="Очистить данные модели в ноль"
                         >
                           <Eraser size={14}/>
                           <span className="text-[10px] font-bold">Очистить</span>
                         </button>
-                        <button onClick={() => setEditModel({ old: m, current: m })} className="text-slate-500 hover:text-indigo-400 p-1.5 rounded hover:bg-slate-800"><ICONS.Edit size={14}/></button>
+                        <button onClick={() => setEditModel({ old: m, current: m })} className="text-slate-400 hover:text-indigo-400 p-1.5 rounded hover:bg-slate-700/60 cursor-pointer"><ICONS.Edit size={14}/></button>
                         <button onClick={() => {
                           if (confirm(`Удалить модель «${m}» из списка моделей за ${activePeriod?.label}?\n\n(Чтобы очистить все финансовые данные и обнулить балансы, нажмите кнопку «Очистить»).`)) {
                             updateState(p => ({
@@ -1143,7 +1143,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                               accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, models: (ap.models || p.models).filter(x => x !== m), updatedAt: new Date().toISOString() } : ap)
                             }));
                           }
-                        }} className="text-slate-500 hover:text-rose-500 p-1.5 rounded hover:bg-slate-800"><ICONS.Trash size={14}/></button>
+                        }} className="text-slate-400 hover:text-rose-400 p-1.5 rounded hover:bg-slate-700/60 cursor-pointer"><ICONS.Trash size={14}/></button>
                      </div>
                    </>
                  )}
@@ -1152,24 +1152,24 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
           </div>
         </div>
         {userRole === 'owner' && (
-          <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
+          <div className="p-6 rounded-[24px] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-6">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <ICONS.Crown size={18} className="text-amber-400" /> Состав админов ({activePeriod?.label})
             </h2>
             <div className="space-y-4">
               <div className="flex gap-2">
-                 <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Имя..." value={newAdminName} onChange={e => setNewAdminName(e.target.value)}/>
-                 <input className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="%" type="number" value={newAdminRate} onChange={e => setNewAdminRate(e.target.value)}/>
-                 <button onClick={handleAddAdmin} className="bg-amber-600 px-3 rounded-lg"><ICONS.Plus size={18}/></button>
+                 <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-amber-400" placeholder="Имя..." value={newAdminName} onChange={e => setNewAdminName(e.target.value)}/>
+                 <input className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-amber-400" placeholder="%" type="number" value={newAdminRate} onChange={e => setNewAdminRate(e.target.value)}/>
+                 <button onClick={handleAddAdmin} className="bg-amber-600 hover:bg-amber-500 text-white px-3 rounded-lg cursor-pointer transition-colors"><ICONS.Plus size={18}/></button>
               </div>
-              <p className="text-[9px] text-slate-500 italic">Админы получают процент от общего оборота (Gross) за месяц.</p>
+              <p className="text-[9px] text-slate-400 italic">Админы получают процент от общего оборота (Gross) за месяц.</p>
             </div>
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
                {currentAdmins.map(a => (
-                 <div key={a.id} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
+                 <div key={a.id} className="flex justify-between items-center p-3 bg-slate-800/80 border border-slate-700/60 rounded-xl group hover:border-slate-600 transition-all">
                    <div className="flex flex-col">
-                      <span className="text-sm font-bold text-slate-200">{a.name}</span>
-                      <span className="text-[10px] text-amber-500 font-bold">{a.rate}% от оборота</span>
+                      <span className="text-sm font-bold text-slate-100">{a.name}</span>
+                      <span className="text-[10px] text-amber-400 font-bold">{a.rate}% от оборота</span>
                    </div>
                    <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => {
@@ -1181,11 +1181,11 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                             accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, admins: (ap.admins || p.admins).map(x => x.id === a.id ? { ...x, rate } : x), updatedAt: new Date().toISOString() } : ap)
                           }));
                         }
-                      }} className="text-slate-500 hover:text-amber-400"><ICONS.Edit size={14}/></button>
+                      }} className="text-slate-400 hover:text-amber-400 cursor-pointer"><ICONS.Edit size={14}/></button>
                       <button onClick={() => updateState(p => ({
                         ...p, 
                         accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, admins: (ap.admins || p.admins).filter(x => x.id !== a.id), updatedAt: new Date().toISOString() } : ap)
-                      }))} className="text-slate-500 hover:text-rose-500"><ICONS.Trash size={14}/></button>
+                      }))} className="text-slate-400 hover:text-rose-400 cursor-pointer"><ICONS.Trash size={14}/></button>
                    </div>
                  </div>
                ))}
@@ -1193,24 +1193,24 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
           </div>
         )}
 
-        <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
+        <div className="p-6 rounded-[24px] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <ICONS.Models size={18} className="text-rose-400" /> Скрытые анкеты
           </h2>
-          <p className="text-[9px] text-slate-500 italic">Эти анкеты не отображаются в Total Table. Нажмите "Восстановить", чтобы вернуть их в список.</p>
+          <p className="text-[9px] text-slate-400 italic">Эти анкеты не отображаются в Total Table. Нажмите "Восстановить", чтобы вернуть их в список.</p>
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
              {(!state.inactiveModels || state.inactiveModels.length === 0) ? (
-               <p className="text-[10px] text-slate-600 text-center py-4">Нет скрытых анкет</p>
+               <p className="text-[10px] text-slate-500 text-center py-4">Нет скрытых анкет</p>
              ) : (
                state.inactiveModels.map(m => (
-                 <div key={m} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
+                 <div key={m} className="flex justify-between items-center p-3 bg-slate-800/80 border border-slate-700/60 rounded-xl group hover:border-slate-600 transition-all">
                    <span className="text-sm font-bold text-slate-400 line-through decoration-rose-500/50">{m}</span>
                    <button 
                      onClick={() => updateState(p => ({
                        ...p,
                        inactiveModels: (p.inactiveModels || []).filter(x => x !== m)
                      }))}
-                     className="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all"
+                     className="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all cursor-pointer"
                    >
                      Восстановить
                    </button>
@@ -1220,19 +1220,19 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
           </div>
         </div>
 
-        <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-6">
+        <div className="p-6 rounded-[24px] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <ICONS.Income size={18} className="text-emerald-400" /> Месячные планы ({activePeriod?.label})
           </h2>
-          <p className="text-[9px] text-slate-500 italic">Установите цель на месяц. Система будет автоматически рассчитывать ежедневные цели в Total Table.</p>
+          <p className="text-[9px] text-slate-400 italic">Установите цель на месяц. Система будет автоматически рассчитывать ежедневные цели в Total Table.</p>
           <div className="space-y-3 max-h-[400px] overflow-y-auto">
              {currentModels.map(m => (
-               <div key={m} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg group">
-                 <span className="text-sm font-bold text-slate-200">{m}</span>
+               <div key={m} className="flex justify-between items-center p-3 bg-slate-800/80 border border-slate-700/60 rounded-xl group hover:border-slate-600 transition-all">
+                 <span className="text-sm font-bold text-slate-100">{m}</span>
                  <div className="flex items-center gap-2">
                     <input 
                       type="number" 
-                      className="w-24 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-sm text-white text-right outline-none focus:border-emerald-500/50"
+                      className="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white text-right outline-none focus:border-emerald-400"
                       placeholder="0"
                       value={currentPlans[m] || ''}
                       onChange={e => {
@@ -1247,7 +1247,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                         }));
                       }}
                     />
-                    <span className="text-xs text-slate-500">$</span>
+                    <span className="text-xs text-slate-400">$</span>
                  </div>
                </div>
              ))}
@@ -1255,14 +1255,14 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
         </div>
 
         {/* Инструмент полной очистки данных модели */}
-        <div className="glass-card p-6 rounded-[24px] border-slate-800 space-y-5 md:col-span-2 border-l-4 border-l-rose-500">
+        <div className="p-6 rounded-[24px] border border-rose-500/40 bg-gradient-to-br from-[#1d1f33] to-[#141627] shadow-xl space-y-5 md:col-span-2 border-l-4 border-l-rose-500">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <Eraser size={20} className="text-rose-400" />
                 Очистка данных модели в ноль (из таблиц и базы)
               </h2>
-              <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+              <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
                 Полное удаление всех доходов, связанных расходов и бонусов по выбранной модели (включая закрытые периоды, например Август). Балансы операторов, процент админов и чистая прибыль владельцев автоматически пересчитываются в ноль без этой модели.
               </p>
             </div>
@@ -1271,15 +1271,15 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                 const target = currentModels[0] || allSystemModels[0] || '';
                 openPurgeForModel(target);
               }}
-              className="px-4 py-2.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all border border-rose-500/30 whitespace-nowrap shadow-lg shadow-rose-950/20 self-start sm:self-auto"
+              className="px-4 py-2.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all border border-rose-500/40 whitespace-nowrap shadow-lg shadow-rose-950/20 self-start sm:self-auto cursor-pointer"
             >
               <Eraser size={16} />
               <span>Выбрать модель и очистить в ноль</span>
             </button>
           </div>
 
-          <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 flex flex-wrap items-center gap-4 text-xs text-slate-300">
-            <span className="text-slate-400 font-semibold">Все модели в системе ({allSystemModels.length}):</span>
+          <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700/80 flex flex-wrap items-center gap-4 text-xs text-slate-200">
+            <span className="text-slate-300 font-semibold">Все модели в системе ({allSystemModels.length}):</span>
             <div className="flex flex-wrap gap-2">
               {allSystemModels.map(m => {
                 const insp = inspectModelData(state, m);
@@ -1288,10 +1288,10 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                   <button
                     key={m}
                     onClick={() => openPurgeForModel(m)}
-                    className={`px-3 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-2 transition-all ${
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                       hasData 
-                        ? 'bg-slate-800 hover:bg-rose-950/40 border-slate-700 hover:border-rose-500/50 text-slate-200' 
-                        : 'bg-slate-950/40 border-slate-800/60 text-slate-500 hover:text-slate-300'
+                        ? 'bg-slate-800 hover:bg-rose-950/60 border-slate-600 hover:border-rose-400 text-slate-100' 
+                        : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     <span>{m}</span>
@@ -1311,23 +1311,23 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
 
       {/* Модальное окно полной очистки данных модели */}
       {purgeModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-          <div className="glass-card w-full max-w-xl rounded-3xl border border-rose-500/30 p-6 space-y-6 shadow-2xl shadow-rose-950/40 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-xl rounded-3xl border border-rose-500/40 bg-gradient-to-br from-[#1c2238] to-[#121626] p-6 space-y-6 shadow-2xl shadow-rose-950/40 max-h-[90vh] overflow-y-auto">
             
             {/* Header */}
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 flex-shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 flex-shrink-0">
                   <Eraser size={20} />
                 </div>
                 <div>
                   <h3 className="text-lg font-black text-white">Очистка данных модели в ноль</h3>
-                  <p className="text-xs text-slate-400">Полное удаление из таблиц и базы с перерасчетом балансов</p>
+                  <p className="text-xs text-slate-300">Полное удаление из таблиц и базы с перерасчетом балансов</p>
                 </div>
               </div>
               <button 
                 onClick={() => { setPurgeModalOpen(false); setPurgeSuccessResult(null); }}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -1336,53 +1336,53 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
             {/* If success screen */}
             {purgeSuccessResult ? (
               <div className="space-y-5">
-                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-3">
-                  <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                <div className="p-4 bg-emerald-500/20 border border-emerald-400/40 rounded-2xl space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-300 font-bold">
                     <CheckCircle2 size={20} />
                     <span>Данные модели «{purgeSuccessResult.modelName}» успешно очищены!</span>
                   </div>
-                  <p className="text-xs text-slate-300 leading-relaxed">
+                  <p className="text-xs text-slate-200 leading-relaxed">
                     Все финансовые записи модели были удалены. Зарплаты операторов, процент админов и чистая прибыль владельцев автоматически пересчитаны в ноль.
                   </p>
                 </div>
 
-                <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2 text-xs">
-                  <div className="font-bold text-slate-300 mb-2">Сводка выполненной очистки:</div>
-                  <div className="flex justify-between py-1 border-b border-slate-800/60 text-slate-300">
+                <div className="bg-slate-850 p-4 rounded-2xl border border-slate-700 space-y-2 text-xs">
+                  <div className="font-bold text-slate-200 mb-2">Сводка выполненной очистки:</div>
+                  <div className="flex justify-between py-1 border-b border-slate-700/60 text-slate-200">
                     <span>Удалено записей доходов:</span>
                     <span className="font-bold text-white font-mono">{purgeSuccessResult.deletedIncomeCount} (${purgeSuccessResult.deletedIncomeTotal.toFixed(2)})</span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-slate-800/60 text-slate-300">
+                  <div className="flex justify-between py-1 border-b border-slate-700/60 text-slate-200">
                     <span>Удалено связанных операций (выплаты/авансы):</span>
                     <span className="font-bold text-white font-mono">{purgeSuccessResult.deletedOpsCount}</span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-slate-800/60 text-slate-300">
+                  <div className="flex justify-between py-1 border-b border-slate-700/60 text-slate-200">
                     <span>Удалено бонусов модели:</span>
                     <span className="font-bold text-white font-mono">{purgeSuccessResult.deletedBonusesCount}</span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-slate-800/60 text-slate-300">
+                  <div className="flex justify-between py-1 border-b border-slate-700/60 text-slate-200">
                     <span>Удалено записей в Total Table:</span>
                     <span className="font-bold text-white font-mono">{purgeSuccessResult.deletedTotalEntriesCount}</span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-slate-800/60 text-slate-300">
+                  <div className="flex justify-between py-1 border-b border-slate-700/60 text-slate-200">
                     <span>Очищено смен в Roster:</span>
                     <span className="font-bold text-white font-mono">{purgeSuccessResult.rosterEntriesUpdatedCount}</span>
                   </div>
-                  <div className="flex justify-between py-1 text-slate-300">
+                  <div className="flex justify-between py-1 text-slate-200">
                     <span>Затронутые месяцы:</span>
-                    <span className="font-bold text-amber-400">{purgeSuccessResult.periodsAffected.join(', ') || 'Все'}</span>
+                    <span className="font-bold text-amber-300">{purgeSuccessResult.periodsAffected.join(', ') || 'Все'}</span>
                   </div>
                 </div>
 
-                <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-xs text-indigo-300 flex items-center gap-2">
-                  <Sparkles size={16} className="text-indigo-400 flex-shrink-0" />
+                <div className="p-3 bg-indigo-500/20 border border-indigo-400/30 rounded-xl text-xs text-indigo-200 flex items-center gap-2">
+                  <Sparkles size={16} className="text-indigo-300 flex-shrink-0" />
                   <span>Резервная копия текущего состояния создана перед очисткой. Изменения зафиксированы в базе данных.</span>
                 </div>
 
                 <div className="flex justify-end pt-2">
                   <button
                     onClick={() => { setPurgeModalOpen(false); setPurgeSuccessResult(null); }}
-                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-indigo-600/30"
+                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-indigo-600/30 cursor-pointer"
                   >
                     Готово
                   </button>
@@ -1393,11 +1393,11 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
               <div className="space-y-5">
                 {/* Select model */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300">Модель для очистки данных:</label>
+                  <label className="text-xs font-bold text-slate-200">Модель для очистки данных:</label>
                   <select
                     value={purgeTargetModel}
                     onChange={e => { setPurgeTargetModel(e.target.value); setPurgeSuccessResult(null); }}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none focus:border-rose-500"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none focus:border-rose-400"
                   >
                     <option value="" disabled>-- Выберите модель --</option>
                     {allSystemModels.map(m => (
@@ -1408,42 +1408,42 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
 
                 {/* Inspection data card */}
                 {currentModelInspection && (
-                  <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 space-y-3">
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                  <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-700 space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-200">
                       <span>Найдено в базе данных для «{purgeTargetModel}»:</span>
                       <span className="text-rose-400 font-mono font-bold">${currentModelInspection.incomeTotal.toFixed(2)}</span>
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                      <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
-                        <div className="text-[10px] text-slate-500 font-semibold">Доходы</div>
+                      <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
+                        <div className="text-[10px] text-slate-400 font-semibold">Доходы</div>
                         <div className="text-sm font-black text-white font-mono">{currentModelInspection.incomeCount}</div>
                       </div>
-                      <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
-                        <div className="text-[10px] text-slate-500 font-semibold">Операции</div>
+                      <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
+                        <div className="text-[10px] text-slate-400 font-semibold">Операции</div>
                         <div className="text-sm font-black text-white font-mono">{currentModelInspection.opsCount}</div>
                       </div>
-                      <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
-                        <div className="text-[10px] text-slate-500 font-semibold">Бонусы</div>
+                      <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
+                        <div className="text-[10px] text-slate-400 font-semibold">Бонусы</div>
                         <div className="text-sm font-black text-white font-mono">{currentModelInspection.bonusesCount}</div>
                       </div>
-                      <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
-                        <div className="text-[10px] text-slate-500 font-semibold">Total / Roster</div>
+                      <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
+                        <div className="text-[10px] text-slate-400 font-semibold">Total / Roster</div>
                         <div className="text-sm font-black text-white font-mono">{currentModelInspection.totalEntriesCount + currentModelInspection.rosterCount}</div>
                       </div>
                     </div>
 
                     {currentModelInspection.periodsWithData.length > 0 ? (
                       <div className="space-y-1.5 pt-1">
-                        <div className="text-[11px] font-semibold text-slate-400">Периоды с данными:</div>
+                        <div className="text-[11px] font-semibold text-slate-300">Периоды с данными:</div>
                         <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
                           {currentModelInspection.periodsWithData.map(p => (
-                            <div key={p.periodId} className="flex items-center justify-between p-2 rounded-lg bg-slate-950/40 text-xs">
+                            <div key={p.periodId} className="flex items-center justify-between p-2 rounded-lg bg-slate-800/80 border border-slate-700/60 text-xs">
                               <span className="font-bold text-white flex items-center gap-1.5">
                                 {p.periodLabel}
                                 {p.isClosed && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-normal">Закрыт</span>}
                               </span>
-                              <span className="text-slate-300 font-mono text-[11px]">
+                              <span className="text-slate-200 font-mono text-[11px]">
                                 {p.incomeCount} дох. (${p.incomeTotal.toFixed(0)}) {p.opsCount > 0 ? `, ${p.opsCount} опер.` : ''}
                               </span>
                             </div>
@@ -1451,7 +1451,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                         </div>
                       </div>
                     ) : (
-                      <div className="text-xs text-slate-500 italic py-1">
+                      <div className="text-xs text-slate-400 italic py-1">
                         У этой модели нет финансовых записей в таблицах.
                       </div>
                     )}
@@ -1460,23 +1460,23 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
 
                 {/* Scope selector */}
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-300">Область очистки:</label>
+                  <label className="text-xs font-bold text-slate-200">Область очистки:</label>
                   <div className="space-y-2">
                     <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                       purgeScope === 'all' 
-                        ? 'border-rose-500/60 bg-rose-500/10' 
-                        : 'border-slate-800 bg-slate-900/50 hover:border-slate-700'
+                        ? 'border-rose-500/80 bg-rose-500/20' 
+                        : 'border-slate-700 bg-slate-800/80 hover:border-slate-600'
                     }`}>
                       <input
                         type="radio"
                         name="purgeScope"
                         checked={purgeScope === 'all'}
                         onChange={() => setPurgeScope('all')}
-                        className="mt-1 text-rose-500"
+                        className="mt-1 text-rose-500 cursor-pointer"
                       />
                       <div>
                         <div className="text-xs font-black text-white">Во ВСЕХ месяцах (включая закрытые, например Август)</div>
-                        <div className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                        <div className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">
                           Полное удаление данных модели за всё время. Очистит таблицы, а балансы операторов, админов и владельцев будут пересчитаны в ноль.
                         </div>
                       </div>
@@ -1484,19 +1484,19 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
 
                     <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                       purgeScope === 'period' 
-                        ? 'border-rose-500/60 bg-rose-500/10' 
-                        : 'border-slate-800 bg-slate-900/50 hover:border-slate-700'
+                        ? 'border-rose-500/80 bg-rose-500/20' 
+                        : 'border-slate-700 bg-slate-800/80 hover:border-slate-600'
                     }`}>
                       <input
                         type="radio"
                         name="purgeScope"
                         checked={purgeScope === 'period'}
                         onChange={() => setPurgeScope('period')}
-                        className="mt-1 text-rose-500"
+                        className="mt-1 text-rose-500 cursor-pointer"
                       />
                       <div>
                         <div className="text-xs font-black text-white">Только в текущем месяце ({activePeriod?.label})</div>
-                        <div className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                        <div className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">
                           Удалит данные модели только за выбранный месяц. Записи в других месяцах останутся нетронутыми.
                         </div>
                       </div>
@@ -1505,18 +1505,18 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                 </div>
 
                 {/* Remove from list checkbox */}
-                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+                <label className="flex items-center gap-2 text-xs text-slate-200 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={purgeRemoveFromList}
                     onChange={e => setPurgeRemoveFromList(e.target.checked)}
-                    className="rounded border-slate-700 text-rose-500 focus:ring-rose-500"
+                    className="rounded border-slate-700 text-rose-500 focus:ring-rose-500 cursor-pointer"
                   />
                   <span>Также удалить анкету модели из списков моделей (в периодах и глобально)</span>
                 </label>
 
                 {/* Warning notice */}
-                <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl space-y-1.5 text-xs text-rose-200">
+                <div className="p-3.5 bg-rose-500/20 border border-rose-500/40 rounded-xl space-y-1.5 text-xs text-rose-200">
                   <div className="flex items-center gap-1.5 font-black text-rose-300">
                     <ShieldAlert size={16} className="text-rose-400 flex-shrink-0" />
                     <span>Подтверждение обнуления данных</span>
@@ -1531,31 +1531,30 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                   <button
                     onClick={() => setPurgeModalOpen(false)}
                     disabled={isPurging}
-                    className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs transition-colors"
+                    className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs transition-colors cursor-pointer"
                   >
                     Отмена
                   </button>
                   <button
                     onClick={handleExecutePurge}
                     disabled={isPurging || !purgeTargetModel}
-                    className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-xl font-black text-xs flex items-center gap-2 transition-all shadow-lg shadow-rose-600/30"
+                    className="px-6 py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-xl font-bold text-xs transition-all shadow-lg shadow-rose-950/30 flex items-center gap-2 cursor-pointer"
                   >
                     {isPurging ? (
                       <>
                         <RefreshCw size={14} className="animate-spin" />
-                        <span>Очистка данных...</span>
+                        <span>Очищаю в ноль...</span>
                       </>
                     ) : (
                       <>
-                        <Eraser size={14} />
-                        <span>Очистить все данные в ноль</span>
+                        <Trash2 size={14} />
+                        <span>Очистить данные в ноль</span>
                       </>
                     )}
                   </button>
                 </div>
               </div>
             )}
-
           </div>
         </div>
       )}

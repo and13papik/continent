@@ -215,13 +215,13 @@ const App: React.FC = () => {
 
   return (
     <HashRouter>
-      <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-200">
-        <nav className="w-full md:w-64 bg-slate-950/80 backdrop-blur-3xl border-r border-white/5 flex flex-col sticky top-0 h-auto md:h-screen z-50 overflow-hidden">
+      <div className="flex flex-col md:flex-row min-h-screen bg-[#0d111d] text-slate-100">
+        <nav className="w-full md:w-64 bg-[#111726]/95 backdrop-blur-3xl border-r border-slate-700/60 shadow-2xl flex flex-col sticky top-0 h-auto md:h-screen z-50 overflow-hidden">
           {/* Header Section */}
-          <div className="p-4 pb-3 shrink-0 flex flex-col gap-2.5 border-b border-white/5 bg-slate-950/60 backdrop-blur-xl">
+          <div className="p-4 pb-3 shrink-0 flex flex-col gap-2.5 border-b border-slate-700/60 bg-[#151c2e]/90 backdrop-blur-xl">
             {/* Logo Continental - Laconic and Simple */}
             <div className="flex items-center gap-2.5 px-0.5 pt-0.5">
-              <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md shadow-indigo-600/30 shrink-0">
+              <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md shadow-indigo-600/40 shrink-0 border border-indigo-400/40">
                 <span className="text-white font-outfit text-sm font-black tracking-tight">C</span>
               </div>
               <span className="font-outfit text-lg font-bold tracking-tight text-white leading-none">
@@ -253,13 +253,13 @@ const App: React.FC = () => {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 onClick={forcePull}
-                className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl cursor-pointer group transition-all hover:bg-rose-500/20"
+                className="p-3 bg-rose-500/15 border border-rose-500/40 rounded-xl cursor-pointer group transition-all hover:bg-rose-500/25"
               >
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
-                  <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest leading-none">Sync Conflict</p>
+                  <p className="text-[9px] font-black text-rose-400 uppercase tracking-widest leading-none">Sync Conflict</p>
                 </div>
-                <p className="text-[10px] font-bold text-slate-400 group-hover:text-white transition-colors">Manual override required.</p>
+                <p className="text-[10px] font-bold text-slate-300 group-hover:text-white transition-colors">Manual override required.</p>
               </motion.div>
             )}
           </div>
@@ -268,8 +268,8 @@ const App: React.FC = () => {
           <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-3 space-y-6">
             <div className="space-y-1">
               <div className="flex items-center gap-2 mb-2 px-1">
-                 <span className="text-[7.5px] font-black uppercase tracking-[0.25em] text-slate-500 whitespace-nowrap">Main Navigation</span>
-                 <div className="h-[1px] flex-1 bg-white/5" />
+                 <span className="text-[8px] font-black uppercase tracking-[0.25em] text-slate-400 whitespace-nowrap">Main Navigation</span>
+                 <div className="h-[1px] flex-1 bg-slate-700/60" />
               </div>
               <NavLink to="/" icon={<ICONS.Dashboard size={14} />} label="Dashboard" primary />
               <NavLink to="/metrics" icon={<ICONS.Reports size={14} />} label="Метрика" />
@@ -281,8 +281,8 @@ const App: React.FC = () => {
             
             <div className="space-y-1">
               <div className="flex items-center gap-2 mb-3 px-1">
-                 <span className="text-[7px] font-bold uppercase tracking-[0.3em] text-slate-700 whitespace-nowrap">Admin Area</span>
-                 <div className="h-[1px] flex-1 bg-slate-900" />
+                 <span className="text-[8px] font-bold uppercase tracking-[0.25em] text-slate-400 whitespace-nowrap">Admin Area</span>
+                 <div className="h-[1px] flex-1 bg-slate-700/60" />
               </div>
               <NavLink to="/total-table" icon={<ICONS.Transfer size={14} />} label="Total Table" admin />
               <NavLink to="/admin-table" icon={<ICONS.Internship size={14} />} label="Admin Table" admin />
@@ -300,21 +300,21 @@ const App: React.FC = () => {
           </div>
 
           {/* Fixed Status Footer Area */}
-          <div className="p-4 shrink-0 bg-slate-950/90 backdrop-blur-xl border-t border-white/5 space-y-3">
+          <div className="p-4 shrink-0 bg-[#151c2e]/95 backdrop-blur-xl border-t border-slate-700/60 space-y-3">
             <div 
               className={`relative p-3 rounded-2xl border transition-all duration-700 overflow-hidden ${
-                cloudStatus === 'success' ? 'bg-emerald-500/[0.03] border-emerald-500/20 shadow-[0_0_20px_-10px_rgba(16,185,129,0.2)]' : 
-                cloudStatus === 'loading' ? 'bg-amber-500/[0.03] border-amber-500/20' :
-                cloudStatus === 'conflict' ? 'bg-rose-500/[0.03] border-rose-500/20' : 
-                'bg-slate-900/40 border-white/5'
+                cloudStatus === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_20px_-10px_rgba(16,185,129,0.3)]' : 
+                cloudStatus === 'loading' ? 'bg-amber-500/10 border-amber-500/30' :
+                cloudStatus === 'conflict' ? 'bg-rose-500/10 border-rose-500/30' : 
+                'bg-slate-800/80 border-slate-700/70 shadow-sm'
               }`}
             >
               <div className="relative flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-500 ${
-                  cloudStatus === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-inner' :
-                  cloudStatus === 'loading' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
-                  cloudStatus === 'conflict' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
-                  'bg-slate-800/50 border-white/5 text-slate-500'
+                  cloudStatus === 'success' ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300 shadow-inner' :
+                  cloudStatus === 'loading' ? 'bg-amber-500/20 border-amber-500/30 text-amber-300' :
+                  cloudStatus === 'conflict' ? 'bg-rose-500/20 border-rose-500/30 text-rose-300' :
+                  'bg-slate-700/70 border-slate-600/70 text-slate-300'
                 }`}>
                   {isSyncing || cloudStatus === 'loading' ? (
                     <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}>
@@ -331,19 +331,19 @@ const App: React.FC = () => {
                 
                 <div className="flex flex-col min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[7.5px] text-slate-500 uppercase font-black tracking-widest opacity-60">Database Hub</span>
-                    <div className={`w-1 h-1 rounded-full ${
-                      cloudStatus === 'success' ? 'bg-emerald-500' : 
-                      cloudStatus === 'loading' ? 'bg-amber-500' : 
-                      cloudStatus === 'conflict' ? 'bg-rose-500' : 
-                      'bg-slate-700'
+                    <span className="text-[8px] text-slate-400 uppercase font-black tracking-widest">Database Hub</span>
+                    <div className={`w-1.5 h-1.5 rounded-full ${
+                      cloudStatus === 'success' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]' : 
+                      cloudStatus === 'loading' ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]' : 
+                      cloudStatus === 'conflict' ? 'bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.8)]' : 
+                      'bg-slate-500'
                     }`} />
                   </div>
-                  <span className={`text-[9px] font-black tracking-wider transition-colors duration-500 truncate uppercase ${
-                    cloudStatus === 'success' ? 'text-emerald-400' :
-                    cloudStatus === 'loading' ? 'text-amber-400' :
-                    cloudStatus === 'conflict' ? 'text-rose-400 font-bold' :
-                    'text-slate-400'
+                  <span className={`text-[9.5px] font-black tracking-wider transition-colors duration-500 truncate uppercase ${
+                    cloudStatus === 'success' ? 'text-emerald-300' :
+                    cloudStatus === 'loading' ? 'text-amber-300' :
+                    cloudStatus === 'conflict' ? 'text-rose-300 font-bold' :
+                    'text-slate-300'
                   }`}>
                     {cloudStatus === 'conflict' ? 'SYNC CONFLICT' : 
                      !state.syncUrl ? 'CLOUD OFFLINE' : 
@@ -361,15 +361,15 @@ const App: React.FC = () => {
                 localStorage.removeItem('continental_role');
                 window.location.reload();
               }}
-              className="w-full flex items-center justify-center gap-3 px-3 py-3.5 text-slate-500 hover:text-white hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 rounded-2xl transition-all text-[9.5px] font-black uppercase tracking-[0.2em] group"
+              className="w-full flex items-center justify-center gap-3 px-3 py-3 text-slate-400 hover:text-white hover:bg-rose-500/15 border border-slate-700/60 hover:border-rose-500/30 rounded-2xl transition-all text-[9.5px] font-black uppercase tracking-[0.2em] group"
             >
-              <ICONS.Unlock size={14} className="group-hover:rotate-12 transition-transform" /> 
+              <ICONS.Unlock size={14} className="group-hover:rotate-12 transition-transform text-slate-400 group-hover:text-rose-300" /> 
               <span>Выйти из HUB</span>
             </button>
           </div>
         </nav>
 
-        <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950">
+        <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-gradient-to-br from-[#101524] via-[#0d111d] to-[#0a0d17]">
           <div className="max-w-7xl mx-auto">
             <Routes>
               <Route path="/" element={<Dashboard state={state} updateState={updateState} userRole={userRole} />} />
@@ -406,22 +406,22 @@ const QuickActionButton: React.FC<{
   return (
     <Link to={to} className="block group flex-1">
       <motion.div
-        whileHover={{ y: -1, scale: 1.01 }}
+        whileHover={{ y: -1, scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
-        className={`flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl border transition-all duration-300 ${
+        className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl border transition-all duration-300 shadow-sm ${
           isActive
             ? isAmber
-              ? 'bg-amber-500 text-white border-amber-400 shadow-[0_4px_14px_-3px_rgba(245,158,11,0.5)] font-bold'
-              : 'bg-indigo-600 text-white border-indigo-500 shadow-[0_4px_14px_-3px_rgba(79,70,229,0.5)] font-bold'
+              ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-[0_4px_14px_-2px_rgba(245,158,11,0.6)] font-black'
+              : 'bg-indigo-600 text-white border-indigo-400 shadow-[0_4px_14px_-2px_rgba(79,70,229,0.6)] font-black'
             : isAmber
-              ? 'bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20 hover:border-amber-500/40 hover:text-white font-semibold'
-              : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20 hover:bg-indigo-500/20 hover:border-indigo-500/40 hover:text-white font-semibold'
+              ? 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25 hover:border-amber-400 hover:text-white font-bold'
+              : 'bg-indigo-500/15 text-indigo-200 border-indigo-500/30 hover:bg-indigo-500/25 hover:border-indigo-400 hover:text-white font-bold'
         }`}
       >
-        <span className={`${isActive ? 'text-white' : isAmber ? 'text-amber-400 group-hover:text-white' : 'text-indigo-400 group-hover:text-white'} transition-colors`}>
+        <span className={`${isActive ? (isAmber ? 'text-slate-950' : 'text-white') : isAmber ? 'text-amber-400 group-hover:text-white' : 'text-indigo-400 group-hover:text-white'} transition-colors`}>
           {icon}
         </span>
-        <span className="text-[10.5px] font-bold tracking-wider uppercase leading-none">{label}</span>
+        <span className="text-[11px] font-black tracking-wider uppercase leading-none">{label}</span>
       </motion.div>
     </Link>
   );
@@ -462,7 +462,7 @@ const NavLink: React.FC<{
           className={`relative flex flex-col items-center justify-center py-4 px-2 rounded-[1.75rem] border transition-all duration-500 backdrop-blur-2xl overflow-hidden
             ${isActive 
               ? `bg-gradient-to-br ${accentColor} ${borderActive} shadow-[0_15px_30px_-8px_${shadowColor}]` 
-              : `bg-slate-900/40 border-white/5 ${borderHover} hover:bg-slate-900`
+              : `bg-slate-800/80 border-slate-700/60 ${borderHover} hover:bg-slate-800`
             }`}
         >
           {/* Internal Glow */}
@@ -483,7 +483,7 @@ const NavLink: React.FC<{
           <div className={`relative z-10 w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-700 shadow-xl mb-2
             ${isActive 
               ? 'bg-white/10 text-white backdrop-blur-md border border-white/20' 
-              : `bg-slate-950 ${lightText} border border-white/5 group-hover:scale-110`
+              : `bg-slate-900 ${lightText} border border-slate-700/60 group-hover:scale-110`
             }`}
           >
             {React.cloneElement(icon as React.ReactElement, { size: 18 })}
@@ -497,7 +497,7 @@ const NavLink: React.FC<{
               {label}
             </span>
             <span className={`text-[6px] font-black uppercase tracking-[0.2em] opacity-40 transition-all duration-500
-              ${isActive ? 'text-white translate-y-0' : 'text-slate-500 translate-y-0.5 group-hover:translate-y-0 group-hover:opacity-80'}`}
+              ${isActive ? 'text-white translate-y-0' : 'text-slate-400 translate-y-0.5 group-hover:translate-y-0 group-hover:opacity-80'}`}
             >
               {subLabel || 'SELECT'}
             </span>
@@ -512,33 +512,35 @@ const NavLink: React.FC<{
     );
   }
 
-  let activeBg = 'bg-indigo-500 shadow-[0_0_20px_-5px_rgba(99,102,241,0.5)]';
-  let activeText = 'text-white';
-  let inactiveText = 'text-slate-500 hover:text-slate-300';
+  let activeBg = 'bg-indigo-600 border border-indigo-400/50 shadow-[0_4px_16px_rgba(99,102,241,0.5)]';
+  let activeText = 'text-white font-black';
+  let inactiveText = 'text-slate-300 hover:text-white hover:bg-slate-800/80 border border-transparent hover:border-slate-700/60';
   let iconActiveColor = 'text-white';
-  let iconInactiveColor = 'text-slate-600 group-hover:text-indigo-400';
+  let iconInactiveColor = 'text-slate-400 group-hover:text-indigo-300';
   let indicatorColor = 'bg-indigo-400';
 
   if (primary) {
-    activeBg = 'bg-indigo-600/30 border border-indigo-400/40 shadow-[0_15px_40px_-10px_rgba(79,70,229,0.4)] backdrop-blur-2xl px-5 py-4 mb-6 rounded-2xl';
+    activeBg = 'bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-600 border border-indigo-400/60 shadow-[0_10px_30px_-5px_rgba(79,70,229,0.5)] backdrop-blur-2xl px-4 py-3 mb-4 rounded-2xl';
     activeText = 'text-white font-black';
-    inactiveText = 'text-slate-400 hover:text-white border border-white/5 mb-6 py-4 px-5 bg-slate-950/40 hover:bg-slate-900 shadow-xl rounded-2xl transition-all';
-    iconActiveColor = 'text-indigo-400';
-    iconInactiveColor = 'text-slate-600 group-hover:text-indigo-400 group-hover:scale-110';
+    inactiveText = 'text-slate-100 hover:text-white border border-slate-700/80 mb-4 py-3 px-4 bg-slate-800/90 hover:bg-slate-800 shadow-md rounded-2xl transition-all';
+    iconActiveColor = 'text-white';
+    iconInactiveColor = 'text-indigo-400 group-hover:text-indigo-300 group-hover:scale-110';
     indicatorColor = 'bg-indigo-400';
   }
 
   if (premium) {
-    activeBg = 'bg-amber-500 shadow-[0_0_20px_-5px_rgba(245,158,11,0.5)]';
-    inactiveText = 'text-amber-500/70 hover:text-amber-400';
-    iconInactiveColor = 'text-amber-600/50 group-hover:text-amber-400';
+    activeBg = 'bg-amber-500 text-slate-950 border border-amber-300 shadow-[0_4px_16px_rgba(245,158,11,0.5)]';
+    activeText = 'text-slate-950 font-black';
+    inactiveText = 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/15 border border-transparent hover:border-amber-500/30';
+    iconInactiveColor = 'text-amber-400 group-hover:text-amber-300';
     indicatorColor = 'bg-amber-400';
   }
 
   if (admin) {
-    activeBg = 'bg-sky-500 shadow-[0_0_20px_-5px_rgba(14,165,233,0.5)]';
-    inactiveText = 'text-sky-500/70 hover:text-sky-400';
-    iconInactiveColor = 'text-sky-600/50 group-hover:text-sky-400';
+    activeBg = 'bg-sky-500 text-slate-950 border border-sky-300 shadow-[0_4px_16px_rgba(14,165,233,0.5)]';
+    activeText = 'text-slate-950 font-black';
+    inactiveText = 'text-sky-300 hover:text-white hover:bg-sky-500/15 border border-transparent hover:border-sky-500/30';
+    iconInactiveColor = 'text-sky-400 group-hover:text-sky-300';
     indicatorColor = 'bg-sky-400';
   }
 

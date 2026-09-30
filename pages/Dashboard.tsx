@@ -15,21 +15,21 @@ import PeriodBadge from '../components/PeriodBadge';
 
 function PlatformMiniCard({ label, value, color, icon }: { label: string; value: number; color: string; icon: React.ReactNode }) {
   const colorClasses: Record<string, string> = {
-    indigo: 'text-indigo-400 border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/10 hover:border-indigo-400/40 shadow-indigo-500/5',
-    sky: 'text-sky-400 border-sky-500/20 bg-sky-500/5 hover:bg-sky-500/10 hover:border-sky-400/40 shadow-sky-500/5',
-    emerald: 'text-emerald-400 border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 hover:border-emerald-400/40 shadow-emerald-500/5',
+    indigo: 'text-indigo-200 border-indigo-500/40 bg-gradient-to-b from-[#1e2742] to-[#141b2e] hover:border-indigo-400 hover:shadow-indigo-500/20 shadow-lg',
+    sky: 'text-sky-200 border-sky-500/40 bg-gradient-to-b from-[#182d47] to-[#111e30] hover:border-sky-400 hover:shadow-sky-500/20 shadow-lg',
+    emerald: 'text-emerald-200 border-emerald-500/40 bg-gradient-to-b from-[#14322a] to-[#0e211c] hover:border-emerald-400 hover:shadow-emerald-500/20 shadow-lg',
   };
 
   return (
     <motion.div 
       whileHover={{ y: -4, scale: 1.02 }}
-      className={`p-3.5 rounded-3xl border transition-all duration-500 flex flex-col items-center justify-center gap-1.5 min-w-[125px] backdrop-blur-2xl shadow-xl ${colorClasses[color] || 'border-slate-800'}`}
+      className={`p-3.5 rounded-3xl border transition-all duration-500 flex flex-col items-center justify-center gap-1.5 min-w-[125px] backdrop-blur-2xl shadow-xl ${colorClasses[color] || 'border-slate-700 bg-slate-800'}`}
     >
-       <div className="p-1 rounded-xl bg-white/5 border border-white/5 group-hover:scale-110 transition-transform">
+       <div className="p-1.5 rounded-xl bg-white/10 border border-white/15 group-hover:scale-110 transition-transform shadow-inner">
         {React.cloneElement(icon as React.ReactElement, { size: 18 })}
        </div>
-       <div className={`text-[8px] font-black uppercase tracking-[0.2em] opacity-50`}>{label}</div>
-       <div className="text-base font-black text-white font-outfit tracking-tight">${value.toLocaleString()}</div>
+       <div className="text-[8.5px] font-black uppercase tracking-[0.2em] text-slate-300">{label}</div>
+       <div className="text-lg font-black text-white font-outfit tracking-tight">${value.toLocaleString()}</div>
     </motion.div>
   );
 }
@@ -52,40 +52,40 @@ function StatCard({
   highlighted?: boolean;
 }) {
   const colorClasses: Record<string, string> = {
-    indigo: 'from-indigo-500/[0.12] to-transparent border-indigo-500/20 text-indigo-400',
-    sky: 'from-sky-500/[0.12] to-transparent border-sky-500/20 text-sky-400',
-    emerald: 'from-emerald-500/[0.12] to-transparent border-emerald-500/20 text-emerald-400',
-    rose: 'from-rose-500/[0.12] to-transparent border-rose-500/20 text-rose-400',
-    amber: 'from-amber-400/[0.15] to-transparent border-amber-500/30 text-amber-400',
-    blue: 'from-blue-500/[0.12] to-transparent border-blue-500/20 text-blue-400'
+    indigo: 'from-[#1e2744] via-[#161c31] to-[#121627] border-indigo-500/40 text-indigo-300 shadow-[0_8px_25px_-5px_rgba(99,102,241,0.2)]',
+    sky: 'from-[#17304e] via-[#132236] to-[#0f1a29] border-sky-500/40 text-sky-300 shadow-[0_8px_25px_-5px_rgba(14,165,233,0.2)]',
+    emerald: 'from-[#15362c] via-[#102720] to-[#0c1c17] border-emerald-500/40 text-emerald-300 shadow-[0_8px_25px_-5px_rgba(16,185,129,0.2)]',
+    rose: 'from-[#381a27] via-[#28131c] to-[#1d0e15] border-rose-500/40 text-rose-300 shadow-[0_8px_25px_-5px_rgba(244,63,94,0.2)]',
+    amber: 'from-[#382815] via-[#281d0f] to-[#1c140a] border-amber-500/40 text-amber-300 shadow-[0_8px_25px_-5px_rgba(245,158,11,0.2)]',
+    blue: 'from-[#192b49] via-[#131e34] to-[#0e1627] border-blue-500/40 text-blue-300 shadow-[0_8px_25px_-5px_rgba(59,130,246,0.2)]'
   };
 
-  const currentClass = colorClasses[color] || 'from-slate-800/10 to-transparent border-slate-700/20';
+  const currentClass = colorClasses[color] || 'from-slate-800 to-slate-900 border-slate-700/60';
 
   return (
     <motion.div 
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -4, scale: 1.01 }}
-      className={`relative group bg-gradient-to-br ${currentClass} ${highlighted ? 'p-6' : 'p-5'} rounded-3xl border backdrop-blur-3xl transition-all duration-500 shadow-xl hover:border-white/20 overflow-hidden`}
+      className={`relative group bg-gradient-to-br ${currentClass} ${highlighted ? 'p-6' : 'p-5'} rounded-3xl border backdrop-blur-3xl transition-all duration-500 shadow-xl hover:border-white/30 overflow-hidden`}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.01] to-transparent pointer-events-none" />
-      <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2 group-hover:scale-150 transition-transform duration-700" />
+      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent pointer-events-none" />
+      <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2 group-hover:scale-150 transition-transform duration-700" />
       
       <div className="relative flex items-center gap-5">
-        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border border-white/5 bg-white/5 text-current shadow-inner group-hover:scale-105 transition-transform duration-500`}>
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border border-white/15 bg-white/10 text-current shadow-inner group-hover:scale-105 transition-transform duration-500`}>
           <div className="scale-110">{icon}</div>
         </div>
         <div className="min-w-0">
-          <p className="text-[9px] uppercase font-black tracking-[0.2em] mb-1.5 text-slate-500 group-hover:text-slate-300 transition-colors">{title}</p>
+          <p className="text-[9.5px] uppercase font-black tracking-[0.2em] mb-1.5 text-slate-300 group-hover:text-white transition-colors">{title}</p>
           <div className="flex flex-col">
             <span className="font-outfit text-2xl font-black text-white tracking-tight leading-none group-hover:scale-[1.01] origin-left transition-transform duration-500">
               {value}
             </span>
             {subValue && (
-              <div className="flex items-center gap-2 mt-2 p-1 px-2.5 bg-white/[0.04] border border-white/5 rounded-lg w-fit">
-                <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">{subLabel}</span>
-                <span className="text-[9px] font-bold text-indigo-400 font-mono tracking-tight">{subValue}</span>
+              <div className="flex items-center gap-2 mt-2 p-1 px-2.5 bg-slate-800/80 border border-slate-700/80 rounded-lg w-fit shadow-sm">
+                <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">{subLabel}</span>
+                <span className="text-[9.5px] font-bold text-indigo-300 font-mono tracking-tight">{subValue}</span>
               </div>
             )}
           </div>
@@ -469,7 +469,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
   const LockIcon = ICONS.Lock || 'span';
 
   return (
-    <div className="relative min-h-screen bg-[#0a0c10] text-slate-200">
+    <div className="relative min-h-screen bg-transparent text-slate-100">
       <style>{`
         @keyframes pulse-subtle {
           0%, 100% { opacity: 1; transform: scale(1); }
@@ -479,10 +479,10 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
           animation: pulse-subtle 4s ease-in-out infinite;
         }
       `}</style>
-      {/* Subtle background glow */}
+      {/* Subtle ambient lighting */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/5 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-500/5 rounded-full blur-[120px]" />
+        <div className="absolute top-[-10%] left-[-10%] w-[45%] h-[45%] bg-indigo-500/10 rounded-full blur-[140px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[45%] bg-emerald-500/10 rounded-full blur-[140px]" />
       </div>
 
       <div className="relative space-y-10 animate-in fade-in duration-700 pb-20 max-w-[1600px] mx-auto px-4 sm:px-6">
@@ -493,16 +493,16 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
              <PeriodBadge state={state} />
              
               {userRole === 'owner' && (
-                 <div className="flex items-center gap-2 bg-white/[0.03] p-1 rounded-2xl border border-white/[0.05] backdrop-blur-md">
+                 <div className="flex items-center gap-2 bg-slate-800/80 p-1.5 rounded-2xl border border-slate-700/80 backdrop-blur-md shadow-md">
                   {activePeriod?.status === 'open' ? (
                      <button 
                        onClick={handleCloseMonth} 
-                       className="flex items-center gap-2 px-5 py-2 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all border border-rose-500/20 active:scale-95 group shadow-lg shadow-rose-500/5"
+                       className="flex items-center gap-2 px-5 py-2.5 bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all border border-rose-500/40 active:scale-95 group shadow-lg shadow-rose-500/10"
                      >
                        <LockIcon size={14} className="group-hover:rotate-12 transition-transform duration-300" /> Закрыть месяц
                      </button>
                   ) : (
-                     <div className="flex items-center gap-2 px-5 py-2 text-slate-500 text-[10px] font-black uppercase tracking-widest rounded-xl border border-white/5">
+                     <div className="flex items-center gap-2 px-5 py-2.5 text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-xl border border-slate-700/60 bg-slate-800/60">
                        <LockIcon size={14} /> Месяц закрыт
                      </div>
                   )}
@@ -510,7 +510,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
                   {isLatestPeriod && (
                      <button 
                        onClick={handleStartNextMonth} 
-                       className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-xl shadow-indigo-600/20 active:scale-95 group"
+                       className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-xl shadow-indigo-600/30 border border-indigo-400/40 active:scale-95 group"
                      >
                        <ICONS.Plus size={14} className="group-hover:scale-125 transition-transform duration-300" /> Новый период
                      </button>
@@ -520,12 +520,12 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
           </div>
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
-          <div className="flex items-center gap-4 p-3 bg-white/[0.03] border border-white/[0.05] rounded-2xl backdrop-blur-md">
+          <div className="flex items-center gap-4 p-3 bg-slate-800/85 border border-slate-700/80 rounded-2xl backdrop-blur-md shadow-md">
             <div className="flex flex-col items-end">
-              <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Узлы активны</span>
+              <span className="text-[9.5px] font-black text-emerald-400 uppercase tracking-widest">Узлы активны</span>
               <span className="text-xs font-bold text-white">Облако: 100%</span>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 shadow-inner">
               <ICONS.ShieldCheck size={20} />
             </div>
           </div>
@@ -533,17 +533,17 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
       </header>
 
       {homelessRecords.length > 0 && (
-        <div className="bg-rose-500/10 border border-rose-500/20 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-6 animate-pulse shadow-xl shadow-rose-500/5">
+        <div className="bg-rose-500/20 border border-rose-500/40 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-6 animate-pulse shadow-xl shadow-rose-500/10">
            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 flex items-center justify-center text-rose-500 shadow-inner">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/30 flex items-center justify-center text-rose-300 shadow-inner">
                  <ICONS.AlertTriangle size={24} />
               </div>
               <div>
                  <h3 className="text-lg font-bold text-white font-outfit uppercase tracking-tight">Обнаружены "пропавшие" записи</h3>
-                 <p className="text-xs text-slate-400">Найдено {homelessRecords.length} записей, у которых удален период (февраль мог исчезнуть из-за конфликта синхронизации).</p>
+                 <p className="text-xs text-slate-300">Найдено {homelessRecords.length} записей, у которых удален период (февраль мог исчезнуть из-за конфликта синхронизации).</p>
               </div>
            </div>
-           <button onClick={repairHomeless} className="bg-rose-600 hover:bg-rose-500 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-rose-600/20 active:scale-95">
+           <button onClick={repairHomeless} className="bg-rose-600 hover:bg-rose-500 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-rose-600/30 active:scale-95">
               Восстановить данные
            </button>
         </div>
@@ -555,14 +555,14 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
           <motion.div 
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="relative group overflow-hidden rounded-[3rem] border border-white/5 bg-slate-900/40 backdrop-blur-3xl shadow-[0_32px_128px_rgba(0,0,0,0.4)]"
+            className="relative group overflow-hidden rounded-[2.5rem] border border-slate-700/70 bg-gradient-to-br from-[#192138] via-[#141a2c] to-[#0f1422] backdrop-blur-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
           >
             {/* Background elements */}
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/[0.08] via-transparent to-indigo-500/[0.05] pointer-events-none" />
-            <div className="absolute -top-24 -right-24 w-96 h-96 bg-amber-500/10 blur-[120px] rounded-full group-hover:scale-110 transition-transform duration-1000" />
-            <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-indigo-500/10 blur-[120px] rounded-full group-hover:scale-110 transition-transform duration-1000" />
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/[0.12] via-transparent to-indigo-500/[0.08] pointer-events-none" />
+            <div className="absolute -top-24 -right-24 w-96 h-96 bg-amber-500/15 blur-[120px] rounded-full group-hover:scale-110 transition-transform duration-1000" />
+            <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-indigo-500/15 blur-[120px] rounded-full group-hover:scale-110 transition-transform duration-1000" />
             
-            <svg className="absolute inset-0 w-full h-full opacity-[0.03] pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <svg className="absolute inset-0 w-full h-full opacity-[0.04] pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
               <defs>
                 <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
                   <path d="M 10 0 L 0 0 0 10" fill="none" stroke="currentColor" strokeWidth="0.1"/>
@@ -574,36 +574,36 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
             <div className="relative p-8 flex flex-col lg:flex-row items-center justify-between gap-8">
                <div className="flex flex-col items-center lg:items-start gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-amber-600 text-white rounded-2xl flex items-center justify-center shadow-2xl shadow-amber-500/30 transform -rotate-2 group-hover:rotate-0 transition-transform duration-500">
+                    <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-amber-600 text-white rounded-2xl flex items-center justify-center shadow-2xl shadow-amber-500/40 transform -rotate-2 group-hover:rotate-0 transition-transform duration-500 border border-amber-300/40">
                        <span className="text-xl">💰</span>
                     </div>
                     <div className="flex flex-col">
-                      <h2 className="text-[10px] font-black text-amber-500 uppercase tracking-[0.3em] mb-0.5">Главные показатели</h2>
-                      <p className="text-[9px] text-slate-500 font-bold tracking-widest uppercase">Всего заработано</p>
+                      <h2 className="text-[10px] font-black text-amber-400 uppercase tracking-[0.3em] mb-0.5">Главные показатели</h2>
+                      <p className="text-[10px] text-slate-300 font-extrabold tracking-widest uppercase">Всего заработано</p>
                     </div>
                   </div>
                   <div className="flex flex-col items-center lg:items-start">
-                    <span className="text-6xl font-black text-white font-outfit tracking-tighter leading-none pulse-subtle selection:bg-amber-500 selection:text-white">
+                    <span className="text-6xl font-black text-white font-outfit tracking-tighter leading-none pulse-subtle drop-shadow-md selection:bg-amber-500 selection:text-white">
                       ${stats.totalGross.toLocaleString()}
                     </span>
                     <div className="flex items-center gap-4 mt-6">
-                      <div className="group/stat px-5 py-3 bg-white/[0.04] border border-white/5 rounded-2xl backdrop-blur-md flex flex-col hover:border-indigo-500/30 transition-all duration-500 shadow-lg">
-                        <span className="text-[7px] uppercase font-black text-slate-500 tracking-[0.12em] mb-1 opacity-60">Цель месяца</span>
+                      <div className="group/stat px-5 py-3.5 bg-slate-800/80 border border-slate-700/80 rounded-2xl backdrop-blur-md flex flex-col hover:border-indigo-400/50 transition-all duration-500 shadow-md">
+                        <span className="text-[8px] uppercase font-black text-slate-300 tracking-[0.12em] mb-1">Цель месяца</span>
                         <span className="text-base font-black text-white font-outfit tracking-tight">${stats.totalTarget.toLocaleString()}</span>
-                        <div className="mt-1 h-1 w-10 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="mt-1.5 h-1.5 w-14 bg-slate-700 rounded-full overflow-hidden">
                           <motion.div 
                             initial={{ width: 0 }}
                             animate={{ width: `${Math.min((stats.totalGross / (stats.totalTarget || 1)) * 100, 100)}%` }}
-                            className="h-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
+                            className="h-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]"
                           />
                         </div>
                       </div>
-                      <div className="group/stat px-5 py-3 bg-indigo-500/[0.04] border border-indigo-500/20 rounded-2xl backdrop-blur-md flex flex-col hover:border-indigo-400/50 transition-all duration-500 shadow-lg">
-                        <span className="text-[7px] uppercase font-black text-indigo-400/70 tracking-[0.12em] mb-1">Прогноз месяца</span>
-                        <span className="text-base font-black text-indigo-400 font-outfit tracking-tight">${stats.forecast.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                        <div className="mt-1 h-1 flex items-center gap-2">
-                           <div className="w-1 h-1 rounded-full bg-indigo-500 animate-pulse" />
-                           <span className="text-[7px] font-bold text-indigo-400/40 uppercase tracking-widest">Активный расчет</span>
+                      <div className="group/stat px-5 py-3.5 bg-indigo-500/15 border border-indigo-500/35 rounded-2xl backdrop-blur-md flex flex-col hover:border-indigo-400/60 transition-all duration-500 shadow-md">
+                        <span className="text-[8px] uppercase font-black text-indigo-300 tracking-[0.12em] mb-1">Прогноз месяца</span>
+                        <span className="text-base font-black text-indigo-200 font-outfit tracking-tight">${stats.forecast.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <div className="mt-1.5 h-1.5 flex items-center gap-2">
+                           <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.8)] animate-pulse" />
+                           <span className="text-[7.5px] font-bold text-indigo-300/80 uppercase tracking-widest">Активный расчет</span>
                         </div>
                       </div>
                     </div>
@@ -620,8 +620,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
 
           <div className="space-y-6">
             <div className="flex items-center gap-3 ml-2">
-              <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.5)]" />
-              <h2 className="text-[10px] uppercase font-black tracking-[0.3em] text-slate-400 opacity-60">Бонусы и правки</h2>
+              <div className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.6)]" />
+              <h2 className="text-[11px] uppercase font-black tracking-[0.3em] text-slate-300">Бонусы и правки</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <StatCard title="Штрафы" value={`$${stats.penalties.toLocaleString()}`} color="rose" icon={<PenaltyIcon size={16}/>} />
@@ -636,8 +636,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
         <div className="xl:col-span-1 space-y-8">
           <div className="space-y-5">
             <div className="flex items-center gap-3 ml-2">
-               <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.5)]" />
-               <h2 className="text-[10px] uppercase font-black tracking-[0.3em] text-slate-400 opacity-60">Админ-состав</h2>
+               <div className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.6)]" />
+               <h2 className="text-[11px] uppercase font-black tracking-[0.3em] text-slate-300">Админ-состав</h2>
             </div>
             <div className="grid grid-cols-1 gap-4">
               {stats.adminDetails.map((ad, idx) => (
@@ -646,17 +646,17 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.1 }}
-                  className="relative group bg-slate-900/40 border border-white/[0.05] rounded-[2rem] p-6 transition-all duration-500 hover:bg-slate-900/60 hover:border-white/20 hover:-translate-y-1 shadow-xl"
+                  className="relative group bg-gradient-to-br from-[#1a2137] to-[#131929] border border-slate-700/70 rounded-[2rem] p-6 transition-all duration-500 hover:bg-[#1e2742] hover:border-indigo-400/50 hover:-translate-y-1 shadow-lg"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-[2rem]" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-[2rem]" />
                   <div className="flex justify-between items-center relative z-10">
                     <div className="space-y-1">
-                      <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] opacity-60 group-hover:opacity-100 transition-opacity">{ad.name}</p>
+                      <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em] group-hover:text-white transition-colors">{ad.name}</p>
                       <p className="text-2xl font-black text-white font-outfit tracking-tighter leading-none">${ad.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                     </div>
-                    <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex flex-col items-center justify-center text-indigo-400 font-black border border-indigo-500/20 group-hover:scale-105 transition-transform duration-500 shadow-inner">
+                    <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex flex-col items-center justify-center text-indigo-300 font-black border border-indigo-400/30 group-hover:scale-105 transition-transform duration-500 shadow-inner">
                       <span className="text-sm leading-none">{ad.rate}</span>
-                      <span className="text-[7px] opacity-60 uppercase">%</span>
+                      <span className="text-[7.5px] uppercase font-bold text-indigo-300/80">%</span>
                     </div>
                   </div>
                 </motion.div>
@@ -666,34 +666,34 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
 
           <div className="space-y-6">
             <div className="flex items-center gap-3 ml-2">
-               <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
-               <h2 className="text-[10px] uppercase font-black tracking-[0.3em] text-slate-400 opacity-60">Операторская ведомость</h2>
+               <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.6)]" />
+               <h2 className="text-[11px] uppercase font-black tracking-[0.3em] text-slate-300">Операторская ведомость</h2>
             </div>
             <div className="grid grid-cols-1 gap-5">
               <motion.div 
                  whileHover={{ y: -5 }}
-                 className="relative group bg-emerald-500/[0.03] border border-emerald-500/20 rounded-[2.5rem] p-8 transition-all duration-500 hover:bg-emerald-500/[0.06] hover:border-emerald-400/40 shadow-2xl overflow-hidden"
+                 className="relative group bg-gradient-to-br from-[#133026] via-[#0e241c] to-[#091712] border border-emerald-500/40 rounded-[2.5rem] p-8 transition-all duration-500 hover:border-emerald-400/60 shadow-[0_20px_50px_-10px_rgba(16,185,129,0.2)] overflow-hidden"
               >
-                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[100px] rounded-full translate-x-1/2 -translate-y-1/2 group-hover:scale-125 transition-transform duration-1000" />
+                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 blur-[100px] rounded-full translate-x-1/2 -translate-y-1/2 group-hover:scale-125 transition-transform duration-1000" />
                 
                 <div className="flex items-center justify-between mb-6 relative z-10">
                    <div className="space-y-1">
-                     <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">Зарплаты операторов</p>
+                     <p className="text-[11px] font-black text-emerald-300 uppercase tracking-[0.2em]">Зарплаты операторов</p>
                      <p className="text-4xl font-black text-white font-outfit tracking-tighter leading-none">${(stats.netEarned + stats.bonuses - stats.penalties).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                    </div>
-                   <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/20 shadow-inner group-hover:rotate-6 transition-transform duration-500">
+                   <div className="w-14 h-14 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-300 border border-emerald-500/40 shadow-inner group-hover:rotate-6 transition-transform duration-500">
                       <SalaryIcon size={24} />
                    </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-6 pt-6 border-t border-white/[0.05] relative z-10">
-                   <div className="space-y-1">
-                     <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Выплачено</p>
-                     <p className="text-xl font-black text-sky-400 font-outfit tracking-tighter">${stats.paidOut.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                <div className="grid grid-cols-2 gap-4 pt-6 border-t border-emerald-500/20 relative z-10">
+                   <div className="p-3.5 rounded-2xl bg-[#0e211a]/90 border border-emerald-500/25 space-y-1">
+                     <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">Выплачено</p>
+                     <p className="text-2xl font-black text-sky-300 font-outfit tracking-tighter">${stats.paidOut.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                    </div>
-                   <div className="space-y-1">
-                     <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Остаток</p>
-                     <p className="text-xl font-black text-emerald-400 font-outfit tracking-tighter">${totalRemainingToPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                   <div className="p-3.5 rounded-2xl bg-[#0e211a]/90 border border-emerald-500/25 space-y-1">
+                     <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">Остаток</p>
+                     <p className="text-2xl font-black text-emerald-300 font-outfit tracking-tighter">${totalRemainingToPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                    </div>
                 </div>
               </motion.div>
@@ -707,35 +707,36 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
         animate={{ opacity: 1, y: 0 }}
         className="relative z-10"
       >
-        <div className="bg-slate-900/40 backdrop-blur-3xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/5">
-          <div className="p-6 border-b border-white/5 bg-white/[0.01] flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="bg-gradient-to-b from-[#182035] via-[#141a2c] to-[#0f1422] backdrop-blur-3xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-slate-700/70">
+          <div className="p-6 border-b border-slate-700/70 bg-slate-800/40 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+              <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center text-indigo-300 border border-indigo-400/30 shadow-inner">
                 <ICONS.Users size={20} />
               </div>
               <div className="flex flex-col">
-                <h2 className="text-lg font-black font-outfit text-white tracking-tight">Ведомость персонала</h2>
+                <h2 className="text-xl font-black font-outfit text-white tracking-tight">Ведомость персонала</h2>
               </div>
             </div>
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white/[0.02] border border-white/5 rounded-xl">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 blur-[1px] animate-pulse" />
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-800/80 border border-slate-700/80 rounded-xl">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 blur-[1px] animate-pulse" />
+              <span className="text-[8px] font-black uppercase tracking-widest text-slate-300">Live</span>
             </div>
           </div>
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left text-[11px] whitespace-nowrap border-separate border-spacing-0">
               <thead>
-                <tr className="bg-white/[0.02] text-slate-500 uppercase text-[8px] font-black tracking-[0.1em]">
-                  <th className="px-4 py-4 border-b border-white/5 first:rounded-tl-3xl">Оператор</th>
-                  <th className="px-4 py-4 border-b border-white/5 text-center">Эффективность</th>
-                  <th className="px-2 py-4 border-b border-white/5 text-center">OnlyFans <span className="text-indigo-500/50">●</span></th>
-                  <th className="px-2 py-4 border-b border-white/5 text-center">PayPal <span className="text-sky-500/50">●</span></th>
-                  <th className="px-2 py-4 border-b border-white/5 text-center">Crypto <span className="text-emerald-500/50">●</span></th>
-                  <th className="px-2 py-4 border-b border-white/5 text-center">Правки & Бонусы</th>
-                  <th className="px-4 py-4 border-b border-white/5 text-center">ЗП</th>
-                  <th className="px-4 py-4 border-b border-white/5 text-right last:rounded-tr-3xl">Выплата</th>
+                <tr className="bg-slate-800/90 text-slate-300 uppercase text-[9px] font-black tracking-[0.12em]">
+                  <th className="px-4 py-4 border-b border-slate-700/70 first:rounded-tl-3xl">Оператор</th>
+                  <th className="px-4 py-4 border-b border-slate-700/70 text-center">Эффективность</th>
+                  <th className="px-2 py-4 border-b border-slate-700/70 text-center">OnlyFans <span className="text-indigo-400">●</span></th>
+                  <th className="px-2 py-4 border-b border-slate-700/70 text-center">PayPal <span className="text-sky-400">●</span></th>
+                  <th className="px-2 py-4 border-b border-slate-700/70 text-center">Crypto <span className="text-emerald-400">●</span></th>
+                  <th className="px-2 py-4 border-b border-slate-700/70 text-center">Правки & Бонусы</th>
+                  <th className="px-4 py-4 border-b border-slate-700/70 text-center">ЗП</th>
+                  <th className="px-4 py-4 border-b border-slate-700/70 text-right last:rounded-tr-3xl">Выплата</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.02]">
+              <tbody className="divide-y divide-slate-800/80">
                 {operatorRows.map((row, idx) => {
                   const isTop3 = idx < 3;
                   return (
@@ -744,14 +745,14 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: idx * 0.04 }}
-                      className="hover:bg-white/[0.03] transition-all duration-300 group/row relative"
+                      className="hover:bg-indigo-500/[0.08] transition-all duration-300 group/row relative"
                     >
                       <td className="px-4 py-4">
                         <div 
                           className="flex items-center gap-3 cursor-pointer" 
                           onClick={() => navigate('/reports', { state: { operator: row.op } })}
                         >
-                          <div className={`relative w-9 h-9 rounded-xl flex items-center justify-center text-[10px] font-black transition-all duration-500 group-hover/row:scale-110 shadow-2xl ${isTop3 && !row.isPaid ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white border border-white/20' : 'bg-slate-800 border border-white/5 text-slate-400 group-hover/row:border-indigo-500/50 group-hover/row:text-indigo-400'}`}>
+                          <div className={`relative w-9 h-9 rounded-xl flex items-center justify-center text-[10px] font-black transition-all duration-500 group-hover/row:scale-110 shadow-2xl ${isTop3 && !row.isPaid ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white border border-white/30' : 'bg-slate-700/90 border border-slate-600/70 text-slate-200 group-hover/row:border-indigo-400 group-hover/row:text-white'}`}>
                             {row.op.charAt(0)}
                             {isTop3 && !row.isPaid && (
                               <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-slate-900 flex items-center justify-center text-[7px] animate-bounce">
@@ -760,7 +761,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
                             )}
                           </div>
                           <div className="flex flex-col">
-                            <span className={`font-black text-[13px] tracking-tight leading-tight transition-colors uppercase ${row.isPaid ? 'text-slate-500 line-through' : 'text-white group-hover/row:text-indigo-400'}`}>{row.op}</span>
+                            <span className={`font-black text-[13px] tracking-tight leading-tight transition-colors uppercase ${row.isPaid ? 'text-slate-400 line-through' : 'text-white group-hover/row:text-indigo-300'}`}>{row.op}</span>
                           </div>
                         </div>
                       </td>
@@ -768,75 +769,75 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
                         <div className="flex flex-col gap-1.5">
                            <div className="flex justify-between items-center text-[9px] font-black">
                               <div className="flex items-center gap-1.5">
-                                <span className={row.isPaid ? 'text-slate-600' : 'text-white'}>${row.totalGross.toFixed(0)}</span>
-                                {row.refunds > 0 && <span className="text-rose-500 opacity-60 text-[7px]">-${row.refunds.toFixed(0)}</span>}
+                                <span className={row.isPaid ? 'text-slate-400' : 'text-white'}>${row.totalGross.toFixed(0)}</span>
+                                {row.refunds > 0 && <span className="text-rose-400 opacity-90 text-[7.5px]">-${row.refunds.toFixed(0)}</span>}
                               </div>
-                              <span className="text-slate-500 font-mono text-[7px] uppercase">{((row.percentOfMax)).toFixed(0)}%</span>
+                              <span className="text-slate-300 font-mono text-[7.5px] uppercase">{((row.percentOfMax)).toFixed(0)}%</span>
                            </div>
-                           <div className="h-1.5 w-full bg-slate-800/50 rounded-full overflow-hidden p-[1px] border border-white/[0.02]">
+                           <div className="h-1.5 w-full bg-slate-700/80 rounded-full overflow-hidden p-[1px] border border-slate-600/60">
                               <motion.div 
                                 initial={{ width: 0 }}
                                 animate={{ width: `${row.percentOfMax}%` }}
                                 transition={{ duration: 1.2, delay: idx * 0.05, ease: "circOut" }}
-                                className={`h-full rounded-full ${row.isPaid ? 'bg-slate-700' : (isTop3 ? 'bg-gradient-to-r from-indigo-600 to-purple-500 shadow-[0_0_8px_rgba(99,102,241,0.2)]' : 'bg-indigo-500/70')}`} 
+                                className={`h-full rounded-full ${row.isPaid ? 'bg-slate-600' : (isTop3 ? 'bg-gradient-to-r from-indigo-500 to-purple-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]' : 'bg-indigo-500')}`} 
                               />
                            </div>
                         </div>
                       </td>
                       <td className="px-2 py-4 text-center">
-                        <div className={`inline-flex flex-col items-center border rounded-xl p-2 min-w-[65px] transition-colors duration-500 ${row.isPaid ? 'bg-white/[0.01] border-white/5 opacity-40' : 'bg-indigo-500/[0.03] border-indigo-500/10 group-hover/row:bg-indigo-500/10'}`}>
-                          <span className="text-[8px] text-indigo-400/50 font-mono mb-0.5 tracking-tighter">${row.ofG.toFixed(0)}</span>
-                          <span className="text-indigo-300 font-outfit font-black text-xs leading-none">${row.ofN.toFixed(0)}</span>
+                        <div className={`inline-flex flex-col items-center border rounded-xl p-2 min-w-[65px] transition-colors duration-500 ${row.isPaid ? 'bg-white/[0.02] border-white/5 opacity-40' : 'bg-indigo-500/15 border-indigo-500/30 group-hover/row:bg-indigo-500/25'}`}>
+                          <span className="text-[8.5px] text-indigo-300 font-mono mb-0.5 tracking-tighter">${row.ofG.toFixed(0)}</span>
+                          <span className="text-indigo-200 font-outfit font-black text-xs leading-none">${row.ofN.toFixed(0)}</span>
                         </div>
                       </td>
                       <td className="px-2 py-4 text-center">
-                        <div className={`inline-flex flex-col items-center border rounded-xl p-2 min-w-[65px] transition-colors duration-500 ${row.isPaid ? 'bg-white/[0.01] border-white/5 opacity-40' : 'bg-sky-500/[0.03] border-sky-500/10 group-hover/row:bg-sky-500/10'}`}>
-                          <span className="text-[8px] text-sky-400/50 font-mono mb-0.5 tracking-tighter">${row.ppG.toFixed(0)}</span>
-                          <span className="text-sky-300 font-outfit font-black text-xs leading-none">${row.ppN.toFixed(0)}</span>
+                        <div className={`inline-flex flex-col items-center border rounded-xl p-2 min-w-[65px] transition-colors duration-500 ${row.isPaid ? 'bg-white/[0.02] border-white/5 opacity-40' : 'bg-sky-500/15 border-sky-500/30 group-hover/row:bg-sky-500/25'}`}>
+                          <span className="text-[8.5px] text-sky-300 font-mono mb-0.5 tracking-tighter">${row.ppG.toFixed(0)}</span>
+                          <span className="text-sky-200 font-outfit font-black text-xs leading-none">${row.ppN.toFixed(0)}</span>
                         </div>
                       </td>
                       <td className="px-2 py-4 text-center">
-                        <div className={`inline-flex flex-col items-center border rounded-xl p-2 min-w-[65px] transition-colors duration-500 ${row.isPaid ? 'bg-white/[0.01] border-white/5 opacity-40' : 'bg-emerald-500/[0.03] border-emerald-500/10 group-hover/row:bg-emerald-500/10'}`}>
-                          <span className="text-[8px] text-emerald-400/50 font-mono mb-0.5 tracking-tighter">${row.crG.toFixed(0)}</span>
-                          <span className="text-emerald-300 font-outfit font-black text-xs leading-none">${row.crN.toFixed(0)}</span>
+                        <div className={`inline-flex flex-col items-center border rounded-xl p-2 min-w-[65px] transition-colors duration-500 ${row.isPaid ? 'bg-white/[0.02] border-white/5 opacity-40' : 'bg-emerald-500/15 border-emerald-500/30 group-hover/row:bg-emerald-500/25'}`}>
+                          <span className="text-[8.5px] text-emerald-300 font-mono mb-0.5 tracking-tighter">${row.crG.toFixed(0)}</span>
+                          <span className="text-emerald-200 font-outfit font-black text-xs leading-none">${row.crN.toFixed(0)}</span>
                         </div>
                       </td>
                       <td className="px-2 py-4">
                         <div className={`flex flex-wrap justify-center gap-1 max-w-[150px] mx-auto ${row.isPaid ? 'opacity-30' : ''}`}>
                           {row.bonuses > 0 && (
-                            <div className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-md text-[7px] font-black uppercase tracking-tight flex items-center gap-1">
+                            <div className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-md text-[8px] font-black uppercase tracking-tight flex items-center gap-1">
                               +${row.bonuses.toFixed(0)}
                             </div>
                           )}
                           {row.penalties > 0 && (
-                            <div className="px-1.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-md text-[7px] font-black uppercase tracking-tight flex items-center gap-1">
+                            <div className="px-1.5 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-md text-[8px] font-black uppercase tracking-tight flex items-center gap-1">
                               -${row.penalties.toFixed(0)}
                             </div>
                           )}
                           {row.advances > 0 && (
-                            <div className="px-1.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-md text-[7px] font-black uppercase tracking-tight flex items-center gap-1">
+                            <div className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-md text-[8px] font-black uppercase tracking-tight flex items-center gap-1">
                               -${row.advances.toFixed(0)}
                             </div>
                           )}
                           {row.refunds > 0 && (
-                            <div className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-md text-[7px] font-black uppercase tracking-tight flex items-center gap-1">
+                            <div className="px-1.5 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-500/40 rounded-md text-[8px] font-black uppercase tracking-tight flex items-center gap-1">
                               -${row.refunds.toFixed(0)}
                             </div>
                           )}
                           {row.bonuses === 0 && row.penalties === 0 && row.advances === 0 && row.refunds === 0 && (
-                            <span className="text-slate-700 text-[8px] font-bold">—</span>
+                            <span className="text-slate-500 text-[8px] font-bold">—</span>
                           )}
                         </div>
                       </td>
                       <td className="px-4 py-4 text-center">
-                        <div className={`text-base font-black font-outfit tracking-tighter px-3 py-1.5 rounded-xl transition-all duration-500 group-hover/row:scale-105 ${row.isPaid || row.remainder <= 0 ? 'text-slate-600 bg-white/[0.01] border border-white/5 opacity-50' : 'text-emerald-400 bg-emerald-400/5 border border-emerald-500/10'}`}>
+                        <div className={`text-base font-black font-outfit tracking-tighter px-3 py-1.5 rounded-xl transition-all duration-500 group-hover/row:scale-105 ${row.isPaid || row.remainder <= 0 ? 'text-slate-400 bg-slate-800/60 border border-slate-700/60 opacity-60' : 'text-emerald-300 bg-emerald-500/15 border border-emerald-500/30'}`}>
                           ${(row.isPaid ? 0 : Math.max(0, row.remainder)).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                         </div>
                       </td>
                       <td className="px-4 py-4 text-right">
                         <button 
                           onClick={() => toggleOperatorPaid(row.op, row.remainder)} 
-                          className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-300 shadow-xl transform hover:-translate-y-0.5 active:scale-95 ${row.isPaid ? 'bg-emerald-600/10 text-emerald-500/50 border border-emerald-500/10 cursor-not-allowed' : 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-indigo-600/20 border border-white/10'}`}
+                          className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-300 shadow-xl transform hover:-translate-y-0.5 active:scale-95 ${row.isPaid ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 cursor-not-allowed' : 'bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white shadow-lg shadow-indigo-600/30 border border-indigo-400/40'}`}
                         >
                           {row.isPaid ? 'Paid' : 'Pay'}
                         </button>

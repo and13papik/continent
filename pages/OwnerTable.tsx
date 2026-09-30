@@ -599,30 +599,30 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
 
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center self-start xl:self-end">
           {/* TAB PICKER */}
-          <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800/80">
+          <div className="flex bg-slate-800/90 p-1 rounded-2xl border border-slate-700/80 shadow-md">
             <button 
               onClick={() => setActiveTab('manager')} 
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'manager' ? 'bg-amber-600 text-white shadow-xl shadow-amber-600/10' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'manager' ? 'bg-amber-600 text-white shadow-xl shadow-amber-600/20' : 'text-slate-300 hover:text-white'}`}
             >
               <Cpu size={12} /> Задачи
             </button>
             <button 
               onClick={() => setActiveTab('notebook')} 
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'notebook' ? 'bg-amber-600 text-white shadow-xl shadow-amber-600/10' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'notebook' ? 'bg-amber-600 text-white shadow-xl shadow-amber-600/20' : 'text-slate-300 hover:text-white'}`}
             >
               <BookOpen size={12} /> Блокнот
             </button>
           </div>
 
           {/* OWNER FILTER */}
-          <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800/80 gap-1">
+          <div className="flex bg-slate-800/90 p-1 rounded-2xl border border-slate-700/80 gap-1 shadow-md">
             {['Andrey', 'Anton', 'Owners'].map(id => (
               <button 
                 key={id} 
                 onClick={() => setCurrentOwner(id as any)} 
-                className={`flex items-center gap-1.5 px-4.5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${currentOwner === id ? 'bg-amber-600/20 text-amber-500 border border-amber-500/20 shadow-md' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}
+                className={`flex items-center gap-1.5 px-4.5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${currentOwner === id ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40 shadow-md' : 'text-slate-300 hover:text-white border border-transparent'}`}
               >
-                {id === 'Owners' ? <Crown size={11} className="text-amber-500" /> : <div className="w-1.5 h-1.5 rounded-full bg-slate-500" />}
+                {id === 'Owners' ? <Crown size={11} className="text-amber-400" /> : <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />}
                 {ASSIGNEE_LABELS[id as TaskAssignee]}
               </button>
             ))}
@@ -633,15 +633,15 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
       {/* --- HUD СТРАТЕГИЧЕСКИХ ПОКАЗАТЕЛЕЙ (WOW HUD GRID) --- */}
       <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {/* HUD 1: Инициативы */}
-        <div className="relative group overflow-hidden bg-slate-900/20 border border-slate-800/50 p-5 rounded-[24px] hover:border-amber-500/30 transition-all shadow-xl backdrop-blur-md">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-500/5 to-transparent rounded-full pointer-events-none transition-transform duration-700 group-hover:scale-125"></div>
+        <div className="relative group overflow-hidden bg-gradient-to-br from-[#192138] to-[#121627] border border-slate-700/70 p-5 rounded-[24px] hover:border-amber-500/40 transition-all shadow-xl backdrop-blur-md">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full pointer-events-none transition-transform duration-700 group-hover:scale-125"></div>
           <div className="flex justify-between items-start mb-3">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-mono">Активные инициативы</span>
-            <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/20"><Crown size={14}/></div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 font-mono">Активные инициативы</span>
+            <div className="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-400 border border-amber-500/30"><Crown size={14}/></div>
           </div>
           <div className="space-y-1">
             <h4 className="text-2xl sm:text-3xl font-black font-outfit text-white leading-none">{metrics.totalCount}</h4>
-            <div className="flex gap-2 text-[9px] text-slate-500 font-mono">
+            <div className="flex gap-2 text-[9px] text-slate-400 font-mono">
               <span>{metrics.directivesCount} дир.</span>
               <span>•</span>
               <span>{metrics.recurringCount} регл.</span>
@@ -650,65 +650,65 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
         </div>
 
         {/* HUD 2: Выполнено % */}
-        <div className="relative group overflow-hidden bg-slate-900/20 border border-slate-800/50 p-5 rounded-[24px] hover:border-amber-500/30 transition-all shadow-xl backdrop-blur-md">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-emerald-500/5 to-transparent rounded-full pointer-events-none transition-transform duration-700 group-hover:scale-125"></div>
+        <div className="relative group overflow-hidden bg-gradient-to-br from-[#192138] to-[#121627] border border-slate-700/70 p-5 rounded-[24px] hover:border-emerald-500/40 transition-all shadow-xl backdrop-blur-md">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-emerald-500/10 to-transparent rounded-full pointer-events-none transition-transform duration-700 group-hover:scale-125"></div>
           <div className="flex justify-between items-start mb-3">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-mono">Прогресс выполнения</span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20"><CheckCircle2 size={14}/></div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 font-mono">Прогресс выполнения</span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/30"><CheckCircle2 size={14}/></div>
           </div>
           <div className="space-y-2">
             <div className="flex items-baseline gap-2">
               <h4 className="text-2xl sm:text-3xl font-black font-outfit text-white leading-none">{metrics.percent}%</h4>
-              <span className="text-[9px] text-slate-500 font-mono font-bold">({metrics.completed}/{metrics.totalCount})</span>
+              <span className="text-[9px] text-slate-300 font-mono font-bold">({metrics.completed}/{metrics.totalCount})</span>
             </div>
-            <div className="w-full bg-slate-950 h-1 rounded-full overflow-hidden flex">
+            <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden flex">
               <div className="bg-emerald-400 h-full transition-all duration-1000" style={{ width: `${metrics.percent}%` }}></div>
             </div>
           </div>
         </div>
 
         {/* HUD 3: На Верификации */}
-        <div className={`relative group overflow-hidden border p-5 rounded-[24px] transition-all shadow-xl backdrop-blur-md ${metrics.review > 0 ? 'bg-amber-500/5 border-amber-500/30 shadow-[0_0_20px_rgba(245,158,11,0.05)]' : 'bg-slate-900/20 border-slate-800/50 hover:border-amber-500/30'}`}>
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full pointer-events-none"></div>
+        <div className={`relative group overflow-hidden border p-5 rounded-[24px] transition-all shadow-xl backdrop-blur-md ${metrics.review > 0 ? 'bg-amber-500/10 border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.1)]' : 'bg-gradient-to-br from-[#192138] to-[#121627] border-slate-700/70 hover:border-amber-500/30'}`}>
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-500/15 to-transparent rounded-full pointer-events-none"></div>
           <div className="flex justify-between items-start mb-3">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-mono">Контроль Верификации</span>
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center border ${metrics.review > 0 ? 'bg-amber-500 text-slate-950 border-amber-500/30 animate-pulse' : 'bg-slate-800 text-slate-400 border-slate-800/80'}`}><Activity size={14}/></div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 font-mono">Контроль Верификации</span>
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center border ${metrics.review > 0 ? 'bg-amber-500 text-slate-950 border-amber-500/30 animate-pulse' : 'bg-slate-800 text-slate-300 border-slate-700/80'}`}><Activity size={14}/></div>
           </div>
           <div className="space-y-1">
             <h4 className={`text-2xl sm:text-3xl font-black font-outfit leading-none ${metrics.review > 0 ? 'text-amber-400 font-mono font-black' : 'text-white'}`}>{metrics.review}</h4>
-            <p className="text-[9px] text-slate-500 font-mono">Задачи ожидают проверки</p>
+            <p className="text-[9px] text-slate-400 font-mono">Задачи ожидают проверки</p>
           </div>
         </div>
 
         {/* HUD 4: Срочные Риски */}
-        <div className={`relative group overflow-hidden border p-5 rounded-[24px] transition-all shadow-xl backdrop-blur-md ${metrics.critical > 0 ? 'bg-rose-500/5 border-rose-500/30 shadow-[0_0_20px_rgba(244,63,94,0.05)] animate-pulse' : 'bg-slate-900/20 border-slate-800/50 hover:border-amber-500/30'}`}>
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-rose-500/10 to-transparent rounded-full pointer-events-none"></div>
+        <div className={`relative group overflow-hidden border p-5 rounded-[24px] transition-all shadow-xl backdrop-blur-md ${metrics.critical > 0 ? 'bg-rose-500/10 border-rose-500/40 shadow-[0_0_20px_rgba(244,63,94,0.1)] animate-pulse' : 'bg-gradient-to-br from-[#192138] to-[#121627] border-slate-700/70 hover:border-amber-500/30'}`}>
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-rose-500/15 to-transparent rounded-full pointer-events-none"></div>
           <div className="flex justify-between items-start mb-3">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-mono">Срочные Риски</span>
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center border ${metrics.critical > 0 ? 'bg-rose-500 text-white border-rose-500/20' : 'bg-slate-800 text-slate-400 border-slate-800/80'}`}><AlertCircle size={14}/></div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 font-mono">Срочные Риски</span>
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center border ${metrics.critical > 0 ? 'bg-rose-500 text-white border-rose-500/30' : 'bg-slate-800 text-slate-300 border-slate-700/80'}`}><AlertCircle size={14}/></div>
           </div>
           <div className="space-y-1">
             <h4 className="text-2xl sm:text-3xl font-black font-outfit text-white leading-none">{metrics.critical}</h4>
-            <p className="text-[9px] text-slate-500 font-mono">приоритет Критич./Высок.</p>
+            <p className="text-[9px] text-slate-400 font-mono">приоритет Критич./Высок.</p>
           </div>
         </div>
 
         {/* HUD 5: Контроль Отчетов */}
-        <div className="relative group overflow-hidden bg-slate-900/20 border border-slate-800/50 p-5 rounded-[24px] hover:border-indigo-500/30 transition-all shadow-xl backdrop-blur-md col-span-2 md:col-span-3 lg:col-span-1">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-indigo-500/5 to-transparent rounded-full pointer-events-none transition-transform duration-700 group-hover:scale-125"></div>
+        <div className="relative group overflow-hidden bg-gradient-to-br from-[#192138] to-[#121627] border border-slate-700/70 p-5 rounded-[24px] hover:border-indigo-500/40 transition-all shadow-xl backdrop-blur-md col-span-2 md:col-span-3 lg:col-span-1">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-indigo-500/10 to-transparent rounded-full pointer-events-none transition-transform duration-700 group-hover:scale-125"></div>
           <div className="flex justify-between items-start mb-3">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-mono">Контроль Отчетов</span>
-            <div className="w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20"><FileText size={14}/></div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 font-mono">Контроль Отчетов</span>
+            <div className="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 border border-indigo-500/30"><FileText size={14}/></div>
           </div>
           <div className="space-y-1">
             <div className="flex items-baseline gap-1.5">
               <h4 className="text-2xl sm:text-3xl font-black font-outfit text-indigo-400 leading-none">{metrics.reportsAttached}</h4>
-              <span className="text-[9px] text-slate-500 font-mono">приложено</span>
+              <span className="text-[9px] text-slate-400 font-mono">приложено</span>
             </div>
-            <div className="flex gap-1.5 text-[8.5px] text-slate-500 font-mono font-bold flex-wrap">
-              <span className="text-amber-500">{metrics.pendingReports} ожидают</span>
+            <div className="flex gap-1.5 text-[8.5px] text-slate-400 font-mono font-bold flex-wrap">
+              <span className="text-amber-400">{metrics.pendingReports} ожидают</span>
               <span>•</span>
-              <span className="text-slate-400">{metrics.noReportNeeded} без отчета</span>
+              <span className="text-slate-300">{metrics.noReportNeeded} без отчета</span>
             </div>
           </div>
         </div>
@@ -717,19 +717,19 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
       {activeTab === 'manager' ? (
         <>
           {/* --- ФИЛЬТРЫ И СЕКТОРА С ПОИСКОМ (GLASS WORKSPACE BAR) --- */}
-          <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center bg-slate-950/40 p-4 rounded-3xl border border-slate-800/60 shadow-inner">
+          <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center bg-slate-800/80 p-4 rounded-3xl border border-slate-700/80 shadow-md">
             <div className="flex flex-wrap gap-4 items-center pl-2">
               {['directive', 'regular', 'recurring'].map((mode) => (
                 <button 
                   key={mode} 
                   onClick={() => { setActiveMode(mode as any); setSecondaryFilter('all'); }} 
-                  className={`relative py-1.5 px-3 text-[10px] font-black uppercase tracking-widest transition-all ${activeMode === mode ? `text-amber-500 font-extrabold` : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`relative py-1.5 px-3 text-[10px] font-black uppercase tracking-widest transition-all ${activeMode === mode ? `text-amber-400 font-extrabold` : 'text-slate-300 hover:text-white'}`}
                 >
                   {TYPE_META[mode as TaskType].label}
                   {activeMode === mode && (
                     <motion.div 
                       layoutId="activeModeIndicator" 
-                      className="absolute -bottom-4 left-0 right-0 h-0.5 bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)] rounded-full" 
+                      className="absolute -bottom-4 left-0 right-0 h-0.5 bg-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.6)] rounded-full" 
                     />
                   )}
                 </button>
@@ -739,21 +739,21 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
             <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto items-stretch sm:items-center">
               {/* SEARCH BOX */}
               <div className="relative flex-1 sm:w-60">
-                <Search size={12} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600" />
+                <Search size={12} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input 
                   type="text" 
-                  className="w-full bg-slate-950 border border-slate-800 px-8 py-2 rounded-xl text-[10px] text-white outline-none focus:border-amber-500/40 placeholder:text-slate-755 font-mono" 
+                  className="w-full bg-slate-900/90 border border-slate-700/80 px-8 py-2 rounded-xl text-[10px] text-white outline-none focus:border-amber-400 placeholder:text-slate-500 font-mono shadow-inner" 
                   placeholder="Искать в секторе..."
                   value={taskSearch}
                   onChange={e => setTaskSearch(e.target.value)}
                 />
                 {taskSearch && (
-                  <button onClick={() => setTaskSearch('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[9px] uppercase font-bold text-slate-500 hover:text-white font-mono">×</button>
+                  <button onClick={() => setTaskSearch('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[9px] uppercase font-bold text-slate-400 hover:text-white font-mono">×</button>
                 )}
               </div>
 
               {/* SECONDARY FILTER */}
-              <div className="flex gap-1.5 overflow-x-auto no-scrollbar bg-slate-950 p-1 rounded-xl">
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar bg-slate-900/80 p-1 rounded-xl border border-slate-700/60">
                 {[
                   { id: 'all', l: 'ВСЕ' },
                   { id: 'critical', l: 'КРИТИЧЕСКИЕ' },
@@ -763,7 +763,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                   <button 
                     key={f.id} 
                     onClick={() => setSecondaryFilter(f.id as any)} 
-                    className={`text-[8px] font-black uppercase tracking-wider whitespace-nowrap px-3 py-1.5 rounded-lg transition-all ${secondaryFilter === f.id ? 'text-white bg-slate-800' : 'text-slate-600 hover:text-slate-400'}`}
+                    className={`text-[8px] font-black uppercase tracking-wider whitespace-nowrap px-3 py-1.5 rounded-lg transition-all ${secondaryFilter === f.id ? 'text-white bg-slate-700/90 shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
                   >
                     {f.l}
                   </button>
@@ -776,26 +776,26 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
             
             {/* --- ФОРМА ВНЕДРЕНИЯ ЗАДАЧ (ЛЕВАЯ ПАНЕЛЬ) --- */}
             <div className="lg:col-span-4 space-y-6">
-              <div className="relative overflow-hidden bg-gradient-to-b from-slate-900/60 to-slate-950/80 p-8 rounded-[32px] border border-slate-800 shadow-2xl space-y-6">
-                <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
+              <div className="relative overflow-hidden bg-gradient-to-br from-[#192138] to-[#121627] p-8 rounded-[32px] border border-slate-700/80 shadow-2xl space-y-6">
+                <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-amber-500/30 to-transparent"></div>
                 
                 <div>
                   <h2 className="text-xl font-black font-outfit text-white mb-2 tracking-tight flex items-center gap-2">
-                    <Sparkles size={18} className="text-amber-500" />
+                    <Sparkles size={18} className="text-amber-400" />
                     {editingTask ? 'Изменить инициативу' : 'Запустить задачу'}
                   </h2>
-                  <p className="text-[10px] text-slate-500 font-mono mb-4">ВНЕДРЕНИЕ И ОПЕРАТИВНОЕ ПЛАНИРОВАНИЕ</p>
+                  <p className="text-[10px] text-slate-400 font-mono mb-4">ВНЕДРЕНИЕ И ОПЕРАТИВНОЕ ПЛАНИРОВАНИЕ</p>
                   
-                  <div className="flex gap-1 p-1 bg-slate-950 rounded-2xl border border-slate-800/80">
+                  <div className="flex gap-1 p-1 bg-slate-900/90 rounded-2xl border border-slate-700/80">
                     <button 
                       onClick={() => setNewTaskTarget('admin')} 
-                      className={`flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${newTaskTarget === 'admin' ? 'bg-indigo-600/25 text-indigo-400 border border-indigo-500/25 shadow-md' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}
+                      className={`flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${newTaskTarget === 'admin' ? 'bg-indigo-600/35 text-indigo-300 border border-indigo-400/40 shadow-md' : 'text-slate-400 hover:text-white border border-transparent'}`}
                     >
                       <Terminal size={11} /> Для Админов
                     </button>
                     <button 
                       onClick={() => setNewTaskTarget('owner')} 
-                      className={`flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${newTaskTarget === 'owner' ? 'bg-amber-600/25 text-amber-500 border border-amber-500/25 shadow-md' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}
+                      className={`flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${newTaskTarget === 'owner' ? 'bg-amber-600/35 text-amber-300 border border-amber-400/40 shadow-md' : 'text-slate-400 hover:text-white border border-transparent'}`}
                     >
                       <Crown size={11} /> Для Себя
                     </button>
@@ -804,10 +804,10 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
 
                 <div className="space-y-4 font-mono">
                   <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1">Суть задачи</label>
+                    <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1">Суть задачи</label>
                     <input 
                       type="text" 
-                      className="w-full bg-slate-950 border border-slate-800/80 rounded-2xl px-5 py-3.5 text-white font-bold outline-none text-xs focus:border-amber-500/50" 
+                      className="w-full bg-slate-900/90 border border-slate-700/80 rounded-2xl px-5 py-3.5 text-white font-bold outline-none text-xs focus:border-amber-400/80" 
                       placeholder="Заголовок..." 
                       value={newTaskTitle} 
                       onChange={e => setNewTaskTitle(e.target.value)} 
@@ -815,7 +815,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                   </div>
                   
                   <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1 font-mono">Детали и контекст</label>
+                    <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1 font-mono">Детали и контекст</label>
                     <BlockDescriptionEditor 
                       blocks={newTaskDescBlocks} 
                       onChange={(blocks) => setNewTaskDescBlocks(blocks)} 
@@ -825,9 +825,9 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                   
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1">Тип</label>
+                      <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1">Тип</label>
                       <select 
-                        className="w-full bg-slate-950 border border-slate-800/80 rounded-xl px-4 py-2.5 text-[10px] text-white font-bold outline-none cursor-pointer" 
+                        className="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-2.5 text-[10px] text-white font-bold outline-none cursor-pointer" 
                         value={newTaskType} 
                         onChange={e => setNewTaskType(e.target.value as any)}
                       >
@@ -837,9 +837,9 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                       </select>
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1">Приоритет</label>
+                      <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1">Приоритет</label>
                       <select 
-                        className="w-full bg-slate-950 border border-slate-800/80 rounded-xl px-4 py-2.5 text-[10px] text-white font-bold outline-none cursor-pointer" 
+                        className="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-2.5 text-[10px] text-white font-bold outline-none cursor-pointer" 
                         value={newTaskPriority} 
                         onChange={e => setNewTaskPriority(e.target.value as any)}
                       >
@@ -850,10 +850,10 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1">Исполнитель</label>
+                      <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1">Исполнитель</label>
                       <select 
                         disabled={newTaskTarget === 'owner'}
-                        className={`w-full bg-slate-950 border border-slate-800/80 rounded-xl px-4 py-2.5 text-[10px] text-white font-bold outline-none cursor-pointer ${newTaskTarget === 'owner' ? 'opacity-40 grayscale pointer-events-none' : ''}`} 
+                        className={`w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-2.5 text-[10px] text-white font-bold outline-none cursor-pointer ${newTaskTarget === 'owner' ? 'opacity-40 grayscale pointer-events-none' : ''}`} 
                         value={newTaskTarget === 'owner' ? currentOwner : newTaskAssigned} 
                         onChange={e => setNewTaskAssigned(e.target.value as any)}
                       >
@@ -863,10 +863,10 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                       </select>
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1">Дедлайн</label>
+                      <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1">Дедлайн</label>
                       <input 
                         type="date" 
-                        className="w-full bg-slate-950 border border-slate-800/80 rounded-xl px-4 py-2.5 text-[10px] text-white outline-none cursor-pointer"
+                        className="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-2.5 text-[10px] text-white outline-none cursor-pointer"
                         value={newTaskDueDate}
                         onChange={e => setNewTaskDueDate(e.target.value)}
                       />
@@ -875,9 +875,9 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
 
                   {newTaskType === 'recurring' && (
                     <div className="space-y-1 animate-in slide-in-from-top-2">
-                      <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1">Цикл регламента</label>
+                      <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1">Цикл регламента</label>
                       <select 
-                        className="w-full bg-slate-950 border border-slate-800/80 rounded-xl px-4 py-2.5 text-[10px] text-white font-bold outline-none cursor-pointer"
+                        className="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-2.5 text-[10px] text-white font-bold outline-none cursor-pointer"
                         value={newTaskCycle}
                         onChange={e => setNewTaskCycle(e.target.value as any)}
                       >
@@ -900,14 +900,14 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                           setNewTaskGoal('');
                           setNewTaskDueDate('');
                         }}
-                        className="px-4 py-4 bg-slate-900 border border-slate-800 hover:bg-slate-850 hover:text-white text-slate-400 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all"
+                        className="px-4 py-4 bg-slate-800 border border-slate-700 hover:bg-slate-700 hover:text-white text-slate-300 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all"
                       >
                         ×
                       </button>
                     )}
                     <button 
                       onClick={saveTask} 
-                      className="flex-1 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-black py-4 rounded-2xl shadow-xl shadow-amber-65x00/10 uppercase tracking-[0.2em] text-[10px] transition-all active:scale-95 flex items-center justify-center gap-2"
+                      className="flex-1 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-black py-4 rounded-2xl shadow-xl shadow-amber-600/20 uppercase tracking-[0.2em] text-[10px] transition-all active:scale-95 flex items-center justify-center gap-2"
                     >
                       <Check size={12} /> {editingTask ? 'Применить Изменения' : 'Внедрить в Систему'}
                     </button>
@@ -955,12 +955,12 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                       animate={{ opacity: 1, y: 0, transition: { delay: Math.min(idx * 0.05, 0.4) } }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       layout
-                      className={`relative group bg-slate-950/40 rounded-[28px] border transition-all duration-300 overflow-hidden shadow-lg ${
+                      className={`relative group bg-slate-800/80 rounded-[28px] border transition-all duration-300 overflow-hidden shadow-lg ${
                         isOverdue 
-                          ? 'border-rose-600 bg-rose-950/5 shadow-rose-950/10' 
+                          ? 'border-rose-500 bg-rose-950/20 shadow-rose-950/20' 
                           : task.status === 'review' 
-                            ? 'border-amber-500 shadow-amber-500/10 ring-2 ring-amber-500/20' 
-                            : 'border-slate-800/70 hover:border-slate-700 hover:bg-slate-900/10'
+                            ? 'border-amber-400 shadow-amber-500/20 ring-2 ring-amber-400/30' 
+                            : 'border-slate-700/70 hover:border-slate-600 hover:bg-slate-800/95'
                       }`}
                     >
                       <div className="p-6 sm:p-8 flex flex-col md:flex-row justify-between gap-6 relative">
@@ -970,16 +970,16 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                         <div className="flex-1 space-y-4">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`px-2.5 py-1 rounded-lg text-[8px] font-extrabold tracking-widest border font-mono ${prio.bg} ${prio.color} ${prio.glow}`}>{prio.label}</span>
-                            <span className="text-[8px] bg-slate-950 text-indigo-400 px-2.5 py-1 rounded-lg border border-slate-800/80 font-black uppercase font-mono flex items-center gap-1.5 shadow-sm">
+                            <span className="text-[8px] bg-slate-900/90 text-indigo-300 px-2.5 py-1 rounded-lg border border-slate-700/80 font-black uppercase font-mono flex items-center gap-1.5 shadow-sm">
                               👤 {ASSIGNEE_LABELS[task.assignedTo]}
                             </span>
                             {task.dueDate && (
                               <span className={`text-[8px] px-2.5 py-1 rounded-lg font-black border font-mono flex items-center gap-1.5 ${
                                 isOverdue 
-                                  ? 'bg-rose-600/20 text-rose-400 border-rose-500/30' 
+                                  ? 'bg-rose-600/30 text-rose-300 border-rose-500/40' 
                                   : isClosing 
                                     ? 'bg-amber-600 text-white border-amber-500 animate-pulse' 
-                                    : 'bg-slate-950 text-slate-500 border-slate-900'
+                                    : 'bg-slate-900/90 text-slate-300 border-slate-700/80'
                               }`}>
                                 📅 ДО: {new Date(task.dueDate).toLocaleDateString()}
                               </span>
@@ -992,31 +992,31 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                           </div>
                           
                           <div className="space-y-1.5">
-                            <h3 className="text-xl font-bold font-outfit text-white tracking-tight leading-snug group-hover:text-amber-400 transition-colors">
+                            <h3 className="text-xl font-bold font-outfit text-white tracking-tight leading-snug group-hover:text-amber-300 transition-colors">
                               {task.title}
                             </h3>
                             {task.description && (
-                              <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{task.description}</p>
+                              <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">{task.description}</p>
                             )}
                           </div>
                           
                           {isOverdue && (
-                            <div className="py-2 px-3 border border-rose-500/30 bg-rose-600/10 rounded-xl text-[9px] font-black text-rose-400 uppercase tracking-widest inline-flex items-center gap-2 animate-bounce shadow-lg">
+                            <div className="py-2 px-3 border border-rose-500/40 bg-rose-600/20 rounded-xl text-[9px] font-black text-rose-300 uppercase tracking-widest inline-flex items-center gap-2 animate-bounce shadow-lg">
                               <AlertCircle size={12} /> {overdueText}
                             </div>
                           )}
 
                           {isClosing && (
-                            <div className="py-1 px-2.5 bg-amber-500/15 border border-amber-500/20 rounded-lg text-[9px] font-black text-amber-500 uppercase tracking-widest inline-block font-mono">
+                            <div className="py-1 px-2.5 bg-amber-500/20 border border-amber-500/30 rounded-lg text-[9px] font-black text-amber-300 uppercase tracking-widest inline-block font-mono">
                               ⏳ МЕНЕЕ 24 ЧАСОВ ДО ИСТЕЧЕНИЯ ДЕДЛАЙНА!
                             </div>
                           )}
 
                           {/* PROG CODE SEGMENT */}
                           <div className="flex items-center gap-4 pt-1">
-                            <div className="flex-1 h-[2px] bg-slate-950 rounded-full flex overflow-hidden">
+                            <div className="flex-1 h-[3px] bg-slate-900 rounded-full flex overflow-hidden">
                               {[1,2,3,4,5].map(step => (
-                                <div key={step} className={`flex-1 transition-all ${step <= stat.step ? 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.3)]' : 'bg-transparent'}`}></div>
+                                <div key={step} className={`flex-1 transition-all ${step <= stat.step ? 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]' : 'bg-transparent'}`}></div>
                               ))}
                             </div>
                             <span className={`text-[9px] font-black uppercase tracking-widest font-mono ${stat.color} flex items-center gap-1.5`}>
@@ -1027,7 +1027,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                         </div>
 
                         {/* КНОПКИ ДЕЙСТВИЙ (ПРАВЫЙ УГОЛ) */}
-                        <div className="flex flex-col md:items-end justify-between gap-4 shrink-0 border-t md:border-t-0 border-slate-900/60 pt-4 md:pt-0">
+                        <div className="flex flex-col md:items-end justify-between gap-4 shrink-0 border-t md:border-t-0 border-slate-700/60 pt-4 md:pt-0">
                           <div className="flex items-center gap-2">
                             <motion.button 
                               whileHover={{ scale: 1.03 }}
@@ -1036,18 +1036,18 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                               disabled={isSendingToTg === task.id}
                               className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all flex items-center gap-1.5 ${
                                 isSendingToTg === task.id 
-                                  ? 'bg-slate-900 text-slate-500 border-slate-800' 
-                                  : 'bg-sky-600/10 border-sky-600/30 text-sky-400 hover:bg-sky-600 hover:text-white shadow-lg font-mono'
+                                  ? 'bg-slate-900 text-slate-400 border-slate-700' 
+                                  : 'bg-sky-600/20 border-sky-500/40 text-sky-300 hover:bg-sky-600 hover:text-white shadow-lg font-mono'
                               }`}
                             >
                               {isSendingToTg === task.id ? 'ОТПРАВКА...' : <><Send size={11}/> В ТЕЛЕГРАМ</>}
                             </motion.button>
                             
-                            <button onClick={() => startEditing(task)} className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-950 border border-slate-800 text-slate-500 hover:text-white transition-all hover:border-indigo-500/50"><Edit size={14}/></button>
-                            <button onClick={() => deleteTask(task.id)} className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-950 border border-slate-800 text-slate-500 hover:text-rose-500 transition-all hover:border-rose-500/50"><Trash2 size={14}/></button>
+                            <button onClick={() => startEditing(task)} className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-900/90 border border-slate-700/80 text-slate-300 hover:text-white transition-all hover:border-indigo-400"><Edit size={14}/></button>
+                            <button onClick={() => deleteTask(task.id)} className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-900/90 border border-slate-700/80 text-slate-300 hover:text-rose-400 transition-all hover:border-rose-400"><Trash2 size={14}/></button>
                             <button 
                               onClick={() => { const n = new Set(expandedTasks); if(n.has(task.id)) n.delete(task.id); else n.add(task.id); setExpandedTasks(n); }} 
-                              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${isEx ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-500 hover:text-slate-300'}`}
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${isEx ? 'bg-indigo-600 text-white' : 'bg-slate-900/90 border border-slate-700/80 text-slate-300 hover:text-white'}`}
                             >
                               <Plus size={16} className={`transition-transform duration-300 ${isEx ? 'rotate-45' : ''}`}/>
                             </button>
@@ -1075,8 +1075,8 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                                   }}
                                   className={`px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-normal border transition-all font-mono ${
                                     task.status === s 
-                                      ? 'bg-indigo-600/25 border-indigo-500/40 text-indigo-400 shadow-md shadow-indigo-600/5' 
-                                      : 'bg-slate-950/60 border-slate-900 text-slate-500 hover:border-slate-850 hover:text-slate-300'
+                                      ? 'bg-indigo-600/30 border-indigo-500/50 text-indigo-300 shadow-md' 
+                                      : 'bg-slate-900/90 border-slate-700/70 text-slate-400 hover:border-slate-600 hover:text-slate-200'
                                   }`}
                                 >
                                   {STATUS_META[s as TaskStatus].label}
@@ -1084,17 +1084,17 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                               ))}
                             </div>
                             {task.taskReport?.statusChoice === 'report_attached' && (
-                              <span className="text-[7.5px] text-emerald-400 font-extrabold tracking-widest uppercase font-mono bg-emerald-500/5 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                              <span className="text-[7.5px] text-emerald-400 font-extrabold tracking-widest uppercase font-mono bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-md">
                                  ✓ ОТЧЕТ ПРИКРЕПЛЕН
                               </span>
                             )}
                             {task.taskReport?.statusChoice === 'no_report_needed' && (
-                              <span className="text-[7.5px] text-slate-500 font-extrabold tracking-widest uppercase font-mono bg-slate-950/60 border border-slate-900 px-2 py-0.5 rounded-md">
+                              <span className="text-[7.5px] text-slate-400 font-extrabold tracking-widest uppercase font-mono bg-slate-900/90 border border-slate-700/80 px-2 py-0.5 rounded-md">
                                  ✗ ОТЧЕТ НЕ ТРЕБУЕТСЯ
                               </span>
                             )}
                             {task.status === 'completed' && !task.taskReport?.statusChoice && (
-                              <span className="text-[7.5px] text-amber-500 font-black tracking-widest uppercase font-mono bg-amber-500/5 border border-amber-500/20 px-2 py-0.5 rounded-md animate-pulse">
+                              <span className="text-[7.5px] text-amber-400 font-black tracking-widest uppercase font-mono bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-md animate-pulse">
                                  ⚠ НЕТ ОТЧЕТА!
                               </span>
                             )}
@@ -1109,7 +1109,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
-                            className="bg-slate-950/80 border-t border-slate-900 px-6 sm:px-8 py-6 space-y-6 overflow-hidden"
+                            className="bg-slate-900/90 border-t border-slate-700/80 px-6 sm:px-8 py-6 space-y-6 overflow-hidden"
                           >
                             <div className="p-5 rounded-2xl bg-slate-900/30 border border-slate-800/40 space-y-2 mb-2">
                               <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest block font-mono mb-2">Описание и Цели директивы</label>
@@ -1274,16 +1274,16 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
           
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
             {/* SUBTABS */}
-            <div className="flex gap-1.5 p-1 bg-slate-950 rounded-2xl border border-slate-800/80 w-fit">
+            <div className="flex gap-1.5 p-1 bg-slate-800/90 rounded-2xl border border-slate-700/80 w-fit shadow-md">
               <button 
                 onClick={() => setIsArchiveOpen(false)}
-                className={`px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5 ${!isArchiveOpen ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                className={`px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5 ${!isArchiveOpen ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-300 hover:text-white'}`}
               >
                 <FileText size={12} /> Активный Плейбук
               </button>
               <button 
                 onClick={() => setIsArchiveOpen(true)}
-                className={`px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5 ${isArchiveOpen ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                className={`px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5 ${isArchiveOpen ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-300 hover:text-white'}`}
               >
                 <Award size={12} /> Выполненные Директивы ({state.completedDocument ? '1+' : '0'})
               </button>
@@ -1294,13 +1294,13 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
               <div className="flex flex-wrap items-center gap-3">
                 {/* TEMPLATES DROPDOWN */}
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest font-mono">Бланк:</span>
+                  <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest font-mono">Бланк:</span>
                   <div className="flex gap-1">
                     {TEMPLATES.map(temp => (
                       <button 
                         key={temp.name}
                         onClick={() => applyTemplate(temp.content)}
-                        className="bg-slate-900 border border-slate-800 hover:border-amber-500/20 text-[9px] font-semibold text-slate-300 px-2.5 py-1.5 rounded-lg hover:text-white transition-all font-mono"
+                        className="bg-slate-800/90 border border-slate-700/80 hover:border-amber-400/50 text-[9px] font-semibold text-slate-200 px-2.5 py-1.5 rounded-lg hover:text-white transition-all font-mono"
                       >
                         {temp.name.split(' ')[0]} {/* Show icon only or short label */}
                       </button>
@@ -1309,24 +1309,24 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                 </div>
 
                 {/* SKINS */}
-                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-900">
+                <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700/80">
                   <button 
                     onClick={() => setNotebookSkin('chamber')} 
-                    className={`p-1.5 rounded-lg text-[9px] font-bold transition-all ${notebookSkin === 'chamber' ? 'bg-slate-800 text-amber-500' : 'text-slate-600 hover:text-slate-300'}`}
+                    className={`p-1.5 rounded-lg text-[9px] font-bold transition-all ${notebookSkin === 'chamber' ? 'bg-slate-700 text-amber-400' : 'text-slate-400 hover:text-white'}`}
                     title="Милитари Найт"
                   >
                     <Palette size={12} />
                   </button>
                   <button 
                     onClick={() => setNotebookSkin('vellum')} 
-                    className={`p-1.5 rounded-lg text-[9px] font-bold transition-all ${notebookSkin === 'vellum' ? 'bg-slate-200 text-slate-900' : 'text-slate-600 hover:text-slate-300'}`}
+                    className={`p-1.5 rounded-lg text-[9px] font-bold transition-all ${notebookSkin === 'vellum' ? 'bg-slate-200 text-slate-900' : 'text-slate-400 hover:text-white'}`}
                     title="Имперский Веллум"
                   >
                     <BookOpen size={12} />
                   </button>
                   <button 
                     onClick={() => setNotebookSkin('cyberpunk')} 
-                    className={`p-1.5 rounded-lg text-[9px] font-bold transition-all ${notebookSkin === 'cyberpunk' ? 'bg-emerald-950 text-emerald-400' : 'text-slate-600 hover:text-slate-300'}`}
+                    className={`p-1.5 rounded-lg text-[9px] font-bold transition-all ${notebookSkin === 'cyberpunk' ? 'bg-emerald-950 text-emerald-300' : 'text-slate-400 hover:text-white'}`}
                     title="Хай-Тек"
                   >
                     <Terminal size={12} />
@@ -1337,39 +1337,39 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
           </div>
 
           {!isArchiveOpen ? (
-            <div className="glass-card rounded-[32px] border border-slate-800 bg-slate-950 overflow-hidden shadow-2xl flex flex-col min-h-[850px] relative">
+            <div className="rounded-[32px] border border-slate-700/80 bg-slate-900/95 overflow-hidden shadow-2xl flex flex-col min-h-[850px] relative">
               
               {/* Word Toolbar */}
-              <div className="bg-slate-950 border-b border-slate-900 p-2 flex flex-wrap items-center gap-2 sticky top-0 z-20 backdrop-blur-3xl shadow-md">
-                <div className="flex items-center gap-0.5 bg-slate-900/40 p-1 rounded-xl border border-slate-900">
-                  <button onClick={() => exec('bold')} className="w-8 h-8 rounded-lg hover:bg-slate-800 flex items-center justify-center text-slate-300 font-bold" title="Жирный">B</button>
-                  <button onClick={() => exec('italic')} className="w-8 h-8 rounded-lg hover:bg-slate-800 flex items-center justify-center text-slate-300 italic" title="Курсив">I</button>
-                  <button onClick={() => exec('underline')} className="w-8 h-8 rounded-lg hover:bg-slate-800 flex items-center justify-center text-slate-300 underline" title="Подчеркнутый">U</button>
+              <div className="bg-slate-900/95 border-b border-slate-700/80 p-2 flex flex-wrap items-center gap-2 sticky top-0 z-20 backdrop-blur-3xl shadow-md">
+                <div className="flex items-center gap-0.5 bg-slate-800/80 p-1 rounded-xl border border-slate-700/70">
+                  <button onClick={() => exec('bold')} className="w-8 h-8 rounded-lg hover:bg-slate-700 flex items-center justify-center text-slate-200 font-bold" title="Жирный">B</button>
+                  <button onClick={() => exec('italic')} className="w-8 h-8 rounded-lg hover:bg-slate-700 flex items-center justify-center text-slate-200 italic" title="Курсив">I</button>
+                  <button onClick={() => exec('underline')} className="w-8 h-8 rounded-lg hover:bg-slate-700 flex items-center justify-center text-slate-200 underline" title="Подчеркнутый">U</button>
                 </div>
 
-                <div className="flex items-center gap-0.5 bg-slate-900/40 p-1 rounded-xl border border-slate-900">
-                  <button onClick={() => exec('insertUnorderedList')} className="w-8 h-8 rounded-lg hover:bg-slate-800 flex items-center justify-center text-slate-300" title="Маркированный список"><List size={14}/></button>
-                  <button onClick={() => exec('insertOrderedList')} className="w-8 h-8 rounded-lg hover:bg-slate-800 flex items-center justify-center text-slate-300" title="Нумерованный список"><ListOrdered size={14}/></button>
+                <div className="flex items-center gap-0.5 bg-slate-800/80 p-1 rounded-xl border border-slate-700/70">
+                  <button onClick={() => exec('insertUnorderedList')} className="w-8 h-8 rounded-lg hover:bg-slate-700 flex items-center justify-center text-slate-200" title="Маркированный список"><List size={14}/></button>
+                  <button onClick={() => exec('insertOrderedList')} className="w-8 h-8 rounded-lg hover:bg-slate-700 flex items-center justify-center text-slate-200" title="Нумерованный список"><ListOrdered size={14}/></button>
                   <button 
                     onClick={() => {
                       const checkbox = '<input type="checkbox" style="width: 14px; height: 14px; margin-right: 8px; vertical-align: middle;" />';
                       exec('insertHTML', checkbox);
                     }} 
-                    className="w-8 h-8 rounded-lg hover:bg-slate-800 flex items-center justify-center text-slate-300" 
+                    className="w-8 h-8 rounded-lg hover:bg-slate-700 flex items-center justify-center text-slate-200" 
                     title="Добавить чек-бокс"
                   >
                     <CheckSquare size={14}/>
                   </button>
                 </div>
 
-                <div className="flex items-center gap-1 bg-slate-900/40 p-1 rounded-xl border border-slate-900 relative">
-                  <button onClick={() => setShowColorPicker(!showColorPicker)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-slate-800 text-slate-300">
+                <div className="flex items-center gap-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/70 relative">
+                  <button onClick={() => setShowColorPicker(!showColorPicker)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-slate-700 text-slate-200">
                     <Baseline size={14}/>
                     <ChevronDown size={10}/>
                   </button>
                   
                   {showColorPicker && (
-                    <div className="absolute top-full left-0 mt-2 p-2.5 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-30 grid grid-cols-5 gap-1.5 animate-in fade-in zoom-in duration-200">
+                    <div className="absolute top-full left-0 mt-2 p-2.5 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 grid grid-cols-5 gap-1.5 animate-in fade-in zoom-in duration-200">
                       {['#ffffff', '#f87171', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#f472b6', '#94a3b8', '#000000', '#4ade80'].map(c => (
                         <button 
                           key={c} 
@@ -1378,23 +1378,23 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
                           style={{ backgroundColor: c }}
                         />
                       ))}
-                      <button onClick={() => { exec('hiliteColor', '#fbbf24'); setShowColorPicker(false); }} className="col-span-5 text-[9px] font-black uppercase text-amber-500 py-1 hover:text-white">Маркер (Желтый)</button>
-                      <button onClick={() => { exec('removeFormat'); setShowColorPicker(false); }} className="col-span-5 text-[9px] font-black uppercase text-rose-500 py-1 hover:text-rose-400">Сброс формата</button>
+                      <button onClick={() => { exec('hiliteColor', '#fbbf24'); setShowColorPicker(false); }} className="col-span-5 text-[9px] font-black uppercase text-amber-400 py-1 hover:text-white">Маркер (Желтый)</button>
+                      <button onClick={() => { exec('removeFormat'); setShowColorPicker(false); }} className="col-span-5 text-[9px] font-black uppercase text-rose-400 py-1 hover:text-rose-300">Сброс формата</button>
                     </div>
                   )}
                 </div>
 
                 {/* Stage Controls */}
-                <div className="flex items-center gap-1.5 border-l border-slate-900 pl-2">
+                <div className="flex items-center gap-1.5 border-l border-slate-700/80 pl-2">
                   <button 
                     onClick={insertNextTask}
-                    className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-amber-500 text-[9px] font-black uppercase hover:bg-amber-600 hover:text-white transition-all flex items-center gap-1.5 font-mono"
+                    className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-amber-400 text-[9px] font-black uppercase hover:bg-amber-600 hover:text-white transition-all flex items-center gap-1.5 font-mono"
                   >
                     <Plus size={11}/> РАЗДЕЛИТЕЛЬ ДИРЕКТИВЫ
                   </button>
                   <button 
                     onClick={completeCurrentTask}
-                    className="px-3 py-1.5 bg-emerald-600/20 border border-emerald-500/30 rounded-lg text-emerald-400 text-[9px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-1.5 font-mono"
+                    className="px-3 py-1.5 bg-emerald-600/25 border border-emerald-500/40 rounded-lg text-emerald-300 text-[9px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-1.5 font-mono"
                   >
                     <Check size={11}/> В АРХИВ ВЫПОЛНЕННЫХ
                   </button>

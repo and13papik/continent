@@ -18,54 +18,54 @@ import PeriodBadge from '../components/PeriodBadge';
 
 const MetricCard = ({ title, value, subValue, icon, color, highlighted, label, variant = 'primary' }: { title: string, value: number, subValue?: number, icon: React.ReactNode, color: string, highlighted?: boolean, label?: string, variant?: 'primary' | 'platform' }) => {
   const colorMap: any = {
-    indigo: 'from-indigo-600/20 to-indigo-900/40 border-indigo-500/30 text-indigo-400',
-    emerald: 'from-emerald-600/20 to-emerald-950/40 border-emerald-500/30 text-emerald-400',
-    sky: 'from-sky-600/20 to-sky-950/40 border-sky-500/30 text-sky-400',
-    amber: 'from-amber-600/20 to-amber-950/40 border-amber-500/30 text-amber-400'
+    indigo: 'from-indigo-600/30 to-indigo-900/60 border-indigo-400/40 text-indigo-300',
+    emerald: 'from-emerald-600/30 to-emerald-950/60 border-emerald-400/40 text-emerald-300',
+    sky: 'from-sky-600/30 to-sky-950/60 border-sky-400/40 text-sky-300',
+    amber: 'from-amber-600/30 to-amber-950/60 border-amber-400/40 text-amber-300'
   };
 
   const isPlatform = variant === 'platform';
 
   return (
-    <div className={`rounded-[1.4rem] border bg-gradient-to-br transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] group relative overflow-hidden flex flex-col justify-between h-full ${
+    <div className={`rounded-[1.4rem] border bg-gradient-to-br transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] group relative overflow-hidden flex flex-col justify-between h-full shadow-md ${
       isPlatform ? 'p-3' : 'p-4'
     } ${
       highlighted 
-        ? 'bg-slate-900 border-indigo-500/50 shadow-[0_15px_35px_-10px_rgba(79,70,229,0.3)] ring-1 ring-white/10' 
-        : `bg-slate-900/40 border-white/5 hover:border-white/10 ${colorMap[color] || ''}`
+        ? 'bg-gradient-to-br from-indigo-900/80 to-slate-900 border-indigo-400/60 shadow-[0_15px_35px_-10px_rgba(79,70,229,0.4)] ring-1 ring-indigo-400/30' 
+        : `bg-slate-800/85 border-slate-700/80 hover:border-slate-600 ${colorMap[color] || ''}`
     }`}>
       {/* Decorative Glow */}
-      <div className={`absolute -right-4 -top-4 w-20 h-20 blur-3xl opacity-0 group-hover:opacity-30 transition-all duration-700 ${
+      <div className={`absolute -right-4 -top-4 w-20 h-20 blur-3xl opacity-20 group-hover:opacity-40 transition-all duration-700 ${
         color === 'indigo' ? 'bg-indigo-500' : color === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'
       }`} />
 
       <div className={`flex justify-between items-start relative z-10 ${isPlatform ? 'mb-1' : 'mb-3'}`}>
         <div className={`${isPlatform ? 'w-7 h-7' : 'w-9 h-9'} rounded-xl flex items-center justify-center transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 ${
-          highlighted ? 'bg-white text-indigo-600 shadow-lg shadow-white/10' : 'bg-white/5 border border-white/10 text-white/80 group-hover:text-white'
+          highlighted ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30' : 'bg-slate-800/90 border border-slate-700 text-slate-200 group-hover:text-white'
         }`}>
           {React.cloneElement(icon as React.ReactElement, { size: isPlatform ? 14 : 18 })}
         </div>
         {!isPlatform && (
           <div className="flex flex-col items-end">
-             <span className="text-[7px] font-black uppercase tracking-[0.25em] text-slate-500 mb-0.5 leading-none transition-colors group-hover:text-white/40">{label || 'Total'}</span>
-             <div className={`h-1 w-4 rounded-full ${color === 'indigo' ? 'bg-indigo-500' : color === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'}`} />
+             <span className="text-[7px] font-black uppercase tracking-[0.25em] text-slate-400 mb-0.5 leading-none transition-colors group-hover:text-white">{label || 'Total'}</span>
+             <div className={`h-1 w-4 rounded-full ${color === 'indigo' ? 'bg-indigo-400' : color === 'sky' ? 'bg-sky-400' : 'bg-emerald-400'}`} />
           </div>
         )}
       </div>
 
       <div className="relative z-10">
-        <h4 className={`${isPlatform ? 'text-[7.5px]' : 'text-[9px]'} font-black uppercase text-slate-500 tracking-wider mb-1 transition-colors truncate`}>{title}</h4>
+        <h4 className={`${isPlatform ? 'text-[7.5px]' : 'text-[9px]'} font-black uppercase text-slate-300 tracking-wider mb-1 transition-colors truncate`}>{title}</h4>
         
         <div className="flex items-baseline gap-0.5">
-          <span className={`${isPlatform ? 'text-[8px]' : 'text-[10px]'} font-black font-mono transition-colors ${highlighted ? 'text-indigo-300' : 'text-slate-600'}`}>$</span>
-          <p className={`${isPlatform ? 'text-base' : 'text-xl'} font-black font-mono tracking-tighter transition-all truncate ${highlighted ? 'text-white' : 'text-white group-hover:translate-x-1'}`}>
+          <span className={`${isPlatform ? 'text-[8px]' : 'text-[10px]'} font-black font-mono transition-colors ${highlighted ? 'text-indigo-300' : 'text-slate-400'}`}>$</span>
+          <p className={`${isPlatform ? 'text-base' : 'text-xl'} font-black font-mono tracking-tighter transition-all truncate text-white group-hover:translate-x-1`}>
             {value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </p>
         </div>
 
         {subValue !== undefined && (
-          <div className={`${isPlatform ? 'mt-1 pt-1' : 'mt-2 pt-2'} border-t border-white/5 flex items-center justify-between`}>
-             <span className={`${isPlatform ? 'text-[6px]' : 'text-[7px]'} font-black uppercase text-slate-600 shrink-0`}>Netto</span>
+          <div className={`${isPlatform ? 'mt-1 pt-1' : 'mt-2 pt-2'} border-t border-slate-700/60 flex items-center justify-between`}>
+             <span className={`${isPlatform ? 'text-[6px]' : 'text-[7px]'} font-black uppercase text-slate-400 shrink-0`}>Netto</span>
              <span className={`${isPlatform ? 'text-[9px]' : 'text-[10px]'} font-black font-mono ${color === 'indigo' ? 'text-indigo-300' : color === 'sky' ? 'text-sky-300' : 'text-emerald-400'}`}>
                 ${subValue.toFixed(1)}
              </span>
@@ -79,26 +79,26 @@ const MetricCard = ({ title, value, subValue, icon, color, highlighted, label, v
 
 const DetailBox = ({ pill, gross, net, rate, color }: { pill: string, gross: number, net: number, rate: string, color: string }) => {
   const colorMap: any = {
-    indigo: 'from-indigo-600/10 to-indigo-950/40 border-indigo-500/20 text-indigo-400',
-    sky: 'from-sky-600/10 to-sky-950/40 border-sky-500/20 text-sky-400',
-    emerald: 'from-emerald-600/10 to-emerald-950/40 border-emerald-500/20 text-emerald-400'
+    indigo: 'from-indigo-600/20 to-indigo-950/60 border-indigo-400/30 text-indigo-300',
+    sky: 'from-sky-600/20 to-sky-950/60 border-sky-400/30 text-sky-300',
+    emerald: 'from-emerald-600/20 to-emerald-950/60 border-emerald-400/30 text-emerald-300'
   };
   return (
-    <div className={`p-3 rounded-xl border bg-gradient-to-br transition-all duration-500 hover:bg-opacity-40 group/detail relative overflow-hidden ${colorMap[color]}`}>
+    <div className={`p-3 rounded-xl border bg-gradient-to-br transition-all duration-500 hover:bg-opacity-60 group/detail relative overflow-hidden shadow-sm ${colorMap[color]}`}>
        <div className="flex justify-between items-start mb-2 relative z-10">
           <div className="flex flex-col">
-             <span className="text-[7px] font-black uppercase tracking-[0.2em] opacity-50 mb-0.5 leading-none">{pill}</span>
-             <span className="text-[8px] font-black font-mono text-white/70">{rate}</span>
+             <span className="text-[7px] font-black uppercase tracking-[0.2em] opacity-75 mb-0.5 leading-none">{pill}</span>
+             <span className="text-[8px] font-black font-mono text-white/90">{rate}</span>
           </div>
-          <div className={`w-1 h-1 rounded-full ${color === 'indigo' ? 'bg-indigo-500' : color === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'} shadow-lg`}></div>
+          <div className={`w-1.5 h-1.5 rounded-full ${color === 'indigo' ? 'bg-indigo-400' : color === 'sky' ? 'bg-sky-400' : 'bg-emerald-400'} shadow-lg`}></div>
        </div>
        <div className="flex items-end justify-between relative z-10 gap-2">
           <div className="flex flex-col min-w-0">
-             <span className="text-[6px] font-black uppercase text-slate-500 mb-0.5">Gross</span>
-             <p className="text-[10px] font-black font-mono text-slate-400 tracking-tighter truncate">${gross.toFixed(0)}</p>
+             <span className="text-[6px] font-black uppercase text-slate-400 mb-0.5">Gross</span>
+             <p className="text-[10px] font-black font-mono text-slate-300 tracking-tighter truncate">${gross.toFixed(0)}</p>
           </div>
           <div className="flex flex-col text-right shrink-0">
-             <span className="text-[6px] font-black uppercase text-slate-500 mb-0.5">Net</span>
+             <span className="text-[6px] font-black uppercase text-slate-400 mb-0.5">Net</span>
              <p className="text-sm font-black font-mono text-white tracking-tighter">${net.toFixed(1)}</p>
           </div>
        </div>
@@ -107,14 +107,14 @@ const DetailBox = ({ pill, gross, net, rate, color }: { pill: string, gross: num
 };
 
 const SummaryLine = ({ label, val, type }: { label: string, val: number, type: 'plus' | 'minus' }) => (
-  <div className="flex items-center justify-between py-1.5 border-b border-white/[0.03] last:border-0 hover:bg-white/[0.02] -mx-2 px-2 rounded-lg transition-colors group">
+  <div className="flex items-center justify-between py-1.5 border-b border-slate-700/50 last:border-0 hover:bg-white/[0.04] -mx-2 px-2 rounded-lg transition-colors group">
      <div className="flex items-center gap-2.5">
-        <div className={`w-2 h-2 rounded-full ${type === 'plus' ? 'bg-emerald-500 shadow-lg' : 'bg-rose-500 shadow-lg'}`}></div>
-        <span className="text-slate-400 font-bold text-[10px] uppercase tracking-wider group-hover:text-slate-200 transition-colors truncate max-w-[150px]">{label}</span>
+        <div className={`w-2 h-2 rounded-full ${type === 'plus' ? 'bg-emerald-400 shadow-lg' : 'bg-rose-400 shadow-lg'}`}></div>
+        <span className="text-slate-300 font-bold text-[10px] uppercase tracking-wider group-hover:text-white transition-colors truncate max-w-[150px]">{label}</span>
      </div>
      <div className="flex items-baseline gap-1">
-        <span className={`text-[10px] font-black ${type === 'plus' ? 'text-emerald-500' : 'text-rose-500'}`}>{type === 'plus' ? '+' : '-'}</span>
-        <span className={`font-mono font-black text-sm ${type === 'plus' ? 'text-emerald-400' : 'text-rose-400'}`}>
+        <span className={`text-[10px] font-black ${type === 'plus' ? 'text-emerald-400' : 'text-rose-400'}`}>{type === 'plus' ? '+' : '-'}</span>
+        <span className={`font-mono font-black text-sm ${type === 'plus' ? 'text-emerald-300' : 'text-rose-300'}`}>
           ${val.toFixed(1)}
         </span>
      </div>
@@ -427,39 +427,39 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen -m-6 overflow-hidden bg-black text-slate-200">
+    <div className="flex flex-col lg:flex-row h-screen -m-6 overflow-hidden bg-transparent text-slate-100">
       <AnimatePresence>
         {isManagingOperators && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-3xl">
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-3xl">
              <motion.div 
                initial={{ scale: 0.9, opacity: 0, y: 30 }}
                animate={{ scale: 1, opacity: 1, y: 0 }}
                exit={{ scale: 0.9, opacity: 0, y: 30 }}
-               className="glass-card w-full max-w-2xl rounded-[3rem] p-10 border-emerald-500/40 shadow-2xl relative overflow-hidden bg-slate-950"
+               className="w-full max-w-2xl rounded-[3rem] p-10 border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] shadow-2xl relative overflow-hidden"
              >
-                <button onClick={() => setIsManagingOperators(false)} className="absolute top-8 right-8 text-slate-500 hover:text-white transition-all group">
-                   <ICONS.Close className="group-hover:scale-110 transition-all text-slate-500 hover:text-white" size={24} />
+                <button onClick={() => setIsManagingOperators(false)} className="absolute top-8 right-8 text-slate-400 hover:text-white transition-all group cursor-pointer">
+                   <ICONS.Close className="group-hover:scale-110 transition-all text-slate-400 hover:text-white" size={24} />
                 </button>
                 <div className="mb-8 font-outfit">
                    <h2 className="text-2xl font-black text-white uppercase tracking-tight">Управление операторами</h2>
-                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2">Текущий период: {activePeriod?.label}</p>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Текущий период: {activePeriod?.label}</p>
                 </div>
 
                 <div className="space-y-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Создать нового оператора</label>
+                    <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Создать нового оператора</label>
                     <div className="flex gap-3">
                       <input 
                         type="text" 
                         value={newOperatorName}
                         onChange={e => setNewOperatorName(e.target.value)}
                         placeholder="Имя оператора (напр. Anna, Vi...)"
-                        className="flex-1 bg-slate-900 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-emerald-500 outline-none transition-all text-sm font-bold"
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-2xl px-6 py-4 text-white focus:border-emerald-400 outline-none transition-all text-sm font-bold"
                         onKeyDown={e => e.key === 'Enter' && newOperatorName && addOperatorToPeriod(newOperatorName)}
                       />
                       <button 
                         onClick={() => newOperatorName && addOperatorToPeriod(newOperatorName)}
-                        className="px-8 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-emerald-600/20 active:scale-95 transition-all text-center flex items-center justify-center min-h-[50px] shrink-0"
+                        className="px-8 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-emerald-600/30 active:scale-95 transition-all text-center flex items-center justify-center min-h-[50px] shrink-0 cursor-pointer"
                       >
                         Добавить
                       </button>
@@ -468,12 +468,12 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
 
                   <div className="space-y-3">
                     <div className="flex items-center justify-between px-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Добавить из общего списка</label>
-                      <span className="text-[10px] font-bold text-slate-600">{availableOperators.length} доступно</span>
+                      <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Добавить из общего списка</label>
+                      <span className="text-[10px] font-bold text-slate-400">{availableOperators.length} доступно</span>
                     </div>
                     {availableOperators.length === 0 ? (
-                      <div className="p-6 rounded-3xl border border-dashed border-white/5 text-center bg-white/[0.01]">
-                        <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Все зарегистрированные операторы уже в списке</p>
+                      <div className="p-6 rounded-3xl border border-dashed border-slate-700/80 text-center bg-slate-900/30">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Все зарегистрированные операторы уже в списке</p>
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
@@ -481,9 +481,9 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                           <button
                             key={op}
                             onClick={() => addOperatorToPeriod(op)}
-                            className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-slate-300 hover:text-white transition-all text-center flex flex-col items-center gap-1.5"
+                            className="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700 hover:border-emerald-400/50 hover:bg-emerald-500/10 text-slate-200 hover:text-white transition-all text-center flex flex-col items-center gap-1.5 cursor-pointer"
                           >
-                            <ICONS.User size={14} className="text-slate-500 shrink-0" />
+                            <ICONS.User size={14} className="text-slate-400 shrink-0" />
                             <span className="font-black text-[10px] uppercase tracking-tighter truncate w-full">{op}</span>
                           </button>
                         ))}
@@ -491,21 +491,21 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                     )}
                   </div>
 
-                  <div className="space-y-3 border-t border-white/[0.03] pt-5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Операторы в текущем составе ({currentOperators.filter(op => op !== 'ДЫРКА').length})</label>
+                  <div className="space-y-3 border-t border-slate-700/60 pt-5">
+                    <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Операторы в текущем составе ({currentOperators.filter(op => op !== 'ДЫРКА').length})</label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
                       {currentOperators.filter(op => op !== 'ДЫРКА').map(op => (
                         <div
                           key={op}
-                          className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 text-slate-300 flex items-center justify-between gap-2"
+                          className="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700 text-slate-200 flex items-center justify-between gap-2"
                         >
                           <div className="flex items-center gap-2 truncate">
-                            <ICONS.User size={12} className="text-slate-500 shrink-0" />
+                            <ICONS.User size={12} className="text-slate-400 shrink-0" />
                             <span className="font-black text-[10px] uppercase tracking-tighter truncate">{op}</span>
                           </div>
                           <button
                             onClick={() => removeOperatorFromPeriod(op)}
-                            className="text-slate-600 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors"
+                            className="text-slate-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
                             title="Исключить из периода"
                           >
                             <ICONS.Close size={12} />
@@ -516,10 +516,10 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                   </div>
                 </div>
 
-                <div className="flex gap-4 pt-6 mt-4 border-t border-white/[0.03]">
+                <div className="flex gap-4 pt-6 mt-4 border-t border-slate-700/60">
                    <button 
                      onClick={() => setIsManagingOperators(false)} 
-                     className="w-full bg-slate-900 text-slate-500 font-black py-4 rounded-2xl hover:bg-slate-800 transition-all uppercase tracking-widest text-[11px] border border-white/5"
+                     className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-black py-4 rounded-2xl transition-all uppercase tracking-widest text-[11px] border border-slate-700 cursor-pointer"
                    >
                      Завершить
                    </button>
@@ -529,22 +529,22 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
         )}
       </AnimatePresence>
       {/* SIDEBAR CALENDAR / DAY LIST */}
-      <aside className="w-full lg:w-[320px] bg-slate-900/40 border-r border-white/5 flex flex-col transition-all duration-500 overflow-hidden">
-        <div className="p-8 border-b border-white/5 bg-slate-950/20">
+      <aside className="w-full lg:w-[320px] bg-[#111726]/95 border-r border-slate-700/60 flex flex-col transition-all duration-500 overflow-hidden shadow-xl">
+        <div className="p-8 border-b border-slate-700/60 bg-slate-800/50">
           <h2 className="text-xl font-black font-outfit uppercase tracking-tighter text-white">ДНЕВНИК</h2>
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
           {!selectedOperator ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-10 opacity-30">
-              <ICONS.Users size={48} className="mb-4 text-indigo-500" />
-              <p className="text-[10px] uppercase font-black tracking-[0.2em] leading-relaxed">
+            <div className="h-full flex flex-col items-center justify-center text-center p-10 opacity-40">
+              <ICONS.Users size={48} className="mb-4 text-indigo-400" />
+              <p className="text-[10px] uppercase font-black tracking-[0.2em] leading-relaxed text-slate-300">
                 Нужно выбрать сотрудника для просмотра
               </p>
             </div>
           ) : report?.dailyHistory.length === 0 ? (
-            <div className="text-center py-20 opacity-20">
-              <ICONS.History size={48} className="mx-auto mb-4" />
-              <p className="text-[10px] uppercase font-black tracking-widest">Нет данных</p>
+            <div className="text-center py-20 opacity-40">
+              <ICONS.History size={48} className="mx-auto mb-4 text-slate-400" />
+              <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Нет данных</p>
             </div>
           ) : (
             [...(report?.dailyHistory || [])].reverse().map((d, idx) => {
@@ -567,26 +567,26 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.04, type: 'spring', damping: 15 }}
                 onClick={() => setSelectedDate(d.date)}
-                className={`w-full text-left p-0 rounded-[2.2rem] transition-all duration-500 group relative flex items-stretch border overflow-hidden ${
+                className={`w-full text-left p-0 rounded-[2.2rem] transition-all duration-500 group relative flex items-stretch border overflow-hidden cursor-pointer ${
                   isActive 
-                    ? 'bg-slate-900 border-indigo-500/60 shadow-[0_25px_60px_-15px_rgba(79,70,229,0.5)] ring-1 ring-white/10' 
-                    : 'bg-slate-950/40 border-white/5 hover:border-white/15 hover:bg-slate-900/60'
+                    ? 'bg-slate-800 border-indigo-400/80 shadow-[0_20px_50px_-15px_rgba(79,70,229,0.5)] ring-1 ring-indigo-400/40' 
+                    : 'bg-slate-800/80 border-slate-700/70 hover:border-slate-500 hover:bg-slate-800'
                 }`}
               >
                 {/* Lateral Status Bar */}
                 <div className={`w-1.5 shrink-0 transition-all duration-700 ${
-                  isActive ? 'bg-indigo-500 shadow-[0_0_20px_#6366f1]' : isElite ? 'bg-amber-400' : isPro ? 'bg-emerald-400' : 'bg-slate-800'
+                  isActive ? 'bg-indigo-400 shadow-[0_0_20px_#6366f1]' : isElite ? 'bg-amber-400' : isPro ? 'bg-emerald-400' : 'bg-slate-700'
                 }`} />
 
                 <div className="flex-1 p-3 flex items-center gap-3 relative min-w-0">
                   {/* Compact Premium Date Block */}
                   <div className={`relative w-12 h-12 shrink-0 rounded-2xl flex flex-col items-center justify-center border transition-all duration-700 overflow-hidden ${
                     isActive 
-                      ? 'bg-gradient-to-br from-indigo-500 to-indigo-700 border-white/20 shadow-lg scale-105' 
-                      : 'bg-slate-900/60 border-white/5 group-hover:border-white/10'
+                      ? 'bg-gradient-to-br from-indigo-500 to-indigo-700 border-indigo-300 shadow-lg scale-105' 
+                      : 'bg-slate-900 border-slate-700 group-hover:border-slate-600'
                   }`}>
-                    <span className={`text-[7px] font-black uppercase leading-none mb-0.5 tracking-tighter ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>{weekday}</span>
-                    <span className={`text-lg font-black font-outfit leading-none ${isActive ? 'text-white' : 'text-slate-200'}`}>{dayNum}</span>
+                    <span className={`text-[7px] font-black uppercase leading-none mb-0.5 tracking-tighter ${isActive ? 'text-indigo-100' : 'text-slate-400'}`}>{weekday}</span>
+                    <span className={`text-lg font-black font-outfit leading-none ${isActive ? 'text-white' : 'text-slate-100'}`}>{dayNum}</span>
                     
                     {isActive && (
                       <motion.div 
@@ -600,17 +600,17 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-center mb-1.5">
                        <div className="flex items-baseline gap-0.5 min-w-0">
-                          <span className={`text-[9px] font-black font-mono shrink-0 ${isActive ? 'text-indigo-300' : 'text-slate-600'}`}>$</span>
-                          <span className={`text-[1.35rem] font-black font-mono tracking-tighter truncate ${isActive ? 'text-white' : 'text-slate-50'}`}>
+                          <span className={`text-[9px] font-black font-mono shrink-0 ${isActive ? 'text-indigo-300' : 'text-slate-400'}`}>$</span>
+                          <span className={`text-[1.35rem] font-black font-mono tracking-tighter truncate ${isActive ? 'text-white' : 'text-slate-100'}`}>
                              {d.totalGross.toFixed(0)}
                           </span>
                        </div>
                        
                        <div className="flex flex-col items-end shrink-0 ml-2">
                           <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border ${
-                            isActive ? 'bg-white/10 border-white/10' : 'bg-slate-950/60 border-white/5'
+                            isActive ? 'bg-white/15 border-white/20' : 'bg-slate-900 border-slate-700'
                           }`}>
-                             <span className={`text-[9px] font-black font-mono ${isActive ? 'text-white' : 'text-emerald-500'}`}>
+                             <span className={`text-[9px] font-black font-mono ${isActive ? 'text-white' : 'text-emerald-400'}`}>
                                 {d.totalNet.toFixed(1)}
                              </span>
                           </div>
@@ -619,12 +619,12 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
 
                     {/* Minimal Progress */}
                     <div className="flex items-center gap-2">
-                       <div className={`h-1 flex-1 rounded-full overflow-hidden ${isActive ? 'bg-indigo-950' : 'bg-slate-800/40'}`}>
+                       <div className={`h-1 flex-1 rounded-full overflow-hidden ${isActive ? 'bg-indigo-950' : 'bg-slate-700'}`}>
                           <motion.div 
                             initial={{ width: 0 }}
                             animate={{ width: `${progress}%` }}
                             className={`h-full ${
-                              isActive ? 'bg-white' : isElite ? 'bg-amber-400' : isPro ? 'bg-emerald-400' : 'bg-indigo-500'
+                              isActive ? 'bg-white' : isElite ? 'bg-amber-400' : isPro ? 'bg-emerald-400' : 'bg-indigo-400'
                             }`}
                           />
                        </div>
@@ -641,9 +641,9 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
       {/* MAIN WORKSPACE */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
         {/* TOP BAR / NAVIGATION */}
-        <header className="px-8 py-6 flex flex-wrap items-center justify-between gap-6 bg-slate-950/40 border-b border-white/5 backdrop-blur-xl z-50 shrink-0">
+        <header className="px-8 py-6 flex flex-wrap items-center justify-between gap-6 bg-[#111726]/90 border-b border-slate-700/60 backdrop-blur-xl z-50 shrink-0">
            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/20">
+              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
                  <ICONS.Reports size={20} />
               </div>
               <div>
@@ -651,7 +651,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                     {selectedOperator && (
                       <button 
                         onClick={() => setSelectedOperator('')}
-                        className="w-6 h-6 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-500 hover:text-white transition-all mr-1"
+                        className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white transition-all mr-1 cursor-pointer border border-slate-700"
                         title="Назад к списку"
                       >
                         <ICONS.ArrowLeft size={14} />
@@ -667,20 +667,20 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
            <div className="flex items-center gap-4">
               <div className="relative">
                 <select 
-                  className="appearance-none bg-slate-900 border border-white/5 rounded-xl px-6 py-3 pr-12 font-black text-[11px] text-white focus:border-indigo-500 transition-all cursor-pointer uppercase tracking-widest min-w-[240px] shadow-lg" 
+                  className="appearance-none bg-slate-900 border border-slate-700 rounded-xl px-6 py-3 pr-12 font-black text-[11px] text-white focus:border-indigo-400 transition-all cursor-pointer uppercase tracking-widest min-w-[240px] shadow-md" 
                   value={selectedOperator} 
                   onChange={(e) => setSelectedOperator(e.target.value)}
                 >
                   <option value="">Выберите сотрудника</option>
                   {currentOperators.map(op => <option key={op} value={op}>{op}</option>)}
                 </select>
-                <ICONS.Users size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                <ICONS.Users size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               </div>
 
               {selectedOperator && (
                 <button 
                   onClick={() => setShowQuickOp(!showQuickOp)}
-                  className={`h-11 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-lg ${showQuickOp ? 'bg-rose-500 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
+                  className={`h-11 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-md cursor-pointer ${showQuickOp ? 'bg-rose-500 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
                 >
                   {showQuickOp ? <ICONS.Plus className="rotate-45" size={16} /> : <ICONS.Plus size={16} />}
                   {showQuickOp ? 'Отмена' : 'Коррекция'}
@@ -696,11 +696,11 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h2 className="text-2xl font-black font-outfit uppercase tracking-tighter text-white">Ведомость персонала</h2>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Выберите сотрудника для просмотра подробной аналитики</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Выберите сотрудника для просмотра подробной аналитики</p>
                   </div>
                   <button 
                     onClick={() => setIsManagingOperators(true)}
-                    className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-xl shadow-emerald-600/20 active:scale-95 transition-all w-fit"
+                    className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-xl shadow-emerald-600/30 active:scale-95 transition-all w-fit cursor-pointer"
                   >
                     <ICONS.Plus size={18} />
                     <span className="font-black text-[10px] uppercase tracking-widest">Добавить оператора</span>
@@ -731,7 +731,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                        animate={{ opacity: 1, y: 0 }}
                        transition={{ delay: idx * 0.03 }}
                        onClick={() => setSelectedOperator(op)}
-                       className="group relative bg-slate-900/40 border border-white/5 rounded-[2rem] p-5 text-left transition-all duration-500 hover:bg-slate-900/80 hover:border-indigo-500/40 hover:-translate-y-1 shadow-xl overflow-hidden flex flex-col min-h-[220px]"
+                       className="group relative bg-gradient-to-br from-[#192138] to-[#121627] border border-slate-700/70 rounded-[2rem] p-5 text-left transition-all duration-500 hover:bg-[#1f2845] hover:border-indigo-400/60 hover:-translate-y-1 shadow-lg overflow-hidden flex flex-col min-h-[220px] cursor-pointer"
                      >
                        {/* High-end Decorative Elements */}
                        <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 blur-[40px] rounded-full -translate-y-1/2 translate-x-1/2 transition-all duration-700" />
@@ -739,7 +739,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                        <div className="relative z-10 flex flex-col h-full">
                          <div className="flex justify-between items-start mb-4">
                            <div className={`relative w-11 h-11 rounded-[1.25rem] flex items-center justify-center text-lg font-black transition-all duration-700 group-hover:scale-110 shadow-2xl ${
-                             isElite ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white' : isPro ? 'bg-gradient-to-br from-indigo-500 to-indigo-700 text-white' : 'bg-slate-800 border border-white/5 text-slate-400 group-hover:text-indigo-400'
+                             isElite ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white' : isPro ? 'bg-gradient-to-br from-indigo-500 to-indigo-700 text-white' : 'bg-slate-800 border border-slate-700 text-slate-300 group-hover:text-indigo-300'
                            }`}>
                              {op.charAt(0)}
                              {isElite && (
@@ -751,8 +751,8 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                            <div className="flex flex-col items-end gap-1.5">
                              {(isElite || isPro) && (
                                <div className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all duration-500 ${
-                                 isElite ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20 group-hover:bg-amber-500 group-hover:text-white' : 
-                                 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:bg-indigo-500 group-hover:text-white'
+                                 isElite ? 'bg-amber-500/20 text-amber-300 border border-amber-400/30 group-hover:bg-amber-500 group-hover:text-white' : 
+                                 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 group-hover:bg-indigo-500 group-hover:text-white'
                                }`}>
                                  {isElite ? 'Elite' : 'Pro'}
                                </div>
@@ -761,22 +761,22 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                          </div>
 
                          <div className="mb-4">
-                           <h3 className="text-base font-black font-outfit uppercase tracking-tighter text-white group-hover:text-indigo-400 transition-colors leading-tight truncate">{op}</h3>
+                           <h3 className="text-base font-black font-outfit uppercase tracking-tighter text-white group-hover:text-indigo-300 transition-colors leading-tight truncate">{op}</h3>
                          </div>
 
-                         <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-white/5">
+                         <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-slate-700/60">
                            <div className="flex flex-col">
-                             <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Gross</span>
+                             <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Gross</span>
                              <div className="flex items-baseline gap-0.5">
                                <span className="text-[10px] font-black text-indigo-400">$</span>
                                <span className="text-sm font-black font-mono text-white tracking-tighter transition-all group-hover:translate-x-0.5">{totalGross.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                              </div>
                            </div>
                            <div className="flex flex-col items-end text-right">
-                             <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Net</span>
+                             <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">Net</span>
                              <div className="flex items-baseline gap-0.5">
-                               <span className="text-[10px] font-black text-emerald-500">$</span>
-                               <span className="text-sm font-black font-mono text-emerald-400 tracking-tighter transition-all group-hover:-translate-x-0.5">{totalNet.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                               <span className="text-[10px] font-black text-emerald-400">$</span>
+                               <span className="text-sm font-black font-mono text-emerald-300 tracking-tighter transition-all group-hover:-translate-x-0.5">{totalNet.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                              </div>
                            </div>
                          </div>
@@ -785,18 +785,18 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                             <div className="flex justify-between items-center mb-2">
                                <div className="flex items-center gap-1.5">
                                   <div className="flex -space-x-1">
-                                    {(incomes.some(i => i.onlyFans > 0)) && <div className="w-3.5 h-3.5 rounded-full bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-[5px] font-black text-sky-400">OF</div>}
-                                    {(incomes.some(i => i.paypal > 0)) && <div className="w-3.5 h-3.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-[5px] font-black text-indigo-400">PP</div>}
-                                    {(incomes.some(i => i.crypto > 0)) && <div className="w-3.5 h-3.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-[5px] font-black text-emerald-400">CR</div>}
+                                    {(incomes.some(i => i.onlyFans > 0)) && <div className="w-3.5 h-3.5 rounded-full bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-[5px] font-black text-sky-300">OF</div>}
+                                    {(incomes.some(i => i.paypal > 0)) && <div className="w-3.5 h-3.5 rounded-full bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-[5px] font-black text-indigo-300">PP</div>}
+                                    {(incomes.some(i => i.crypto > 0)) && <div className="w-3.5 h-3.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-[5px] font-black text-emerald-300">CR</div>}
                                   </div>
                                </div>
-                               <span className="text-[10px] font-black font-mono text-indigo-400">{performance.toFixed(0)}%</span>
+                               <span className="text-[10px] font-black font-mono text-indigo-300">{performance.toFixed(0)}%</span>
                             </div>
-                            <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden p-[px] border border-white/5">
+                            <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden p-[px] border border-slate-700">
                                <motion.div 
                                  initial={{ width: 0 }}
                                  animate={{ width: `${performance}%` }}
-                                 className={`h-full rounded-full transition-all duration-1000 ${isElite ? 'bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.3)]' : isPro ? 'bg-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.3)]' : 'bg-slate-700'}`}
+                                 className={`h-full rounded-full transition-all duration-1000 ${isElite ? 'bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.3)]' : isPro ? 'bg-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.3)]' : 'bg-slate-600'}`}
                                />
                             </div>
                          </div>
@@ -822,7 +822,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                      initial={{ height: 0, opacity: 0 }}
                      animate={{ height: 'auto', opacity: 1 }}
                      exit={{ height: 0, opacity: 0 }}
-                     className="overflow-hidden bg-slate-900 ring-1 ring-white/10 rounded-[2rem] shadow-2xl"
+                     className="overflow-hidden bg-gradient-to-br from-[#192138] to-[#121627] border border-slate-700/80 rounded-[2rem] shadow-2xl"
                    >
                       <div className="p-8 space-y-8">
                          <div className="flex flex-wrap gap-2">
@@ -830,7 +830,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                                <button 
                                  key={k} 
                                  onClick={() => setQType(k as any)}
-                                 className={`px-4 py-2 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${qType === k ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg' : 'bg-slate-950 border-white/5 text-slate-500 hover:border-slate-700'}`}
+                                 className={`px-4 py-2 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${qType === k ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg' : 'bg-slate-800/90 border-slate-700/80 text-slate-300 hover:border-slate-500 hover:text-white'}`}
                                >
                                   <m.icon size={14} />
                                   {m.label}
@@ -841,7 +841,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                             <RateField label="Сумма ($)" val={parseFloat(qAmount) || 0} onChange={v => setQAmount(String(v))} color="indigo" />
                             <div className="space-y-1.5">
                                <label className="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em] ml-1">Платформа</label>
-                               <select className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-[13px] text-sm font-black text-white outline-none focus:border-indigo-500/50 transition-all" value={qPlatform} onChange={e => setQPlatform(e.target.value as any)}>
+                               <select className="w-full bg-slate-800/90 border border-slate-700/80 rounded-xl px-4 py-[13px] text-sm font-black text-white outline-none focus:border-indigo-400 transition-all" value={qPlatform} onChange={e => setQPlatform(e.target.value as any)}>
                                   <option value="all">Общий баланс</option>
                                   <option value="onlyFans">OnlyFans</option>
                                   <option value="paypal">PayPal</option>
@@ -850,7 +850,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                             </div>
                             <div className="space-y-1.5">
                                <label className="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em] ml-1">Комментарий</label>
-                               <input type="text" className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-3.5 text-sm text-white outline-none focus:border-indigo-500/50 transition-all" value={qComment} onChange={e => setQComment(e.target.value)} placeholder="Причина..." />
+                               <input type="text" className="w-full bg-slate-800/90 border border-slate-700/80 rounded-xl px-4 py-3.5 text-sm text-white outline-none focus:border-indigo-400 transition-all" value={qComment} onChange={e => setQComment(e.target.value)} placeholder="Причина..." />
                             </div>
                          </div>
                          <div className="flex justify-end">
@@ -915,10 +915,10 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                {/* SECONDARY ROW: DAY DETAILS & FINAL BALANCE */}
                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                   {/* ... day details remains similar ... */}
-                  <div className="xl:col-span-2 glass-card rounded-[2.5rem] border-white/5 overflow-hidden flex flex-col h-[500px]">
-                     <div className="px-8 py-6 border-b border-white/5 bg-white/[0.02] flex items-center justify-between shrink-0">
+                  <div className="xl:col-span-2 rounded-[2.5rem] border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] overflow-hidden flex flex-col h-[500px] shadow-xl">
+                     <div className="px-8 py-6 border-b border-slate-700/80 bg-slate-800/60 flex items-center justify-between shrink-0">
                         <div className="flex items-center gap-4">
-                           <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-indigo-400 border border-white/5">
+                           <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-indigo-400 border border-slate-700">
                               <ICONS.History size={18} />
                            </div>
                            <div>
@@ -973,11 +973,11 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                   </div>
 
                   {/* SETTLEMENT CARD (FINAL BALANCE): WAW REDESIGN */}
-                  <div className="xl:col-span-1 border border-white/5 bg-slate-950 rounded-[2.5rem] overflow-hidden flex flex-col h-[500px] relative shadow-2xl">
+                  <div className="xl:col-span-1 border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] rounded-[2.5rem] overflow-hidden flex flex-col h-[500px] relative shadow-xl">
                      {/* Premium Background Accent */}
                      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-indigo-950/30 to-transparent" />
                      
-                     <div className="px-6 py-5 border-b border-white/5 bg-slate-900/40 flex justify-between items-center relative z-10">
+                     <div className="px-6 py-5 border-b border-slate-700/80 bg-slate-800/60 flex justify-between items-center relative z-10">
                         <div className="flex flex-col">
                            <h3 className="text-base font-black font-outfit uppercase tracking-tight text-white leading-none">Статистика</h3>
                         </div>
@@ -1016,7 +1016,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                         )}
                      </div>
 
-                     <div className="p-6 bg-slate-900/60 border-t border-white/5 relative z-10 mt-auto">
+                     <div className="p-6 bg-slate-800/80 border-t border-slate-700/80 relative z-10 mt-auto">
                         <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 px-4 py-1 rounded-full text-[8px] font-black uppercase text-white shadow-xl ring-2 ring-slate-900">К выплате</div>
                         
                         <div className="flex flex-col items-center mt-2">
@@ -1032,8 +1032,8 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                {/* WALLET & TRANSACTION HISTORY */}
                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   {/* TRANSACTION LOG */}
-                  <div className="glass-card rounded-[2.5rem] border-white/5 overflow-hidden flex flex-col h-[400px]">
-                     <div className="px-8 py-5 border-b border-white/5 bg-slate-900/60 flex items-center justify-between shrink-0">
+                  <div className="rounded-[2.5rem] border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] overflow-hidden flex flex-col h-[400px] shadow-xl">
+                     <div className="px-8 py-5 border-b border-slate-700/80 bg-slate-800/60 flex items-center justify-between shrink-0">
                         <h3 className="text-base font-black font-outfit uppercase tracking-tight text-white leading-none">Лог операций</h3>
                      </div>
                      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
@@ -1088,7 +1088,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                   </div>
 
                   {/* WALLET & DETAILS: WAW REDESIGN */}
-                  <div className="glass-card rounded-[2.5rem] border-white/5 p-8 flex flex-col gap-6 relative overflow-hidden h-[400px]">
+                  <div className="rounded-[2.5rem] border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] p-8 flex flex-col gap-6 relative overflow-hidden h-[400px] shadow-xl">
                      <div className="absolute right-0 top-0 w-32 h-32 bg-indigo-500/10 blur-3xl rounded-full"></div>
                      <div className="flex justify-between items-center relative z-10">
                         <div className="flex flex-col">
@@ -1100,7 +1100,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                      </div>
 
                      <div className="space-y-5 flex-1 relative z-10">
-                        <div className="flex p-1.5 bg-slate-950 rounded-2xl border border-white/5 relative items-stretch">
+                        <div className="flex p-1.5 bg-slate-800/90 rounded-2xl border border-slate-700/80 relative items-stretch">
                            <button 
                              onClick={() => updateWallet(report.wallet?.address || '', 'usdt_trc20')} 
                              className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all relative z-10 ${(!report.wallet || report.wallet.method === 'usdt_trc20') ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
@@ -1131,7 +1131,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                            <div className="relative group">
                               <input 
                                 type="text"
-                                className="w-full bg-slate-950/80 border border-white/5 rounded-2xl px-5 py-4 text-sm font-mono text-white outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/10 transition-all pr-24 placeholder:text-slate-800"
+                                className="w-full bg-slate-800/90 border border-slate-700/80 rounded-2xl px-5 py-4 text-sm font-mono text-white outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20 transition-all pr-24 placeholder:text-slate-500"
                                 placeholder={report.wallet?.method === 'card' ? 'XXXX XXXX XXXX XXXX' : 'T... (Network: TRC20)'}
                                 value={report.wallet?.address || ''}
                                 onChange={e => updateWallet(e.target.value, report.wallet?.method || 'usdt_trc20')}
@@ -1165,7 +1165,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                <motion.div 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="glass-card rounded-[3rem] border-white/5 shadow-2xl p-10 relative overflow-hidden group"
+                  className="rounded-[3rem] border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] shadow-2xl p-10 relative overflow-hidden group"
                >
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
                      <div className="flex items-center gap-4">

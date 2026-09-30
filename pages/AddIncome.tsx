@@ -219,26 +219,26 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* LEFT COLUMN: SELECTION */}
         <div className="lg:col-span-8 space-y-8">
-          <section className="glass-card p-8 rounded-[2.5rem] border-white/5 space-y-8 shadow-2xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-8 opacity-[0.02] pointer-events-none group-hover:opacity-[0.05] transition-opacity">
+          <section className="p-8 rounded-[2.5rem] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] space-y-8 shadow-xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none group-hover:opacity-[0.06] transition-opacity">
                <ICONS.User size={160} />
             </div>
             
             <div className="relative z-10 space-y-6">
                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xs font-black">01</div>
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center justify-center text-xs font-black">01</div>
                   <h2 className="text-sm font-black font-outfit uppercase tracking-widest text-white">Субъект и время</h2>
                </div>
                
                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  <div className="space-y-2">
-                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Оператор</label>
+                   <label className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] ml-1">Оператор</label>
                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 gap-2">
                       {currentOperators.map(op => (
                         <button 
                           key={op} 
                           onClick={() => setOperator(op)}
-                          className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${operator === op ? 'bg-indigo-600 border-indigo-500 text-white shadow-xl shadow-indigo-600/20 scale-[1.02]' : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700'}`}
+                          className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${operator === op ? 'bg-indigo-600 border-indigo-400 text-white shadow-xl shadow-indigo-600/30 scale-[1.02]' : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:border-slate-600 hover:text-white'}`}
                         >
                           {op}
                         </button>
@@ -247,10 +247,10 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
                  </div>
                  
                  <div className="space-y-2">
-                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Календарная дата</label>
+                   <label className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] ml-1">Календарная дата</label>
                    <input 
                      type="date" 
-                     className={`w-full bg-slate-900/50 border rounded-2xl px-6 py-4 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${isPeriodMismatch ? 'border-rose-500 bg-rose-500/5 shadow-[0_0_20px_-10px_rgba(244,63,94,0.3)]' : 'border-slate-800'}`} 
+                     className={`w-full bg-slate-800/80 border rounded-2xl px-6 py-4 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-indigo-400 transition-all ${isPeriodMismatch ? 'border-rose-500 bg-rose-500/10 shadow-[0_0_20px_-10px_rgba(244,63,94,0.3)]' : 'border-slate-700/80'}`} 
                      value={date} 
                      onChange={(e) => setDate(e.target.value)} 
                    />
@@ -259,14 +259,14 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
             </div>
           </section>
 
-          <section className="glass-card p-8 rounded-[2.5rem] border-white/5 space-y-8 shadow-2xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-8 opacity-[0.02] pointer-events-none group-hover:opacity-[0.05] transition-opacity">
+          <section className="p-8 rounded-[2.5rem] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] space-y-8 shadow-xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none group-hover:opacity-[0.06] transition-opacity">
                <ICONS.Models size={160} />
             </div>
             
             <div className="relative z-10 space-y-6">
                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xs font-black">02</div>
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center justify-center text-xs font-black">02</div>
                   <h2 className="text-sm font-black font-outfit uppercase tracking-widest text-white">Список анкет</h2>
                </div>
                
@@ -275,7 +275,7 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
                    <button 
                      key={m} 
                      onClick={() => toggleModel(m)} 
-                     className={`px-4 py-4 rounded-2xl text-[10px] font-black uppercase tracking-tighter transition-all border ${selectedModels.includes(m) ? 'bg-indigo-600 border-indigo-500 text-white shadow-xl shadow-indigo-600/20 scale-[1.02]' : 'bg-slate-900/40 border-slate-800 text-slate-600 hover:border-slate-700 hover:text-slate-400'}`}
+                     className={`px-4 py-4 rounded-2xl text-[10px] font-black uppercase tracking-tighter transition-all border ${selectedModels.includes(m) ? 'bg-indigo-600 border-indigo-400 text-white shadow-xl shadow-indigo-600/30 scale-[1.02]' : 'bg-slate-800/70 border-slate-700/70 text-slate-300 hover:border-slate-600 hover:text-white'}`}
                    >
                      {m}
                    </button>
@@ -293,27 +293,27 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
                 className="space-y-6"
               >
                 <div className="flex items-center gap-3 ml-4">
-                   <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xs font-black">03</div>
+                   <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center justify-center text-xs font-black">03</div>
                    <h2 className="text-sm font-black font-outfit uppercase tracking-widest text-white">Финансовые показатели</h2>
                 </div>
                 
                 <div className="grid grid-cols-1 gap-6">
                   {selectedModels.map((m, idx) => (
                     <motion.div 
-                      key={m}
+                      key={m} 
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: idx * 0.1 }}
-                      className="glass-card p-8 rounded-[2.5rem] space-y-6 shadow-2xl relative overflow-hidden group"
+                      className="p-8 rounded-[2.5rem] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] space-y-6 shadow-xl relative overflow-hidden group"
                     >
-                      <div className="flex items-center justify-between border-b border-white/5 pb-5">
+                      <div className="flex items-center justify-between border-b border-slate-700/70 pb-5">
                          <div className="flex flex-col">
                             <h3 className="font-black text-white text-xl font-outfit uppercase tracking-[0.2em]">{m}</h3>
-                            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">Personnel Model Instance</span>
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Personnel Model Instance</span>
                          </div>
                          <button 
                            onClick={() => toggleModel(m)} 
-                           className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center group/btn"
+                           className="w-10 h-10 rounded-xl bg-rose-500/15 text-rose-400 hover:bg-rose-500 hover:text-white border border-rose-500/30 transition-all flex items-center justify-center group/btn shadow-sm"
                          >
                             <ICONS.Trash size={18} className="group-hover/btn:rotate-12 transition-transform" />
                          </button>
@@ -321,7 +321,7 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                         <div className="space-y-4">
-                          <h4 className="text-[9px] font-black text-slate-600 uppercase tracking-[0.3em]">Кассовый доход ($)</h4>
+                          <h4 className="text-[9.5px] font-black text-slate-300 uppercase tracking-[0.3em]">Кассовый доход ($)</h4>
                           <div className="grid grid-cols-3 gap-4">
                              <IncomeField label="OF" value={modelData[m]?.of || ''} color="indigo" onChange={v => handleInputChange(m, 'of', v)} />
                              <IncomeField label="PP" value={modelData[m]?.pp || ''} color="sky" onChange={v => handleInputChange(m, 'pp', v)} />
@@ -330,7 +330,7 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
                         </div>
 
                         <div className="space-y-4">
-                          <h4 className="text-[9px] font-black text-slate-600 uppercase tracking-[0.3em]">Тарифная ставка (%)</h4>
+                          <h4 className="text-[9.5px] font-black text-slate-300 uppercase tracking-[0.3em]">Тарифная ставка (%)</h4>
                           <div className="grid grid-cols-3 gap-4">
                              <RateField label="OF %" value={modelData[m]?.pOF || ''} color="indigo" onChange={v => handleInputChange(m, 'pOF', v)} />
                              <RateField label="PP %" value={modelData[m]?.pPP || ''} color="sky" onChange={v => handleInputChange(m, 'pPP', v)} />
@@ -348,33 +348,33 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
 
         {/* RIGHT COLUMN: SUMMARY */}
         <div className="lg:col-span-4 sticky top-8 space-y-6">
-          <section className="glass-card p-8 rounded-[2.5rem] border-indigo-500/20 space-y-8 shadow-2xl relative overflow-hidden bg-gradient-to-br from-indigo-500/[0.03] to-transparent">
+          <section className="p-8 rounded-[2.5rem] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] space-y-8 shadow-2xl relative overflow-hidden">
             <h2 className="text-xl font-black font-outfit uppercase tracking-tight text-white mb-6">Сводка данных</h2>
             
             <div className="space-y-6">
-               <div className="p-6 bg-slate-950/60 rounded-[2rem] border border-white/5 space-y-3">
-                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Общий Грязный Вал</span>
+               <div className="p-6 bg-slate-800/80 rounded-[2rem] border border-slate-700/70 space-y-3 shadow-md">
+                  <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Общий Грязный Вал</span>
                   <div className="flex items-baseline gap-2">
                      <span className="text-3xl font-black font-mono text-white tracking-tighter">${totals.gross.toLocaleString(undefined, { minimumFractionDigits: 1 })}</span>
-                     <span className="text-[10px] font-bold text-slate-700">USD</span>
+                     <span className="text-[10px] font-bold text-slate-400">USD</span>
                   </div>
                </div>
 
-               <div className="p-6 bg-emerald-500/[0.03] rounded-[2rem] border border-emerald-500/20 shadow-[0_10px_40px_-20px_rgba(16,185,129,0.3)] space-y-3">
-                  <span className="text-[9px] font-black text-emerald-500/70 uppercase tracking-widest">Ваша Чистая Доля</span>
+               <div className="p-6 bg-emerald-500/15 rounded-[2rem] border border-emerald-500/35 shadow-[0_10px_40px_-20px_rgba(16,185,129,0.3)] space-y-3">
+                  <span className="text-[9px] font-black text-emerald-300 uppercase tracking-widest">Ваша Чистая Доля</span>
                   <div className="flex items-baseline gap-2">
-                     <span className="text-3xl font-black font-mono text-emerald-400 tracking-tighter">${totals.net.toLocaleString(undefined, { minimumFractionDigits: 1 })}</span>
-                     <span className="text-[10px] font-bold text-emerald-900/60 font-mono">NETTO</span>
+                     <span className="text-3xl font-black font-mono text-emerald-300 tracking-tighter">${totals.net.toLocaleString(undefined, { minimumFractionDigits: 1 })}</span>
+                     <span className="text-[10px] font-bold text-emerald-400 font-mono">NETTO</span>
                   </div>
                </div>
             </div>
 
             <div className="pt-4 space-y-2">
                <div className="flex justify-between items-center px-4">
-                  <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Анкет в чеке:</span>
+                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Анкет в чеке:</span>
                   <span className="text-[10px] font-black text-white font-mono">{selectedModels.length}</span>
                </div>
-               <div className="w-full h-[1px] bg-white/5" />
+               <div className="w-full h-[1px] bg-slate-700/60" />
             </div>
 
             <button 
@@ -411,8 +411,8 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
             </button>
           </section>
 
-          <section className="glass-card p-6 rounded-[2rem] border-white/5 space-y-6 shadow-xl opacity-60 hover:opacity-100 transition-opacity">
-            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] ml-1">Настройка тарифов</h3>
+          <section className="p-6 rounded-[2rem] border border-slate-700/70 bg-gradient-to-br from-[#182035] to-[#121627] space-y-6 shadow-xl opacity-90 hover:opacity-100 transition-opacity">
+            <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] ml-1">Настройка тарифов</h3>
             <div className="space-y-4">
               <GlobalRateInput label="Rate OnlyFans %" value={baselinePercents.of} onChange={v => setBaselinePercents(p => ({...p, of: v}))} />
               <GlobalRateInput label="Rate PayPal %" value={baselinePercents.pp} onChange={v => setBaselinePercents(p => ({...p, pp: v}))} />
@@ -427,13 +427,13 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
 
 const IncomeField = ({ label, value, onChange, color }: { label: string, value: string, onChange: (v: string) => void, color: string }) => (
   <div className="space-y-1.5 group/field">
-    <label className="text-[8px] font-black text-slate-600 uppercase tracking-widest ml-1 group-focus-within/field:text-indigo-400 transition-colors">{label}</label>
+    <label className="text-[8.5px] font-black text-slate-300 uppercase tracking-widest ml-1 group-focus-within/field:text-indigo-300 transition-colors">{label}</label>
     <div className="relative">
-       <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-700">$</div>
+       <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">$</div>
        <input 
          type="number" 
          placeholder="0.0" 
-         className={`w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-6 pr-3 py-3 text-xs font-mono text-white focus:border-indigo-500/50 focus:bg-slate-900 focus:outline-none transition-all`} 
+         className={`w-full bg-slate-800/90 border border-slate-700/80 rounded-xl pl-6 pr-3 py-3 text-xs font-mono text-white focus:border-indigo-400 focus:bg-slate-800 focus:outline-none transition-all shadow-sm`} 
          value={value} 
          onChange={e => onChange(e.target.value)} 
        />
@@ -443,12 +443,12 @@ const IncomeField = ({ label, value, onChange, color }: { label: string, value: 
 
 const RateField = ({ label, value, onChange, color }: { label: string, value: string, onChange: (v: string) => void, color: string }) => (
   <div className="space-y-1.5 group/field">
-    <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1 group-focus-within/field:text-indigo-400 transition-colors">{label}</label>
+    <label className="text-[8.5px] font-black text-slate-300 uppercase tracking-widest ml-1 group-focus-within/field:text-indigo-300 transition-colors">{label}</label>
     <div className="relative">
-       <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-indigo-900/60">%</div>
+       <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-indigo-400">%</div>
        <input 
          type="number" 
-         className={`w-full bg-indigo-500/[0.03] border border-indigo-500/20 rounded-xl px-4 py-3 text-xs font-mono text-indigo-400 focus:border-indigo-500 focus:bg-indigo-500/10 focus:outline-none transition-all`} 
+         className={`w-full bg-indigo-500/15 border border-indigo-500/30 rounded-xl px-4 py-3 text-xs font-mono text-indigo-200 focus:border-indigo-400 focus:bg-indigo-500/20 focus:outline-none transition-all shadow-sm`} 
          value={value} 
          onChange={e => onChange(e.target.value)} 
        />
@@ -458,10 +458,10 @@ const RateField = ({ label, value, onChange, color }: { label: string, value: st
 
 const GlobalRateInput = ({ label, value, onChange }: { label: string, value: string, onChange: (v: string) => void }) => (
   <div className="space-y-1.5">
-    <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">{label}</label>
+    <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1">{label}</label>
     <input 
       type="number" 
-      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 font-mono text-xs text-indigo-400 font-bold outline-none focus:border-slate-600 transition-all" 
+      className="w-full bg-slate-800/90 border border-slate-700/80 rounded-xl px-4 py-3 font-mono text-xs text-indigo-300 font-bold outline-none focus:border-indigo-400 transition-all shadow-sm" 
       value={value} 
       onChange={e => onChange(e.target.value)} 
     />

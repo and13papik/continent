@@ -634,14 +634,14 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     if (models.length === 0) return null;
     return (
       <>
-        <tr className="bg-slate-900/60">
-          <td colSpan={5} className="p-4 border-b border-slate-800/50">
+        <tr className="bg-slate-800/70">
+          <td colSpan={5} className="p-4 border-b border-slate-700/60">
             <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${colorClass} bg-opacity-20`}>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${colorClass} bg-opacity-25`}>
                 {icon}
               </div>
               <span className="text-xs font-black uppercase tracking-[0.2em] text-white">{title}</span>
-              <span className="text-[10px] font-bold text-slate-500 ml-auto">{models.length} анкет</span>
+              <span className="text-[10px] font-bold text-slate-400 ml-auto">{models.length} анкет</span>
             </div>
           </td>
         </tr>
@@ -652,11 +652,11 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
           });
 
           return (
-            <tr key={model} className={`group transition-colors ${mIdx % 2 === 0 ? 'bg-white/[0.01]' : 'bg-transparent'}`}>
-              <td className={`p-6 border-b border-slate-800/30 transition-all duration-500 ${
+            <tr key={model} className={`group transition-colors ${mIdx % 2 === 0 ? 'bg-white/[0.02]' : 'bg-transparent'}`}>
+              <td className={`p-6 border-b border-slate-700/40 transition-all duration-500 ${
                 isFullyStaffed 
-                  ? 'bg-emerald-500/[0.02] shadow-[inset_4px_0_0_0_#10b981]' 
-                  : 'bg-rose-500/[0.02] shadow-[inset_4px_0_0_0_#f43f5e]'
+                  ? 'bg-emerald-500/[0.04] shadow-[inset_4px_0_0_0_#10b981]' 
+                  : 'bg-rose-500/[0.04] shadow-[inset_4px_0_0_0_#f43f5e]'
               }`}>
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
@@ -871,19 +871,19 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       </div>
 
       {/* Grid */}
-      <div ref={rosterRef} className="glass-card rounded-[2.5rem] border-slate-800/50 overflow-hidden bg-slate-950">
+      <div ref={rosterRef} className="rounded-[2.5rem] border border-slate-700/70 overflow-hidden bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
-              <tr className="bg-slate-900/40">
-                <th className="p-6 text-left border-b border-slate-800/50 min-w-[250px]">
-                  <span className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-500">Модель / Анкета</span>
+              <tr className="bg-slate-800/60 border-b border-slate-700/70">
+                <th className="p-6 text-left border-b border-slate-700/70 min-w-[250px]">
+                  <span className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-300">Модель / Анкета</span>
                 </th>
                 {SHIFTS.map(shift => (
-                  <th key={shift.type} className="p-6 text-center border-b border-slate-800/50 min-w-[180px]">
+                  <th key={shift.type} className="p-6 text-center border-b border-slate-700/70 min-w-[180px]">
                     <div className="flex flex-col items-center gap-1">
                       <span className="text-sm font-black text-white">{shift.label}</span>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{shift.time}</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{shift.time}</span>
                     </div>
                   </th>
                 ))}
@@ -907,14 +907,14 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setEditingCell(null)}
-              className="absolute inset-0 bg-slate-950/80 backdrop-blur-xl"
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
             />
             
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-2xl glass-card rounded-[2.5rem] border-slate-800 p-8 md:p-12 shadow-2xl overflow-hidden"
+              className="relative w-full max-w-2xl rounded-[2.5rem] border border-slate-700/80 bg-gradient-to-br from-[#1b2238] to-[#121627] p-8 md:p-12 shadow-2xl overflow-hidden"
             >
               {/* Background Glow */}
               <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-600/20 blur-[100px] rounded-full" />
@@ -942,7 +942,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
 
                 {editingCell && getAssignment(editingCell.model, editingCell.shift) && !showSwapList ? (
                   <div className="space-y-6">
-                    <div className="p-8 rounded-[2rem] bg-white/[0.03] border border-white/5 flex items-center justify-between">
+                    <div className="p-8 rounded-[2rem] bg-slate-800/80 border border-slate-700 flex items-center justify-between">
                        <div className="flex items-center gap-6">
                           <div className="w-16 h-16 rounded-[1.5rem] bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/20 shadow-lg shadow-indigo-500/10">
                             <ICONS.User size={32} />
@@ -1056,7 +1056,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                           className={`w-full p-4 rounded-2xl border-2 transition-all text-left space-y-1 relative ${
                             isAssignedToThis
                               ? isTrainee ? 'bg-purple-600 border-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.3)]' : 'bg-indigo-600 border-indigo-500 text-white'
-                              : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                              : 'bg-slate-800/80 border-slate-700 text-slate-200 hover:border-slate-500 hover:text-white'
                           }`}
                         >
                           <div className="flex items-center justify-between">
@@ -1169,7 +1169,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="glass-card w-full max-w-sm rounded-[3rem] p-8 border-white/10 shadow-2xl relative overflow-hidden"
+              className="w-full max-w-sm rounded-[3rem] p-8 border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] shadow-2xl relative overflow-hidden"
             >
               <div className="relative z-10 space-y-8">
                   <div className="text-center">
@@ -1232,7 +1232,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="glass-card w-full max-w-2xl rounded-[3rem] p-8 md:p-12 border-white/10 shadow-2xl relative overflow-hidden"
+              className="w-full max-w-2xl rounded-[3rem] p-8 md:p-12 border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] shadow-2xl relative overflow-hidden"
             >
               <div className="relative z-10 space-y-10">
                 <div className="flex items-center justify-between">
@@ -1257,7 +1257,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                         value={newModelName}
                         onChange={e => setNewModelName(e.target.value)}
                         placeholder="Название анкеты (напр. Alena, Masha...)"
-                        className="flex-1 bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-indigo-500 outline-none transition-all"
+                        className="flex-1 bg-slate-800/90 border border-slate-700/80 rounded-2xl px-6 py-4 text-white focus:border-indigo-400 outline-none transition-all font-bold"
                         onKeyDown={e => e.key === 'Enter' && newModelName && addModelToPeriod(newModelName)}
                       />
                       <button 
@@ -1284,7 +1284,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                           <button
                             key={model}
                             onClick={() => addModelToPeriod(model)}
-                            className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-indigo-500/50 hover:bg-indigo-500/5 text-slate-300 hover:text-white transition-all text-center flex flex-col items-center gap-2"
+                            className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700 hover:border-indigo-500/50 hover:bg-indigo-500/5 text-slate-300 hover:text-white transition-all text-center flex flex-col items-center gap-2"
                           >
                             <ICONS.Models size={16} />
                             <span className="font-black text-[10px] uppercase tracking-tighter truncate w-full">{model}</span>
@@ -1297,7 +1297,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
 
                 <button 
                   onClick={() => setIsManagingModels(false)}
-                  className="w-full py-5 rounded-[2rem] bg-slate-900 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all border border-white/5"
+                  className="w-full py-5 rounded-[2rem] bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-widest transition-all border border-slate-700"
                 >
                   Завершить управление
                 </button>
@@ -1315,7 +1315,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="glass-card w-full max-w-2xl rounded-[3rem] p-8 md:p-12 border-white/10 shadow-2xl relative overflow-hidden bg-slate-950"
+              className="w-full max-w-2xl rounded-[3rem] p-8 md:p-12 border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] shadow-2xl relative overflow-hidden"
             >
               <div className="relative z-10 space-y-10">
                 <div className="flex items-center justify-between">
@@ -1340,7 +1340,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                         value={newOperatorName}
                         onChange={e => setNewOperatorName(e.target.value)}
                         placeholder="Имя оператора (напр. Anna, Vi...)"
-                        className="flex-1 bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-emerald-500 outline-none transition-all"
+                        className="flex-1 bg-slate-800/90 border border-slate-700/80 rounded-2xl px-6 py-4 text-white focus:border-emerald-400 outline-none transition-all font-bold"
                         onKeyDown={e => e.key === 'Enter' && newOperatorName && addOperatorToPeriod(newOperatorName)}
                       />
                       <button 
@@ -1367,7 +1367,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                           <button
                             key={op}
                             onClick={() => addOperatorToPeriod(op)}
-                            className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-slate-300 hover:text-white transition-all text-center flex flex-col items-center gap-2"
+                            className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-slate-300 hover:text-white transition-all text-center flex flex-col items-center gap-2"
                           >
                             <ICONS.User size={16} />
                             <span className="font-black text-[10px] uppercase tracking-tighter truncate w-full">{op}</span>
@@ -1383,7 +1383,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
                       {operators.filter(op => op !== 'ДЫРКА').map(op => (
                         <div
                           key={op}
-                          className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 text-slate-300 flex items-center justify-between gap-2"
+                          className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700 text-slate-300 flex items-center justify-between gap-2"
                         >
                           <div className="flex items-center gap-2 truncate">
                             <ICONS.User size={14} className="text-slate-500 shrink-0" />
@@ -1404,7 +1404,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
 
                 <button 
                   onClick={() => setIsManagingOperators(false)}
-                  className="w-full py-5 rounded-[2rem] bg-slate-900 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all border border-white/5"
+                  className="w-full py-5 rounded-[2rem] bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-widest transition-all border border-slate-700"
                 >
                   Завершить управление
                 </button>

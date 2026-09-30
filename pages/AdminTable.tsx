@@ -38,7 +38,7 @@ function StrategyInput({ label, value, onChange, placeholder }: { label: string;
       <label className="text-[10px] font-bold text-sky-400 uppercase tracking-widest ml-1">{label}</label>
       <input 
         type="text" 
-        className="w-full bg-slate-950/80 border border-slate-800/80 rounded-2xl px-4 py-3 text-xs text-white outline-none focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/30 transition-all placeholder:text-slate-700 font-sans font-medium" 
+        className="w-full bg-slate-800/90 border border-slate-700/80 rounded-2xl px-4 py-3 text-xs text-white outline-none focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/30 transition-all placeholder:text-slate-700 font-sans font-medium" 
         placeholder={placeholder}
         value={value} 
         onChange={e => onChange(e.target.value)} 
@@ -251,13 +251,13 @@ const TaskCard: React.FC<{
   };
 
   return (
-    <div className={`relative group bg-slate-950/40 rounded-[2.5rem] border transition-all duration-300 overflow-hidden shadow-lg ${
+    <div className={`relative group bg-slate-800/80 rounded-[2.5rem] border transition-all duration-300 overflow-hidden shadow-lg ${
       isOverdue 
-        ? 'border-rose-600 bg-rose-950/5 shadow-rose-950/10' 
+        ? 'border-rose-500 bg-rose-950/20 shadow-rose-950/20' 
         : isDirective 
-          ? 'border-amber-500/20 shadow-[0_0_40px_rgba(245,158,11,0.02)]' 
-          : 'border-slate-800/70 hover:border-slate-700/80 hover:bg-slate-900/10'
-    } ${isCompleted ? 'opacity-40 grayscale-[20%]' : ''}`}>
+          ? 'border-amber-500/40 bg-gradient-to-br from-[#231e2b] to-[#151726]' 
+          : 'border-slate-700/70 hover:border-slate-600 hover:bg-slate-800'
+    } ${isCompleted ? 'opacity-50 grayscale-[20%]' : ''}`}>
       <div className="p-8 flex flex-col md:flex-row justify-between gap-6 relative">
         <div className="flex-1 space-y-4">
           <div className="flex items-center gap-2 flex-wrap">
@@ -389,12 +389,12 @@ const TaskCard: React.FC<{
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="bg-slate-950/80 border-t border-slate-900 px-6 sm:px-8 py-8 space-y-8 overflow-hidden"
+            className="bg-slate-800/60 border-t border-slate-700/70 px-6 sm:px-8 py-8 space-y-8 overflow-hidden"
           >
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-4">
                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block font-mono">Контекст выполнения и Цель</label>
-                   <div className="text-[13px] text-slate-300 leading-relaxed bg-slate-900/30 p-6 rounded-2xl border border-slate-800/40">
+                   <div className="text-[13px] text-slate-300 leading-relaxed bg-slate-800/90 p-6 rounded-2xl border border-slate-700/70">
                       <BlockDescriptionViewer blocks={task.descriptionBlocks} fallbackText={task.description || 'Руководство не прикрепило детальное описание.'} />
                       {task.strategyData?.goal && (
                         <div className="mt-4 pt-3 border-t border-slate-800/40 flex flex-col gap-1">
@@ -415,7 +415,7 @@ const TaskCard: React.FC<{
                   
                   <div className="space-y-2.5 max-h-[180px] overflow-y-auto pr-2 custom-scrollbar font-mono">
                      {task.notes.map(n => (
-                        <div key={n.id} className="p-4 bg-slate-900/20 rounded-xl border border-slate-850 flex justify-between gap-4 text-[11px]">
+                        <div key={n.id} className="p-4 bg-slate-800/80 rounded-xl border border-slate-700/70 flex justify-between gap-4 text-[11px]">
                            <span className="text-slate-300 flex-1 leading-relaxed font-sans">{n.text}</span>
                            <span className="text-slate-600 uppercase font-bold text-[8px] self-end">
                              {n.author === 'All' ? 'ОБЩЕЕ (Rector + Admin VI)' : n.author === 'Rector' ? 'Rector' : n.author === 'Mentor' ? 'Admin Vi' : n.author}
@@ -714,31 +714,31 @@ const AdminTable: React.FC<{
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
       
       {/* HEADER SECTION WITH ADVANCED ROLES TOGGLE & AUDIT STATS */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gradient-to-r from-slate-950 to-slate-900 p-8 rounded-[2.5rem] border border-slate-800/80 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-sky-500/5 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gradient-to-br from-[#192138] to-[#121627] p-8 rounded-[2.5rem] border border-slate-700/80 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="space-y-2">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
+            <div className="h-9 w-9 rounded-xl bg-sky-500/20 border border-sky-500/30 flex items-center justify-center text-sky-400">
                <Terminal size={18} />
             </div>
             <div>
                <h1 className="text-2xl font-black font-outfit text-white tracking-tight flex items-center gap-2">
                  Панель Администратора <PeriodBadge state={state} />
                </h1>
-               <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">Центральный пульт управления континентальной ведомостью</p>
+               <p className="text-[10px] text-slate-400 uppercase tracking-widest font-mono">Центральный пульт управления континентальной ведомостью</p>
             </div>
           </div>
         </div>
 
         {/* ROLE SELECTOR & LAUNCH BUTTON */}
         <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-850/60 font-mono">
-            <span className="text-[9px] text-slate-500 font-bold px-2 uppercase">Симуляция:</span>
+          <div className="flex items-center gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-700 font-mono">
+            <span className="text-[9px] text-slate-400 font-bold px-2 uppercase">Симуляция:</span>
             {(['All', 'Rector', 'Mentor'] as const).map(role => (
               <button
                 key={role}
                 onClick={() => setCurrentAdminRole(role)}
-                className={`text-[9px] px-3.5 py-1.5 rounded-xl font-bold transition-all ${currentAdminRole === role ? 'text-white bg-sky-600 shadow-md shadow-sky-600/10' : 'text-slate-500 hover:text-slate-300'}`}
+                className={`text-[9px] px-3.5 py-1.5 rounded-xl font-bold transition-all ${currentAdminRole === role ? 'text-white bg-sky-600 shadow-md shadow-sky-600/20' : 'text-slate-400 hover:text-slate-200'}`}
               >
                 {role === 'All' ? 'ОБЩЕЕ (Rector + Admin VI)' : role === 'Rector' ? 'RECTOR' : 'ADMIN VI'}
               </button>
@@ -747,7 +747,7 @@ const AdminTable: React.FC<{
 
           <button 
             onClick={() => setIsCreating(!isCreating)}
-            className="bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-[10px] uppercase tracking-widest px-6 py-3.5 rounded-2xl shadow-xl shadow-sky-600/15 transition-all active:scale-95 flex items-center gap-2 animate-pulse hover:animate-none font-mono"
+            className="bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-[10px] uppercase tracking-widest px-6 py-3.5 rounded-2xl shadow-xl shadow-sky-600/25 transition-all active:scale-95 flex items-center gap-2 font-mono"
           >
             <Plus size={14} /> {isCreating ? 'Скрыть блок' : 'Инициировать'}
           </button>
@@ -757,15 +757,15 @@ const AdminTable: React.FC<{
       {/* ADMIN METRICS DASHBOARD */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 font-mono">
         {[
-          { label: 'КРИТИЧЕСКИЕ ДИРЕКТИВЫ', value: adminMetrics.urgentCount, color: 'text-rose-500 border-rose-500/10', bg: 'bg-rose-500/5', desc: 'Требуется контроль' },
-          { label: 'НА ПРОВЕРКЕ АДМИНА', value: adminMetrics.reviewCount, color: 'text-amber-500 border-amber-500/10', bg: 'bg-amber-500/5', desc: 'Ждут верификации' },
-          { label: 'АКТИВНЫЕ ЗАДАЧИ', value: adminMetrics.progressCount, color: 'text-sky-500 border-sky-500/10', bg: 'bg-sky-500/5', desc: 'В настоящее время' },
-          { label: 'ВЫПОЛНЕННЫЕ ПОЛНОСТЬЮ', value: adminMetrics.completedCount, color: 'text-emerald-500 border-emerald-500/10', bg: 'bg-emerald-500/5', desc: 'Закрытые сессии' }
+          { label: 'КРИТИЧЕСКИЕ ДИРЕКТИВЫ', value: adminMetrics.urgentCount, color: 'text-rose-400 border-rose-500/30', bg: 'bg-rose-500/10', desc: 'Требуется контроль' },
+          { label: 'НА ПРОВЕРКЕ АДМИНА', value: adminMetrics.reviewCount, color: 'text-amber-400 border-amber-500/30', bg: 'bg-amber-500/10', desc: 'Ждут верификации' },
+          { label: 'АКТИВНЫЕ ЗАДАЧИ', value: adminMetrics.progressCount, color: 'text-sky-400 border-sky-500/30', bg: 'bg-sky-500/10', desc: 'В настоящее время' },
+          { label: 'ВЫПОЛНЕННЫЕ ПОЛНОСТЬЮ', value: adminMetrics.completedCount, color: 'text-emerald-400 border-emerald-500/30', bg: 'bg-emerald-500/10', desc: 'Закрытые сессии' }
         ].map((card, i) => (
-          <div key={i} className={`p-6 bg-slate-950/40 rounded-3xl border border-slate-850 flex flex-col justify-between gap-4 relative overflow-hidden`}>
+          <div key={i} className={`p-6 bg-slate-800/80 rounded-3xl border border-slate-700/80 shadow-md flex flex-col justify-between gap-4 relative overflow-hidden`}>
              <div className="space-y-1">
-                <span className="text-[9px] font-black text-slate-550 uppercase tracking-widest">{card.label}</span>
-                <p className="text-[10px] text-slate-600 tracking-tight font-sans">{card.desc}</p>
+                <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{card.label}</span>
+                <p className="text-[10px] text-slate-400 tracking-tight font-sans">{card.desc}</p>
              </div>
              <div className="flex justify-between items-end">
                 <p className={`text-4xl font-black font-outfit ${card.color.split(' ')[0]}`}>{card.value}</p>
@@ -777,7 +777,7 @@ const AdminTable: React.FC<{
 
       {/* --- FORM FOR INITIATING & DELEGATING --- */}
       {isCreating && activeMode === 'regular' && (
-        <div className="relative overflow-hidden bg-gradient-to-b from-slate-900/60 to-slate-950/80 p-8 sm:p-10 rounded-[3rem] border border-sky-500/20 space-y-6 animate-in slide-in-from-top-4 shadow-2xl">
+        <div className="relative overflow-hidden bg-gradient-to-br from-[#192138] to-[#121627] p-8 sm:p-10 rounded-[3rem] border border-slate-700/80 space-y-6 animate-in slide-in-from-top-4 shadow-2xl">
             <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-sky-500/20 to-transparent"></div>
             
             <div>
@@ -793,7 +793,7 @@ const AdminTable: React.FC<{
                      <div className="space-y-1">
                         <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1">Название задачи</label>
                         <input 
-                          className="w-full bg-slate-950 border border-slate-800/80 rounded-2xl px-5 py-4 text-xs text-white font-bold outline-none focus:border-sky-500/40 font-sans" 
+                          className="w-full bg-slate-800/90 border border-slate-700/80 rounded-2xl px-5 py-4 text-xs text-white font-bold outline-none focus:border-sky-500/40 font-sans" 
                           placeholder="Суть задачи..." 
                           value={newTitle} 
                           onChange={e => setNewTitle(e.target.value)} 
@@ -814,7 +814,7 @@ const AdminTable: React.FC<{
                  <div>
                     <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1 mb-1 block">Ответственный</label>
                     <select 
-                      className="w-full bg-slate-950 border border-slate-800/80 rounded-2xl px-4 py-3.5 text-xs text-white font-bold outline-none cursor-pointer focus:border-sky-500/40" 
+                      className="w-full bg-slate-800/90 border border-slate-700/80 rounded-2xl px-4 py-3.5 text-xs text-white font-bold outline-none cursor-pointer focus:border-sky-500/40" 
                       value={newTo} 
                       onChange={e => setNewTo(e.target.value as any)}
                     >
@@ -836,7 +836,7 @@ const AdminTable: React.FC<{
                     <div>
                        <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1 mb-1 block">Приоритет</label>
                        <select 
-                         className="w-full bg-slate-950 border border-slate-800/80 rounded-2xl px-4 py-3.5 text-xs text-white font-bold outline-none cursor-pointer focus:border-sky-500/40" 
+                         className="w-full bg-slate-800/90 border border-slate-700/80 rounded-2xl px-4 py-3.5 text-xs text-white font-bold outline-none cursor-pointer focus:border-sky-500/40" 
                          value={newPrio} 
                          onChange={e => setNewPrio(e.target.value as any)}
                        >
@@ -847,7 +847,7 @@ const AdminTable: React.FC<{
                        <label className="text-[9px] font-black text-slate-550 uppercase tracking-widest ml-1 mb-1 block">Дедлайн</label>
                        <input 
                           type="date" 
-                          className="w-full bg-slate-950 border border-slate-800/80 rounded-2xl px-4 py-3 text-xs text-white font-bold outline-none cursor-pointer focus:border-sky-500/40"
+                          className="w-full bg-slate-800/90 border border-slate-700/80 rounded-2xl px-4 py-3 text-xs text-white font-bold outline-none cursor-pointer focus:border-sky-500/40"
                           value={newDueDate}
                           onChange={e => setNewDueDate(e.target.value)}
                        />
@@ -868,7 +868,7 @@ const AdminTable: React.FC<{
       )}
 
       {/* --- SECTIONS AND FILTERS WORKSPACE --- */}
-      <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center bg-slate-950/40 p-4 rounded-3xl border border-slate-800/60 shadow-inner">
+      <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center bg-slate-800/80 p-4 rounded-3xl border border-slate-700/80 shadow-md">
         <div className="flex flex-wrap gap-4 items-center pl-2">
           {[
             { id: 'directive', label: 'ДИРЕКТИВЫ' },
@@ -897,7 +897,7 @@ const AdminTable: React.FC<{
             <Search size={12} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600" />
             <input 
               type="text" 
-              className="w-full bg-slate-950 border border-slate-800 px-8 py-2 rounded-xl text-[10px] text-white outline-none focus:border-sky-500/40 placeholder:text-slate-755 font-mono" 
+              className="w-full bg-slate-800/90 border border-slate-700 px-8 py-2 rounded-xl text-[10px] text-white outline-none focus:border-sky-500/40 placeholder:text-slate-755 font-mono" 
               placeholder="Искать в ведомости..."
               value={taskSearch}
               onChange={e => setTaskSearch(e.target.value)}
@@ -908,7 +908,7 @@ const AdminTable: React.FC<{
           </div>
 
           {/* SECONDARY FILTER */}
-          <div className="flex gap-1.5 overflow-x-auto no-scrollbar bg-slate-950 p-1 rounded-xl">
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar bg-slate-800/90 border border-slate-700 p-1 rounded-xl">
              {[
                { id: 'all', label: 'ВСЕ' },
                { id: 'critical', label: 'КРИТИЧЕСКИЕ' },

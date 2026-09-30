@@ -606,7 +606,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
       className="space-y-6 pb-20"
     >
       {/* METRICS SUB-TABS */}
-      <div className="flex flex-wrap gap-1 bg-slate-950/60 p-1 rounded-2xl border border-white/[0.03]">
+      <div className="flex flex-wrap gap-1.5 bg-slate-800/80 p-1.5 rounded-2xl border border-slate-700/80 shadow-md">
         {[
           { id: 'overview', label: 'Обзор', icon: ICONS.Dashboard },
           { id: 'diagnostics', label: 'Анализ & Инсайты', icon: ICONS.Penalty, highlight: metrics.diagnostics.warnings.length > 0 },
@@ -623,14 +623,14 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs font-bold uppercase font-mono tracking-wider transition-all duration-300 flex items-center justify-center gap-2 border ${
                 isActive 
-                  ? 'bg-gradient-to-br from-indigo-500/15 to-violet-500/5 text-indigo-400 border-indigo-500/20 shadow-md shadow-indigo-950/40' 
-                  : 'text-slate-500 border-transparent hover:text-slate-300 hover:bg-white/[0.02]'
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white border-indigo-400/50 shadow-md shadow-indigo-600/30 font-black' 
+                  : 'text-slate-300 border-transparent hover:text-white hover:bg-slate-700/60'
               }`}
             >
               {Icon && <Icon size={14} />}
               <span>{tab.label}</span>
               {tab.highlight && (
-                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse shrink-0" />
               )}
             </button>
           );
@@ -662,7 +662,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                 {/* GRAPH & PLATFORM BREAKDOWN */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* MAIN CHART */}
-                  <div className="lg:col-span-2 glass-card p-5 rounded-3xl border border-white/5 bg-slate-950/45 space-y-4">
+                  <div className="lg:col-span-2 p-5 rounded-3xl border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <h3 className="text-sm font-black uppercase text-slate-300 tracking-wider font-mono flex items-center gap-2">
@@ -670,7 +670,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                           Динамика выручки
                         </h3>
 
-                        <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-white/5">
+                        <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-700/70">
                           {[
                             { id: 'all', label: 'Все' },
                             { id: 'onlyFans', label: 'OF' },
@@ -728,7 +728,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                   </div>
 
                   {/* PLATFORM BREAKDOWN */}
-                  <div className="glass-card p-5 rounded-3xl border border-white/5 bg-slate-950/45 flex flex-col justify-between space-y-4">
+                  <div className="p-5 rounded-3xl border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl flex flex-col justify-between space-y-4">
                     <div>
                       <h3 className="text-sm font-black uppercase text-slate-300 tracking-wider font-mono flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -767,7 +767,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
 
                     <div className="space-y-2">
                       {metrics.platformShare.map(platform => (
-                        <div key={platform.name} className="flex justify-between items-center bg-slate-950/40 p-2.5 rounded-xl border border-white/[0.02]">
+                        <div key={platform.name} className="flex justify-between items-center bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
                           <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: platform.color }} />
                             <span className="text-xs font-bold text-slate-300">{platform.name}</span>
@@ -785,16 +785,16 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                 {/* BOTTOM SUMMARY ROW */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* MOST PROFITABLE DAYS */}
-                  <div className="glass-card p-5 rounded-3xl border border-white/5 bg-slate-950/45 space-y-3">
+                  <div className="p-5 rounded-3xl border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-3">
                     <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider font-mono flex items-center gap-1.5">
                       <ICONS.Income size={14} className="text-emerald-400" />
                       Топ-5 лучших дней периода
                     </h3>
                     <div className="space-y-2">
                       {metrics.mostProfitableDays.map((day, idx) => (
-                        <div key={day.date} className="p-3 bg-slate-950/40 rounded-xl border border-white/[0.02] hover:border-white/5 transition-colors flex justify-between items-center">
+                        <div key={day.date} className="p-3 bg-slate-800/80 rounded-xl border border-slate-700/60 hover:border-slate-700/70 transition-colors flex justify-between items-center">
                           <div className="flex items-center gap-2.5">
-                            <span className="w-5 h-5 rounded-md bg-slate-900 border border-white/5 flex items-center justify-center text-[10px] font-black text-slate-500 font-mono">
+                            <span className="w-5 h-5 rounded-md bg-slate-900 border border-slate-700/70 flex items-center justify-center text-[10px] font-black text-slate-500 font-mono">
                               {idx + 1}
                             </span>
                             <span className="text-xs font-bold text-slate-200">{metrics.formatDate(day.date)}</span>
@@ -806,16 +806,16 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                   </div>
 
                   {/* WEEKLY DYNAMICS OF LEADERS */}
-                  <div className="glass-card p-5 rounded-3xl border border-white/5 bg-slate-950/45 space-y-3">
+                  <div className="p-5 rounded-3xl border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-3">
                     <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider font-mono flex items-center gap-1.5">
                       <ICONS.Reports size={14} className="text-indigo-400" />
                       Недельная динамика лидеров
                     </h3>
                     <div className="space-y-2">
                       {metrics.topOperatorsWeek.slice(0, 5).map((op, idx) => (
-                        <div key={op.name} className="p-3 bg-slate-950/40 rounded-xl border border-white/[0.02] hover:border-white/5 transition-colors flex justify-between items-center">
+                        <div key={op.name} className="p-3 bg-slate-800/80 rounded-xl border border-slate-700/60 hover:border-slate-700/70 transition-colors flex justify-between items-center">
                           <div className="flex items-center gap-2.5">
-                            <span className="w-5 h-5 rounded-md bg-slate-900 border border-white/5 flex items-center justify-center text-[10px] font-black text-slate-500 font-mono">
+                            <span className="w-5 h-5 rounded-md bg-slate-900 border border-slate-700/70 flex items-center justify-center text-[10px] font-black text-slate-500 font-mono">
                               {idx + 1}
                             </span>
                             <span className="text-xs font-bold text-slate-200">{op.name}</span>
@@ -838,7 +838,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
             {activeTab === 'diagnostics' && (
               <div className="space-y-6">
                 {/* AGENCY HEALTH HEADER */}
-                <div className="p-6 rounded-3xl border border-white/5 bg-gradient-to-b from-slate-950 to-slate-900/60 relative overflow-hidden">
+                <div className="p-6 rounded-3xl border border-slate-700/70 bg-gradient-to-b from-slate-950 to-slate-900/60 relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/[0.02] rounded-full blur-3xl pointer-events-none" />
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
                     <div className="space-y-1">
@@ -853,7 +853,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                     </div>
                   </div>
                   {/* PROGRESS BAR */}
-                  <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden mt-4 p-[1px] border border-white/5">
+                  <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden mt-4 p-[1px] border border-slate-700/70">
                     <div 
                       className={`h-full rounded-full transition-all duration-500 ${
                         metrics.planFulfillmentForecast >= 100 ? 'bg-gradient-to-r from-emerald-600 to-emerald-400' : 
@@ -868,7 +868,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* ACHIEVEMENTS ("ЧТО ИДЕТ ОТЛИЧНО 👍") */}
                   <div className="glass-card p-5 rounded-3xl border border-emerald-500/10 bg-slate-950/30 space-y-4">
-                    <div className="flex items-center gap-2.5 border-b border-white/5 pb-3">
+                    <div className="flex items-center gap-2.5 border-b border-slate-700/70 pb-3">
                       <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
                         <ICONS.Check size={16} />
                       </div>
@@ -897,7 +897,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
 
                   {/* RISKS ("Зоны риска & Что идет плохо ⚠️") */}
                   <div className="glass-card p-5 rounded-3xl border border-rose-500/10 bg-slate-950/30 space-y-4">
-                    <div className="flex items-center gap-2.5 border-b border-white/5 pb-3">
+                    <div className="flex items-center gap-2.5 border-b border-slate-700/70 pb-3">
                       <div className="w-8 h-8 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
                         <ICONS.Penalty size={16} />
                       </div>
@@ -935,14 +935,14 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                 </div>
 
                 {/* OWNER RECOMMENDATIONS */}
-                <div className="p-5 rounded-3xl border border-white/5 bg-slate-950/50 space-y-3">
+                <div className="p-5 rounded-3xl border border-slate-700/70 bg-slate-800/80 space-y-3">
                   <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider font-mono flex items-center gap-2">
                     <ICONS.Settings size={14} className="animate-spin" style={{ animationDuration: '6s' }} />
                     Рекомендации для руководства
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                     {metrics.diagnostics.recommendations.map((rec, i) => (
-                      <div key={i} className="p-3 bg-slate-900/60 rounded-xl border border-white/[0.02] flex items-start gap-2.5">
+                      <div key={i} className="p-3 bg-slate-900/60 rounded-xl border border-slate-700/60 flex items-start gap-2.5">
                         <span className="text-indigo-400 mt-0.5 text-xs font-bold">●</span>
                         <p className="text-xs text-slate-300 leading-relaxed">{rec}</p>
                       </div>
@@ -962,7 +962,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                     <input 
                       type="text" 
                       placeholder="Поиск модели..." 
-                      className="bg-slate-950/60 border border-white/5 rounded-xl pl-9.5 pr-4 py-2 text-xs text-white outline-none focus:border-indigo-500/40 w-full placeholder-slate-600 transition-colors"
+                      className="bg-slate-800/80 border border-slate-700/70 rounded-xl pl-9.5 pr-4 py-2 text-xs text-white outline-none focus:border-indigo-500/40 w-full placeholder-slate-600 transition-colors"
                       value={modelFilterSearch}
                       onChange={e => setModelFilterSearch(e.target.value)}
                     />
@@ -980,7 +980,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                           ? 'border-indigo-500 bg-indigo-950/15 shadow-indigo-950/50 shadow-xl'
                           : model.status === 'bad' ? 'bg-rose-950/[0.04] border-rose-500/10 hover:border-rose-500/30' : 
                             model.status === 'warning' ? 'bg-amber-950/[0.03] border-amber-500/10 hover:border-amber-500/30' : 
-                            'bg-slate-950/45 border-white/[0.03] hover:border-white/10'
+                            'bg-slate-950/45 border-white/[0.03] hover:border-slate-700/80'
                       }`}
                     >
                       <div className="absolute top-0 right-0 w-20 h-20 bg-white/[0.01] rounded-full blur-xl pointer-events-none transition-all group-hover:scale-125" />
@@ -1070,7 +1070,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
                           {/* LINE CHART */}
-                          <div className="space-y-2 bg-slate-950/40 p-4 rounded-2xl border border-white/[0.02]">
+                          <div className="space-y-2 bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60">
                             <h4 className="text-[10px] font-mono font-black uppercase text-slate-400 tracking-wider">График дохода OnlyFans по дням</h4>
                             <div className="h-[200px]">
                               <ResponsiveContainer width="100%" height="100%">
@@ -1094,14 +1094,14 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                           </div>
 
                           {/* OPERATORS WORKED */}
-                          <div className="space-y-2 bg-slate-950/40 p-4 rounded-2xl border border-white/[0.02] flex flex-col justify-between">
+                          <div className="space-y-2 bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60 flex flex-col justify-between">
                             <h4 className="text-[10px] font-mono font-black uppercase text-slate-400 tracking-wider mb-2">Операторы, работавшие на модели</h4>
                             <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
                               {Object.entries(selectedModelData.operators).length === 0 ? (
                                 <p className="text-xs text-slate-500 italic">Нет зарегистрированных смен за период.</p>
                               ) : (
                                 Object.entries(selectedModelData.operators).sort((a,b) => b[1] - a[1]).map(([opName, opTotal]) => (
-                                  <div key={opName} className="p-2.5 bg-slate-950/60 rounded-xl border border-white/[0.02] flex justify-between items-center">
+                                  <div key={opName} className="p-2.5 bg-slate-800/80 rounded-xl border border-slate-700/60 flex justify-between items-center">
                                     <span className="text-xs font-bold text-slate-300">{opName}</span>
                                     <span className="text-xs font-mono font-black text-emerald-400">${opTotal.toLocaleString()}</span>
                                   </div>
@@ -1127,7 +1127,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                     <input 
                       type="text" 
                       placeholder="Поиск оператора..." 
-                      className="bg-slate-950/60 border border-white/5 rounded-xl pl-9.5 pr-4 py-2 text-xs text-white outline-none focus:border-indigo-500/40 w-full placeholder-slate-600 transition-colors"
+                      className="bg-slate-800/80 border border-slate-700/70 rounded-xl pl-9.5 pr-4 py-2 text-xs text-white outline-none focus:border-indigo-500/40 w-full placeholder-slate-600 transition-colors"
                       value={opFilterSearch}
                       onChange={e => setOpFilterSearch(e.target.value)}
                     />
@@ -1135,7 +1135,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                 </div>
 
                 {/* RANKINGS GRID */}
-                <div className="glass-card p-5 rounded-3xl border border-white/5 bg-slate-950/45 space-y-4">
+                <div className="p-5 rounded-3xl border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-4">
                   <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider font-mono flex items-center gap-2">
                     <ICONS.Reports size={14} className="text-sky-400" />
                     Рейтинг эффективности операторов периода
@@ -1144,7 +1144,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="border-b border-white/5">
+                        <tr className="border-b border-slate-700/70">
                           <th className="py-3 text-[10px] uppercase text-slate-500 font-black tracking-widest font-mono">Ранг & Имя</th>
                           <th className="py-3 text-[10px] uppercase text-slate-500 font-black tracking-widest font-mono text-center">Дней</th>
                           <th className="py-3 text-[10px] uppercase text-slate-500 font-black tracking-widest font-mono text-center">OF Доля %</th>
@@ -1165,7 +1165,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                             else if (op.consistencyIndex >= 40) stabilityColor = 'bg-amber-500/10 text-amber-400 border-amber-500/15';
 
                             return (
-                              <tr key={op.name} className="border-b border-white/[0.02] hover:bg-white/[0.02] transition-colors">
+                              <tr key={op.name} className="border-b border-slate-700/60 hover:bg-white/[0.02] transition-colors">
                                 <td className="py-3.5">
                                   <div className="flex items-center gap-3">
                                     <span className="text-xs font-black text-slate-600 font-mono w-4">{idx + 1}</span>
@@ -1196,7 +1196,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
             {activeTab === 'calendar' && (
               <div className="space-y-6">
                 {/* DAY OF WEEK UNBIASED AVERAGES */}
-                <div className="glass-card p-5 rounded-3xl border border-white/5 bg-slate-950/45 space-y-4">
+                <div className="p-5 rounded-3xl border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-4">
                   <div>
                     <h3 className="text-xs font-black uppercase text-slate-300 tracking-wider font-mono flex items-center gap-2">
                       <ICONS.Calendar size={14} className="text-amber-400" />
@@ -1207,7 +1207,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
                     {metrics.dowAverages.map((day) => (
-                      <div key={day.dow} className="p-3.5 bg-slate-950/60 rounded-xl border border-white/[0.02] flex flex-col items-center space-y-1 hover:border-white/5 transition-all text-center">
+                      <div key={day.dow} className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700/60 flex flex-col items-center space-y-1 hover:border-slate-700/70 transition-all text-center">
                         <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">{day.name.slice(0, 3)}</span>
                         <span className="text-sm font-black text-white font-mono">${day.average.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                         <span className="text-[8px] font-mono text-slate-600 uppercase">Смен: {day.count}</span>
@@ -1217,7 +1217,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                 </div>
 
                 {/* MONTH HEATMAP BOARD */}
-                <div className="glass-card p-5 rounded-3xl border border-white/5 bg-slate-950/45 space-y-4">
+                <div className="p-5 rounded-3xl border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-4">
                   <div>
                     <h3 className="text-xs font-black uppercase text-slate-300 tracking-wider font-mono flex items-center gap-2">
                       <ICONS.Dashboard size={14} className="text-violet-400" />
@@ -1231,7 +1231,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
                       const dateParts = day.date.split('-');
                       const dayNum = dateParts.length === 3 ? parseInt(dateParts[2], 10) : 0;
                       
-                      let colorClass = 'bg-slate-900/60 border-white/[0.02] text-slate-500';
+                      let colorClass = 'bg-slate-900/60 border-slate-700/60 text-slate-500';
                       let label = 'Пропущен';
                       
                       if (day.value > 0) {
@@ -1282,33 +1282,33 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
 // MINI HELPERS
 function StatBox({ label, value, subValue, color }: { label: string; value: string; subValue?: string; color: string }) {
   const colors: Record<string, string> = {
-    indigo: 'text-indigo-400 border-indigo-500/10 bg-indigo-500/[0.02]',
-    emerald: 'text-emerald-400 border-emerald-500/10 bg-emerald-500/[0.02]',
-    red: 'text-rose-400 border-rose-500/10 bg-rose-500/[0.02]',
-    amber: 'text-amber-400 border-amber-500/10 bg-amber-500/[0.02]',
-    pink: 'text-pink-400 border-pink-500/10 bg-pink-500/[0.02]'
+    indigo: 'text-indigo-200 border-indigo-500/40 bg-gradient-to-br from-[#1c243c] to-[#131929] shadow-md',
+    emerald: 'text-emerald-200 border-emerald-500/40 bg-gradient-to-br from-[#142e27] to-[#0f211c] shadow-md',
+    red: 'text-rose-200 border-rose-500/40 bg-gradient-to-br from-[#331823] to-[#1f0f16] shadow-md',
+    amber: 'text-amber-200 border-amber-500/40 bg-gradient-to-br from-[#332514] to-[#21170d] shadow-md',
+    pink: 'text-pink-200 border-pink-500/40 bg-gradient-to-br from-[#31182c] to-[#1f0f1b] shadow-md'
   };
   return (
-    <div className={`p-4 rounded-2xl border ${colors[color] || 'bg-slate-900/40 border-slate-800'} transition-all`}>
-      <p className="text-[9px] uppercase text-slate-500 font-black tracking-widest mb-1.5 font-mono">{label}</p>
-      <p className={`text-xl font-black font-mono ${colors[color]?.split(' ')[0] || 'text-white'}`}>{value}</p>
-      {subValue && <p className="text-[9px] font-bold text-slate-500 mt-1 uppercase font-mono">{subValue}</p>}
+    <div className={`p-4 rounded-2xl border ${colors[color] || 'bg-slate-800/80 border-slate-700/80'} transition-all`}>
+      <p className="text-[9px] uppercase text-slate-300 font-black tracking-widest mb-1.5 font-mono">{label}</p>
+      <p className="text-xl font-black font-mono text-white">{value}</p>
+      {subValue && <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase font-mono">{subValue}</p>}
     </div>
   );
 }
 
 function MiniStat({ label, value, subValue, color }: { label: string; value: string; subValue?: string; color: string }) {
   const colors: Record<string, string> = {
-    indigo: 'text-indigo-400',
-    emerald: 'text-emerald-400',
-    pink: 'text-pink-400',
-    amber: 'text-amber-400'
+    indigo: 'text-indigo-300',
+    emerald: 'text-emerald-300',
+    pink: 'text-pink-300',
+    amber: 'text-amber-300'
   };
   return (
-    <div className="p-3 bg-slate-950/70 border border-white/[0.02] rounded-xl">
-      <span className="text-[8px] font-mono font-bold text-slate-500 uppercase tracking-wider block">{label}</span>
+    <div className="p-3 bg-slate-800/90 border border-slate-700/70 rounded-xl shadow-sm">
+      <span className="text-[8px] font-mono font-bold text-slate-400 uppercase tracking-wider block">{label}</span>
       <span className={`text-sm font-black font-mono block mt-0.5 ${colors[color] || 'text-white'}`}>{value}</span>
-      {subValue && <span className="text-[8px] font-bold text-slate-500 block mt-0.5 truncate uppercase font-mono">{subValue}</span>}
+      {subValue && <span className="text-[8px] font-bold text-slate-400 block mt-0.5 truncate uppercase font-mono">{subValue}</span>}
     </div>
   );
 }

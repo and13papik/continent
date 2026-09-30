@@ -365,23 +365,23 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       <div className="absolute top-1/2 right-10 w-96 h-96 bg-amber-500/[0.02] rounded-full blur-[120px] pointer-events-none" />
 
       {/* EQUILIBRIUM EQUITY BOARD - COMPACT OWNER FINANCE DASHBOARD */}
-      <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-b from-[#0B0F19] via-[#0D1322] to-[#070A12] border border-slate-800/80 p-5 md:p-6 shadow-2xl backdrop-blur-2xl">
+      <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#192138] to-[#121627] border border-slate-700/80 p-5 md:p-6 shadow-2xl backdrop-blur-2xl">
          {/* Ambient Background Glows */}
-         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[250px] bg-emerald-500/[0.02] rounded-full blur-[120px] pointer-events-none" />
-         <div className="absolute -top-20 -left-20 w-72 h-72 bg-amber-500/[0.03] rounded-full blur-[100px] pointer-events-none" />
-         <div className="absolute -bottom-20 -right-20 w-72 h-72 bg-sky-500/[0.03] rounded-full blur-[100px] pointer-events-none" />
+         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[250px] bg-emerald-500/[0.04] rounded-full blur-[120px] pointer-events-none" />
+         <div className="absolute -top-20 -left-20 w-72 h-72 bg-amber-500/[0.05] rounded-full blur-[100px] pointer-events-none" />
+         <div className="absolute -bottom-20 -right-20 w-72 h-72 bg-sky-500/[0.05] rounded-full blur-[100px] pointer-events-none" />
 
          {/* TOP HEADER ROW: OWNERS Title + Indicator + Action Buttons */}
-         <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-white/[0.06]">
+         <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-700/60">
             <div className="flex items-center gap-3">
-               <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500/20 via-amber-400/10 to-amber-500/5 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.15)]">
+               <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500/30 via-amber-400/20 to-amber-500/10 border border-amber-500/40 flex items-center justify-center text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]">
                   <ICONS.Owner size={16} className="text-amber-400" />
                </div>
                <div className="flex items-center gap-2.5">
                   <h2 className="text-sm font-black font-outfit text-white uppercase tracking-wider">
                      ВЛАДЕЛЬЦЫ
                   </h2>
-                  <span className="inline-flex items-center justify-center p-1 rounded-full bg-emerald-500/10 border border-emerald-500/20" title="Синхронизировано с БД">
+                  <span className="inline-flex items-center justify-center p-1 rounded-full bg-emerald-500/20 border border-emerald-500/30" title="Синхронизировано с БД">
                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.8)]"></span>
                   </span>
                </div>
@@ -389,7 +389,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
 
             {/* Notice if Month hasn't started yet */}
             {stats.grossTotal === 0 && totalProfit === 0 && (
-               <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-300 font-mono">
+               <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-[10px] text-amber-200 font-mono">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
                   <span>Ожидается первый доход</span>
                </div>
@@ -399,14 +399,14 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
             <div className="flex items-center gap-2 self-end sm:self-auto">
                <button 
                   onClick={() => setIsIncomeModalOpen(true)}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/25 hover:border-emerald-500/40 text-[10px] sm:text-[11px] font-bold uppercase font-mono tracking-wider transition-all active:scale-95 flex items-center gap-1.5 shadow-md shadow-emerald-500/[0.03]"
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 hover:border-emerald-500/60 text-[10px] sm:text-[11px] font-bold uppercase font-mono tracking-wider transition-all active:scale-95 flex items-center gap-1.5 shadow-md shadow-emerald-500/10"
                >
                   <ICONS.Plus size={12} />
                   Внести доход
                </button>
                <button 
                   onClick={() => setIsAdvanceModalOpen(true)}
-                  className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/25 hover:border-amber-500/40 text-[10px] sm:text-[11px] font-bold uppercase font-mono tracking-wider transition-all active:scale-95 flex items-center gap-1.5 shadow-md shadow-amber-500/[0.03]"
+                  className="px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 hover:border-amber-500/60 text-[10px] sm:text-[11px] font-bold uppercase font-mono tracking-wider transition-all active:scale-95 flex items-center gap-1.5 shadow-md shadow-amber-500/10"
                >
                   <ICONS.Plus size={12} />
                   Внести аванс
@@ -418,16 +418,16 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
          <div className="relative z-10 my-4">
             {/* Small notice banner on mobile if grossTotal === 0 */}
             {stats.grossTotal === 0 && totalProfit === 0 && (
-               <div className="sm:hidden mb-3 p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center text-[10px] text-amber-300 font-mono">
+               <div className="sm:hidden mb-3 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-center text-[10px] text-amber-200 font-mono">
                   Ожидается первый доход
                </div>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">
                {/* ANDREY CARD (Warm Amber Accent) */}
-               <div className="group relative p-5 rounded-2xl bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-amber-500/[0.06] via-slate-900/80 to-slate-950/95 hover:from-amber-500/[0.09] border border-amber-500/20 hover:border-amber-500/40 hover:shadow-[0_0_25px_rgba(245,158,11,0.12)] transition-all duration-300 flex flex-col justify-between backdrop-blur-md min-h-[190px] lg:min-h-[205px]">
+               <div className="group relative p-5 rounded-2xl bg-gradient-to-br from-amber-500/[0.12] via-slate-800/90 to-slate-900/95 hover:from-amber-500/[0.18] border border-amber-500/35 hover:border-amber-500/50 hover:shadow-[0_0_25px_rgba(245,158,11,0.2)] transition-all duration-300 flex flex-col justify-between backdrop-blur-md min-h-[190px] lg:min-h-[205px]">
                   {/* Subtle internal warm glow */}
-                  <div className="absolute top-0 right-0 w-40 h-40 bg-amber-500/[0.04] rounded-full blur-2xl pointer-events-none group-hover:bg-amber-500/[0.07] transition-all" />
+                  <div className="absolute top-0 right-0 w-40 h-40 bg-amber-500/[0.08] rounded-full blur-2xl pointer-events-none group-hover:bg-amber-500/[0.12] transition-all" />
 
                   {/* Header: Avatar, Name, Badge, Sub-label */}
                   <div className="flex items-center justify-between">
@@ -438,9 +438,9 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                         <div>
                            <div className="flex items-center gap-2">
                               <h3 className="text-xs sm:text-sm font-black font-outfit text-white tracking-wider uppercase">АНДРЕЙ</h3>
-                              <span className="px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-300 text-[9px] font-bold font-mono border border-amber-500/25">50%</span>
+                              <span className="px-1.5 py-0.5 rounded-md bg-amber-500/25 text-amber-200 text-[9px] font-bold font-mono border border-amber-500/40">50%</span>
                            </div>
-                           <span className="text-[10px] text-amber-400/80 font-medium">Ваша прибыль за месяц</span>
+                           <span className="text-[10px] text-amber-300 font-medium">Ваша прибыль за месяц</span>
                         </div>
                      </div>
                   </div>
@@ -448,29 +448,29 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                   {/* PERSONAL PAYOUT AMOUNT */}
                   <div className="my-2">
                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[9px] font-extrabold font-mono uppercase tracking-[0.15em] text-slate-400 block mb-0.5">
+                        <span className="text-[9px] font-extrabold font-mono uppercase tracking-[0.15em] text-slate-300 block mb-0.5">
                            К ВЫПЛАТЕ
                         </span>
                         {andreyTrend && (
-                           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold font-mono border ${andreyTrend.isUp ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
+                           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold font-mono border ${andreyTrend.isUp ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border-rose-500/30'}`}>
                               {andreyTrend.isUp ? '↑' : '↓'} {Math.abs(andreyTrend.pct).toFixed(1).replace('.', ',')}% к прошлому месяцу
                            </span>
                         )}
                      </div>
-                     <div className="text-4xl sm:text-5xl lg:text-6xl font-black font-mono text-white tracking-tight drop-shadow-[0_0_18px_rgba(245,158,11,0.25)] whitespace-nowrap overflow-hidden text-ellipsis">
+                     <div className="text-4xl sm:text-5xl lg:text-6xl font-black font-mono text-white tracking-tight drop-shadow-[0_0_18px_rgba(245,158,11,0.3)] whitespace-nowrap overflow-hidden text-ellipsis">
                         {formatUsd(andreyAvailable)}
                      </div>
                   </div>
 
                   {/* BREAKDOWN ROWS */}
-                  <div className="pt-2.5 border-t border-amber-500/10 flex items-center justify-between text-[11px] font-mono">
+                  <div className="pt-2.5 border-t border-amber-500/20 flex items-center justify-between text-[11px] font-mono">
                      <div className="flex items-center gap-1.5">
-                        <span className="text-slate-400">Доля прибыли:</span>
-                        <span className="text-slate-200 font-bold">{formatUsd(stats.sharePerOwner)}</span>
+                        <span className="text-slate-300">Доля прибыли:</span>
+                        <span className="text-white font-bold">{formatUsd(stats.sharePerOwner)}</span>
                      </div>
                      <div className="flex items-center gap-1.5">
-                        <span className="text-slate-400">Авансы:</span>
-                        <span className={stats.andrey.advances > 0 ? "text-rose-400 font-bold" : "text-slate-500"}>
+                        <span className="text-slate-300">Авансы:</span>
+                        <span className={stats.andrey.advances > 0 ? "text-rose-300 font-bold" : "text-slate-400"}>
                            {stats.andrey.advances > 0 ? formatUsd(stats.andrey.advances) : '—'}
                         </span>
                      </div>
@@ -478,9 +478,9 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                </div>
 
                {/* ANTON CARD (Cool Sky-Blue Accent) */}
-               <div className="group relative p-5 rounded-2xl bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-sky-500/[0.06] via-slate-900/80 to-slate-950/95 hover:from-sky-500/[0.09] border border-sky-500/20 hover:border-sky-500/40 hover:shadow-[0_0_25px_rgba(56,189,248,0.12)] transition-all duration-300 flex flex-col justify-between backdrop-blur-md min-h-[190px] lg:min-h-[205px]">
+               <div className="group relative p-5 rounded-2xl bg-gradient-to-br from-sky-500/[0.12] via-slate-800/90 to-slate-900/95 hover:from-sky-500/[0.18] border border-sky-500/35 hover:border-sky-500/50 hover:shadow-[0_0_25px_rgba(56,189,248,0.2)] transition-all duration-300 flex flex-col justify-between backdrop-blur-md min-h-[190px] lg:min-h-[205px]">
                   {/* Subtle internal cool glow */}
-                  <div className="absolute top-0 right-0 w-40 h-40 bg-sky-500/[0.04] rounded-full blur-2xl pointer-events-none group-hover:bg-sky-500/[0.07] transition-all" />
+                  <div className="absolute top-0 right-0 w-40 h-40 bg-sky-500/[0.08] rounded-full blur-2xl pointer-events-none group-hover:bg-sky-500/[0.12] transition-all" />
 
                   {/* Header: Avatar, Name, Badge, Sub-label */}
                   <div className="flex items-center justify-between">
@@ -491,9 +491,9 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                         <div>
                            <div className="flex items-center gap-2">
                               <h3 className="text-xs sm:text-sm font-black font-outfit text-white tracking-wider uppercase">АНТОН</h3>
-                              <span className="px-1.5 py-0.5 rounded-md bg-sky-500/15 text-sky-300 text-[9px] font-bold font-mono border border-sky-500/25">50%</span>
+                              <span className="px-1.5 py-0.5 rounded-md bg-sky-500/25 text-sky-200 text-[9px] font-bold font-mono border border-sky-500/40">50%</span>
                            </div>
-                           <span className="text-[10px] text-sky-400/80 font-medium">Прибыль за месяц</span>
+                           <span className="text-[10px] text-sky-300 font-medium">Прибыль за месяц</span>
                         </div>
                      </div>
                   </div>
@@ -501,29 +501,29 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                   {/* PERSONAL PAYOUT AMOUNT */}
                   <div className="my-2">
                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[9px] font-extrabold font-mono uppercase tracking-[0.15em] text-slate-400 block mb-0.5">
+                        <span className="text-[9px] font-extrabold font-mono uppercase tracking-[0.15em] text-slate-300 block mb-0.5">
                            К ВЫПЛАТЕ
                         </span>
                         {antonTrend && (
-                           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold font-mono border ${antonTrend.isUp ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
+                           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold font-mono border ${antonTrend.isUp ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border-rose-500/30'}`}>
                               {antonTrend.isUp ? '↑' : '↓'} {Math.abs(antonTrend.pct).toFixed(1).replace('.', ',')}% к прошлому месяцу
                            </span>
                         )}
                      </div>
-                     <div className="text-4xl sm:text-5xl lg:text-6xl font-black font-mono text-white tracking-tight drop-shadow-[0_0_18px_rgba(56,189,248,0.25)] whitespace-nowrap overflow-hidden text-ellipsis">
+                     <div className="text-4xl sm:text-5xl lg:text-6xl font-black font-mono text-white tracking-tight drop-shadow-[0_0_18px_rgba(56,189,248,0.3)] whitespace-nowrap overflow-hidden text-ellipsis">
                         {formatUsd(antonAvailable)}
                      </div>
                   </div>
 
                   {/* BREAKDOWN ROWS */}
-                  <div className="pt-2.5 border-t border-sky-500/10 flex items-center justify-between text-[11px] font-mono">
+                  <div className="pt-2.5 border-t border-sky-500/20 flex items-center justify-between text-[11px] font-mono">
                      <div className="flex items-center gap-1.5">
-                        <span className="text-slate-400">Доля прибыли:</span>
-                        <span className="text-slate-200 font-bold">{formatUsd(stats.sharePerOwner)}</span>
+                        <span className="text-slate-300">Доля прибыли:</span>
+                        <span className="text-white font-bold">{formatUsd(stats.sharePerOwner)}</span>
                      </div>
                      <div className="flex items-center gap-1.5">
-                        <span className="text-slate-400">Авансы:</span>
-                        <span className={stats.anton.advances > 0 ? "text-rose-400 font-bold" : "text-slate-500"}>
+                        <span className="text-slate-300">Авансы:</span>
+                        <span className={stats.anton.advances > 0 ? "text-rose-300 font-bold" : "text-slate-400"}>
                            {stats.anton.advances > 0 ? formatUsd(stats.anton.advances) : '—'}
                         </span>
                      </div>
@@ -533,27 +533,27 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
          </div>
 
          {/* BOTTOM COMPACT SECONDARY GENERAL STATS ROW */}
-         <div className="relative z-10 pt-3 border-t border-white/[0.08] flex items-center justify-between flex-wrap gap-2 text-[11px] font-mono">
+         <div className="relative z-10 pt-3 border-t border-slate-700/60 flex items-center justify-between flex-wrap gap-2 text-[11px] font-mono">
             <div className="flex items-center gap-3 sm:gap-5 flex-wrap w-full justify-between sm:justify-start">
                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] uppercase font-semibold text-slate-400">Общий доход</span>
-                  <span className="text-xs font-bold text-slate-100">{formatUsd(stats.grossTotal)}</span>
+                  <span className="text-[10px] uppercase font-semibold text-slate-300">Общий доход</span>
+                  <span className="text-xs font-bold text-white">{formatUsd(stats.grossTotal)}</span>
                </div>
-               <span className="text-slate-700 hidden sm:inline">•</span>
+               <span className="text-slate-600 hidden sm:inline">•</span>
                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] uppercase font-semibold text-slate-400">Общая прибыль</span>
-                  <span className="text-xs font-bold text-emerald-400">{formatUsd(totalProfit)}</span>
+                  <span className="text-[10px] uppercase font-semibold text-slate-300">Общая прибыль</span>
+                  <span className="text-xs font-bold text-emerald-300">{formatUsd(totalProfit)}</span>
                </div>
-               <span className="text-slate-700 hidden sm:inline">•</span>
+               <span className="text-slate-600 hidden sm:inline">•</span>
                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] uppercase font-semibold text-slate-400">Авансы</span>
-                  <span className={totalAdvances > 0 ? "text-xs font-bold text-rose-400" : "text-xs font-bold text-slate-400"}>
+                  <span className="text-[10px] uppercase font-semibold text-slate-300">Авансы</span>
+                  <span className={totalAdvances > 0 ? "text-xs font-bold text-rose-300" : "text-xs font-bold text-slate-400"}>
                      {totalAdvances > 0 ? formatUsd(totalAdvances) : '—'}
                   </span>
                </div>
-               <span className="text-slate-700 hidden sm:inline">•</span>
-               <div className="flex items-center gap-1.5 bg-white/[0.04] px-2.5 py-1 rounded-lg border border-white/10">
-                  <span className="text-[10px] uppercase font-bold text-slate-300">Остаток</span>
+               <span className="text-slate-600 hidden sm:inline">•</span>
+               <div className="flex items-center gap-1.5 bg-slate-800/90 px-2.5 py-1 rounded-lg border border-slate-700/80 shadow-sm">
+                  <span className="text-[10px] uppercase font-bold text-slate-200">Остаток</span>
                   <span className="text-xs font-black text-emerald-300">{formatUsd(totalAvailable)}</span>
                </div>
             </div>
@@ -561,18 +561,18 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       </div>
 
       {/* GLOBAL PAYROLL & ADMINISTRATOR HUB - РАВНОВЕСНАЯ ВЕДОМОСТЬ КОМАНДЫ */}
-      <section className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-b from-[#0B0F19] via-[#0D1322] to-[#070A12] border border-slate-800/80 p-4 sm:p-5 shadow-2xl backdrop-blur-2xl">
+      <section className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#192138] to-[#121627] border border-slate-700/80 p-4 sm:p-5 shadow-2xl backdrop-blur-2xl">
          {/* Subtle Ambient Background Glows */}
-         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-indigo-500/[0.03] rounded-full blur-[140px] pointer-events-none" />
-         <div className="absolute -top-20 -right-20 w-80 h-80 bg-violet-500/[0.03] rounded-full blur-[120px] pointer-events-none" />
+         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-indigo-500/[0.04] rounded-full blur-[140px] pointer-events-none" />
+         <div className="absolute -top-20 -right-20 w-80 h-80 bg-violet-500/[0.04] rounded-full blur-[120px] pointer-events-none" />
 
          <div className="relative z-10 flex flex-col lg:flex-row gap-5 lg:gap-6 items-stretch">
             {/* LEFT COLUMN: ВЫПЛАТЫ КОМАНДЫ (~38-40% width) */}
-            <div className="lg:w-[39%] xl:w-[38%] flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-white/[0.06] pb-5 lg:pb-0 lg:pr-6 xl:pr-7">
+            <div className="lg:w-[39%] xl:w-[38%] flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-700/60 pb-5 lg:pb-0 lg:pr-6 xl:pr-7">
                <div>
                   {/* Header */}
                   <div className="flex items-center gap-2.5 mb-3">
-                     <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-inner">
+                     <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-300 shadow-inner">
                         <ICONS.Salary size={15} />
                      </div>
                      <h2 className="text-xs sm:text-sm font-black font-outfit text-white uppercase tracking-wider">
@@ -581,25 +581,25 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                   </div>
 
                   {/* Unified Top Summary Panel */}
-                  <div className="relative p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-indigo-500/[0.06] via-slate-950/80 to-slate-950/95 border border-indigo-500/20 shadow-lg mb-3 backdrop-blur-md overflow-hidden group">
-                     <div className="absolute -top-10 -right-10 w-32 h-32 bg-indigo-500/[0.08] rounded-full blur-2xl pointer-events-none group-hover:bg-indigo-500/[0.12] transition-all" />
+                  <div className="relative p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-indigo-500/[0.12] via-slate-800/90 to-slate-900/95 border border-indigo-500/30 shadow-lg mb-3 backdrop-blur-md overflow-hidden group">
+                     <div className="absolute -top-10 -right-10 w-32 h-32 bg-indigo-500/[0.1] rounded-full blur-2xl pointer-events-none group-hover:bg-indigo-500/[0.15] transition-all" />
                      
                      <div className="flex items-center justify-between gap-3 relative z-10">
                         <div>
-                           <span className="text-[9px] font-extrabold font-mono uppercase tracking-widest text-indigo-300/90 flex items-center gap-1.5 mb-1">
+                           <span className="text-[9px] font-extrabold font-mono uppercase tracking-widest text-indigo-200 flex items-center gap-1.5 mb-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse shadow-[0_0_8px_rgba(129,140,248,0.8)]"></span>
                               Осталось выплатить
                            </span>
-                           <div className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight drop-shadow-[0_0_12px_rgba(129,140,248,0.25)]">
+                           <div className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight drop-shadow-[0_0_12px_rgba(129,140,248,0.3)]">
                               ${stats.totalRemainderGlobal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                            </div>
                         </div>
 
-                        <div className="text-right border-l border-white/10 pl-4 py-0.5">
-                           <span className="text-[9px] font-extrabold font-mono uppercase tracking-widest text-slate-400 block mb-1">
+                        <div className="text-right border-l border-slate-700/60 pl-4 py-0.5">
+                           <span className="text-[9px] font-extrabold font-mono uppercase tracking-widest text-slate-300 block mb-1">
                               Выплачено
                            </span>
-                           <div className="text-base sm:text-lg font-bold font-mono text-emerald-400">
+                           <div className="text-base sm:text-lg font-bold font-mono text-emerald-300">
                               ${stats.totalPaidGlobal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                            </div>
                         </div>
@@ -741,7 +741,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                               </div>
 
                               {/* Center Metrics Grid: Начислено | Выплачено | Осталось (Main metric) */}
-                              <div className="my-2 p-2 rounded-xl bg-slate-950/70 border border-white/[0.04] grid grid-cols-3 gap-1 z-10 font-mono text-center">
+                              <div className="my-2 p-2 rounded-xl bg-slate-900/90 border border-slate-700/80 grid grid-cols-3 gap-1 z-10 font-mono text-center">
                                  <div className="flex flex-col items-center justify-center">
                                     <span className="text-[7.5px] font-extrabold uppercase text-slate-400 tracking-wider mb-0.5">Начислено</span>
                                     <span className="text-xs font-bold text-slate-200">
@@ -836,7 +836,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                      commission: 'bg-indigo-500/[0.03] border-indigo-500/20 hover:border-indigo-500/35',
                      bonus: 'bg-emerald-500/[0.03] border-emerald-500/20 hover:border-emerald-500/35',
                      other: 'bg-slate-500/[0.03] border-slate-500/20 hover:border-slate-500/35',
-                  }[expenseCategory] || 'bg-slate-950/60 border-white/[0.08]';
+                  }[expenseCategory] || 'bg-slate-800/80 border-slate-700/80';
 
                   return (
                      <div className={`p-3 sm:p-3.5 rounded-2xl border transition-all duration-300 relative overflow-hidden backdrop-blur-md mt-2 ${categoryTint}`}>
@@ -874,7 +874,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                            {/* Row 1: Category Selector + Amount Input */}
                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                               {/* Horizontal Segmented Category Selector */}
-                              <div className="flex-1 flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-slate-950/90 border border-white/[0.06] no-scrollbar">
+                              <div className="flex-1 flex items-center gap-1 overflow-x-auto p-1 rounded-xl bg-slate-900/90 border border-slate-700/70 no-scrollbar">
                                  {Object.entries(CATEGORIES).map(([key, cat]) => (
                                     <button
                                        key={key}
@@ -900,7 +900,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                                     value={expenseAmount}
                                     onChange={(e) => setExpenseAmount(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleQuickExpenseSubmit()}
-                                    className="w-full bg-slate-950/90 border border-white/10 rounded-xl pl-6 pr-2 py-1.5 text-xs font-mono font-bold text-white outline-none focus:border-indigo-500/50 placeholder-slate-500"
+                                    className="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl pl-6 pr-2 py-1.5 text-xs font-mono font-bold text-white outline-none focus:border-indigo-500/50 placeholder-slate-500"
                                  />
                               </div>
                            </div>
@@ -913,7 +913,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                                  value={expenseComment}
                                  onChange={(e) => setExpenseComment(e.target.value)}
                                  onKeyDown={(e) => e.key === 'Enter' && handleQuickExpenseSubmit()}
-                                 className="flex-1 bg-slate-950/90 border border-white/10 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-200 outline-none focus:border-indigo-500/50 placeholder-slate-500"
+                                 className="flex-1 bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-200 outline-none focus:border-indigo-500/50 placeholder-slate-500"
                               />
                               <button
                                  type="button"
@@ -939,7 +939,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
 
       {/* РАСХОДЫ: АНАЛИТИКА И ИСТОРИЯ ОПЕРАЦИЙ */}
       <div className="flex flex-col gap-6">
-            <section className="glass-card rounded-[2.5rem] border border-white/5 shadow-2xl bg-gradient-to-b from-slate-950 via-slate-950/95 to-slate-900/60 relative overflow-hidden backdrop-blur-2xl">
+            <section className="rounded-[2.5rem] border border-slate-700/80 shadow-2xl bg-gradient-to-br from-[#192138] to-[#121627] relative overflow-hidden backdrop-blur-2xl">
                {/* Ambient glowing fields */}
                <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/[0.02] rounded-full blur-[100px] pointer-events-none" />
                <div className="absolute bottom-0 left-0 w-96 h-96 bg-violet-500/[0.015] rounded-full blur-[100px] pointer-events-none" />
@@ -982,7 +982,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                      return (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                            {/* 1. Главная категория */}
-                           <div className="bg-slate-950/60 border border-white/[0.05] rounded-2xl p-3 flex flex-col justify-between">
+                           <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-3 flex flex-col justify-between shadow-sm">
                               <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">Главная категория</span>
                               <div className="flex items-baseline justify-between gap-1">
                                  <span className="text-xs sm:text-sm font-extrabold text-white truncate font-outfit">{topCatLabel}</span>
@@ -991,19 +991,19 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                            </div>
 
                            {/* 2. Количество операций */}
-                           <div className="bg-slate-950/60 border border-white/[0.05] rounded-2xl p-3 flex flex-col justify-between">
+                           <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-3 flex flex-col justify-between shadow-sm">
                               <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">Количество операций</span>
                               <span className="text-xs sm:text-sm font-extrabold text-white font-mono">{opsCount} {opsCount === 1 ? 'операция' : (opsCount >= 2 && opsCount <= 4 ? 'операции' : 'операций')}</span>
                            </div>
 
                            {/* 3. Средний расход */}
-                           <div className="bg-slate-950/60 border border-white/[0.05] rounded-2xl p-3 flex flex-col justify-between">
+                           <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-3 flex flex-col justify-between shadow-sm">
                               <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">Средний расход</span>
                               <span className="text-xs sm:text-sm font-extrabold text-white font-mono">${avgExpense.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                            </div>
 
                            {/* 4. Последняя операция */}
-                           <div className="bg-slate-950/60 border border-white/[0.05] rounded-2xl p-3 flex flex-col justify-between min-w-0">
+                           <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-3 flex flex-col justify-between shadow-sm min-w-0">
                               <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">Последняя операция</span>
                               <span className="text-xs sm:text-sm font-extrabold text-white font-mono truncate">
                                  {latestOp ? `$${latestOp.amount.toLocaleString()} (${CATEGORIES[latestOp.category as keyof typeof CATEGORIES]?.label || 'Прочее'})` : '—'}
@@ -1029,7 +1029,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                   ) : (
                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                         {/* Слева — распределение расходов */}
-                        <div className="lg:col-span-5 bg-slate-950/50 border border-white/[0.04] p-4 sm:p-5 rounded-2xl space-y-4">
+                        <div className="lg:col-span-5 bg-slate-800/70 border border-slate-700/70 p-4 sm:p-5 rounded-2xl space-y-4 shadow-md">
                            <div className="flex items-center justify-between pb-2 border-b border-white/[0.04]">
                               <h3 className="text-xs font-black font-outfit text-white uppercase tracking-wider">
                                  Распределение расходов
@@ -1078,7 +1078,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                         </div>
 
                         {/* Справа — журнал операций */}
-                        <div className="lg:col-span-7 bg-slate-950/50 border border-white/[0.04] p-4 sm:p-5 rounded-2xl space-y-4">
+                        <div className="lg:col-span-7 bg-slate-800/70 border border-slate-700/70 p-4 sm:p-5 rounded-2xl space-y-4 shadow-md">
                            <div className="flex items-center justify-between pb-2 border-b border-white/[0.04]">
                               <h3 className="text-xs font-black font-outfit text-white uppercase tracking-wider">
                                  Журнал операций
@@ -1147,7 +1147,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                                     const catLabel = item.category === 'items' ? 'Покупки' : cat.label;
 
                                     return (
-                                       <div key={item.id} className="group relative bg-slate-950/80 hover:bg-slate-900/80 border border-white/[0.04] hover:border-white/10 rounded-xl p-3 flex items-center justify-between gap-3 transition-all duration-200">
+                                       <div key={item.id} className="group relative bg-slate-900/80 hover:bg-slate-850 border border-slate-700/70 hover:border-slate-600 rounded-xl p-3 flex items-center justify-between gap-3 transition-all duration-200">
                                           <div className="flex items-center gap-3 min-w-0 flex-1">
                                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${cat.bg} ${cat.color} border ${cat.border} shrink-0`}>
                                                 <Icon size={14} />
@@ -1193,7 +1193,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                   <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" onClick={() => setIsIncomeModalOpen(false)} />
                   
                   {/* Modal Body */}
-                  <div className="relative w-full max-w-md bg-gradient-to-b from-slate-900 to-slate-950 border border-white/10 p-6 rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                  <div className="relative w-full max-w-md bg-gradient-to-br from-[#1c243f] to-[#13172b] border border-slate-700/80 p-6 rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                      <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/[0.05] rounded-full blur-2xl pointer-events-none" />
                      
                      <div className="flex items-center justify-between mb-5">
@@ -1264,7 +1264,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                   <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" onClick={() => setIsAdvanceModalOpen(false)} />
                   
                   {/* Modal Body */}
-                  <div className="relative w-full max-w-md bg-gradient-to-b from-slate-900 to-slate-950 border border-white/10 p-6 rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                  <div className="relative w-full max-w-md bg-gradient-to-br from-[#1c243f] to-[#13172b] border border-slate-700/80 p-6 rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                      <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/[0.05] rounded-full blur-2xl pointer-events-none" />
                      
                      <div className="flex items-center justify-between mb-5">

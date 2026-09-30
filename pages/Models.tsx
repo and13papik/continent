@@ -403,15 +403,15 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
             <p className="text-slate-400">Ведомость анкет и начислений</p>
           </div>
         </div>
-        <div className="bg-slate-900/60 p-4 rounded-3xl border border-slate-800 flex flex-wrap items-center gap-6">
+        <div className="bg-slate-800/80 p-5 rounded-3xl border border-slate-700/80 shadow-md flex flex-wrap items-center gap-6">
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Общая выплата (%)</label>
+            <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Общая выплата (%)</label>
             <div className="relative">
-              <input type="number" className="w-24 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-indigo-400 font-bold focus:ring-2 focus:ring-indigo-500 outline-none" value={isUniform ? currentRates.of : ''} placeholder="MIX" onChange={(e) => updateGlobalRate(e.target.value)} />
-              <span className="absolute right-3 top-2.5 text-slate-600 text-xs">%</span>
+              <input type="number" className="w-24 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-indigo-300 font-black focus:ring-2 focus:ring-indigo-400 outline-none" value={isUniform ? currentRates.of : ''} placeholder="MIX" onChange={(e) => updateGlobalRate(e.target.value)} />
+              <span className="absolute right-3 top-2.5 text-slate-500 text-xs font-bold">%</span>
             </div>
           </div>
-          <div className="h-10 w-px bg-slate-800 hidden md:block" />
+          <div className="h-10 w-px bg-slate-700/70 hidden md:block" />
           <div className="flex gap-4">
             <RateInput label="OF Rate" value={currentRates.of} color="blue" onChange={(v) => updateSpecificRate('of', v)} />
             <RateInput label="PP Rate" value={currentRates.pp} color="sky" onChange={(v) => updateSpecificRate('pp', v)} />
@@ -422,14 +422,14 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
 
       {/* Model Group Linker Interface */}
       {showManageGroups && (
-        <div className="glass-card p-6 rounded-[2rem] border-slate-800 space-y-6 animate-in slide-in-from-top duration-300">
-          <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+        <div className="p-8 rounded-[2.5rem] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-6 animate-in slide-in-from-top duration-300">
+          <div className="flex justify-between items-center border-b border-slate-700/70 pb-4">
             <div>
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <h3 className="text-lg font-black font-outfit uppercase tracking-tight text-white flex items-center gap-2">
                 <ICONS.Users size={18} className="text-indigo-400" />
                 Связанные анкеты (Группы моделей)
               </h3>
-              <p className="text-[10px] text-slate-500">Свяжите несколько анкет одного человека, чтобы следить за общим доходом в одну строку.</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Свяжите несколько анкет одного человека, чтобы следить за общим доходом в одну строку.</p>
             </div>
             <button 
               onClick={() => {
@@ -438,7 +438,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
                 setNewGroupName('');
                 setSelectedGroupMembers([]);
               }}
-              className="p-2 bg-slate-800 hover:bg-slate-700 hover:text-white rounded-full text-slate-400 transition-colors"
+              className="p-2 bg-slate-800 hover:bg-slate-700 hover:text-white rounded-full text-slate-400 transition-colors border border-slate-700"
             >
               <ICONS.Close size={14} />
             </button>
@@ -581,21 +581,21 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       )}
 
       {/* Main Stats and Table Card */}
-      <div className="glass-card rounded-[2.5rem] overflow-hidden shadow-2xl border-slate-800">
-        <div className="p-8 border-b border-slate-800 bg-slate-900/30 flex flex-col md:flex-row justify-between items-center gap-6">
+      <div className="rounded-[2.5rem] overflow-hidden shadow-xl border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627]">
+        <div className="p-8 border-b border-slate-700/80 bg-slate-800/60 flex flex-col md:flex-row justify-between items-center gap-6">
            <div>
              <h2 className="text-xl font-bold font-outfit text-white">Выплаты анкет</h2>
              <div className="flex items-center gap-3 mt-2">
                <button 
                  onClick={() => setIsGrouped(!isGrouped)}
-                 className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${isGrouped ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500/20' : 'bg-slate-800 text-slate-500 border-slate-700 hover:bg-slate-700'}`}
+                 className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${isGrouped ? 'bg-indigo-600/30 text-indigo-200 border-indigo-400/50 shadow-sm' : 'bg-slate-800/90 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'}`}
                >
                  <ICONS.Users size={12} />
                  {isGrouped ? 'Отображение: Объединять связи' : 'Отображение: По раздельности'}
                </button>
                <button 
                  onClick={() => setShowManageGroups(!showManageGroups)}
-                 className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 border hover:bg-slate-800 border-slate-700 ${showManageGroups ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-300'}`}
+                 className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 border hover:bg-slate-700 border-slate-700 ${showManageGroups ? 'bg-indigo-600 text-white border-indigo-400' : 'bg-slate-800/90 text-slate-200'}`}
                >
                  <ICONS.Edit size={10} />
                  Настройка связей
@@ -605,16 +605,16 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
            
            <div className="flex gap-6">
               <div className="text-center">
-                 <p className="text-[10px] text-slate-500 font-black uppercase mb-1">Общий Brutto (Clean)</p>
+                 <p className="text-[10px] text-slate-300 font-black uppercase mb-1">Общий Brutto (Clean)</p>
                  <p className="text-xl font-black text-white font-mono">${modelStats.reduce((s,m) => s + m.totalGross, 0).toLocaleString()}</p>
               </div>
               <div className="text-center">
-                 <p className="text-[10px] text-amber-500 font-black uppercase mb-1">Выдано авансов/ЗП</p>
-                 <p className="text-xl font-black text-amber-400 font-mono">-${modelStats.reduce((s,m) => s + m.totalAdvances + m.totalSalaries, 0).toLocaleString()}</p>
+                 <p className="text-[10px] text-amber-300 font-black uppercase mb-1">Выдано авансов/ЗП</p>
+                 <p className="text-xl font-black text-amber-300 font-mono">-${modelStats.reduce((s,m) => s + m.totalAdvances + m.totalSalaries, 0).toLocaleString()}</p>
               </div>
               <div className="text-center">
-                 <p className="text-[10px] text-indigo-500 font-black uppercase mb-1">Остаток к выплате</p>
-                 <p className="text-xl font-black text-indigo-400 font-mono">${Math.max(0, modelStats.reduce((s,m) => s + m.totalEarn, 0)).toLocaleString()}</p>
+                 <p className="text-[10px] text-indigo-300 font-black uppercase mb-1">Остаток к выплате</p>
+                 <p className="text-xl font-black text-indigo-300 font-mono">${Math.max(0, modelStats.reduce((s,m) => s + m.totalEarn, 0)).toLocaleString()}</p>
               </div>
            </div>
         </div>
@@ -622,7 +622,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead>
-              <tr className="bg-slate-900/50 text-slate-500 font-bold text-[10px] uppercase tracking-widest border-b border-slate-800">
+              <tr className="bg-slate-800/80 text-slate-200 font-black text-[10px] uppercase tracking-widest border-b border-slate-700/80">
                 <th className="px-8 py-6">Анкета</th>
                 <th className="px-6 py-6 text-center">Платформы (Gross)</th>
                 <th className="px-6 py-6 text-center">Корректировки (Бонус / Аванс / ЗП)</th>
@@ -630,20 +630,20 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
                 <th className="px-8 py-6 text-right">Статус</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800">
+            <tbody className="divide-y divide-slate-700/60">
               {displayRecords.map((r) => {
                 if (r.isGroup) {
                   const isExpanded = !!expandedGroups[r.groupId!];
                   return (
                     <React.Fragment key={r.groupId}>
                       {/* Master Group Row */}
-                      <tr className="bg-indigo-950/20 hover:bg-indigo-900/10 border-indigo-500/10 transition-all select-none group border-b border-slate-850">
+                      <tr className="bg-indigo-950/30 hover:bg-indigo-900/20 border-indigo-500/20 transition-all select-none group border-b border-slate-700/60">
                         {/* Name Column with Accordion Expansion Trigger */}
                         <td className="px-8 py-5">
                           <div className="flex items-center gap-2">
                             <button 
                               onClick={() => toggleGroupExpand(r.groupId!)}
-                              className="p-1 hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-white"
+                              className="p-1 hover:bg-slate-700 rounded transition-colors text-slate-300 hover:text-white"
                             >
                               {isExpanded ? (
                                 <ICONS.ChevronDown size={14} />
@@ -653,7 +653,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
                             </button>
                             <div className="flex items-center gap-2">
                               <div className="font-bold text-white text-base font-outfit">{r.model}</div>
-                              <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[8px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1">
+                              <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[8px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1">
                                 <ICONS.Users size={10} />
                                 Связка ({r.members.length} анкет)
                               </span>
@@ -664,9 +664,9 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
                         {/* Combined Platform Profits */}
                         <td className="px-6 py-5 text-center">
                           <div className="flex justify-center gap-4 text-[10px] font-mono">
-                             <span className="text-blue-400 font-bold">OF: ${r.grossOF.toFixed(0)}</span>
-                             <span className="text-sky-400 font-bold">PP: ${r.grossPP.toFixed(0)}</span>
-                             <span className="text-emerald-400 font-bold">CR: ${r.grossCR.toFixed(0)}</span>
+                             <span className="text-blue-300 font-bold">OF: ${r.grossOF.toFixed(0)}</span>
+                             <span className="text-sky-300 font-bold">PP: ${r.grossPP.toFixed(0)}</span>
+                             <span className="text-emerald-300 font-bold">CR: ${r.grossCR.toFixed(0)}</span>
                           </div>
                         </td>
 
@@ -679,44 +679,44 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
                               const allSalaries = r.membersStats.flatMap(ms => ms.salaryPayments.map(s => ({ ...s, model: ms.model })));
                               
                               if (allBonuses.length === 0 && allAdvances.length === 0 && allSalaries.length === 0) {
-                                return <span className="text-[10px] text-slate-500 italic">Нет корректировок</span>;
+                                return <span className="text-[10px] text-slate-400 italic">Нет корректировок</span>;
                               }
                               
                               return (
                                 <div className="flex flex-wrap justify-center gap-1 max-w-[320px]">
                                   {allBonuses.map(b => (
-                                    <span key={b.id} className="bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 flex items-center gap-0.5">
+                                    <span key={b.id} className="bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30 flex items-center gap-0.5">
                                       {b.model}: +{b.amount}
                                     </span>
                                   ))}
                                   {allAdvances.map(a => (
-                                    <span key={a.id} className="bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded border border-amber-500/20 flex items-center gap-0.5">
+                                    <span key={a.id} className="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-0.5">
                                       {a.model}: -{a.amount}
                                     </span>
                                   ))}
                                   {allSalaries.map(s => (
-                                    <span key={s.id} className="bg-indigo-500/15 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/20 flex items-center gap-0.5">
+                                    <span key={s.id} className="bg-indigo-500/25 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30 flex items-center gap-0.5">
                                       {s.model}: -{s.amount.toFixed(0)}
                                     </span>
                                   ))}
                                 </div>
                               );
                             })()}
-                            <div className="text-[8px] text-slate-600 italic font-sans mt-1">Раскройте связку, чтобы детализировать балансы</div>
+                            <div className="text-[8px] text-slate-400 italic font-sans mt-1">Раскройте связку, чтобы детализировать балансы</div>
                           </div>
                         </td>
 
                         {/* Accumulated Remainder */}
                         <td className="px-6 py-5 text-right">
-                          <div className={`font-black font-mono text-xl ${r.totalEarn > 0.01 ? 'text-indigo-400' : 'text-slate-500'}`}>${Math.max(0, r.totalEarn).toFixed(2)}</div>
-                          <div className="text-[8px] text-slate-500 font-black uppercase">Весь оклад: ${r.accruedSalary.toFixed(1)}</div>
+                          <div className={`font-black font-mono text-xl ${r.totalEarn > 0.01 ? 'text-indigo-300' : 'text-slate-400'}`}>${Math.max(0, r.totalEarn).toFixed(2)}</div>
+                          <div className="text-[8px] text-slate-400 font-black uppercase">Весь оклад: ${r.accruedSalary.toFixed(1)}</div>
                         </td>
 
                         {/* Combined payment button */}
                         <td className="px-8 py-5 text-right">
                           <button 
                             onClick={() => toggleGroupPaid(r.model, r.membersStats)} 
-                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${r.isPaid ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : r.isPartiallyPaid ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}
+                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${r.isPaid ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : r.isPartiallyPaid ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'}`}
                           >
                             {r.isPaid ? 'Выплачено все' : r.isPartiallyPaid ? 'Частично' : 'Ожидает'}
                           </button>
@@ -725,21 +725,21 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
 
                       {/* Render Expanded members individually */}
                       {isExpanded && r.membersStats.map((ms) => (
-                        <tr key={ms.model} className="bg-slate-950/40 hover:bg-slate-900/30 transition-all group/sub select-none">
+                        <tr key={ms.model} className="bg-slate-800/60 hover:bg-slate-800/90 transition-all group/sub select-none">
                           {/* Indented Sub account model name */}
                           <td className="px-8 py-4 pl-14">
                             <div className="flex items-center gap-2">
-                              <span className="text-slate-600 font-mono text-xs">└─</span>
-                              <div className="font-bold text-slate-300 text-sm">{ms.model}</div>
+                              <span className="text-slate-400 font-mono text-xs">└─</span>
+                              <div className="font-bold text-slate-200 text-sm">{ms.model}</div>
                             </div>
                           </td>
 
                           {/* Member specific platforms */}
                           <td className="px-6 py-4 text-center">
-                            <div className="flex justify-center gap-4 text-[9px] font-mono opacity-80">
-                               <span className="text-blue-400/80">OF: ${ms.grossOF.toFixed(0)}</span>
-                               <span className="text-sky-400/80">PP: ${ms.grossPP.toFixed(0)}</span>
-                               <span className="text-emerald-400/80">CR: ${ms.grossCR.toFixed(0)}</span>
+                            <div className="flex justify-center gap-4 text-[9px] font-mono">
+                               <span className="text-blue-300 font-medium">OF: ${ms.grossOF.toFixed(0)}</span>
+                               <span className="text-sky-300 font-medium">PP: ${ms.grossPP.toFixed(0)}</span>
+                               <span className="text-emerald-300 font-medium">CR: ${ms.grossCR.toFixed(0)}</span>
                             </div>
                           </td>
 
@@ -748,30 +748,30 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
                             <div className="flex flex-col items-center gap-2">
                                <div className="flex flex-wrap justify-center gap-1">
                                   {ms.bonuses.map(b => (
-                                    <div key={b.id} className="flex items-center gap-1 bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded text-[8px] font-black border border-emerald-500/20">
-                                       B: +{b.amount} <button onClick={() => removeBonus(b.id)} className="hover:text-rose-500 ml-1"><ICONS.Trash size={10}/></button>
+                                    <div key={b.id} className="flex items-center gap-1 bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[8px] font-black border border-emerald-500/30">
+                                       B: +{b.amount} <button onClick={() => removeBonus(b.id)} className="hover:text-rose-400 ml-1"><ICONS.Trash size={10}/></button>
                                     </div>
                                   ))}
                                   {ms.advances.map(a => (
-                                    <div key={a.id} className="flex items-center gap-1 bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded text-[8px] font-black border border-amber-500/20">
-                                       A: -{a.amount} <button onClick={() => removeOperation(a.id)} className="hover:text-rose-500 ml-1"><ICONS.Trash size={10}/></button>
+                                    <div key={a.id} className="flex items-center gap-1 bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded text-[8px] font-black border border-amber-500/30">
+                                       A: -{a.amount} <button onClick={() => removeOperation(a.id)} className="hover:text-rose-400 ml-1"><ICONS.Trash size={10}/></button>
                                     </div>
                                   ))}
                                   {ms.salaryPayments.map(s => (
-                                    <div key={s.id} className="flex items-center gap-1 bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded text-[8px] font-black border border-indigo-500/20">
-                                       S: -{s.amount.toFixed(0)} <button onClick={() => removeOperation(s.id)} className="hover:text-rose-500 ml-1"><ICONS.Trash size={10}/></button>
+                                    <div key={s.id} className="flex items-center gap-1 bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-[8px] font-black border border-indigo-500/30">
+                                       S: -{s.amount.toFixed(0)} <button onClick={() => removeOperation(s.id)} className="hover:text-rose-400 ml-1"><ICONS.Trash size={10}/></button>
                                     </div>
                                   ))}
                                </div>
                                <div className="flex items-center gap-2 opacity-0 group-hover/sub:opacity-100 transition-opacity">
                                   <div className="flex items-center gap-1">
-                                    <input type="number" className="w-12 bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-[8px] text-emerald-400 outline-none" placeholder="Бонус" value={bonusInputs[ms.model] || ''} onChange={(e) => setBonusInputs(p => ({ ...p, [ms.model]: e.target.value }))} />
-                                    <button onClick={() => addBonus(ms.model)} className="text-emerald-500 hover:text-white transition-colors"><ICONS.Plus size={10}/></button>
+                                    <input type="number" className="w-12 bg-slate-900/90 border border-slate-700 rounded px-1.5 py-0.5 text-[8px] text-emerald-300 outline-none" placeholder="Бонус" value={bonusInputs[ms.model] || ''} onChange={(e) => setBonusInputs(p => ({ ...p, [ms.model]: e.target.value }))} />
+                                    <button onClick={() => addBonus(ms.model)} className="text-emerald-400 hover:text-white transition-colors"><ICONS.Plus size={10}/></button>
                                   </div>
-                                  <div className="w-px h-3 bg-slate-800"></div>
+                                  <div className="w-px h-3 bg-slate-700"></div>
                                   <div className="flex items-center gap-1">
-                                    <input type="number" className="w-12 bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-[8px] text-amber-400 outline-none" placeholder="Аванс" value={advanceInputs[ms.model] || ''} onChange={(e) => setAdvanceInputs(p => ({ ...p, [ms.model]: e.target.value }))} />
-                                    <button onClick={() => addAdvance(ms.model)} className="text-amber-500 hover:text-white transition-colors"><ICONS.Plus size={10}/></button>
+                                    <input type="number" className="w-12 bg-slate-900/90 border border-slate-700 rounded px-1.5 py-0.5 text-[8px] text-amber-300 outline-none" placeholder="Аванс" value={advanceInputs[ms.model] || ''} onChange={(e) => setAdvanceInputs(p => ({ ...p, [ms.model]: e.target.value }))} />
+                                    <button onClick={() => addAdvance(ms.model)} className="text-amber-400 hover:text-white transition-colors"><ICONS.Plus size={10}/></button>
                                   </div>
                                </div>
                             </div>
@@ -779,13 +779,13 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
 
                           {/* Member specific amount */}
                           <td className="px-6 py-4 text-right">
-                            <div className={`font-black font-mono text-sm ${ms.totalEarn > 0.01 ? 'text-indigo-400' : 'text-slate-500'}`}>${Math.max(0, ms.totalEarn).toFixed(2)}</div>
-                            <div className="text-[7px] text-slate-500 font-black uppercase font-mono">Начислено: ${ms.accruedSalary.toFixed(1)}</div>
+                            <div className={`font-black font-mono text-sm ${ms.totalEarn > 0.01 ? 'text-indigo-300' : 'text-slate-400'}`}>${Math.max(0, ms.totalEarn).toFixed(2)}</div>
+                            <div className="text-[7px] text-slate-400 font-black uppercase font-mono">Начислено: ${ms.accruedSalary.toFixed(1)}</div>
                           </td>
 
                           {/* Member specific paid check */}
                           <td className="px-8 py-4 text-right">
-                            <button onClick={() => toggleModelPaid(ms.model, ms.totalEarn)} className={`px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all ${ms.isPaid ? 'bg-emerald-500/80 text-white' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}>
+                            <button onClick={() => toggleModelPaid(ms.model, ms.totalEarn)} className={`px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all ${ms.isPaid ? 'bg-emerald-500/80 text-white' : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
                               {ms.isPaid ? 'Выплачено' : 'Ожидает'}
                             </button>
                           </td>
@@ -796,53 +796,53 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
                 } else {
                   // Individual Model Row (Unlinked)
                   return (
-                    <tr key={r.model} className="hover:bg-indigo-500/5 transition-all group">
+                    <tr key={r.model} className="hover:bg-indigo-500/10 transition-all group">
                       <td className="px-8 py-5"><div className="font-bold text-white text-base font-outfit">{r.model}</div></td>
                       <td className="px-6 py-5 text-center">
                         <div className="flex justify-center gap-4 text-[10px] font-mono">
-                           <span className="text-blue-400">OF: ${r.grossOF.toFixed(0)}</span>
-                           <span className="text-sky-400">PP: ${r.grossPP.toFixed(0)}</span>
-                           <span className="text-emerald-400">CR: ${r.grossCR.toFixed(0)}</span>
+                           <span className="text-blue-300 font-medium">OF: ${r.grossOF.toFixed(0)}</span>
+                           <span className="text-sky-300 font-medium">PP: ${r.grossPP.toFixed(0)}</span>
+                           <span className="text-emerald-300 font-medium">CR: ${r.grossCR.toFixed(0)}</span>
                         </div>
                       </td>
                       <td className="px-6 py-5 text-center">
                         <div className="flex flex-col items-center gap-2">
                            <div className="flex flex-wrap justify-center gap-1">
                               {r.bonuses.map(b => (
-                                <div key={b.id} className="flex items-center gap-1 bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded text-[9px] font-black border border-emerald-500/20">
-                                   B: +{b.amount} <button onClick={() => removeBonus(b.id)} className="hover:text-rose-500 ml-1"><ICONS.Trash size={10}/></button>
+                                <div key={b.id} className="flex items-center gap-1 bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[9px] font-black border border-emerald-500/30">
+                                   B: +{b.amount} <button onClick={() => removeBonus(b.id)} className="hover:text-rose-400 ml-1"><ICONS.Trash size={10}/></button>
                                 </div>
                               ))}
                               {r.advances.map(a => (
-                                <div key={a.id} className="flex items-center gap-1 bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded text-[9px] font-black border border-amber-500/20">
-                                   A: -{a.amount} <button onClick={() => removeOperation(a.id)} className="hover:text-rose-500 ml-1"><ICONS.Trash size={10}/></button>
+                                <div key={a.id} className="flex items-center gap-1 bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded text-[9px] font-black border border-amber-500/30">
+                                   A: -{a.amount} <button onClick={() => removeOperation(a.id)} className="hover:text-rose-400 ml-1"><ICONS.Trash size={10}/></button>
                                 </div>
                               ))}
                               {r.salaryPayments.map(s => (
-                                <div key={s.id} className="flex items-center gap-1 bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded text-[9px] font-black border border-indigo-500/20">
-                                   S: -{s.amount.toFixed(0)} <button onClick={() => removeOperation(s.id)} className="hover:text-rose-500 ml-1"><ICONS.Trash size={10}/></button>
+                                <div key={s.id} className="flex items-center gap-1 bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-[9px] font-black border border-indigo-500/30">
+                                   S: -{s.amount.toFixed(0)} <button onClick={() => removeOperation(s.id)} className="hover:text-rose-400 ml-1"><ICONS.Trash size={10}/></button>
                                 </div>
                               ))}
                            </div>
                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                               <div className="flex items-center gap-1">
-                                <input type="number" className="w-14 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[9px] text-emerald-400 outline-none" placeholder="Бонус" value={bonusInputs[r.model] || ''} onChange={(e) => setBonusInputs(p => ({ ...p, [r.model]: e.target.value }))} />
-                                <button onClick={() => addBonus(r.model)} className="text-emerald-500 hover:text-white transition-colors"><ICONS.Plus size={12}/></button>
+                                <input type="number" className="w-14 bg-slate-800/90 border border-slate-700 rounded px-2 py-1 text-[9px] text-emerald-300 outline-none" placeholder="Бонус" value={bonusInputs[r.model] || ''} onChange={(e) => setBonusInputs(p => ({ ...p, [r.model]: e.target.value }))} />
+                                <button onClick={() => addBonus(r.model)} className="text-emerald-400 hover:text-white transition-colors"><ICONS.Plus size={12}/></button>
                               </div>
-                              <div className="w-px h-4 bg-slate-800"></div>
+                              <div className="w-px h-4 bg-slate-700"></div>
                               <div className="flex items-center gap-1">
-                                <input type="number" className="w-14 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[9px] text-amber-400 outline-none" placeholder="Аванс" value={advanceInputs[r.model] || ''} onChange={(e) => setAdvanceInputs(p => ({ ...p, [r.model]: e.target.value }))} />
-                                <button onClick={() => addAdvance(r.model)} className="text-amber-500 hover:text-white transition-colors"><ICONS.Plus size={12}/></button>
+                                <input type="number" className="w-14 bg-slate-800/90 border border-slate-700 rounded px-2 py-1 text-[9px] text-amber-300 outline-none" placeholder="Аванс" value={advanceInputs[r.model] || ''} onChange={(e) => setAdvanceInputs(p => ({ ...p, [r.model]: e.target.value }))} />
+                                <button onClick={() => addAdvance(r.model)} className="text-amber-400 hover:text-white transition-colors"><ICONS.Plus size={12}/></button>
                               </div>
                            </div>
                         </div>
                       </td>
                       <td className="px-6 py-5 text-right">
-                        <div className={`font-black font-mono text-xl group-hover:scale-105 transition-transform origin-right ${r.totalEarn > 0.01 ? 'text-indigo-400' : 'text-slate-500'}`}>${Math.max(0, r.totalEarn).toFixed(2)}</div>
-                        <div className="text-[8px] text-slate-500 font-black uppercase">Начислено: ${r.accruedSalary.toFixed(1)}</div>
+                        <div className={`font-black font-mono text-xl group-hover:scale-105 transition-transform origin-right ${r.totalEarn > 0.01 ? 'text-indigo-300' : 'text-slate-400'}`}>${Math.max(0, r.totalEarn).toFixed(2)}</div>
+                        <div className="text-[8px] text-slate-400 font-black uppercase">Начислено: ${r.accruedSalary.toFixed(1)}</div>
                       </td>
                       <td className="px-8 py-5 text-right">
-                        <button onClick={() => toggleModelPaid(r.model, r.totalEarn)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${r.isPaid ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}>
+                        <button onClick={() => toggleModelPaid(r.model, r.totalEarn)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${r.isPaid ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
                           {r.isPaid ? 'Выплачено' : 'Ожидает'}
                         </button>
                       </td>
@@ -860,10 +860,10 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
 
 const RateInput: React.FC<{ label: string; value: number; color: string; onChange: (v: string) => void }> = ({ label, value, color, onChange }) => (
   <div className="space-y-1">
-    <label className="text-[10px] font-bold text-slate-600 uppercase tracking-tighter">{label}</label>
+    <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{label}</label>
     <div className="relative">
-      <input type="number" className={`w-20 bg-slate-950 border rounded-xl px-3 py-1 text-xs font-mono outline-none ${color === 'blue' ? 'text-blue-400 border-blue-500/20' : color === 'sky' ? 'text-sky-400 border-sky-500/20' : 'text-emerald-400 border-emerald-500/20'}`} value={value} onChange={(e) => onChange(e.target.value)} />
-      <span className="absolute right-2 top-1 text-slate-600 text-[10px]">%</span>
+      <input type="number" className={`w-20 bg-slate-900 border rounded-xl px-3 py-1.5 text-xs font-mono font-bold outline-none focus:ring-1 focus:ring-indigo-400 ${color === 'blue' ? 'text-blue-300 border-blue-500/40' : color === 'sky' ? 'text-sky-300 border-sky-500/40' : 'text-emerald-300 border-emerald-500/40'}`} value={value} onChange={(e) => onChange(e.target.value)} />
+      <span className="absolute right-2 top-1.5 text-slate-400 text-[10px] font-bold">%</span>
     </div>
   </div>
 );

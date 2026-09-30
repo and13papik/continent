@@ -19,16 +19,16 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({ state, updateState, cla
 
   return (
     <div className={`relative group ${className}`}>
-      <div className="bg-slate-900/60 hover:bg-slate-900/90 border border-white/5 hover:border-indigo-500/30 rounded-xl px-2.5 py-1.5 transition-all duration-300 backdrop-blur-md shadow-sm">
-        <div className="flex items-center justify-between gap-1.5 mb-0.5">
+      <div className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 hover:border-indigo-400/50 rounded-xl px-3 py-2 transition-all duration-300 backdrop-blur-md shadow-md">
+        <div className="flex items-center justify-between gap-1.5 mb-1">
           <div className="flex items-center gap-1.5">
-            <span className={`w-1.5 h-1.5 rounded-full ${isClosed ? 'bg-amber-400' : 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]'}`} />
-            <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">
+            <span className={`w-2 h-2 rounded-full ${isClosed ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]' : 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'}`} />
+            <span className="text-[8.5px] font-black uppercase tracking-[0.2em] text-slate-300">
               Активный период
             </span>
           </div>
           {isClosed && (
-            <span className="text-[7.5px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded border border-amber-500/20">
+            <span className="text-[8px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">
               Закрыт
             </span>
           )}
@@ -36,18 +36,18 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({ state, updateState, cla
         
         <div className="relative flex items-center">
           <select 
-            className="w-full bg-transparent text-indigo-200 hover:text-white font-bold outline-none cursor-pointer text-[11px] leading-tight transition-colors appearance-none pr-5 py-0.5"
+            className="w-full bg-transparent text-white font-extrabold outline-none cursor-pointer text-[12px] leading-tight transition-colors appearance-none pr-6 py-0.5"
             value={state.selectedPeriodId} 
             onChange={(e) => updateState(prev => ({ ...prev, selectedPeriodId: e.target.value }))}
           >
             {sortedPeriods.map(p => (
-              <option key={p.id} value={p.id} className="bg-slate-950 text-slate-200">
+              <option key={p.id} value={p.id} className="bg-slate-900 text-white font-bold py-1">
                 {p.label} {p.status === 'closed' ? '🔒' : ''}
               </option>
             ))}
           </select>
-          <div className="absolute right-0 pointer-events-none text-slate-500 group-hover:text-indigo-400 transition-colors">
-            <ICONS.ChevronDown size={12} />
+          <div className="absolute right-0 pointer-events-none text-indigo-400 group-hover:text-indigo-300 transition-colors">
+            <ICONS.ChevronDown size={14} />
           </div>
         </div>
       </div>

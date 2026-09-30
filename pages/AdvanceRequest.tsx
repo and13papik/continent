@@ -321,13 +321,13 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
           </div>
         </div>
         
-        <div className="bg-slate-900/60 px-6 py-4 rounded-[2rem] border border-slate-800 flex items-center gap-5">
-          <div className="w-11 h-11 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/10">
+        <div className="bg-slate-800/85 px-6 py-4 rounded-[2rem] border border-slate-700/80 flex items-center gap-5 shadow-md">
+          <div className="w-11 h-11 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-400 border border-amber-500/30 shadow-inner">
             <ICONS.HandCoins size={20} />
           </div>
           <div>
-            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Выдано авансов (период)</p>
-            <p className="text-xl font-black text-amber-500 font-mono leading-none mt-1">${totalPaidAdvancesInPeriod.toLocaleString()}</p>
+            <p className="text-[9.5px] font-black text-slate-300 uppercase tracking-widest">Выдано авансов (период)</p>
+            <p className="text-2xl font-black text-amber-400 font-mono leading-none mt-1">${totalPaidAdvancesInPeriod.toLocaleString()}</p>
           </div>
         </div>
       </header>
@@ -335,22 +335,22 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* LEFT COLUMN: REQUEST FORM */}
         <div className="lg:col-span-7">
-          <section className="glass-card p-10 rounded-[2.5rem] border-white/5 space-y-10 shadow-2xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-8 opacity-[0.02] pointer-events-none group-hover:opacity-[0.08] transition-opacity duration-1000">
+          <section className="p-10 rounded-[2.5rem] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] space-y-10 shadow-2xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none group-hover:opacity-[0.08] transition-opacity duration-1000">
                <ICONS.HandCoins size={240} />
             </div>
 
             <div className="relative z-10 space-y-8">
                <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">1. Выберите оператора</label>
+                     <label className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] ml-1">1. Выберите оператора</label>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                      {operators.map(op => (
                         <button 
                           key={op}
                           onClick={() => handleSelectOperator(op)}
-                          className={`px-4 py-4 rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all border ${selectedOperator === op ? 'bg-amber-600 border-amber-500 text-white shadow-xl shadow-amber-600/20 scale-[1.05]' : 'bg-slate-900/50 border-slate-800 text-slate-500 hover:border-slate-700'}`}
+                          className={`px-4 py-4 rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all border ${selectedOperator === op ? 'bg-amber-500 border-amber-400 text-slate-950 font-black shadow-xl shadow-amber-500/30 scale-[1.05]' : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:border-amber-400/50 hover:text-white'}`}
                         >
                           {op}
                         </button>
@@ -368,16 +368,16 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
                      className="space-y-8"
                    >
                      {/* Stats Preview Card */}
-                     <div className="p-8 bg-gradient-to-br from-amber-500/10 to-transparent border border-amber-500/20 rounded-[2rem] flex items-center justify-between shadow-inner">
+                     <div className="p-8 bg-gradient-to-br from-amber-500/20 via-amber-500/10 to-transparent border border-amber-500/35 rounded-[2rem] flex items-center justify-between shadow-md">
                         <div className="flex items-center gap-5">
-                           <div className="w-14 h-14 rounded-2xl bg-slate-950 flex items-center justify-center text-amber-500 border border-white/5 shadow-2xl">
+                           <div className="w-14 h-14 rounded-2xl bg-slate-900 flex items-center justify-center text-amber-400 border border-amber-500/30 shadow-2xl">
                               <ICONS.Income size={24} />
                            </div>
                            <div>
-                              <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Доступно к выплате</p>
+                              <p className="text-[9.5px] font-black text-slate-300 uppercase tracking-[0.2em]">Доступно к выплате</p>
                               <div className="flex items-baseline gap-2">
                                  <p className="text-3xl font-black text-white font-mono tracking-tighter">${operatorStats?.remainder.toFixed(1)}</p>
-                                 <span className="text-[10px] font-bold text-amber-500 font-mono">NET</span>
+                                 <span className="text-[10px] font-bold text-amber-400 font-mono">NET</span>
                               </div>
                            </div>
                         </div>
@@ -385,46 +385,46 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
 
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-4">
-                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">2. Сумма аванса</label>
+                           <label className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] ml-1">2. Сумма аванса</label>
                            <div className="relative group/input">
-                              <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-700 font-bold text-xl group-focus-within/input:text-amber-500 transition-colors">$</div>
+                              <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xl group-focus-within/input:text-amber-400 transition-colors">$</div>
                               <input 
                                 type="number"
                                 value={amount}
                                 onChange={e => setAmount(e.target.value)}
                                 placeholder="0.00"
-                                className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl py-6 pl-12 pr-6 text-2xl font-mono text-white focus:outline-none focus:border-amber-500/50 focus:bg-slate-900 transition-all shadow-inner"
+                                className="w-full bg-slate-800/90 border border-slate-700/80 rounded-2xl py-6 pl-12 pr-6 text-2xl font-mono text-white focus:outline-none focus:border-amber-400 focus:bg-slate-800 transition-all shadow-inner"
                               />
                            </div>
                         </div>
 
                         <div className="space-y-4">
                            <div className="flex items-center justify-between px-1">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">3. Канал выплаты</label>
-                              <div className="flex p-1 bg-slate-950 rounded-xl border border-white/5">
+                              <label className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">3. Канал выплаты</label>
+                              <div className="flex p-1 bg-slate-900/90 rounded-xl border border-slate-700/80">
                                  <button 
                                    onClick={() => setPaymentMethod('usdt_trc20')}
-                                   className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${paymentMethod === 'usdt_trc20' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-slate-600 hover:text-slate-400'}`}
+                                   className={`px-3 py-1.5 rounded-lg text-[8.5px] font-black uppercase transition-all ${paymentMethod === 'usdt_trc20' ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30' : 'text-slate-400 hover:text-white'}`}
                                  >
                                    USDT
                                  </button>
                                  <button 
                                    onClick={() => setPaymentMethod('card')}
-                                   className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${paymentMethod === 'card' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-slate-600 hover:text-slate-400'}`}
+                                   className={`px-3 py-1.5 rounded-lg text-[8.5px] font-black uppercase transition-all ${paymentMethod === 'card' ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30' : 'text-slate-400 hover:text-white'}`}
                                  >
                                    Card
                                  </button>
                               </div>
                            </div>
                            <div className="relative group/input">
-                              <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-700 group-focus-within/input:text-amber-500 transition-colors">
+                              <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within/input:text-amber-400 transition-colors">
                                  {paymentMethod === 'usdt_trc20' ? <ICONS.Wallet size={20}/> : <ICONS.History size={20}/>}
                               </div>
                               <input 
                                 value={walletAddress}
                                 onChange={e => setWalletAddress(e.target.value)}
                                 placeholder={paymentMethod === 'usdt_trc20' ? "T-address..." : "Card number..."}
-                                className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl py-6 pl-14 pr-6 text-xs font-mono text-slate-300 focus:outline-none focus:border-amber-500/50 focus:bg-slate-900 transition-all shadow-inner placeholder:text-slate-800"
+                                className="w-full bg-slate-800/90 border border-slate-700/80 rounded-2xl py-6 pl-14 pr-6 text-xs font-mono text-white focus:outline-none focus:border-amber-400 focus:bg-slate-800 transition-all shadow-inner placeholder:text-slate-500"
                               />
                            </div>
                         </div>
@@ -507,52 +507,52 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
                           initial={{ opacity: 0, x: 20 }}
                           animate={{ opacity: 1, x: 0 }}
                           exit={{ opacity: 0, scale: 0.95 }}
-                          className="glass-card p-8 rounded-[2.5rem] border-white/5 space-y-6 hover:border-amber-500/30 transition-all group shadow-xl"
+                          className="p-8 rounded-[2.5rem] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] space-y-6 hover:border-amber-400/40 transition-all group shadow-xl"
                         >
                            <div className="flex justify-between items-start">
                               <div className="flex items-center gap-4">
-                                 <div className="w-12 h-12 rounded-[1.25rem] bg-amber-500/10 flex items-center justify-center text-amber-500 shadow-inner">
+                                 <div className="w-12 h-12 rounded-[1.25rem] bg-amber-500/20 flex items-center justify-center text-amber-400 border border-amber-500/30 shadow-inner">
                                     <ICONS.User size={20}/>
                                  </div>
                                  <div className="space-y-1">
                                     <p className="text-sm font-black text-white uppercase tracking-wider">{formatUsername(req.operator)}</p>
-                                    <p className="text-[10px] text-slate-600 font-black uppercase tracking-tighter">{new Date(req.createdAt).toLocaleString()}</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{new Date(req.createdAt).toLocaleString()}</p>
                                  </div>
                               </div>
                               <div className="text-right">
-                                 <p className="text-2xl font-black text-amber-500 font-mono tracking-tighter">${req.amount}</p>
-                                 <p className="text-[9px] text-slate-700 font-black uppercase tracking-widest mt-1">Status: Pending</p>
+                                 <p className="text-2xl font-black text-amber-400 font-mono tracking-tighter">${req.amount}</p>
+                                 <p className="text-[9px] text-amber-400/80 font-black uppercase tracking-widest mt-1">Status: Pending</p>
                               </div>
                            </div>
                            
-                           <div className="bg-slate-950/80 p-4 rounded-2xl border border-white/5 flex items-center justify-between group-hover:border-amber-500/10 transition-colors">
-                              <code className="text-[10px] text-slate-500 truncate max-w-[200px] font-mono">{req.address}</code>
-                              <span className="text-[8px] font-black uppercase tracking-widest text-slate-700 px-2 py-1 bg-white/5 rounded-md">{req.method}</span>
+                           <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-700/70 flex items-center justify-between group-hover:border-amber-400/30 transition-colors">
+                              <code className="text-[10.5px] text-slate-200 truncate max-w-[200px] font-mono">{req.address}</code>
+                              <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-300 px-2.5 py-1 bg-slate-800 rounded-md border border-slate-700/60">{req.method}</span>
                            </div>
 
                            <div className="space-y-4 pt-2">
                               {/* Checkbox for auto deduct */}
-                              <label className="flex items-center gap-2.5 cursor-pointer bg-slate-950/60 hover:bg-slate-950 border border-white/5 hover:border-white/10 px-4 py-3 rounded-2xl select-none transition-all duration-300">
+                              <label className="flex items-center gap-2.5 cursor-pointer bg-slate-900/80 hover:bg-slate-900 border border-slate-700/70 hover:border-amber-400/40 px-4 py-3 rounded-2xl select-none transition-all duration-300">
                                 <input 
                                    type="checkbox"
                                    id={`auto-deduct-${req.id}`}
                                    checked={autoDeducts[req.id] ?? true}
                                    onChange={e => setAutoDeducts(prev => ({ ...prev, [req.id]: e.target.checked }))}
-                                   className="w-4 h-4 rounded border-slate-800 bg-slate-950 text-amber-500 focus:ring-amber-500/50 accent-amber-500 cursor-pointer"
+                                   className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500/50 accent-amber-500 cursor-pointer"
                                 />
-                                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Вычесть из ЗП автоматически</span>
+                                <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-300">Вычесть из ЗП автоматически</span>
                               </label>
 
                               <div className="grid grid-cols-4 gap-3">
                                  <button 
                                     onClick={() => markAsPaid(req.id, autoDeducts[req.id] ?? true)}
-                                    className="col-span-3 bg-emerald-500/10 hover:bg-emerald-600 text-emerald-500 hover:text-white border border-emerald-500/20 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-inner flex items-center justify-center gap-2"
+                                    className="col-span-3 bg-emerald-500/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2"
                                  >
                                     <ICONS.Check size={14}/> Провести выплату
                                  </button>
                                  <button 
                                     onClick={() => deleteRequest(req.id)}
-                                    className="col-span-1 bg-rose-500/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/20 py-4 rounded-2xl transition-all shadow-inner flex items-center justify-center"
+                                    className="col-span-1 bg-rose-500/15 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 py-4 rounded-2xl transition-all shadow-md flex items-center justify-center"
                                     title="Удалить запрос"
                                  >
                                     <ICONS.Trash size={16}/>
@@ -567,15 +567,15 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
            </div>
 
            {/* Stats / History Recap */}
-           <div className="glass-card p-8 rounded-[2.5rem] border-white/5 space-y-6">
-              <div className="flex items-center justify-between border-b border-white/5 pb-5">
-                 <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-3">
-                    <ICONS.History size={16} className="text-slate-700"/>
+           <div className="p-8 rounded-[2.5rem] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] space-y-6 shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-700/70 pb-5">
+                 <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] flex items-center gap-3">
+                    <ICONS.History size={16} className="text-slate-400"/>
                     Последние транзакции
                  </h3>
                  <button 
                    onClick={() => updateState(prev => ({ ...prev, advanceRequests: (prev.advanceRequests || []).filter(r => r.status !== 'paid') }))}
-                   className="text-rose-500 text-[8px] font-black uppercase tracking-widest hover:text-rose-400 opacity-40 hover:opacity-100 transition-all font-mono"
+                   className="text-rose-400 text-[8.5px] font-black uppercase tracking-widest hover:text-rose-300 opacity-60 hover:opacity-100 transition-all font-mono"
                  >
                    Flush History
                  </button>
@@ -583,22 +583,22 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
 
               <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
                  {historyRequests.length === 0 ? (
-                    <div className="py-10 text-center opacity-10">
-                       <p className="uppercase tracking-widest font-black text-[9px]">No historical data</p>
+                    <div className="py-10 text-center opacity-30">
+                       <p className="uppercase tracking-widest font-black text-[9px] text-slate-400">No historical data</p>
                     </div>
                  ) : (
                     historyRequests.map(req => (
-                       <div key={req.id} className="bg-slate-950/40 border border-white/5 p-4 rounded-2xl flex items-center justify-between group hover:border-white/10 transition-colors">
+                       <div key={req.id} className="bg-slate-800/80 border border-slate-700/70 p-4 rounded-2xl flex items-center justify-between group hover:border-slate-600 transition-colors">
                           <div className="flex items-center gap-3">
-                             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                             <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/30">
                                 <ICONS.Check size={14}/>
                              </div>
                              <div>
-                                <p className="text-[11px] font-black text-slate-400">{formatUsername(req.operator)}</p>
-                                <p className="text-[8px] text-slate-700 font-black uppercase tracking-tighter">{new Date(req.paidAt || '').toLocaleDateString()}</p>
+                                <p className="text-[11px] font-black text-slate-200">{formatUsername(req.operator)}</p>
+                                <p className="text-[8.5px] text-slate-400 font-bold uppercase tracking-tighter">{new Date(req.paidAt || '').toLocaleDateString()}</p>
                              </div>
                           </div>
-                          <p className="text-sm font-black text-slate-600 font-mono tracking-tighter group-hover:text-slate-400 transition-colors">${req.amount}</p>
+                          <p className="text-sm font-black text-emerald-300 font-mono tracking-tighter group-hover:text-emerald-200 transition-colors">${req.amount}</p>
                        </div>
                     ))
                  )}

@@ -588,15 +588,15 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
   return (
     <div className="space-y-6 animate-in fade-in duration-700 pb-20 max-w-[1400px] mx-auto">
-      <header className="flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800 shadow-xl">
+      <header className="flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-800/80 p-5 rounded-2xl border border-slate-700/80 shadow-md">
         <div className="flex items-center gap-4">
-           <div className="bg-indigo-600 p-2 rounded-xl text-white font-bold font-outfit text-sm">Continental Core</div>
-           <div className="h-6 w-px bg-slate-800 hidden md:block"></div>
+           <div className="bg-indigo-600 p-2 rounded-xl text-white font-bold font-outfit text-sm shadow-md shadow-indigo-600/30">Continental Core</div>
+           <div className="h-6 w-px bg-slate-700/70 hidden md:block"></div>
            
            <PeriodBadge state={state} />
 
-           <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 shadow-inner group transition-all hover:border-indigo-500/30">
-              <ICONS.Calendar size={14} className="text-slate-500 group-hover:text-indigo-400" />
+           <div className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-700 shadow-inner group transition-all hover:border-indigo-400">
+              <ICONS.Calendar size={14} className="text-slate-400 group-hover:text-indigo-400" />
               <input 
                 type="date" 
                 className="bg-transparent text-[11px] font-black text-white outline-none uppercase tracking-widest cursor-pointer" 
@@ -605,37 +605,37 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
               />
            </div>
 
-           <div className="text-[10px] text-emerald-500 font-bold uppercase tracking-tighter bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 flex items-center gap-2">
-             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+           <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-tighter bg-emerald-500/15 px-3 py-1 rounded-lg border border-emerald-500/30 flex items-center gap-2">
+             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
              TG: {DEFAULT_CHAT_ID}
            </div>
         </div>
         
         <div className="flex gap-3">
-           <button onClick={handleRecalculateDynamicGoals} className="bg-sky-600/20 hover:bg-sky-600 border border-sky-500/30 text-sky-400 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 shadow-lg shadow-sky-500/10">
+           <button onClick={handleRecalculateDynamicGoals} className="bg-sky-600/20 hover:bg-sky-600 border border-sky-500/40 text-sky-300 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 shadow-md">
               <ICONS.RotateCcw size={14} /> Пересчитать динамические цели
            </button>
-           <button onClick={handleSyncGoalsToAll} className="bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/30 text-emerald-400 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/10">
+           <button onClick={handleSyncGoalsToAll} className="bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 shadow-md">
               <ICONS.RotateCcw size={14} /> Применить цели ко всем дням
            </button>
-           <button onClick={handleAddModel} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2">
+           <button onClick={handleAddModel} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 shadow-md shadow-indigo-600/20">
               <ICONS.Plus size={14} /> Добавить анкету
            </button>
-           <button onClick={handleReset} className="bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2">
+           <button onClick={handleReset} className="bg-slate-700/80 hover:bg-rose-600 text-slate-200 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 border border-slate-600">
               <ICONS.Trash size={14} /> Очистить
            </button>
         </div>
       </header>
 
-      <div ref={tableRef} className="glass-card rounded-[2.5rem] border-slate-800 shadow-2xl overflow-hidden bg-slate-950">
+      <div ref={tableRef} className="rounded-[2.5rem] border border-slate-700/70 shadow-xl overflow-hidden bg-gradient-to-br from-[#192138] to-[#121627]">
         <div className="overflow-x-auto">
            <table className="w-full border-collapse">
               <thead>
-                 <tr>
-                    <th className="bg-slate-950 p-4 w-12 border-r border-slate-800"></th>
-                    <th className="bg-slate-950 p-4 text-left border-r border-slate-800 text-slate-500 text-[10px] font-black uppercase tracking-widest">Анкета</th>
+                 <tr className="border-b border-slate-700/70">
+                    <th className="bg-slate-850 p-4 w-12 border-r border-slate-700/70"></th>
+                    <th className="bg-slate-850 p-4 text-left border-r border-slate-700/70 text-slate-300 text-[10px] font-black uppercase tracking-widest">Анкета</th>
                     {SHIFTS.map(s => (
-                       <th key={s.key} colSpan={2} className={`${s.color} p-3 text-center border-r border-slate-800/50`}>
+                       <th key={s.key} colSpan={2} className={`${s.color} p-3 text-center border-r border-slate-700/60`}>
                           <div className="flex flex-col items-center justify-center gap-1">
                              <div className="flex items-center gap-2">
                                 <span className="text-lg">{s.icon}</span>
@@ -646,7 +646,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                                  data-html2canvas-ignore
                                  onClick={(e) => { e.stopPropagation(); sendTelegramReport(s.key); }}
                                  disabled={isSending === s.key}
-                                 className="mt-1 bg-white hover:bg-indigo-400 text-slate-950 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 shadow-lg"
+                                 className="mt-1 bg-white hover:bg-indigo-300 text-slate-950 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 shadow-lg"
                                >
                                  {isSending === s.key ? 'Отправка...' : '🚀 Отчет в TG'}
                                </button>
@@ -654,26 +654,26 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                           </div>
                        </th>
                     ))}
-                    <th data-html2canvas-ignore colSpan={3} className="bg-indigo-900/50 p-3 text-center text-[10px] font-black text-white uppercase tracking-[0.2em]">Итого</th>
-                    <th data-html2canvas-ignore className="bg-slate-950 p-4 w-12"></th>
+                    <th data-html2canvas-ignore colSpan={3} className="bg-indigo-900/60 p-3 text-center text-[10px] font-black text-white uppercase tracking-[0.2em]">Итого</th>
+                    <th data-html2canvas-ignore className="bg-slate-850 p-4 w-12"></th>
                  </tr>
-                 <tr className="bg-slate-900/80 text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800">
-                    <th className="p-2 border-r border-slate-800">№</th>
-                    <th className="p-2 text-left border-r border-slate-800">Name</th>
+                 <tr className="bg-slate-800/80 text-[9px] font-black text-slate-300 uppercase tracking-widest border-b border-slate-700/70">
+                    <th className="p-2 border-r border-slate-700/60">№</th>
+                    <th className="p-2 text-left border-r border-slate-700/60">Name</th>
                     {SHIFTS.map(s => (
                        <React.Fragment key={s.key}>
-                          <th className="p-2 border-r border-slate-800/30">Баланс</th>
-                          <th className="p-2 border-r border-slate-800">Цель</th>
+                          <th className="p-2 border-r border-slate-700/50">Баланс</th>
+                          <th className="p-2 border-r border-slate-700/70">Цель</th>
                        </React.Fragment>
                     ))}
-                    <th data-html2canvas-ignore className="p-2 border-r border-slate-800/30 text-indigo-400">План</th>
-                    <th data-html2canvas-ignore className="p-2 border-r border-slate-800/30 text-rose-400">Осталось</th>
-                    <th data-html2canvas-ignore className="p-2 border-r border-slate-800 text-emerald-400">Итого</th>
-                    <th data-html2canvas-ignore className="p-2 border-r border-slate-800 text-amber-400">Месяц</th>
+                    <th data-html2canvas-ignore className="p-2 border-r border-slate-700/60 text-indigo-400">План</th>
+                    <th data-html2canvas-ignore className="p-2 border-r border-slate-700/60 text-rose-400">Осталось</th>
+                    <th data-html2canvas-ignore className="p-2 border-r border-slate-700/70 text-emerald-400">Итого</th>
+                    <th data-html2canvas-ignore className="p-2 border-r border-slate-700/70 text-amber-400">Месяц</th>
                     <th data-html2canvas-ignore className="p-2">Удалить</th>
                  </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-slate-700/60">
                  {entriesForDate.map((entry, idx) => {
                     if (!entry) return null; 
 
@@ -698,12 +698,12 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                     const monthlyPercent = monthlyPlan > 0 ? Math.round((earnedInPeriod / monthlyPlan) * 100) : 0;
 
                     return (
-                       <tr key={entry.id || `fallback-idx-${idx}`} className="hover:bg-slate-900/30 transition-colors group">
-                          <td className="p-3 text-center border-r border-slate-800 text-[10px] font-bold text-slate-600">{idx + 1}</td>
-                          <td className="p-3 border-r border-slate-800 font-bold text-slate-200 text-sm">
+                       <tr key={entry.id || `fallback-idx-${idx}`} className="hover:bg-slate-800/40 transition-colors group">
+                          <td className="p-3 text-center border-r border-slate-700/60 text-[10px] font-bold text-slate-400">{idx + 1}</td>
+                          <td className="p-3 border-r border-slate-700/60 font-bold text-white text-sm">
                              <input 
                                 type="text" 
-                                className="bg-transparent w-full text-white font-bold outline-none focus:bg-white/5 px-2 py-1 rounded" 
+                                className="bg-transparent w-full text-white font-bold outline-none focus:bg-white/10 px-2 py-1 rounded" 
                                 value={entry.modelName || ''} 
                                 onChange={e => handleRenameModel(entry.id, e.target.value)} 
                              />
@@ -711,19 +711,19 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                           
                           {SHIFTS.map(s => (
                              <React.Fragment key={s.key}>
-                                <td className={`p-1 border-r border-slate-800/30 transition-all ${getCellStatusClasses(entry[s.key]?.balance, entry[s.key]?.goal || 0)}`}>
+                                <td className={`p-1 border-r border-slate-700/40 transition-all ${getCellStatusClasses(entry[s.key]?.balance, entry[s.key]?.goal || 0)}`}>
                                    <input 
                                       type="number" 
-                                      className="w-full bg-transparent text-center text-sm font-black outline-none transition-all py-2 placeholder:text-slate-700/50"
+                                      className="w-full bg-transparent text-center text-sm font-black outline-none transition-all py-2 placeholder:text-slate-600"
                                       value={entry[s.key]?.balance ?? ''} 
                                       onChange={e => handleUpdate(entry.id, s.key, 'balance', e.target.value)}
                                       placeholder="0"
                                    />
                                 </td>
-                                <td className={`p-1 border-r border-slate-800 ${s.cellColor}`}>
+                                <td className={`p-1 border-r border-slate-700/60 ${s.cellColor}`}>
                                    <input 
                                       type="number" 
-                                      className="w-full bg-transparent text-center text-sm font-black text-slate-200 outline-none focus:bg-white/5 transition-all py-2 placeholder:text-slate-700"
+                                      className="w-full bg-transparent text-center text-sm font-black text-slate-200 outline-none focus:bg-white/10 transition-all py-2 placeholder:text-slate-600"
                                       value={entry[s.key]?.goal ?? ''} 
                                       onChange={e => handleUpdate(entry.id, s.key, 'goal', e.target.value)}
                                       placeholder="0"
@@ -732,34 +732,34 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                              </React.Fragment>
                           ))}
 
-                          <td data-html2canvas-ignore className="p-3 text-center border-r border-slate-800/30 font-bold font-mono text-indigo-400 bg-indigo-500/5">{rowPlan.toFixed(0)}</td>
-                          <td data-html2canvas-ignore className={`p-3 text-center border-r border-slate-800/30 font-bold font-mono ${rowRemaining > 0 ? 'text-rose-400' : 'text-emerald-400'} bg-slate-950/30`}>{rowRemaining.toFixed(0)}</td>
-                          <td data-html2canvas-ignore className="p-3 text-center font-black font-mono text-emerald-400 bg-emerald-500/5 border-r border-slate-800">{rowBalance.toFixed(0)}</td>
-                          <td data-html2canvas-ignore className="p-3 text-center border-r border-slate-800 bg-slate-950">
+                          <td data-html2canvas-ignore className="p-3 text-center border-r border-slate-700/40 font-bold font-mono text-indigo-400 bg-indigo-500/10">{rowPlan.toFixed(0)}</td>
+                          <td data-html2canvas-ignore className={`p-3 text-center border-r border-slate-700/40 font-bold font-mono ${rowRemaining > 0 ? 'text-rose-400' : 'text-emerald-400'} bg-slate-900/40`}>{rowRemaining.toFixed(0)}</td>
+                          <td data-html2canvas-ignore className="p-3 text-center font-black font-mono text-emerald-400 bg-emerald-500/10 border-r border-slate-700/60">{rowBalance.toFixed(0)}</td>
+                          <td data-html2canvas-ignore className="p-3 text-center border-r border-slate-700/60 bg-slate-900/60">
                              <div className="flex flex-col items-center">
-                                <span className="text-[10px] font-black text-amber-500">{monthlyPercent}%</span>
-                                <span className="text-[8px] text-slate-500 font-bold">{earnedInPeriod.toFixed(0)} / {monthlyPlan.toFixed(0)}</span>
+                                <span className="text-[10px] font-black text-amber-400">{monthlyPercent}%</span>
+                                <span className="text-[8px] text-slate-400 font-bold">{earnedInPeriod.toFixed(0)} / {monthlyPlan.toFixed(0)}</span>
                              </div>
                           </td>
                           <td data-html2canvas-ignore className="p-3 text-center">
-                             <button onClick={() => handleRemoveModel(entry.id)} className="text-slate-600 hover:text-rose-500 transition-colors">
+                             <button onClick={() => handleRemoveModel(entry.id)} className="text-slate-500 hover:text-rose-400 transition-colors">
                                 <ICONS.Trash size={16} />
                              </button>
                           </td>
                        </tr>
                     );
                  })}
-                 <tr className="bg-slate-950 font-black text-xs">
-                    <td colSpan={2} className="p-4 text-center border-r border-slate-800 text-slate-400 uppercase tracking-widest">Итого</td>
+                 <tr className="bg-slate-800/80 font-black text-xs border-t border-slate-700/70">
+                    <td colSpan={2} className="p-4 text-center border-r border-slate-700/60 text-slate-300 uppercase tracking-widest">Итого</td>
                     {SHIFTS.map(s => (
                        <React.Fragment key={s.key}>
-                          <td className={`p-4 text-center border-r border-slate-800/30 text-white font-mono ${s.cellColor}`}>{totals[s.key].balance.toFixed(0)}</td>
-                          <td className={`p-4 text-center border-r border-slate-800 text-slate-200 font-mono font-black ${s.cellColor}`}>{totals[s.key].goal.toFixed(0)}</td>
+                          <td className={`p-4 text-center border-r border-slate-700/40 text-white font-mono ${s.cellColor}`}>{totals[s.key].balance.toFixed(0)}</td>
+                          <td className={`p-4 text-center border-r border-slate-700/60 text-slate-200 font-mono font-black ${s.cellColor}`}>{totals[s.key].goal.toFixed(0)}</td>
                        </React.Fragment>
                     ))}
-                    <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-800/30 text-indigo-400 font-mono">{totals.overallPlan.toFixed(0)}</td>
-                    <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-800/30 text-rose-400 font-mono">{totals.overallRemaining.toFixed(0)}</td>
-                    <td data-html2canvas-ignore className="p-4 text-center text-emerald-400 font-mono border-r border-slate-800">{totals.overallBalance.toFixed(0)}</td>
+                    <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-700/40 text-indigo-400 font-mono">{totals.overallPlan.toFixed(0)}</td>
+                    <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-700/40 text-rose-400 font-mono">{totals.overallRemaining.toFixed(0)}</td>
+                    <td data-html2canvas-ignore className="p-4 text-center text-emerald-400 font-mono border-r border-slate-700/60">{totals.overallBalance.toFixed(0)}</td>
                     <td data-html2canvas-ignore className="p-4"></td>
                  </tr>
               </tbody>
@@ -769,7 +769,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
 
       <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
          {SHIFTS.map(s => (
-            <div key={s.key} className="glass-card p-5 rounded-3xl border-slate-800 flex items-center justify-between">
+            <div key={s.key} className="p-5 rounded-3xl border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] flex items-center justify-between shadow-md">
                <div className="flex items-center gap-3">
                   <span className="text-2xl">{s.icon}</span>
                   <p className={`text-[10px] font-black uppercase tracking-widest ${s.textColor}`}>{s.label}</p>
@@ -779,23 +779,23 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
          ))}
       </section>
 
-      <div className="glass-card p-8 rounded-[2.5rem] bg-gradient-to-r from-indigo-900/20 via-slate-900 to-indigo-900/20 border-slate-800 shadow-2xl relative overflow-hidden">
-         <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500/30"></div>
+      <div className="p-8 rounded-[2.5rem] bg-gradient-to-br from-[#1b2238] via-[#151c2e] to-[#121627] border border-slate-700/80 shadow-xl relative overflow-hidden">
+         <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500/50"></div>
          <div className="flex items-center gap-4 mb-6">
             <ICONS.Income className="text-indigo-400" />
             <h2 className="text-xl font-black font-outfit text-white uppercase tracking-widest">Итоговая Сводка за {selectedDate.split('-').reverse().join('.')}</h2>
          </div>
          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="text-center space-y-1">
-               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Общий План</p>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Общий План</p>
                <p className="text-4xl font-black text-white font-outfit">{totals.overallPlan.toFixed(0)}</p>
             </div>
             <div className="text-center space-y-1">
                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Общий Баланс</p>
-               <p className="text-4xl font-black text-indigo-400 font-outfit">{totals.overallBalance.toFixed(0)}</p>
+               <p className="text-4xl font-black text-indigo-300 font-outfit">{totals.overallBalance.toFixed(0)}</p>
             </div>
             <div className="text-center space-y-1">
-               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Осталось</p>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Осталось</p>
                <p className="text-4xl font-black text-white font-outfit">{totals.overallRemaining.toFixed(0)}</p>
             </div>
             <div className="text-center space-y-1">
