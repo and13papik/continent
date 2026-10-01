@@ -386,7 +386,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       
       // Render canvas
       const canvas = await h2c(tableRef.current, {
-        backgroundColor: '#020617',
+        backgroundColor: '#0d111d',
         scale: 2,
         logging: false,
         useCORS: true,
@@ -394,46 +394,91 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         imageTimeout: 10000,
         scrollX: 0,
         scrollY: 0,
+        windowWidth: 1600,
         onclone: (clonedDoc: Document) => {
-          const clonedContainer = clonedDoc.querySelector('.glass-card') as HTMLElement;
-          const clonedScrollable = clonedDoc.querySelector('.overflow-x-auto') as HTMLElement;
-          const clonedTable = clonedDoc.querySelector('table') as HTMLElement;
+          const clonedContainer = (
+            clonedDoc.getElementById('total-table-card') ||
+            clonedDoc.querySelector('[data-report-table-container="true"]') ||
+            clonedDoc.querySelector('.total-table-card') ||
+            clonedDoc.querySelector('.glass-card') ||
+            clonedDoc.querySelector('table')?.closest('.overflow-x-auto')?.parentElement
+          ) as HTMLElement;
+          const clonedScrollable = (clonedContainer?.querySelector('.overflow-x-auto') || clonedDoc.querySelector('.overflow-x-auto')) as HTMLElement;
+          const clonedTable = (clonedContainer?.querySelector('table') || clonedDoc.querySelector('table')) as HTMLElement;
 
-          if (clonedContainer && clonedScrollable && clonedTable) {
-            clonedDoc.body.style.overflow = 'visible';
+          clonedDoc.body.style.overflow = 'visible';
+
+          if (clonedScrollable) {
             clonedScrollable.style.overflow = 'visible';
-            clonedScrollable.style.width = 'auto';
+            clonedScrollable.style.width = '100%';
             clonedScrollable.style.height = 'auto';
-            
-            clonedContainer.style.width = 'fit-content';
+          }
+          
+          if (clonedContainer) {
+            clonedContainer.style.width = 'max-content';
+            clonedContainer.style.minWidth = '950px';
             clonedContainer.style.maxWidth = 'none';
             clonedContainer.style.height = 'auto';
             clonedContainer.style.overflow = 'visible';
-            
-            const inputs = clonedDoc.querySelectorAll('input');
-            inputs.forEach((input) => {
-              const val = (input as HTMLInputElement).value || (input as HTMLInputElement).placeholder || '';
-              const span = clonedDoc.createElement('span');
-              span.textContent = val;
-              span.style.display = 'block';
-              span.style.width = '100%';
-              span.style.textAlign = 'center';
-              span.style.lineHeight = '1.2';
-              span.style.fontSize = window.getComputedStyle(input).fontSize;
-              span.style.fontWeight = window.getComputedStyle(input).fontWeight;
-              span.style.color = window.getComputedStyle(input).color;
-              span.style.fontFamily = window.getComputedStyle(input).fontFamily;
-              
-              if (input.parentElement) {
-                input.parentElement.replaceChild(span, input);
-              }
-            });
+            clonedContainer.style.borderRadius = '24px';
           }
+
+          if (clonedTable) {
+            clonedTable.style.width = '100%';
+            clonedTable.style.minWidth = '950px';
+            clonedTable.style.borderCollapse = 'collapse';
+          }
+
+          // Disable pulse animation in snapshot so zero-balance warning doesn't freeze in mid-pulse
+          clonedDoc.querySelectorAll('.animate-pulse').forEach((el) => {
+            (el as HTMLElement).style.animation = 'none';
+            (el as HTMLElement).style.opacity = '1';
+          });
+          
+          const inputs = (clonedContainer || clonedDoc).querySelectorAll('input');
+          inputs.forEach((input) => {
+            const inputEl = input as HTMLInputElement;
+            const isText = inputEl.type === 'text';
+            const val = inputEl.value;
+            const hasVal = val !== '' && val !== undefined && val !== null;
+            const placeholder = inputEl.placeholder || '';
+            const textToDisplay = hasVal ? val : placeholder;
+
+            const span = clonedDoc.createElement('span');
+            span.textContent = textToDisplay;
+            span.style.display = 'block';
+            span.style.width = '100%';
+            span.style.lineHeight = '1.3';
+            
+            const comp = window.getComputedStyle(inputEl);
+            span.style.fontSize = comp.fontSize || '14px';
+            span.style.fontFamily = comp.fontFamily || 'Inter, sans-serif';
+            
+            if (isText) {
+              span.style.textAlign = 'left';
+              span.style.padding = '6px 8px';
+              span.style.fontWeight = '700';
+              span.style.color = '#ffffff';
+            } else {
+              span.style.textAlign = 'center';
+              span.style.padding = '8px 4px';
+              span.style.fontWeight = '900';
+              if (hasVal) {
+                span.style.color = comp.color || '#ffffff';
+              } else {
+                span.style.color = 'rgba(148, 163, 184, 0.45)';
+              }
+            }
+            
+            if (inputEl.parentElement) {
+              inputEl.parentElement.replaceChild(span, inputEl);
+            }
+          });
         }
       });
       
-      // Use JPEG with 0.85 quality for drastically smaller payload size
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      // Use JPEG with 0.92 quality for sharp text and clean numbers
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
 
       let message = `<b>📊 ОТЧЕТ: ${shiftInfo.label.toUpperCase()} ${shiftInfo.icon}</b>\n`;
       message += `📅 Дата: ${selectedDate.split('-').reverse().join('.')}\n\n`;
@@ -627,13 +672,18 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         </div>
       </header>
 
-      <div ref={tableRef} className="rounded-[2.5rem] border border-slate-700/70 shadow-xl overflow-hidden bg-gradient-to-br from-[#192138] to-[#121627]">
+      <div 
+        ref={tableRef} 
+        id="total-table-card" 
+        data-report-table-container="true" 
+        className="glass-card total-table-card rounded-[2.5rem] border border-slate-700/80 shadow-xl overflow-hidden bg-gradient-to-br from-[#192138] to-[#121627]"
+      >
         <div className="overflow-x-auto">
            <table className="w-full border-collapse">
               <thead>
                  <tr className="border-b border-slate-700/70">
-                    <th className="bg-slate-850 p-4 w-12 border-r border-slate-700/70"></th>
-                    <th className="bg-slate-850 p-4 text-left border-r border-slate-700/70 text-slate-300 text-[10px] font-black uppercase tracking-widest">Анкета</th>
+                    <th className="bg-slate-800/90 p-4 w-12 border-r border-slate-700/70"></th>
+                    <th className="bg-slate-800/90 p-4 text-left border-r border-slate-700/70 text-slate-300 text-[10px] font-black uppercase tracking-widest min-w-[140px]">Анкета</th>
                     {SHIFTS.map(s => (
                        <th key={s.key} colSpan={2} className={`${s.color} p-3 text-center border-r border-slate-700/60`}>
                           <div className="flex flex-col items-center justify-center gap-1">
@@ -654,8 +704,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                           </div>
                        </th>
                     ))}
-                    <th data-html2canvas-ignore colSpan={3} className="bg-indigo-900/60 p-3 text-center text-[10px] font-black text-white uppercase tracking-[0.2em]">Итого</th>
-                    <th data-html2canvas-ignore className="bg-slate-850 p-4 w-12"></th>
+                    <th data-html2canvas-ignore colSpan={4} className="bg-indigo-900/60 p-3 text-center text-[10px] font-black text-white uppercase tracking-[0.2em]">Итого</th>
+                    <th data-html2canvas-ignore className="bg-slate-800/90 p-4 w-12"></th>
                  </tr>
                  <tr className="bg-slate-800/80 text-[9px] font-black text-slate-300 uppercase tracking-widest border-b border-slate-700/70">
                     <th className="p-2 border-r border-slate-700/60">№</th>
@@ -760,6 +810,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
                     <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-700/40 text-indigo-400 font-mono">{totals.overallPlan.toFixed(0)}</td>
                     <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-700/40 text-rose-400 font-mono">{totals.overallRemaining.toFixed(0)}</td>
                     <td data-html2canvas-ignore className="p-4 text-center text-emerald-400 font-mono border-r border-slate-700/60">{totals.overallBalance.toFixed(0)}</td>
+                    <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-700/60"></td>
                     <td data-html2canvas-ignore className="p-4"></td>
                  </tr>
               </tbody>
