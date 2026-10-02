@@ -58,10 +58,8 @@ async function getAccountEarnings(
   error?: string;
 }> {
   let totalAmount = 0;
-  let totalGrossAmount = 0;
   let txCount = 0;
   const shiftTotals = { 1: 0, 2: 0, 3: 0, 4: 0 };
-  const shiftGrossTotals = { 1: 0, 2: 0, 3: 0, 4: 0 };
   let cursor: string | null = null;
   let page = 0;
   const maxPages = 5;
@@ -137,24 +135,13 @@ async function getAccountEarnings(
       }
 
       for (const tx of items) {
-        // Enforce operational day range filtering for transactions if timestamp exists
-        const rawTs = tx.timestamp || tx.created_at || tx.date || tx.createdAt || tx.time || tx.created || tx.datetime;
-        let txDate: Date | null = null;
-        if (rawTs) {
-          let numTs = typeof rawTs === 'number' ? rawTs : parseFloat(rawTs);
-          if (!isNaN(numTs) && numTs > 0 && numTs < 1e11) {
-            // Unix timestamp in seconds -> convert to milliseconds
-            numTs *= 1000;
-          }
-          const parsedD = !isNaN(numTs) ? new Date(numTs) : new Date(rawTs);
-          if (!isNaN(parsedD.getTime())) {
-            const txTs = parsedD.getTime();
-            // If valid timestamp and outside query day range, skip
-            if (txTs < startTs || txTs >= endTs) {
-              continue;
-            }
-            txDate = parsedD;
-          }
+        // Enforce strict operational day range filtering for every transaction
+        const rawTs = tx.timestamp || tx.created_at || tx.date || tx.createdAt || tx.time;
+        if (!rawTs) continue;
+        const txDate = new Date(rawTs);
+        const txTs = txDate.getTime();
+        if (isNaN(txTs) || txTs < startTs || txTs >= endTs) {
+          continue;
         }
 
         const status = (tx.status || tx.tx_status || tx.state || '').toString().toLowerCase();
@@ -170,58 +157,48 @@ async function getAccountEarnings(
 
         if (!isExcludedStatus) {
           // Extract NET amount from OnlyMonster/OnlyFans transaction data
-          let netVal: number | null = null;
-          let grossVal: number | null = null;
+          let val: number | null = null;
 
-          const rawAmt = tx.amount !== undefined ? tx.amount : (tx.gross !== undefined ? tx.gross : (tx.sum !== undefined ? tx.sum : tx.price));
-          if (rawAmt !== undefined && rawAmt !== null) {
-            const parsed = typeof rawAmt === 'number' ? rawAmt : parseFloat(rawAmt);
-            if (!isNaN(parsed)) grossVal = parsed;
+          // 1. Direct NET fields from OnlyMonster / OnlyFans API
+          const netCandidate =
+            tx.net_amount !== undefined ? tx.net_amount :
+            tx.net !== undefined ? tx.net :
+            tx.netAmount !== undefined ? tx.netAmount :
+            tx.creator_amount !== undefined ? tx.creator_amount :
+            tx.creatorAmount !== undefined ? tx.creatorAmount :
+            tx.amount_net !== undefined ? tx.amount_net :
+            tx.payout_amount !== undefined ? tx.payout_amount :
+            undefined;
+
+          if (netCandidate !== undefined && netCandidate !== null) {
+            const parsed = typeof netCandidate === 'number' ? netCandidate : parseFloat(netCandidate);
+            if (!isNaN(parsed)) val = parsed;
           }
 
-          // 1. If explicit fee is provided (> 0)
-          if (tx.fee !== undefined && Number(tx.fee) > 0 && grossVal !== null) {
+          // 2. If gross and fee are provided separately
+          if (val === null && tx.gross !== undefined && tx.fee !== undefined) {
+            const gross = typeof tx.gross === 'number' ? tx.gross : parseFloat(tx.gross);
             const fee = typeof tx.fee === 'number' ? tx.fee : parseFloat(tx.fee);
-            if (!isNaN(fee) && grossVal > fee) {
-              netVal = grossVal - fee;
-            }
+            if (!isNaN(gross) && !isNaN(fee)) val = gross - fee;
           }
 
-          // 2. Direct NET fields from OnlyMonster / OnlyFans API
-          if (netVal === null) {
-            const netCandidate =
-              tx.net_amount !== undefined ? tx.net_amount :
-              tx.net !== undefined ? tx.net :
-              tx.netAmount !== undefined ? tx.netAmount :
-              tx.creator_amount !== undefined ? tx.creator_amount :
-              tx.creatorAmount !== undefined ? tx.creatorAmount :
-              tx.amount_net !== undefined ? tx.amount_net :
-              tx.payout_amount !== undefined ? tx.payout_amount :
-              undefined;
-
-            if (netCandidate !== undefined && netCandidate !== null) {
-              const parsedNet = typeof netCandidate === 'number' ? netCandidate : parseFloat(netCandidate);
-              // If netCandidate is strictly less than grossVal, it already has commission deducted
-              if (!isNaN(parsedNet) && (grossVal === null || parsedNet < grossVal)) {
-                netVal = parsedNet;
-              }
-            }
+          // 3. If amount and fee are provided
+          if (val === null && tx.amount !== undefined && tx.fee !== undefined && Number(tx.fee) > 0 && Number(tx.amount) > Number(tx.fee)) {
+            const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount);
+            const fee = typeof tx.fee === 'number' ? tx.fee : parseFloat(tx.fee);
+            if (!isNaN(amt) && !isNaN(fee)) val = amt - fee;
           }
 
-          // 3. Fallback: In OnlyFans, all transactions (tips, messages, subscriptions, posts) incur a 20% platform fee.
-          // Therefore, Net (Чистыми) is 80% of Gross (Грязными * 0.8).
-          if (netVal === null && grossVal !== null) {
-            netVal = Math.round(grossVal * 0.8 * 100) / 100;
+          // 4. Fallback to amount / sum
+          if (val === null) {
+            const rawAmt = tx.amount !== undefined ? tx.amount : tx.sum;
+            const parsed = typeof rawAmt === 'number' ? rawAmt : parseFloat(rawAmt);
+            if (!isNaN(parsed)) val = parsed;
           }
 
-          if (grossVal === null && netVal !== null) {
-            grossVal = Math.round((netVal / 0.8) * 100) / 100;
-          }
-
-          if (netVal !== null && !isNaN(netVal)) {
+          if (val !== null && !isNaN(val)) {
             txCount++;
-            totalAmount += netVal;
-            totalGrossAmount += (grossVal ?? (Math.round((netVal / 0.8) * 100) / 100));
+            totalAmount += val;
 
             if (includeBreakdown) {
               const hourFormatter = new Intl.DateTimeFormat("en-US", {
@@ -229,21 +206,11 @@ async function getAccountEarnings(
                 hour: "numeric",
                 hour12: false
               });
-              const h = parseInt(hourFormatter.format(txDate || new Date(startTs)), 10) || 0;
-              const gVal = grossVal ?? (netVal / 0.8);
-              if (h >= 2 && h < 8) {
-                shiftTotals[1] += netVal;
-                shiftGrossTotals[1] += gVal;
-              } else if (h >= 8 && h < 14) {
-                shiftTotals[2] += netVal;
-                shiftGrossTotals[2] += gVal;
-              } else if (h >= 14 && h < 20) {
-                shiftTotals[3] += netVal;
-                shiftGrossTotals[3] += gVal;
-              } else {
-                shiftTotals[4] += netVal;
-                shiftGrossTotals[4] += gVal;
-              }
+              const h = parseInt(hourFormatter.format(txDate), 10) || 0;
+              if (h >= 2 && h < 8) shiftTotals[1] += val;
+              else if (h >= 8 && h < 14) shiftTotals[2] += val;
+              else if (h >= 14 && h < 20) shiftTotals[3] += val;
+              else shiftTotals[4] += val;
             }
           }
         }
@@ -251,14 +218,10 @@ async function getAccountEarnings(
 
     } while (cursor && page < maxPages);
 
-    const roundedNetTotal = Math.round(totalAmount * 100) / 100;
-    const roundedGrossTotal = Math.round(totalGrossAmount * 100) / 100;
+    const roundedTotal = Math.round(totalAmount * 100) / 100;
     const resObj: any = {
-      total: roundedNetTotal,          // Чистыми (Net, после 20% комиссии OnlyFans)
-      today: roundedNetTotal,          // Чистыми (Net)
-      total_net: roundedNetTotal,      // Чистыми (Net)
-      total_gross: roundedGrossTotal,  // Грязными (Gross до комиссии)
-      today_gross: roundedGrossTotal,
+      total: roundedTotal,
+      today: roundedTotal,
       tx_count: txCount,
       currency: 'USD',
       label
@@ -270,12 +233,6 @@ async function getAccountEarnings(
         2: Math.round(shiftTotals[2] * 100) / 100,
         3: Math.round(shiftTotals[3] * 100) / 100,
         4: Math.round(shiftTotals[4] * 100) / 100
-      };
-      resObj.gross_breakdown = {
-        1: Math.round(shiftGrossTotals[1] * 100) / 100,
-        2: Math.round(shiftGrossTotals[2] * 100) / 100,
-        3: Math.round(shiftGrossTotals[3] * 100) / 100,
-        4: Math.round(shiftGrossTotals[4] * 100) / 100
       };
     }
 
@@ -718,8 +675,6 @@ async function handleShiftOperators(req: any, res: any, queryParams: Record<stri
       sold_messages_count: op.sold_messages_count,
       fans_count: op.fans_count,
       earnings: Math.round(op.earnings * 100) / 100,
-      gross_earnings: Math.round(op.earnings * 100) / 100,
-      net_earnings: Math.round(op.earnings * 0.8 * 100) / 100,
       reply_time_avg: op.reply_time_count > 0 ? Math.round(op.reply_time_sum / op.reply_time_count) : null,
       creator_ids: Array.from(op.creator_ids)
     }));
@@ -822,9 +777,8 @@ async function handleShiftOperators(req: any, res: any, queryParams: Record<stri
 async function fetchShiftMetrics(
   url: string,
   headers: Record<string, string>
-): Promise<{ totalMessages: number; totalEarnings: number; totalGross: number; operatorCount: number; error?: string }> {
+): Promise<{ totalMessages: number; totalEarnings: number; operatorCount: number; error?: string }> {
   let totalMessages = 0;
-  let totalGross = 0;
   let totalEarnings = 0;
   const userSet = new Set<string>();
 
@@ -838,7 +792,7 @@ async function fetchShiftMetrics(
     try {
       response = await fetchWithTimeout(pageUrl, headers, 8000);
     } catch (err: any) {
-      return { totalMessages: 0, totalEarnings: 0, totalGross: 0, operatorCount: 0, error: err.message };
+      return { totalMessages: 0, totalEarnings: 0, operatorCount: 0, error: err.message };
     }
 
     if (!response.ok) break;
@@ -856,23 +810,20 @@ async function fetchShiftMetrics(
         ? item.messages_count
         : (item.messages || item.sent_messages || 0);
 
-      const soldMsgs = typeof item.sold_messages_price_sum === 'number'
-        ? item.sold_messages_price_sum
-        : (parseFloat(item.sold_messages_price_sum) || 0);
-      const soldPosts = typeof item.sold_posts_price_sum === 'number'
-        ? item.sold_posts_price_sum
-        : (parseFloat(item.sold_posts_price_sum) || 0);
-      const tips = typeof item.tips_amount_sum === 'number'
-        ? item.tips_amount_sum
-        : (parseFloat(item.tips_amount_sum) || 0);
-
-      const gross = (soldMsgs + soldPosts + tips);
-
-      if (msgCount > 0 || gross > 0) {
+      if (msgCount > 0) {
         totalMessages += msgCount;
-        totalGross += gross;
-        // Net: 80% after deducting 20% OnlyFans platform fee
-        totalEarnings += Math.round(gross * 0.8 * 100) / 100;
+
+        const soldMsgs = typeof item.sold_messages_price_sum === 'number'
+          ? item.sold_messages_price_sum
+          : (parseFloat(item.sold_messages_price_sum) || 0);
+        const soldPosts = typeof item.sold_posts_price_sum === 'number'
+          ? item.sold_posts_price_sum
+          : (parseFloat(item.sold_posts_price_sum) || 0);
+        const tips = typeof item.tips_amount_sum === 'number'
+          ? item.tips_amount_sum
+          : (parseFloat(item.tips_amount_sum) || 0);
+
+        totalEarnings += (soldMsgs + soldPosts + tips);
 
         const userId = String(item.user_id || item.id || item.member_id || '');
         if (userId) {
@@ -888,7 +839,6 @@ async function fetchShiftMetrics(
   return {
     totalMessages,
     totalEarnings: Math.round(totalEarnings * 100) / 100,
-    totalGross: Math.round(totalGross * 100) / 100,
     operatorCount: userSet.size
   };
 }
@@ -952,24 +902,18 @@ async function handleShiftComparison(req: any, res: any, queryParams: Record<str
         const data = await fetchShiftMetrics(url, headers);
 
         const accountEarnings = accountShiftTotals[s as 1 | 2 | 3 | 4] ?? 0;
-        const accountGross = Math.round((accountEarnings / 0.8) * 100) / 100;
         const operatorEarnings = data.totalEarnings ?? 0;
-        const operatorGross = data.totalGross ?? (operatorEarnings > 0 ? Math.round((operatorEarnings / 0.8) * 100) / 100 : 0);
-        // The authoritative income of the shift (Net): prefer real account revenue from OnlyMonster API
+        // The authoritative income of the shift: prefer real account revenue from OnlyMonster API
         const totalEarnings = accountEarnings > 0 ? accountEarnings : operatorEarnings;
-        const totalGross = accountEarnings > 0 ? accountGross : operatorGross;
         const diff = accountEarnings > 0 ? Math.round((accountEarnings - operatorEarnings) * 100) / 100 : 0;
 
         shiftsRes.push({
           index: s,
           label: range.label,
           totalMessages: data.totalMessages,
-          totalEarnings,   // Чистыми (Net, после комиссии OnlyFans 20%)
-          totalGross,      // Грязными (Gross до комиссии)
-          accountEarnings, // Чистыми (Net)
-          accountGross,    // Грязными (Gross)
-          operatorEarnings,// Чистыми (Net)
-          operatorGross,   // Грязными (Gross)
+          totalEarnings,
+          accountEarnings,
+          operatorEarnings,
           diff,
           operatorCount: data.operatorCount,
           isFuture: false
@@ -1068,21 +1012,17 @@ async function handleShiftComparison(req: any, res: any, queryParams: Record<str
         const st = shiftStats[config.index];
         const daysCounted = st ? st.daysCounted : 0;
         const totalEarnings = st ? Math.round(st.totalEarnings * 100) / 100 : 0;
-        const totalGross = Math.round((totalEarnings / 0.8) * 100) / 100;
         const totalMessages = st ? st.totalMessages : 0;
         const avgEarningsPerDay = daysCounted > 0 ? Math.round((totalEarnings / daysCounted) * 100) / 100 : 0;
-        const avgGrossPerDay = daysCounted > 0 ? Math.round((totalGross / daysCounted) * 100) / 100 : 0;
         const avgMessagesPerDay = daysCounted > 0 ? Math.round(totalMessages / daysCounted) : 0;
 
         return {
           index: config.index,
           label: config.label,
           totalMessages,
-          totalEarnings,     // Чистыми (Net)
-          totalGross,        // Грязными (Gross)
+          totalEarnings,
           daysCounted,
-          avgEarningsPerDay, // Чистыми в день
-          avgGrossPerDay,    // Грязными в день
+          avgEarningsPerDay,
           avgMessagesPerDay,
           isFuture: daysCounted === 0
         };

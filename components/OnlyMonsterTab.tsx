@@ -1827,7 +1827,6 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
 
   // Shift Comparison state
   const [shiftCompMode, setShiftCompMode] = useState<'today' | 'yesterday' | 'week'>('today');
-  const [shiftIncomeMode, setShiftIncomeMode] = useState<'net' | 'gross'>('net');
   const [shiftCompData, setShiftCompData] = useState<{
     shifts: any[];
     strongestIndex: number | null;
@@ -3024,66 +3023,32 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
 
           {/* SUB-BLOCK: SHIFT COMPARISON */}
           <div className="p-4 bg-slate-800/85 rounded-2xl border border-white/10 space-y-3 font-mono">
-            <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2 border-b border-white/5">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/5">
               <div className="flex items-center gap-2">
                 <Clock size={15} className="text-violet-400" />
                 <h4 className="text-xs font-black uppercase text-slate-200 tracking-wider">
                   Сравнение Смен
                 </h4>
-                <span className="hidden sm:inline-flex items-center gap-1 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  {shiftIncomeMode === 'net' ? 'Баланс ЧИСТЫМИ (-20% OF)' : 'Баланс ГРЯЗНЫМИ (Gross)'}
-                </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                {/* NET / GROSS TOGGLE */}
-                <div className="flex items-center p-0.5 bg-slate-900/90 border border-white/10 rounded-xl text-[10px]">
+              <div className="flex items-center p-0.5 bg-slate-900 border border-white/10 rounded-xl text-[10px]">
+                {[
+                  { id: 'today', label: 'Сегодня' },
+                  { id: 'yesterday', label: 'Вчера' },
+                  { id: 'week', label: 'За неделю' },
+                ].map((item) => (
                   <button
-                    onClick={() => setShiftIncomeMode('net')}
-                    className={`px-2.5 py-1 rounded-lg font-black uppercase transition-all flex items-center gap-1 ${
-                      shiftIncomeMode === 'net'
-                        ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-950/40'
+                    key={item.id}
+                    onClick={() => handleShiftCompModeChange(item.id as any)}
+                    className={`px-2.5 py-1 rounded-lg font-bold uppercase transition-all ${
+                      shiftCompMode === item.id
+                        ? 'bg-violet-600 text-white shadow-sm'
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
-                    title="Показывать баланс чистыми после вычета комиссии OnlyFans (20%)"
                   >
-                    <span>Чистыми</span>
-                    <span className="text-[8px] opacity-75">(-20%)</span>
+                    {item.label}
                   </button>
-                  <button
-                    onClick={() => setShiftIncomeMode('gross')}
-                    className={`px-2.5 py-1 rounded-lg font-black uppercase transition-all ${
-                      shiftIncomeMode === 'gross'
-                        ? 'bg-violet-600 text-white shadow-sm shadow-violet-950/40'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                    title="Показывать баланс грязными (Gross до комиссии OnlyFans)"
-                  >
-                    Грязными
-                  </button>
-                </div>
-
-                {/* PERIOD SCOPE BUTTONS */}
-                <div className="flex items-center p-0.5 bg-slate-900 border border-white/10 rounded-xl text-[10px]">
-                  {[
-                    { id: 'today', label: 'Сегодня' },
-                    { id: 'yesterday', label: 'Вчера' },
-                    { id: 'week', label: 'За неделю' },
-                  ].map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => handleShiftCompModeChange(item.id as any)}
-                      className={`px-2.5 py-1 rounded-lg font-bold uppercase transition-all ${
-                        shiftCompMode === item.id
-                          ? 'bg-violet-600 text-white shadow-sm'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
+                ))}
               </div>
             </div>
 
@@ -3103,57 +3068,18 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                   const isWeakest = shiftCompData.weakestIndex === s.index && !isStrongest;
 
                   // Authoritative shift revenue from OnlyMonster API
-                  const sNet = typeof s.totalEarnings === 'number' ? s.totalEarnings : 0;
-                  const sGross = typeof s.totalGross === 'number' ? s.totalGross : 0;
-
-                  // Live account calculation if available and > 0
+                  // Calculated live from accounts' breakdown for this shift
                   const liveAccountEarnings = (accounts || []).reduce((accSum, a) => {
                     const b = a.earnings_breakdown;
                     const val = b ? Number(b[s.index as 1 | 2 | 3 | 4]) || 0 : 0;
                     return accSum + val;
                   }, 0);
-                  const liveNetRounded = Math.round(liveAccountEarnings * 100) / 100;
-                  const liveGrossRounded = Math.round((liveNetRounded / 0.8) * 100) / 100;
+                  const liveRounded = Math.round(liveAccountEarnings * 100) / 100;
 
-                  // NET: чистыми после вычета 20% комиссии OnlyFans
-                  let authoritativeNet = 0;
-                  if (sNet > 0) {
-                    authoritativeNet = sNet;
-                  } else if (liveNetRounded > 0) {
-                    authoritativeNet = liveNetRounded;
-                  } else if (typeof s.accountEarnings === 'number' && s.accountEarnings > 0) {
-                    authoritativeNet = s.accountEarnings;
-                  } else if (typeof s.operatorEarnings === 'number' && s.operatorEarnings > 0) {
-                    authoritativeNet = s.operatorEarnings;
-                  } else if (typeof s.totalEarnings === 'number') {
-                    authoritativeNet = s.totalEarnings;
-                  }
-
-                  // GROSS: грязными до вычета комиссии OnlyFans
-                  let authoritativeGross = 0;
-                  if (sGross > 0) {
-                    authoritativeGross = sGross;
-                  } else if (liveGrossRounded > 0) {
-                    authoritativeGross = liveGrossRounded;
-                  } else if (typeof s.accountGross === 'number' && s.accountGross > 0) {
-                    authoritativeGross = s.accountGross;
-                  } else if (typeof s.operatorGross === 'number' && s.operatorGross > 0) {
-                    authoritativeGross = s.operatorGross;
-                  } else if (authoritativeNet > 0) {
-                    authoritativeGross = Math.round((authoritativeNet / 0.8) * 100) / 100;
-                  } else if (typeof s.totalGross === 'number') {
-                    authoritativeGross = s.totalGross;
-                  }
-
-                  authoritativeNet = Math.round(authoritativeNet * 100) / 100;
-                  authoritativeGross = Math.round(authoritativeGross * 100) / 100;
-
-                  // Active display value based on selected mode (default: Net)
-                  const displayAmount = shiftIncomeMode === 'gross' ? authoritativeGross : authoritativeNet;
-                  const secondaryAmount = shiftIncomeMode === 'gross' ? authoritativeNet : authoritativeGross;
-
+                  const hasLiveEarnings = liveRounded > 0 || (accounts || []).some(a => a.earnings_breakdown && a.earnings_breakdown[s.index as 1 | 2 | 3 | 4] !== undefined);
+                  const authoritativeIncome = hasLiveEarnings ? liveRounded : ((s.accountEarnings && s.accountEarnings > 0) ? s.accountEarnings : (s.totalEarnings ?? 0));
                   const operatorChatSales = typeof s.operatorEarnings === 'number' ? s.operatorEarnings : 0;
-                  const diff = Math.round((authoritativeNet - operatorChatSales) * 100) / 100;
+                  const diff = Math.round((authoritativeIncome - operatorChatSales) * 100) / 100;
 
                   return (
                     <div
@@ -3186,30 +3112,16 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
 
                       <div className="mt-1.5 flex items-baseline justify-between">
                         <div>
-                          <span className="text-[9px] uppercase text-emerald-400/90 block font-bold flex items-center gap-1">
-                            {shiftIncomeMode === 'net' ? 'Чистыми (-20% OF)' : 'Грязными (Gross)'}
+                          <span className="text-[9px] uppercase text-emerald-400/90 block font-bold">
+                            Доход OnlyMonster (API)
                           </span>
                           <span className={`text-sm font-black font-mono ${s.isFuture ? 'text-slate-600' : isStrongest ? 'text-emerald-300' : 'text-emerald-400'}`}>
                             {s.isFuture
                               ? '—'
                               : shiftCompMode === 'week'
-                              ? `$${(shiftIncomeMode === 'gross'
-                                  ? (s.avgGrossPerDay || (s.avgEarningsPerDay ? Math.round((s.avgEarningsPerDay / 0.8) * 100) / 100 : 0))
-                                  : (s.avgEarningsPerDay || 0)
-                                ).toFixed(2)}/д`
-                              : `$${displayAmount.toFixed(2)}`}
+                              ? `$${Number(s.avgEarningsPerDay || 0).toFixed(2)}/д`
+                              : `$${Number(authoritativeIncome || 0).toFixed(2)}`}
                           </span>
-                          {!s.isFuture && (
-                            <span className="text-[8.5px] text-slate-500 block font-mono">
-                              {shiftCompMode === 'week'
-                                ? (shiftIncomeMode === 'net'
-                                    ? `грязными: $${(s.avgGrossPerDay || (s.avgEarningsPerDay ? Math.round((s.avgEarningsPerDay / 0.8) * 100) / 100 : 0)).toFixed(2)}/д`
-                                    : `чистыми: $${(s.avgEarningsPerDay || 0).toFixed(2)}/д`)
-                                : (shiftIncomeMode === 'net' 
-                                    ? `грязными: $${authoritativeGross.toFixed(2)}`
-                                    : `чистыми: $${authoritativeNet.toFixed(2)}`)}
-                            </span>
-                          )}
                         </div>
 
                         <div className="text-right">
@@ -3224,15 +3136,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                       {(shiftCompMode === 'today' || shiftCompMode === 'yesterday') && !s.isFuture && (
                         <div className="mt-2 pt-2 border-t border-white/10 text-[9px] text-slate-400 leading-tight space-y-1">
                           <div className="flex items-center justify-between">
-                            <span className="text-slate-400">Чистый доход (-20% OF):</span>
+                            <span className="text-slate-400">Доход аккаунтов (API):</span>
                             <span className="text-emerald-400 font-bold font-mono">
-                              ${authoritativeNet.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-400">Грязными (до комиссии):</span>
-                            <span className="text-slate-300 font-bold font-mono">
-                              ${authoritativeGross.toFixed(2)}
+                              ${Number(authoritativeIncome || 0).toFixed(2)}
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
@@ -3241,7 +3147,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                               ${Number(operatorChatSales || 0).toFixed(2)}
                             </span>
                           </div>
-                          {(authoritativeNet > 0 || operatorChatSales > 0) && (
+                          {authoritativeIncome > 0 && (
                             <div className="flex items-center justify-between pt-0.5 border-t border-white/5">
                               <span className="text-slate-500">Разница (органика/подписки):</span>
                               <span className={`font-black font-mono ${diff >= 0 ? 'text-amber-400' : 'text-rose-400'}`}>
@@ -3249,22 +3155,6 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                               </span>
                             </div>
                           )}
-                        </div>
-                      )}
-                      {shiftCompMode === 'week' && !s.isFuture && (
-                        <div className="mt-2 pt-2 border-t border-white/10 text-[9px] text-slate-400 leading-tight space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-400">Итого за неделю (чистыми):</span>
-                            <span className="text-emerald-400 font-bold font-mono">
-                              ${(s.totalEarnings || 0).toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-400">Итого за неделю (грязными):</span>
-                            <span className="text-slate-300 font-bold font-mono">
-                              ${(s.totalGross || (s.totalEarnings ? Math.round((s.totalEarnings / 0.8) * 100) / 100 : 0)).toFixed(2)}
-                            </span>
-                          </div>
                         </div>
                       )}
                     </div>
@@ -3520,26 +3410,14 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                         </div>
 
                         {/* ACCENT EARNINGS BADGE */}
-                        <div className="shrink-0 text-right">
-                          <div 
-                            title={shiftIncomeMode === 'net' 
-                              ? `Чистыми (-20% OF): $${((op as any).net_earnings ?? Math.round((op.earnings || 0) * 0.8 * 100) / 100).toFixed(2)}. Грязными: $${((op as any).gross_earnings ?? op.earnings ?? 0).toFixed(2)}` 
-                              : `Грязными (Gross): $${((op as any).gross_earnings ?? op.earnings ?? 0).toFixed(2)}. Чистыми: $${((op as any).net_earnings ?? Math.round((op.earnings || 0) * 0.8 * 100) / 100).toFixed(2)}`}
-                            className={`px-2.5 py-1 rounded-xl font-black text-xs sm:text-sm tracking-tight shadow-sm whitespace-nowrap transition-all duration-500 ${
+                        <div className="shrink-0">
+                          <div className={`px-2.5 py-1 rounded-xl font-black text-xs sm:text-sm tracking-tight shadow-sm whitespace-nowrap transition-all duration-500 ${
                             raceMode
                               ? 'bg-blue-950/80 border border-cyan-400/50 text-cyan-300 shadow-[0_0_10px_rgba(56,189,248,0.2)]'
                               : 'bg-emerald-950/20 border border-emerald-500/30 text-emerald-400'
                           }`}>
-                            {(() => {
-                              const val = shiftIncomeMode === 'gross'
-                                ? ((op as any).gross_earnings ?? op.earnings ?? 0)
-                                : ((op as any).net_earnings ?? Math.round((op.earnings || 0) * 0.8 * 100) / 100);
-                              return val > 0 ? `+$${val.toFixed(2)}` : `$${val.toFixed(2)}`;
-                            })()}
+                            {op.earnings && op.earnings > 0 ? `+$${op.earnings}` : `$${op.earnings ?? 0}`}
                           </div>
-                          <span className="text-[8px] text-slate-500 block font-mono">
-                            {shiftIncomeMode === 'net' ? 'чистыми' : 'грязными'}
-                          </span>
                         </div>
                       </div>
 
