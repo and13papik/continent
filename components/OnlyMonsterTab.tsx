@@ -3103,7 +3103,10 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                   const isWeakest = shiftCompData.weakestIndex === s.index && !isStrongest;
 
                   // Authoritative shift revenue from OnlyMonster API
-                  // Calculated live from accounts' breakdown for this shift
+                  const sNet = typeof s.totalEarnings === 'number' ? s.totalEarnings : 0;
+                  const sGross = typeof s.totalGross === 'number' ? s.totalGross : 0;
+
+                  // Live account calculation if available and > 0
                   const liveAccountEarnings = (accounts || []).reduce((accSum, a) => {
                     const b = a.earnings_breakdown;
                     const val = b ? Number(b[s.index as 1 | 2 | 3 | 4]) || 0 : 0;
@@ -3112,17 +3115,38 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                   const liveNetRounded = Math.round(liveAccountEarnings * 100) / 100;
                   const liveGrossRounded = Math.round((liveNetRounded / 0.8) * 100) / 100;
 
-                  const hasLiveEarnings = liveNetRounded > 0 || (accounts || []).some(a => a.earnings_breakdown && a.earnings_breakdown[s.index as 1 | 2 | 3 | 4] !== undefined);
-                  
                   // NET: чистыми после вычета 20% комиссии OnlyFans
-                  const authoritativeNet = hasLiveEarnings
-                    ? liveNetRounded
-                    : ((s.accountEarnings && s.accountEarnings > 0) ? s.accountEarnings : (s.totalEarnings ?? 0));
+                  let authoritativeNet = 0;
+                  if (sNet > 0) {
+                    authoritativeNet = sNet;
+                  } else if (liveNetRounded > 0) {
+                    authoritativeNet = liveNetRounded;
+                  } else if (typeof s.accountEarnings === 'number' && s.accountEarnings > 0) {
+                    authoritativeNet = s.accountEarnings;
+                  } else if (typeof s.operatorEarnings === 'number' && s.operatorEarnings > 0) {
+                    authoritativeNet = s.operatorEarnings;
+                  } else if (typeof s.totalEarnings === 'number') {
+                    authoritativeNet = s.totalEarnings;
+                  }
 
-                  // GROSS: грязными до вычета комиссии
-                  const authoritativeGross = hasLiveEarnings
-                    ? liveGrossRounded
-                    : (s.totalGross ?? (authoritativeNet > 0 ? Math.round((authoritativeNet / 0.8) * 100) / 100 : 0));
+                  // GROSS: грязными до вычета комиссии OnlyFans
+                  let authoritativeGross = 0;
+                  if (sGross > 0) {
+                    authoritativeGross = sGross;
+                  } else if (liveGrossRounded > 0) {
+                    authoritativeGross = liveGrossRounded;
+                  } else if (typeof s.accountGross === 'number' && s.accountGross > 0) {
+                    authoritativeGross = s.accountGross;
+                  } else if (typeof s.operatorGross === 'number' && s.operatorGross > 0) {
+                    authoritativeGross = s.operatorGross;
+                  } else if (authoritativeNet > 0) {
+                    authoritativeGross = Math.round((authoritativeNet / 0.8) * 100) / 100;
+                  } else if (typeof s.totalGross === 'number') {
+                    authoritativeGross = s.totalGross;
+                  }
+
+                  authoritativeNet = Math.round(authoritativeNet * 100) / 100;
+                  authoritativeGross = Math.round(authoritativeGross * 100) / 100;
 
                   // Active display value based on selected mode (default: Net)
                   const displayAmount = shiftIncomeMode === 'gross' ? authoritativeGross : authoritativeNet;
@@ -3169,14 +3193,21 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                             {s.isFuture
                               ? '—'
                               : shiftCompMode === 'week'
-                              ? `$${Number((shiftIncomeMode === 'gross' ? (s.avgGrossPerDay || (s.avgEarningsPerDay ? s.avgEarningsPerDay / 0.8 : 0)) : s.avgEarningsPerDay) || 0).toFixed(2)}/д`
-                              : `$${Number(displayAmount || 0).toFixed(2)}`}
+                              ? `$${(shiftIncomeMode === 'gross'
+                                  ? (s.avgGrossPerDay || (s.avgEarningsPerDay ? Math.round((s.avgEarningsPerDay / 0.8) * 100) / 100 : 0))
+                                  : (s.avgEarningsPerDay || 0)
+                                ).toFixed(2)}/д`
+                              : `$${displayAmount.toFixed(2)}`}
                           </span>
                           {!s.isFuture && (
                             <span className="text-[8.5px] text-slate-500 block font-mono">
-                              {shiftIncomeMode === 'net' 
-                                ? `грязными: $${Number(authoritativeGross || 0).toFixed(2)}`
-                                : `чистыми: $${Number(authoritativeNet || 0).toFixed(2)}`}
+                              {shiftCompMode === 'week'
+                                ? (shiftIncomeMode === 'net'
+                                    ? `грязными: $${(s.avgGrossPerDay || (s.avgEarningsPerDay ? Math.round((s.avgEarningsPerDay / 0.8) * 100) / 100 : 0)).toFixed(2)}/д`
+                                    : `чистыми: $${(s.avgEarningsPerDay || 0).toFixed(2)}/д`)
+                                : (shiftIncomeMode === 'net' 
+                                    ? `грязными: $${authoritativeGross.toFixed(2)}`
+                                    : `чистыми: $${authoritativeNet.toFixed(2)}`)}
                             </span>
                           )}
                         </div>
@@ -3195,13 +3226,13 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                           <div className="flex items-center justify-between">
                             <span className="text-slate-400">Чистый доход (-20% OF):</span>
                             <span className="text-emerald-400 font-bold font-mono">
-                              ${Number(authoritativeNet || 0).toFixed(2)}
+                              ${authoritativeNet.toFixed(2)}
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-slate-400">Грязными (до комиссии):</span>
                             <span className="text-slate-300 font-bold font-mono">
-                              ${Number(authoritativeGross || 0).toFixed(2)}
+                              ${authoritativeGross.toFixed(2)}
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
@@ -3210,7 +3241,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                               ${Number(operatorChatSales || 0).toFixed(2)}
                             </span>
                           </div>
-                          {authoritativeNet > 0 && (
+                          {(authoritativeNet > 0 || operatorChatSales > 0) && (
                             <div className="flex items-center justify-between pt-0.5 border-t border-white/5">
                               <span className="text-slate-500">Разница (органика/подписки):</span>
                               <span className={`font-black font-mono ${diff >= 0 ? 'text-amber-400' : 'text-rose-400'}`}>
@@ -3218,6 +3249,22 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                               </span>
                             </div>
                           )}
+                        </div>
+                      )}
+                      {shiftCompMode === 'week' && !s.isFuture && (
+                        <div className="mt-2 pt-2 border-t border-white/10 text-[9px] text-slate-400 leading-tight space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">Итого за неделю (чистыми):</span>
+                            <span className="text-emerald-400 font-bold font-mono">
+                              ${(s.totalEarnings || 0).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">Итого за неделю (грязными):</span>
+                            <span className="text-slate-300 font-bold font-mono">
+                              ${(s.totalGross || (s.totalEarnings ? Math.round((s.totalEarnings / 0.8) * 100) / 100 : 0)).toFixed(2)}
+                            </span>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -3473,14 +3520,26 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                         </div>
 
                         {/* ACCENT EARNINGS BADGE */}
-                        <div className="shrink-0">
-                          <div className={`px-2.5 py-1 rounded-xl font-black text-xs sm:text-sm tracking-tight shadow-sm whitespace-nowrap transition-all duration-500 ${
+                        <div className="shrink-0 text-right">
+                          <div 
+                            title={shiftIncomeMode === 'net' 
+                              ? `Чистыми (-20% OF): $${((op as any).net_earnings ?? Math.round((op.earnings || 0) * 0.8 * 100) / 100).toFixed(2)}. Грязными: $${((op as any).gross_earnings ?? op.earnings ?? 0).toFixed(2)}` 
+                              : `Грязными (Gross): $${((op as any).gross_earnings ?? op.earnings ?? 0).toFixed(2)}. Чистыми: $${((op as any).net_earnings ?? Math.round((op.earnings || 0) * 0.8 * 100) / 100).toFixed(2)}`}
+                            className={`px-2.5 py-1 rounded-xl font-black text-xs sm:text-sm tracking-tight shadow-sm whitespace-nowrap transition-all duration-500 ${
                             raceMode
                               ? 'bg-blue-950/80 border border-cyan-400/50 text-cyan-300 shadow-[0_0_10px_rgba(56,189,248,0.2)]'
                               : 'bg-emerald-950/20 border border-emerald-500/30 text-emerald-400'
                           }`}>
-                            {op.earnings && op.earnings > 0 ? `+$${op.earnings}` : `$${op.earnings ?? 0}`}
+                            {(() => {
+                              const val = shiftIncomeMode === 'gross'
+                                ? ((op as any).gross_earnings ?? op.earnings ?? 0)
+                                : ((op as any).net_earnings ?? Math.round((op.earnings || 0) * 0.8 * 100) / 100);
+                              return val > 0 ? `+$${val.toFixed(2)}` : `$${val.toFixed(2)}`;
+                            })()}
                           </div>
+                          <span className="text-[8px] text-slate-500 block font-mono">
+                            {shiftIncomeMode === 'net' ? 'чистыми' : 'грязными'}
+                          </span>
                         </div>
                       </div>
 

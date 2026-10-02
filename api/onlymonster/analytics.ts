@@ -137,13 +137,24 @@ async function getAccountEarnings(
       }
 
       for (const tx of items) {
-        // Enforce strict operational day range filtering for every transaction
-        const rawTs = tx.timestamp || tx.created_at || tx.date || tx.createdAt || tx.time;
-        if (!rawTs) continue;
-        const txDate = new Date(rawTs);
-        const txTs = txDate.getTime();
-        if (isNaN(txTs) || txTs < startTs || txTs >= endTs) {
-          continue;
+        // Enforce operational day range filtering for transactions if timestamp exists
+        const rawTs = tx.timestamp || tx.created_at || tx.date || tx.createdAt || tx.time || tx.created || tx.datetime;
+        let txDate: Date | null = null;
+        if (rawTs) {
+          let numTs = typeof rawTs === 'number' ? rawTs : parseFloat(rawTs);
+          if (!isNaN(numTs) && numTs > 0 && numTs < 1e11) {
+            // Unix timestamp in seconds -> convert to milliseconds
+            numTs *= 1000;
+          }
+          const parsedD = !isNaN(numTs) ? new Date(numTs) : new Date(rawTs);
+          if (!isNaN(parsedD.getTime())) {
+            const txTs = parsedD.getTime();
+            // If valid timestamp and outside query day range, skip
+            if (txTs < startTs || txTs >= endTs) {
+              continue;
+            }
+            txDate = parsedD;
+          }
         }
 
         const status = (tx.status || tx.tx_status || tx.state || '').toString().toLowerCase();
@@ -218,7 +229,7 @@ async function getAccountEarnings(
                 hour: "numeric",
                 hour12: false
               });
-              const h = parseInt(hourFormatter.format(txDate), 10) || 0;
+              const h = parseInt(hourFormatter.format(txDate || new Date(startTs)), 10) || 0;
               const gVal = grossVal ?? (netVal / 0.8);
               if (h >= 2 && h < 8) {
                 shiftTotals[1] += netVal;
@@ -707,6 +718,8 @@ async function handleShiftOperators(req: any, res: any, queryParams: Record<stri
       sold_messages_count: op.sold_messages_count,
       fans_count: op.fans_count,
       earnings: Math.round(op.earnings * 100) / 100,
+      gross_earnings: Math.round(op.earnings * 100) / 100,
+      net_earnings: Math.round(op.earnings * 0.8 * 100) / 100,
       reply_time_avg: op.reply_time_count > 0 ? Math.round(op.reply_time_sum / op.reply_time_count) : null,
       creator_ids: Array.from(op.creator_ids)
     }));
@@ -843,20 +856,20 @@ async function fetchShiftMetrics(
         ? item.messages_count
         : (item.messages || item.sent_messages || 0);
 
-      if (msgCount > 0) {
+      const soldMsgs = typeof item.sold_messages_price_sum === 'number'
+        ? item.sold_messages_price_sum
+        : (parseFloat(item.sold_messages_price_sum) || 0);
+      const soldPosts = typeof item.sold_posts_price_sum === 'number'
+        ? item.sold_posts_price_sum
+        : (parseFloat(item.sold_posts_price_sum) || 0);
+      const tips = typeof item.tips_amount_sum === 'number'
+        ? item.tips_amount_sum
+        : (parseFloat(item.tips_amount_sum) || 0);
+
+      const gross = (soldMsgs + soldPosts + tips);
+
+      if (msgCount > 0 || gross > 0) {
         totalMessages += msgCount;
-
-        const soldMsgs = typeof item.sold_messages_price_sum === 'number'
-          ? item.sold_messages_price_sum
-          : (parseFloat(item.sold_messages_price_sum) || 0);
-        const soldPosts = typeof item.sold_posts_price_sum === 'number'
-          ? item.sold_posts_price_sum
-          : (parseFloat(item.sold_posts_price_sum) || 0);
-        const tips = typeof item.tips_amount_sum === 'number'
-          ? item.tips_amount_sum
-          : (parseFloat(item.tips_amount_sum) || 0);
-
-        const gross = (soldMsgs + soldPosts + tips);
         totalGross += gross;
         // Net: 80% after deducting 20% OnlyFans platform fee
         totalEarnings += Math.round(gross * 0.8 * 100) / 100;
