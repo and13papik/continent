@@ -40,12 +40,67 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
 
   const [isManagingOperators, setIsManagingOperators] = useState(false);
   const [newOperatorName, setNewOperatorName] = useState('');
+  const [syncBanner, setSyncBanner] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
 
   const currentPeriod = state.accountingPeriods.find((p: AccountingPeriod) => p.id === state.selectedPeriodId);
   
+  // Find fallback period if current period has no roster entries yet
+  const fallbackPeriodId = useMemo(() => {
+    const hasCurrent = (state.rosterData || []).some((e: RosterEntry) => e.periodId === state.selectedPeriodId);
+    if (hasCurrent) return state.selectedPeriodId;
+
+    const periodsWithRoster = state.accountingPeriods
+      .filter(p => (state.rosterData || []).some(e => e.periodId === p.id))
+      .sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
+
+    return periodsWithRoster[0]?.id || null;
+  }, [state.rosterData, state.selectedPeriodId, state.accountingPeriods]);
+
   const rosterEntries = useMemo(() => {
-    return (state.rosterData || []).filter((e: RosterEntry) => e.periodId === state.selectedPeriodId);
-  }, [state.rosterData, state.selectedPeriodId]);
+    const direct = (state.rosterData || []).filter((e: RosterEntry) => e.periodId === state.selectedPeriodId);
+    if (direct.length > 0) return direct;
+
+    if (fallbackPeriodId && fallbackPeriodId !== state.selectedPeriodId) {
+      return (state.rosterData || [])
+        .filter((e: RosterEntry) => e.periodId === fallbackPeriodId)
+        .map(e => ({ ...e, periodId: state.selectedPeriodId }));
+    }
+
+    return [];
+  }, [state.rosterData, state.selectedPeriodId, fallbackPeriodId]);
+
+  // Auto-clone roster to current month if it is empty so it is fixed and persisted across months
+  useEffect(() => {
+    if (!state.selectedPeriodId) return;
+    const hasCurrent = (state.rosterData || []).some((e: RosterEntry) => e.periodId === state.selectedPeriodId);
+    if (!hasCurrent && fallbackPeriodId && fallbackPeriodId !== state.selectedPeriodId) {
+      const sourceEntries = (state.rosterData || []).filter(e => e.periodId === fallbackPeriodId);
+      if (sourceEntries.length > 0) {
+        const cloned = sourceEntries.map(e => ({
+          ...e,
+          id: `roster_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`,
+          periodId: state.selectedPeriodId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }));
+
+        const hasCurrentAsmts = (state.operatorAssessments || []).some(a => a.periodId === state.selectedPeriodId);
+        const sourceAsmts = hasCurrentAsmts ? [] : (state.operatorAssessments || []).filter(a => a.periodId === fallbackPeriodId);
+        const clonedAsmts = sourceAsmts.map(a => ({
+          ...a,
+          id: `asmt_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`,
+          periodId: state.selectedPeriodId,
+          updatedAt: new Date().toISOString()
+        }));
+
+        updateState(prev => ({
+          ...prev,
+          rosterData: [...(prev.rosterData || []), ...cloned],
+          operatorAssessments: [...(prev.operatorAssessments || []), ...clonedAsmts]
+        }));
+      }
+    }
+  }, [state.selectedPeriodId, fallbackPeriodId, state.rosterData, state.operatorAssessments, updateState]);
 
   const operatorWorkingDays = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -523,7 +578,17 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       const roster = [...(prev.rosterData || [])];
       const now = new Date().toISOString();
       
-      // 1. Check if it's already assigned to THIS operator (toggle off)
+      // Determine target periods: current period and future open periods
+      const currentP = prev.accountingPeriods.find(p => p.id === currentPeriodId);
+      const currentStart = currentP ? new Date(currentP.startAt).getTime() : 0;
+      const targetPeriodIds = Array.from(new Set([
+        currentPeriodId,
+        ...prev.accountingPeriods
+          .filter(p => p.status === 'open' && new Date(p.startAt).getTime() >= currentStart)
+          .map(p => p.id)
+      ]));
+
+      // 1. Check if it's already assigned to THIS operator in current period (toggle off)
       const wasAssignedToThis = roster.some(e => 
         e.shift === editingCell.shift && 
         e.operator === operator && 
@@ -531,18 +596,18 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         e.periodId === currentPeriodId
       );
 
-      // 2. Identify entries that will be deleted (those that have only this model and are in this shift)
+      // 2. Identify entries that will be deleted
       const entriesToDelete = roster.filter(entry => 
         entry.shift === editingCell.shift && 
-        entry.periodId === currentPeriodId && 
+        targetPeriodIds.includes(entry.periodId) && 
         entry.models.includes(editingCell.model) &&
         entry.models.length === 1
       );
       const newDeletedIds = [...(prev.deletedIds || []), ...entriesToDelete.map(e => e.id)];
 
-      // 3. Remove this model from ANY existing assignment in this shift
-      const updatedRoster = roster.map(entry => {
-        if (entry.shift === editingCell.shift && entry.periodId === currentPeriodId) {
+      // 3. Remove this model from ANY existing assignment in this shift across target periods
+      let updatedRoster = roster.map(entry => {
+        if (entry.shift === editingCell.shift && targetPeriodIds.includes(entry.periodId)) {
           if (entry.models.includes(editingCell.model)) {
             return {
               ...entry,
@@ -559,41 +624,39 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         return { ...prev, rosterData: updatedRoster, deletedIds: newDeletedIds };
       }
 
-      // 4. Assign to the new operator
-      const targetEntryIdx = updatedRoster.findIndex(e => 
-        e.shift === editingCell.shift && 
-        e.operator === operator && 
-        e.periodId === currentPeriodId
-      );
+      // 4. Assign to the operator across target periods
+      targetPeriodIds.forEach(pId => {
+        const targetEntryIdx = updatedRoster.findIndex(e => 
+          e.shift === editingCell.shift && 
+          e.operator === operator && 
+          e.periodId === pId
+        );
 
-      if (targetEntryIdx > -1) {
-        const entry = { ...updatedRoster[targetEntryIdx] };
-        
-        // Update isTrainee in case it changed
-        entry.isTrainee = isTrainee;
+        if (targetEntryIdx > -1) {
+          const entry = { ...updatedRoster[targetEntryIdx] };
+          entry.isTrainee = isTrainee;
 
-        // Limit to 2 models for real operators, but "ДЫРКА" can have more
-        if (operator === 'ДЫРКА' || entry.models.length < 2) {
-          entry.models = [...entry.models, editingCell.model];
+          if (operator === 'ДЫРКА' || entry.models.length < 2) {
+            entry.models = [...entry.models, editingCell.model];
+          } else {
+            entry.models = [entry.models[0], editingCell.model];
+          }
+          entry.updatedAt = now;
+          updatedRoster[targetEntryIdx] = entry;
         } else {
-          // Replace the second one if already has 2
-          entry.models = [entry.models[0], editingCell.model];
+          updatedRoster.push({
+            id: `roster_${pId}_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`,
+            periodId: pId,
+            date: 'monthly',
+            shift: editingCell.shift,
+            operator,
+            isTrainee,
+            models: [editingCell.model],
+            createdAt: now,
+            updatedAt: now
+          });
         }
-        entry.updatedAt = now;
-        updatedRoster[targetEntryIdx] = entry;
-      } else {
-        updatedRoster.push({
-          id: `roster_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          periodId: currentPeriodId,
-          date: 'monthly',
-          shift: editingCell.shift,
-          operator,
-          isTrainee,
-          models: [editingCell.model],
-          createdAt: now,
-          updatedAt: now
-        });
-      }
+      });
 
       return { ...prev, rosterData: updatedRoster, deletedIds: newDeletedIds };
     });
@@ -606,16 +669,25 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       const currentPeriodId = prev.selectedPeriodId;
       const now = new Date().toISOString();
       
+      const currentP = prev.accountingPeriods.find(p => p.id === currentPeriodId);
+      const currentStart = currentP ? new Date(currentP.startAt).getTime() : 0;
+      const targetPeriodIds = Array.from(new Set([
+        currentPeriodId,
+        ...prev.accountingPeriods
+          .filter(p => p.status === 'open' && new Date(p.startAt).getTime() >= currentStart)
+          .map(p => p.id)
+      ]));
+
       const entriesToDelete = (prev.rosterData || []).filter(entry => 
         entry.shift === editingCell.shift && 
-        entry.periodId === currentPeriodId && 
+        targetPeriodIds.includes(entry.periodId) && 
         entry.models.includes(editingCell.model) &&
         entry.models.length === 1
       );
       const newDeletedIds = [...(prev.deletedIds || []), ...entriesToDelete.map(e => e.id)];
 
       const roster = (prev.rosterData || []).map(e => {
-        if (e.shift === editingCell.shift && e.models.includes(editingCell.model) && e.periodId === currentPeriodId) {
+        if (e.shift === editingCell.shift && e.models.includes(editingCell.model) && targetPeriodIds.includes(e.periodId)) {
           return {
             ...e,
             models: e.models.filter(m => m !== editingCell.model),
@@ -628,6 +700,67 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       return { ...prev, rosterData: roster, deletedIds: newDeletedIds };
     });
     setEditingCell(null);
+  };
+
+  const syncRosterToAllMonths = () => {
+    if (!state.selectedPeriodId) return;
+    const currentRoster = rosterEntries;
+    if (currentRoster.length === 0) {
+      setSyncBanner({ message: 'В текущем месяце еще нет заполненного состава для переноса.', type: 'error' });
+      setTimeout(() => setSyncBanner(null), 5000);
+      return;
+    }
+
+    const otherPeriods = state.accountingPeriods.filter(p => p.id !== state.selectedPeriodId);
+    if (otherPeriods.length === 0) {
+      setSyncBanner({ message: 'Состав зафиксирован. Другие месяцы пока не созданы — при переходе в новый месяц состав перенесется автоматически.', type: 'info' });
+      setTimeout(() => setSyncBanner(null), 5000);
+      return;
+    }
+
+    const totalBindings = currentRoster.reduce((sum, r) => sum + r.models.length, 0);
+
+    updateState(prev => {
+      const now = new Date().toISOString();
+      const newEntries: RosterEntry[] = [];
+      const deletedIds: string[] = [];
+
+      otherPeriods.forEach(p => {
+        const oldEntries = (prev.rosterData || []).filter(r => r.periodId === p.id);
+        deletedIds.push(...oldEntries.map(e => e.id));
+
+        currentRoster.forEach(r => {
+          newEntries.push({
+            ...r,
+            id: `roster_${p.id}_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+            periodId: p.id,
+            createdAt: now,
+            updatedAt: now
+          });
+        });
+      });
+
+      const currentPeriodRoster = (prev.rosterData || []).filter(r => r.periodId === prev.selectedPeriodId);
+      const retained = currentPeriodRoster.length > 0 ? currentPeriodRoster : currentRoster.map(r => ({
+        ...r,
+        id: `roster_${prev.selectedPeriodId}_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        periodId: prev.selectedPeriodId,
+        createdAt: now,
+        updatedAt: now
+      }));
+
+      return {
+        ...prev,
+        rosterData: [...retained, ...newEntries],
+        deletedIds: Array.from(new Set([...(prev.deletedIds || []), ...deletedIds]))
+      };
+    });
+
+    setSyncBanner({
+      message: `Состав успешно зафиксирован на ВСЕ месяцы (${totalBindings} распределений операторов перенесены во все периоды)!`,
+      type: 'success'
+    });
+    setTimeout(() => setSyncBanner(null), 6000);
   };
 
   const renderModelRows = (models: string[], title: string, colorClass: string, icon: React.ReactNode) => {
@@ -834,6 +967,10 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-4xl font-black text-white tracking-tight">Состав</h1>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Состав зафиксирован и автоматически переносится в каждый новый месяц">
+              <ICONS.ShieldCheck size={13} />
+              Зафиксирован на все месяцы
+            </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
               <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
               Авто в TG: 10:00 и 22:00 (Киев)
@@ -841,10 +978,18 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
           </div>
           <div className="flex items-center gap-3 mt-1">
             <PeriodBadge state={state} />
-            <p className="text-slate-400 font-medium">Управление сменами и распределение операторов</p>
+            <p className="text-slate-400 font-medium">Управление сменами и распределение операторов (автоперенос на каждый месяц)</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <button 
+            onClick={syncRosterToAllMonths}
+            className="flex items-center gap-2.5 px-5 py-4 rounded-2xl bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/40 text-emerald-300 shadow-xl shadow-emerald-950/20 active:scale-95 transition-all cursor-pointer"
+            title="Зафиксировать и скопировать текущий состав на все остальные месяцы"
+          >
+            <ICONS.RotateCcw size={18} className="text-emerald-400" />
+            <span className="font-black text-xs uppercase tracking-wider">Зафиксировать на все месяцы</span>
+          </button>
           <button 
             onClick={() => sendRosterToTelegram(true, rosterNeedsFix)}
             disabled={isSendingTelegram}
@@ -869,6 +1014,29 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
           </button>
         </div>
       </div>
+
+      {syncBanner && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          className={`p-4 rounded-2xl flex items-center justify-between border shadow-xl ${
+            syncBanner.type === 'success'
+              ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300 shadow-emerald-950/30'
+              : syncBanner.type === 'error'
+              ? 'bg-rose-950/40 border-rose-500/40 text-rose-300 shadow-rose-950/30'
+              : 'bg-indigo-950/40 border-indigo-500/40 text-indigo-300 shadow-indigo-950/30'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <ICONS.ShieldCheck size={20} className={syncBanner.type === 'success' ? 'text-emerald-400' : 'text-indigo-400'} />
+            <span className="text-sm font-bold">{syncBanner.message}</span>
+          </div>
+          <button onClick={() => setSyncBanner(null)} className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer">
+            <ICONS.Close size={16} />
+          </button>
+        </motion.div>
+      )}
 
       {/* Grid */}
       <div ref={rosterRef} className="rounded-[2.5rem] border border-slate-700/70 overflow-hidden bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl">

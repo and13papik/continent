@@ -91,7 +91,15 @@ export function getShiftRangeForDay(
   day: 'today' | 'yesterday',
   shiftIndex: 1 | 2 | 3 | 4
 ): KyivShift {
-  const baseOffset = day === 'today' ? 0 : -1;
+  const now = new Date();
+  const hourFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Kyiv",
+    hour: "numeric",
+    hour12: false
+  });
+  const kyivHour = parseInt(hourFormatter.format(now), 10) || 0;
+  const anchorOffset = kyivHour >= 2 ? 0 : -1;
+  const baseOffset = day === 'today' ? anchorOffset : anchorOffset - 1;
   const baseDate = getKyivDateStr(baseOffset);
   return getShiftRangeForDate(baseDate, shiftIndex);
 }

@@ -390,6 +390,33 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
           updatedAt: new Date().toISOString()
         };
         newPeriods = [...newPeriods, newP];
+
+        // Carry over rosterData to new month
+        const sourceRoster = (prev.rosterData || []).filter(r => r.periodId === activePeriodId);
+        const clonedRoster = sourceRoster.map(r => ({
+          ...r,
+          id: `roster_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          periodId: nextId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }));
+
+        // Carry over operator assessments
+        const sourceAssessments = (prev.operatorAssessments || []).filter(a => a.periodId === activePeriodId);
+        const clonedAssessments = sourceAssessments.map(a => ({
+          ...a,
+          id: `asmt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          periodId: nextId,
+          updatedAt: new Date().toISOString()
+        }));
+
+        return { 
+          ...prev, 
+          accountingPeriods: newPeriods, 
+          selectedPeriodId: nextId,
+          rosterData: [...(prev.rosterData || []), ...clonedRoster],
+          operatorAssessments: [...(prev.operatorAssessments || []), ...clonedAssessments]
+        };
       }
 
       return { 
@@ -444,11 +471,32 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
+
+      // Carry over rosterData to new month
+      const sourceRoster = (prev.rosterData || []).filter(r => r.periodId === activePeriodId);
+      const clonedRoster = sourceRoster.map(r => ({
+        ...r,
+        id: `roster_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        periodId: nextId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }));
+
+      // Carry over operator assessments
+      const sourceAssessments = (prev.operatorAssessments || []).filter(a => a.periodId === activePeriodId);
+      const clonedAssessments = sourceAssessments.map(a => ({
+        ...a,
+        id: `asmt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        periodId: nextId,
+        updatedAt: new Date().toISOString()
+      }));
       
       return { 
         ...prev, 
         accountingPeriods: [...prev.accountingPeriods, newP], 
-        selectedPeriodId: nextId 
+        selectedPeriodId: nextId,
+        rosterData: [...(prev.rosterData || []), ...clonedRoster],
+        operatorAssessments: [...(prev.operatorAssessments || []), ...clonedAssessments]
       };
     });
   };

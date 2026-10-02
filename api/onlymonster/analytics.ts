@@ -58,8 +58,10 @@ async function getAccountEarnings(
   error?: string;
 }> {
   let totalAmount = 0;
+  let totalGrossAmount = 0;
   let txCount = 0;
   const shiftTotals = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  const shiftGrossTotals = { 1: 0, 2: 0, 3: 0, 4: 0 };
   let cursor: string | null = null;
   let page = 0;
   const maxPages = 5;
@@ -70,30 +72,49 @@ async function getAccountEarnings(
   try {
     do {
       page++;
-      let url = `https://omapi.onlymonster.ai/api/v0/platforms/onlyfans/accounts/${encodeURIComponent(platformAccountId)}/transactions?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=1000`;
-      if (cursor) {
-        url += `&cursor=${encodeURIComponent(cursor)}`;
-      }
+      const cursorParam = cursor ? `&cursor=${encodeURIComponent(cursor)}` : '';
+      const headers = {
+        'Content-Type': 'application/json',
+        'x-om-auth-token': token.trim()
+      };
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-om-auth-token': token
-        },
-        signal: controller.signal as any
-      });
+      let response: Response | null = null;
+      // Direct call to platforms/onlyfans/accounts/{id}/transactions (official OnlyMonster endpoint)
+      try {
+        const primaryUrl = `https://omapi.onlymonster.ai/api/v0/platforms/onlyfans/accounts/${encodeURIComponent(platformAccountId)}/transactions?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=1000${cursorParam}`;
+        response = await fetch(primaryUrl, {
+          method: 'GET',
+          headers,
+          signal: controller.signal as any
+        });
+      } catch (e) {
+        response = null;
+      }
+
+      // Fallback if needed to /accounts/{id}/transactions
+      if (!response || !response.ok) {
+        try {
+          const fallbackUrl = `https://omapi.onlymonster.ai/api/v0/accounts/${encodeURIComponent(platformAccountId)}/transactions?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=1000${cursorParam}`;
+          response = await fetch(fallbackUrl, {
+            method: 'GET',
+            headers,
+            signal: controller.signal as any
+          });
+        } catch (e) {}
+      }
 
       clearTimeout(timeoutId);
 
-      if (!response.ok) {
+      if (!response || !response.ok) {
         let errBody: any = null;
-        try { errBody = await response.json(); } catch (e) {}
-        const errorMsg = (errBody && (errBody.error || errBody.message)) || `HTTP ${response.status}`;
-        console.error(`[getAccountEarnings] HTTP error fetching transactions for account ${platformAccountId}: ${response.status}`, errorMsg);
+        if (response) {
+          try { errBody = await response.json(); } catch (e) {}
+        }
+        const errorMsg = (errBody && (errBody.error || errBody.message)) || (response ? `HTTP ${response.status}` : 'Fetch failed');
+        console.error(`[getAccountEarnings] HTTP error fetching transactions for account ${platformAccountId}:`, errorMsg);
         return { total: null, today: null, currency: 'USD', label, error: errorMsg };
       }
 
@@ -138,48 +159,58 @@ async function getAccountEarnings(
 
         if (!isExcludedStatus) {
           // Extract NET amount from OnlyMonster/OnlyFans transaction data
-          let val: number | null = null;
+          let netVal: number | null = null;
+          let grossVal: number | null = null;
 
-          // 1. Direct NET fields from OnlyMonster / OnlyFans API
-          const netCandidate =
-            tx.net_amount !== undefined ? tx.net_amount :
-            tx.net !== undefined ? tx.net :
-            tx.netAmount !== undefined ? tx.netAmount :
-            tx.creator_amount !== undefined ? tx.creator_amount :
-            tx.creatorAmount !== undefined ? tx.creatorAmount :
-            tx.amount_net !== undefined ? tx.amount_net :
-            tx.payout_amount !== undefined ? tx.payout_amount :
-            undefined;
-
-          if (netCandidate !== undefined && netCandidate !== null) {
-            const parsed = typeof netCandidate === 'number' ? netCandidate : parseFloat(netCandidate);
-            if (!isNaN(parsed)) val = parsed;
-          }
-
-          // 2. If gross and fee are provided separately
-          if (val === null && tx.gross !== undefined && tx.fee !== undefined) {
-            const gross = typeof tx.gross === 'number' ? tx.gross : parseFloat(tx.gross);
-            const fee = typeof tx.fee === 'number' ? tx.fee : parseFloat(tx.fee);
-            if (!isNaN(gross) && !isNaN(fee)) val = gross - fee;
-          }
-
-          // 3. If amount and fee are provided
-          if (val === null && tx.amount !== undefined && tx.fee !== undefined && Number(tx.fee) > 0 && Number(tx.amount) > Number(tx.fee)) {
-            const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount);
-            const fee = typeof tx.fee === 'number' ? tx.fee : parseFloat(tx.fee);
-            if (!isNaN(amt) && !isNaN(fee)) val = amt - fee;
-          }
-
-          // 4. Fallback to amount / sum
-          if (val === null) {
-            const rawAmt = tx.amount !== undefined ? tx.amount : tx.sum;
+          const rawAmt = tx.amount !== undefined ? tx.amount : (tx.gross !== undefined ? tx.gross : (tx.sum !== undefined ? tx.sum : tx.price));
+          if (rawAmt !== undefined && rawAmt !== null) {
             const parsed = typeof rawAmt === 'number' ? rawAmt : parseFloat(rawAmt);
-            if (!isNaN(parsed)) val = parsed;
+            if (!isNaN(parsed)) grossVal = parsed;
           }
 
-          if (val !== null && !isNaN(val)) {
+          // 1. If explicit fee is provided (> 0)
+          if (tx.fee !== undefined && Number(tx.fee) > 0 && grossVal !== null) {
+            const fee = typeof tx.fee === 'number' ? tx.fee : parseFloat(tx.fee);
+            if (!isNaN(fee) && grossVal > fee) {
+              netVal = grossVal - fee;
+            }
+          }
+
+          // 2. Direct NET fields from OnlyMonster / OnlyFans API
+          if (netVal === null) {
+            const netCandidate =
+              tx.net_amount !== undefined ? tx.net_amount :
+              tx.net !== undefined ? tx.net :
+              tx.netAmount !== undefined ? tx.netAmount :
+              tx.creator_amount !== undefined ? tx.creator_amount :
+              tx.creatorAmount !== undefined ? tx.creatorAmount :
+              tx.amount_net !== undefined ? tx.amount_net :
+              tx.payout_amount !== undefined ? tx.payout_amount :
+              undefined;
+
+            if (netCandidate !== undefined && netCandidate !== null) {
+              const parsedNet = typeof netCandidate === 'number' ? netCandidate : parseFloat(netCandidate);
+              // If netCandidate is strictly less than grossVal, it already has commission deducted
+              if (!isNaN(parsedNet) && (grossVal === null || parsedNet < grossVal)) {
+                netVal = parsedNet;
+              }
+            }
+          }
+
+          // 3. Fallback: In OnlyFans, all transactions (tips, messages, subscriptions, posts) incur a 20% platform fee.
+          // Therefore, Net (Чистыми) is 80% of Gross (Грязными * 0.8).
+          if (netVal === null && grossVal !== null) {
+            netVal = Math.round(grossVal * 0.8 * 100) / 100;
+          }
+
+          if (grossVal === null && netVal !== null) {
+            grossVal = Math.round((netVal / 0.8) * 100) / 100;
+          }
+
+          if (netVal !== null && !isNaN(netVal)) {
             txCount++;
-            totalAmount += val;
+            totalAmount += netVal;
+            totalGrossAmount += (grossVal ?? (Math.round((netVal / 0.8) * 100) / 100));
 
             if (includeBreakdown) {
               const hourFormatter = new Intl.DateTimeFormat("en-US", {
@@ -188,10 +219,20 @@ async function getAccountEarnings(
                 hour12: false
               });
               const h = parseInt(hourFormatter.format(txDate), 10) || 0;
-              if (h >= 2 && h < 8) shiftTotals[1] += val;
-              else if (h >= 8 && h < 14) shiftTotals[2] += val;
-              else if (h >= 14 && h < 20) shiftTotals[3] += val;
-              else shiftTotals[4] += val;
+              const gVal = grossVal ?? (netVal / 0.8);
+              if (h >= 2 && h < 8) {
+                shiftTotals[1] += netVal;
+                shiftGrossTotals[1] += gVal;
+              } else if (h >= 8 && h < 14) {
+                shiftTotals[2] += netVal;
+                shiftGrossTotals[2] += gVal;
+              } else if (h >= 14 && h < 20) {
+                shiftTotals[3] += netVal;
+                shiftGrossTotals[3] += gVal;
+              } else {
+                shiftTotals[4] += netVal;
+                shiftGrossTotals[4] += gVal;
+              }
             }
           }
         }
@@ -199,10 +240,14 @@ async function getAccountEarnings(
 
     } while (cursor && page < maxPages);
 
-    const roundedTotal = Math.round(totalAmount * 100) / 100;
+    const roundedNetTotal = Math.round(totalAmount * 100) / 100;
+    const roundedGrossTotal = Math.round(totalGrossAmount * 100) / 100;
     const resObj: any = {
-      total: roundedTotal,
-      today: roundedTotal,
+      total: roundedNetTotal,          // Чистыми (Net, после 20% комиссии OnlyFans)
+      today: roundedNetTotal,          // Чистыми (Net)
+      total_net: roundedNetTotal,      // Чистыми (Net)
+      total_gross: roundedGrossTotal,  // Грязными (Gross до комиссии)
+      today_gross: roundedGrossTotal,
       tx_count: txCount,
       currency: 'USD',
       label
@@ -214,6 +259,12 @@ async function getAccountEarnings(
         2: Math.round(shiftTotals[2] * 100) / 100,
         3: Math.round(shiftTotals[3] * 100) / 100,
         4: Math.round(shiftTotals[4] * 100) / 100
+      };
+      resObj.gross_breakdown = {
+        1: Math.round(shiftGrossTotals[1] * 100) / 100,
+        2: Math.round(shiftGrossTotals[2] * 100) / 100,
+        3: Math.round(shiftGrossTotals[3] * 100) / 100,
+        4: Math.round(shiftGrossTotals[4] * 100) / 100
       };
     }
 
@@ -240,19 +291,35 @@ export async function getAllAccountsShiftEarnings(
       : [];
 
     if (platformAccountIds.length === 0) {
-      const accRes = await fetch('https://omapi.onlymonster.ai/api/v0/platforms/onlyfans/accounts', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-om-auth-token': token.trim()
-        }
-      });
+      const headers = {
+        'Content-Type': 'application/json',
+        'x-om-auth-token': token.trim()
+      };
 
-      if (!accRes.ok) {
-        if (accRes.status === 401) {
+      let accRes: Response | null = null;
+      try {
+        accRes = await fetch('https://omapi.onlymonster.ai/api/v0/platforms/onlyfans/accounts', {
+          method: 'GET',
+          headers
+        });
+      } catch (e) {
+        accRes = null;
+      }
+
+      if (!accRes || !accRes.ok) {
+        try {
+          accRes = await fetch('https://omapi.onlymonster.ai/api/v0/accounts', {
+            method: 'GET',
+            headers
+          });
+        } catch (e) {}
+      }
+
+      if (!accRes || !accRes.ok) {
+        if (accRes && accRes.status === 401) {
           console.warn(`[getAllAccountsShiftEarnings] OnlyMonster API authentication failed (Status: 401). Please verify ONLYMONSTER_API_KEY.`);
         } else {
-          console.warn(`[getAllAccountsShiftEarnings] Could not fetch accounts from OnlyMonster API. Status: ${accRes.status}`);
+          console.warn(`[getAllAccountsShiftEarnings] Could not fetch accounts from OnlyMonster API. Status: ${accRes ? accRes.status : 'Network error'}`);
         }
         return shiftTotals;
       }
@@ -269,7 +336,7 @@ export async function getAllAccountsShiftEarnings(
       }
 
       platformAccountIds = accountsList
-        .map((a: any) => a.platform_account_id || a.id || a.account_id || a.platformAccountId || a.user_id)
+        .map((a: any) => a.id || a.platform_account_id || a.account_id || a.platformAccountId || a.user_id)
         .filter(Boolean);
     }
 
@@ -742,8 +809,9 @@ async function handleShiftOperators(req: any, res: any, queryParams: Record<stri
 async function fetchShiftMetrics(
   url: string,
   headers: Record<string, string>
-): Promise<{ totalMessages: number; totalEarnings: number; operatorCount: number; error?: string }> {
+): Promise<{ totalMessages: number; totalEarnings: number; totalGross: number; operatorCount: number; error?: string }> {
   let totalMessages = 0;
+  let totalGross = 0;
   let totalEarnings = 0;
   const userSet = new Set<string>();
 
@@ -757,7 +825,7 @@ async function fetchShiftMetrics(
     try {
       response = await fetchWithTimeout(pageUrl, headers, 8000);
     } catch (err: any) {
-      return { totalMessages: 0, totalEarnings: 0, operatorCount: 0, error: err.message };
+      return { totalMessages: 0, totalEarnings: 0, totalGross: 0, operatorCount: 0, error: err.message };
     }
 
     if (!response.ok) break;
@@ -788,7 +856,10 @@ async function fetchShiftMetrics(
           ? item.tips_amount_sum
           : (parseFloat(item.tips_amount_sum) || 0);
 
-        totalEarnings += (soldMsgs + soldPosts + tips);
+        const gross = (soldMsgs + soldPosts + tips);
+        totalGross += gross;
+        // Net: 80% after deducting 20% OnlyFans platform fee
+        totalEarnings += Math.round(gross * 0.8 * 100) / 100;
 
         const userId = String(item.user_id || item.id || item.member_id || '');
         if (userId) {
@@ -804,6 +875,7 @@ async function fetchShiftMetrics(
   return {
     totalMessages,
     totalEarnings: Math.round(totalEarnings * 100) / 100,
+    totalGross: Math.round(totalGross * 100) / 100,
     operatorCount: userSet.size
   };
 }
@@ -835,8 +907,9 @@ async function handleShiftComparison(req: any, res: any, queryParams: Record<str
       const shiftsRes: any[] = [];
 
       let accountShiftTotals: { 1: number; 2: number; 3: number; 4: number } = { 1: 0, 2: 0, 3: 0, 4: 0 };
+      const providedAccIds = queryParams.accounts ? queryParams.accounts.split(',').map(s => s.trim()).filter(Boolean) : undefined;
       try {
-        accountShiftTotals = await getAllAccountsShiftEarnings(token, day);
+        accountShiftTotals = await getAllAccountsShiftEarnings(token, day, providedAccIds);
       } catch (errAcc: any) {
         console.error('[shift-comparison] Error in getAllAccountsShiftEarnings:', errAcc?.message || errAcc);
       }
@@ -852,6 +925,7 @@ async function handleShiftComparison(req: any, res: any, queryParams: Record<str
             totalMessages: null,
             totalEarnings: null,
             accountEarnings: null,
+            operatorEarnings: null,
             diff: null,
             operatorCount: 0,
             isFuture: true
@@ -865,15 +939,24 @@ async function handleShiftComparison(req: any, res: any, queryParams: Record<str
         const data = await fetchShiftMetrics(url, headers);
 
         const accountEarnings = accountShiftTotals[s as 1 | 2 | 3 | 4] ?? 0;
+        const accountGross = Math.round((accountEarnings / 0.8) * 100) / 100;
         const operatorEarnings = data.totalEarnings ?? 0;
-        const diff = Math.round((accountEarnings - operatorEarnings) * 100) / 100;
+        const operatorGross = data.totalGross ?? (operatorEarnings > 0 ? Math.round((operatorEarnings / 0.8) * 100) / 100 : 0);
+        // The authoritative income of the shift (Net): prefer real account revenue from OnlyMonster API
+        const totalEarnings = accountEarnings > 0 ? accountEarnings : operatorEarnings;
+        const totalGross = accountEarnings > 0 ? accountGross : operatorGross;
+        const diff = accountEarnings > 0 ? Math.round((accountEarnings - operatorEarnings) * 100) / 100 : 0;
 
         shiftsRes.push({
           index: s,
           label: range.label,
           totalMessages: data.totalMessages,
-          totalEarnings: operatorEarnings,
-          accountEarnings,
+          totalEarnings,   // Чистыми (Net, после комиссии OnlyFans 20%)
+          totalGross,      // Грязными (Gross до комиссии)
+          accountEarnings, // Чистыми (Net)
+          accountGross,    // Грязными (Gross)
+          operatorEarnings,// Чистыми (Net)
+          operatorGross,   // Грязными (Gross)
           diff,
           operatorCount: data.operatorCount,
           isFuture: false
@@ -972,17 +1055,21 @@ async function handleShiftComparison(req: any, res: any, queryParams: Record<str
         const st = shiftStats[config.index];
         const daysCounted = st ? st.daysCounted : 0;
         const totalEarnings = st ? Math.round(st.totalEarnings * 100) / 100 : 0;
+        const totalGross = Math.round((totalEarnings / 0.8) * 100) / 100;
         const totalMessages = st ? st.totalMessages : 0;
         const avgEarningsPerDay = daysCounted > 0 ? Math.round((totalEarnings / daysCounted) * 100) / 100 : 0;
+        const avgGrossPerDay = daysCounted > 0 ? Math.round((totalGross / daysCounted) * 100) / 100 : 0;
         const avgMessagesPerDay = daysCounted > 0 ? Math.round(totalMessages / daysCounted) : 0;
 
         return {
           index: config.index,
           label: config.label,
           totalMessages,
-          totalEarnings,
+          totalEarnings,     // Чистыми (Net)
+          totalGross,        // Грязными (Gross)
           daysCounted,
-          avgEarningsPerDay,
+          avgEarningsPerDay, // Чистыми в день
+          avgGrossPerDay,    // Грязными в день
           avgMessagesPerDay,
           isFuture: daysCounted === 0
         };
