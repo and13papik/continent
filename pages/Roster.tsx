@@ -40,6 +40,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
 
   const [isManagingOperators, setIsManagingOperators] = useState(false);
   const [newOperatorName, setNewOperatorName] = useState('');
+  const [syncBanner, setSyncBanner] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
 
   const currentPeriod = state.accountingPeriods.find((p: AccountingPeriod) => p.id === state.selectedPeriodId);
   
@@ -705,18 +706,19 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     if (!state.selectedPeriodId) return;
     const currentRoster = rosterEntries;
     if (currentRoster.length === 0) {
-      alert('В текущем месяце еще нет заполненного состава.');
+      setSyncBanner({ message: 'В текущем месяце еще нет заполненного состава для переноса.', type: 'error' });
+      setTimeout(() => setSyncBanner(null), 5000);
       return;
     }
 
     const otherPeriods = state.accountingPeriods.filter(p => p.id !== state.selectedPeriodId);
     if (otherPeriods.length === 0) {
-      alert('Нет других месяцев для переноса.');
+      setSyncBanner({ message: 'Состав зафиксирован. Другие месяцы пока не созданы — при переходе в новый месяц состав перенесется автоматически.', type: 'info' });
+      setTimeout(() => setSyncBanner(null), 5000);
       return;
     }
 
     const totalBindings = currentRoster.reduce((sum, r) => sum + r.models.length, 0);
-    if (!confirm(`Зафиксировать текущий состав (${totalBindings} привязок) на ВСЕ месяцы без необходимости заполнять заново?`)) return;
 
     updateState(prev => {
       const now = new Date().toISOString();
@@ -754,7 +756,11 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       };
     });
 
-    alert('Состав успешно зафиксирован на все месяцы!');
+    setSyncBanner({
+      message: `Состав успешно зафиксирован на ВСЕ месяцы (${totalBindings} распределений операторов перенесены во все периоды)!`,
+      type: 'success'
+    });
+    setTimeout(() => setSyncBanner(null), 6000);
   };
 
   const renderModelRows = (models: string[], title: string, colorClass: string, icon: React.ReactNode) => {
@@ -1008,6 +1014,29 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
           </button>
         </div>
       </div>
+
+      {syncBanner && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          className={`p-4 rounded-2xl flex items-center justify-between border shadow-xl ${
+            syncBanner.type === 'success'
+              ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300 shadow-emerald-950/30'
+              : syncBanner.type === 'error'
+              ? 'bg-rose-950/40 border-rose-500/40 text-rose-300 shadow-rose-950/30'
+              : 'bg-indigo-950/40 border-indigo-500/40 text-indigo-300 shadow-indigo-950/30'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <ICONS.ShieldCheck size={20} className={syncBanner.type === 'success' ? 'text-emerald-400' : 'text-indigo-400'} />
+            <span className="text-sm font-bold">{syncBanner.message}</span>
+          </div>
+          <button onClick={() => setSyncBanner(null)} className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer">
+            <ICONS.Close size={16} />
+          </button>
+        </motion.div>
+      )}
 
       {/* Grid */}
       <div ref={rosterRef} className="rounded-[2.5rem] border border-slate-700/70 overflow-hidden bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl">

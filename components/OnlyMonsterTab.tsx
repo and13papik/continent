@@ -32,8 +32,17 @@ import {
   TrendingDown,
   Sparkles,
   ArrowUpRight,
-  Zap
+  Zap,
+  Info
 } from 'lucide-react';
+
+/**
+ * Standard OnlyFans platform fee percentage (20% fee, creator receives 80% net).
+ * Creators receive gross * (1 - PLATFORM_FEE_PERCENT / 100) = gross * 0.8
+ */
+export const PLATFORM_FEE_PERCENT = 20;
+export const PLATFORM_NET_MULTIPLIER = (100 - PLATFORM_FEE_PERCENT) / 100; // 0.8
+export const NET_ESTIMATE_TOOLTIP = "Расчётное значение (Gross минус 20% комиссии платформы). Точное NET-значение после фактических удержаний доступно только в самой панели OnlyMonster.";
 
 interface OnlyMonsterTabProps {
   agencyModels: string[];
@@ -1494,7 +1503,8 @@ export const RealtimeEventFeed: React.FC<{
               type === 'fans.post.purchased' ||
               type === 'payment.received'
             ) {
-              const amt = Number(p.price_gross ?? p.amount_gross ?? p.amount ?? p.price ?? 0);
+              const grossAmt = Number(p.price_gross ?? p.amount_gross ?? p.amount ?? p.price ?? 0);
+              const amt = grossAmt * PLATFORM_NET_MULTIPLIER;
               const rawAccId = String(e.account_id || e.platform_account_id || p.account_id || p.platform_account_id || p.creator_id || '').trim();
               if (rawAccId && amt > 0) {
                 liveWebhookIncomeByAccountRef.current[rawAccId] = (liveWebhookIncomeByAccountRef.current[rawAccId] || 0) + amt;
@@ -2659,14 +2669,21 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
               </div>
 
               <div className="p-3.5 bg-slate-900/70 rounded-2xl border border-white/5 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
+                <span 
+                  className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1.5 cursor-help"
+                  title={NET_ESTIMATE_TOOLTIP}
+                >
                   <DollarSign size={12} className="text-emerald-400" />
                   ДОХОД СМЕНЫ · NET
+                  <Info size={11} className="text-slate-500 hover:text-slate-300 transition-colors" />
                 </span>
                 <p className="text-sm sm:text-base font-black text-emerald-400">
                   +${totalShiftRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <span className="text-[10px] text-slate-400 block font-mono">
+                <span 
+                  className="text-[10px] text-slate-400 block font-mono cursor-help"
+                  title={NET_ESTIMATE_TOOLTIP}
+                >
                   Сегодня · NET: ${totalTodaySum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
@@ -2864,8 +2881,12 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                       </div>
 
                       <div className="p-2 bg-slate-800/85 rounded-xl border border-white/[0.02]">
-                        <span className="text-[8px] uppercase text-slate-500 font-bold block truncate">
-                          {accountsEarningsDay === 'today' ? 'ДОХОД СЕГОДНЯ · NET' : 'ДОХОД ВЧЕРА · NET'}
+                        <span 
+                          className="text-[8px] uppercase text-slate-500 font-bold flex items-center gap-0.5 truncate cursor-help"
+                          title={NET_ESTIMATE_TOOLTIP}
+                        >
+                          <span className="truncate">{accountsEarningsDay === 'today' ? 'ДОХОД СЕГОДНЯ · NET' : 'ДОХОД ВЧЕРА · NET'}</span>
+                          <Info size={9} className="text-slate-500 shrink-0" />
                         </span>
                         {isEarningsLoading && (acc.today_earnings === undefined && !acc.earnings_breakdown) ? (
                           <span className="flex items-center justify-center mt-1">
@@ -2890,9 +2911,13 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                   {showShiftBreakdown && (
                     <div className="pt-2 border-t border-white/10 space-y-1.5 font-mono">
                       <div className="flex items-center justify-between text-[9px] uppercase font-bold text-slate-400 px-0.5">
-                        <span className="flex items-center gap-1 text-slate-300">
+                        <span 
+                          className="flex items-center gap-1 text-slate-300 cursor-help"
+                          title={NET_ESTIMATE_TOOLTIP}
+                        >
                           <Clock size={11} className="text-violet-400" />
-                          Разбивка по сменам ({acc.earnings_label || (accountsEarningsDay === 'today' ? 'Сегодня' : 'Вчера')}):
+                          Разбивка по сменам NET ({acc.earnings_label || (accountsEarningsDay === 'today' ? 'Сегодня' : 'Вчера')}):
+                          <Info size={10} className="text-slate-400 shrink-0" />
                         </span>
                       </div>
                       <div className="grid grid-cols-4 gap-1.5 text-center">
@@ -3112,8 +3137,12 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
 
                       <div className="mt-1.5 flex items-baseline justify-between">
                         <div>
-                          <span className="text-[9px] uppercase text-emerald-400/90 block font-bold">
-                            Доход OnlyMonster (API)
+                          <span 
+                            className="text-[9px] uppercase text-emerald-400/90 flex items-center gap-1 font-bold cursor-help"
+                            title={NET_ESTIMATE_TOOLTIP}
+                          >
+                            <span>Доход OnlyMonster (NET)</span>
+                            <Info size={10} className="text-emerald-500/70 shrink-0" />
                           </span>
                           <span className={`text-sm font-black font-mono ${s.isFuture ? 'text-slate-600' : isStrongest ? 'text-emerald-300' : 'text-emerald-400'}`}>
                             {s.isFuture
@@ -3136,13 +3165,25 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                       {(shiftCompMode === 'today' || shiftCompMode === 'yesterday') && !s.isFuture && (
                         <div className="mt-2 pt-2 border-t border-white/10 text-[9px] text-slate-400 leading-tight space-y-1">
                           <div className="flex items-center justify-between">
-                            <span className="text-slate-400">Доход аккаунтов (API):</span>
+                            <span 
+                              className="text-slate-400 cursor-help flex items-center gap-1"
+                              title={NET_ESTIMATE_TOOLTIP}
+                            >
+                              <span>Доход аккаунтов (NET):</span>
+                              <Info size={9} className="text-slate-500 shrink-0" />
+                            </span>
                             <span className="text-emerald-400 font-bold font-mono">
                               ${Number(authoritativeIncome || 0).toFixed(2)}
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-slate-400">Продажи в чатах:</span>
+                            <span 
+                              className="text-slate-400 cursor-help flex items-center gap-1"
+                              title={NET_ESTIMATE_TOOLTIP}
+                            >
+                              <span>Продажи в чатах (NET):</span>
+                              <Info size={9} className="text-slate-500 shrink-0" />
+                            </span>
                             <span className="text-violet-300 font-bold font-mono">
                               ${Number(operatorChatSales || 0).toFixed(2)}
                             </span>
@@ -3410,13 +3451,18 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                         </div>
 
                         {/* ACCENT EARNINGS BADGE */}
-                        <div className="shrink-0">
-                          <div className={`px-2.5 py-1 rounded-xl font-black text-xs sm:text-sm tracking-tight shadow-sm whitespace-nowrap transition-all duration-500 ${
+                        <div 
+                          className="shrink-0"
+                          title={NET_ESTIMATE_TOOLTIP}
+                        >
+                          <div className={`px-2.5 py-1 rounded-xl font-black text-xs sm:text-sm tracking-tight shadow-sm whitespace-nowrap transition-all duration-500 flex items-center gap-1 cursor-help ${
                             raceMode
                               ? 'bg-blue-950/80 border border-cyan-400/50 text-cyan-300 shadow-[0_0_10px_rgba(56,189,248,0.2)]'
                               : 'bg-emerald-950/20 border border-emerald-500/30 text-emerald-400'
                           }`}>
-                            {op.earnings && op.earnings > 0 ? `+$${op.earnings}` : `$${op.earnings ?? 0}`}
+                            <span>{op.earnings && op.earnings > 0 ? `+$${op.earnings}` : `$${op.earnings ?? 0}`}</span>
+                            <span className="text-[9px] font-bold opacity-75">NET</span>
+                            <Info size={10} className="opacity-60" />
                           </div>
                         </div>
                       </div>

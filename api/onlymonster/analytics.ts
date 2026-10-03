@@ -12,6 +12,14 @@ import {
   KyivShift 
 } from '../_lib/shifts.js';
 
+/**
+ * Platform fee percentage (standard OnlyFans fee is 20%, creator receives 80% net).
+ * Creators receive gross * (1 - PLATFORM_FEE_PERCENT / 100) = gross * 0.8
+ */
+export const PLATFORM_FEE_PERCENT = 20;
+export const PLATFORM_NET_MULTIPLIER = (100 - PLATFORM_FEE_PERCENT) / 100; // 0.8
+export const NET_ESTIMATE_NOTE = "Расчётное значение (Gross минус 20% комиссии платформы). Точное NET-значение после фактических удержаний доступно только в самой панели OnlyMonster.";
+
 function sendJson(res: any, status: number, data: any) {
   if (typeof res.status === 'function' && typeof res.json === 'function') {
     return res.status(status).json(data);
@@ -52,14 +60,18 @@ async function getAccountEarnings(
 ): Promise<{
   total: number | null;
   today?: number | null;
+  gross_total?: number | null;
   currency: string;
   label: string;
   breakdown?: { 1: number; 2: number; 3: number; 4: number };
+  gross_breakdown?: { 1: number; 2: number; 3: number; 4: number };
   error?: string;
 }> {
-  let totalAmount = 0;
+  let totalGrossAmount = 0;
+  let totalNetAmount = 0;
   let txCount = 0;
-  const shiftTotals = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  const shiftGrossTotals = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  const shiftNetTotals = { 1: 0, 2: 0, 3: 0, 4: 0 };
   let cursor: string | null = null;
   let page = 0;
   const maxPages = 5;
@@ -156,49 +168,29 @@ async function getAccountEarnings(
           status === 'chargeback';
 
         if (!isExcludedStatus) {
-          // Extract NET amount from OnlyMonster/OnlyFans transaction data
-          let val: number | null = null;
-
-          // 1. Direct NET fields from OnlyMonster / OnlyFans API
-          const netCandidate =
-            tx.net_amount !== undefined ? tx.net_amount :
-            tx.net !== undefined ? tx.net :
-            tx.netAmount !== undefined ? tx.netAmount :
-            tx.creator_amount !== undefined ? tx.creator_amount :
-            tx.creatorAmount !== undefined ? tx.creatorAmount :
-            tx.amount_net !== undefined ? tx.amount_net :
-            tx.payout_amount !== undefined ? tx.payout_amount :
+          // Extract GROSS amount from OnlyMonster transaction data
+          // Official OnlyMonster OpenAPI & Webhook fields: price_gross, amount_gross, amount, price, sum
+          const rawAmt =
+            tx.price_gross !== undefined ? tx.price_gross :
+            tx.amount_gross !== undefined ? tx.amount_gross :
+            tx.amount !== undefined ? tx.amount :
+            tx.price !== undefined ? tx.price :
+            tx.sum !== undefined ? tx.sum :
             undefined;
 
-          if (netCandidate !== undefined && netCandidate !== null) {
-            const parsed = typeof netCandidate === 'number' ? netCandidate : parseFloat(netCandidate);
-            if (!isNaN(parsed)) val = parsed;
-          }
-
-          // 2. If gross and fee are provided separately
-          if (val === null && tx.gross !== undefined && tx.fee !== undefined) {
-            const gross = typeof tx.gross === 'number' ? tx.gross : parseFloat(tx.gross);
-            const fee = typeof tx.fee === 'number' ? tx.fee : parseFloat(tx.fee);
-            if (!isNaN(gross) && !isNaN(fee)) val = gross - fee;
-          }
-
-          // 3. If amount and fee are provided
-          if (val === null && tx.amount !== undefined && tx.fee !== undefined && Number(tx.fee) > 0 && Number(tx.amount) > Number(tx.fee)) {
-            const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount);
-            const fee = typeof tx.fee === 'number' ? tx.fee : parseFloat(tx.fee);
-            if (!isNaN(amt) && !isNaN(fee)) val = amt - fee;
-          }
-
-          // 4. Fallback to amount / sum
-          if (val === null) {
-            const rawAmt = tx.amount !== undefined ? tx.amount : tx.sum;
+          let grossVal: number | null = null;
+          if (rawAmt !== undefined && rawAmt !== null) {
             const parsed = typeof rawAmt === 'number' ? rawAmt : parseFloat(rawAmt);
-            if (!isNaN(parsed)) val = parsed;
+            if (!isNaN(parsed)) grossVal = parsed;
           }
 
-          if (val !== null && !isNaN(val)) {
+          if (grossVal !== null && !isNaN(grossVal)) {
+            // NET formula: gross * (1 - PLATFORM_FEE_PERCENT / 100) = gross * 0.8
+            const netVal = grossVal * PLATFORM_NET_MULTIPLIER;
+
             txCount++;
-            totalAmount += val;
+            totalGrossAmount += grossVal;
+            totalNetAmount += netVal;
 
             if (includeBreakdown) {
               const hourFormatter = new Intl.DateTimeFormat("en-US", {
@@ -207,10 +199,19 @@ async function getAccountEarnings(
                 hour12: false
               });
               const h = parseInt(hourFormatter.format(txDate), 10) || 0;
-              if (h >= 2 && h < 8) shiftTotals[1] += val;
-              else if (h >= 8 && h < 14) shiftTotals[2] += val;
-              else if (h >= 14 && h < 20) shiftTotals[3] += val;
-              else shiftTotals[4] += val;
+              if (h >= 2 && h < 8) {
+                shiftGrossTotals[1] += grossVal;
+                shiftNetTotals[1] += netVal;
+              } else if (h >= 8 && h < 14) {
+                shiftGrossTotals[2] += grossVal;
+                shiftNetTotals[2] += netVal;
+              } else if (h >= 14 && h < 20) {
+                shiftGrossTotals[3] += grossVal;
+                shiftNetTotals[3] += netVal;
+              } else {
+                shiftGrossTotals[4] += grossVal;
+                shiftNetTotals[4] += netVal;
+              }
             }
           }
         }
@@ -218,21 +219,31 @@ async function getAccountEarnings(
 
     } while (cursor && page < maxPages);
 
-    const roundedTotal = Math.round(totalAmount * 100) / 100;
+    const roundedGross = Math.round(totalGrossAmount * 100) / 100;
+    const roundedNet = Math.round(totalNetAmount * 100) / 100;
     const resObj: any = {
-      total: roundedTotal,
-      today: roundedTotal,
+      total: roundedNet,
+      today: roundedNet,
+      gross_total: roundedGross,
       tx_count: txCount,
       currency: 'USD',
-      label
+      label,
+      fee_percent: PLATFORM_FEE_PERCENT,
+      note: NET_ESTIMATE_NOTE
     };
 
     if (includeBreakdown) {
       resObj.breakdown = {
-        1: Math.round(shiftTotals[1] * 100) / 100,
-        2: Math.round(shiftTotals[2] * 100) / 100,
-        3: Math.round(shiftTotals[3] * 100) / 100,
-        4: Math.round(shiftTotals[4] * 100) / 100
+        1: Math.round(shiftNetTotals[1] * 100) / 100,
+        2: Math.round(shiftNetTotals[2] * 100) / 100,
+        3: Math.round(shiftNetTotals[3] * 100) / 100,
+        4: Math.round(shiftNetTotals[4] * 100) / 100
+      };
+      resObj.gross_breakdown = {
+        1: Math.round(shiftGrossTotals[1] * 100) / 100,
+        2: Math.round(shiftGrossTotals[2] * 100) / 100,
+        3: Math.round(shiftGrossTotals[3] * 100) / 100,
+        4: Math.round(shiftGrossTotals[4] * 100) / 100
       };
     }
 
@@ -615,7 +626,9 @@ async function handleShiftOperators(req: any, res: any, queryParams: Record<stri
           ? item.tips_amount_sum
           : (parseFloat(item.tips_amount_sum) || 0);
 
-        const itemEarnings = soldMessagesPrice + soldPostsPrice + tipsAmount;
+        const grossEarnings = soldMessagesPrice + soldPostsPrice + tipsAmount;
+        // Consistent NET calculation: gross * (1 - PLATFORM_FEE_PERCENT / 100) = gross * 0.8
+        const itemEarnings = Math.round(grossEarnings * PLATFORM_NET_MULTIPLIER * 100) / 100;
 
         const replyTimeAvg = typeof item.reply_time_avg === 'number'
           ? item.reply_time_avg
@@ -823,7 +836,8 @@ async function fetchShiftMetrics(
           ? item.tips_amount_sum
           : (parseFloat(item.tips_amount_sum) || 0);
 
-        totalEarnings += (soldMsgs + soldPosts + tips);
+        const itemGross = soldMsgs + soldPosts + tips;
+        totalEarnings += (itemGross * PLATFORM_NET_MULTIPLIER);
 
         const userId = String(item.user_id || item.id || item.member_id || '');
         if (userId) {
@@ -1163,7 +1177,9 @@ async function handleOperatorModelBreakdown(req: any, res: any, queryParams: Rec
         ? item.tips_amount_sum
         : (parseFloat(item.tips_amount_sum) || 0);
 
-      totalEarnings += (soldMsgsPrice + soldPostsPrice + tipsAmount);
+      const grossEarnings = soldMsgsPrice + soldPostsPrice + tipsAmount;
+      const netEarnings = Math.round(grossEarnings * PLATFORM_NET_MULTIPLIER * 100) / 100;
+      totalEarnings += netEarnings;
 
       const replyTime = typeof item.reply_time_avg === 'number'
         ? item.reply_time_avg
@@ -1332,7 +1348,12 @@ async function handleAccountDetail(req: any, res: any, queryParams: Record<strin
 
       if (!isExcluded) {
         const rawType = (tx.type || tx.tx_type || tx.category || 'unknown').toString().trim();
-        const rawAmt = tx.amount !== undefined ? tx.amount : (tx.sum !== undefined ? tx.sum : 0);
+        const rawAmt = 
+          tx.price_gross !== undefined ? tx.price_gross :
+          tx.amount_gross !== undefined ? tx.amount_gross :
+          tx.amount !== undefined ? tx.amount :
+          tx.price !== undefined ? tx.price :
+          (tx.sum !== undefined ? tx.sum : 0);
         const val = typeof rawAmt === 'number' ? rawAmt : (parseFloat(rawAmt) || 0);
 
         if (!txTypeMap[rawType]) {
