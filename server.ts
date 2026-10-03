@@ -10,6 +10,7 @@ import {
   handleOnlyMonsterSync
 } from "./api/_lib/onlymonster-client.js";
 import onlyMonsterConfigHandler from "./api/onlymonster/config.js";
+import { isPlaceholderToken } from "./api/_lib/om-store.js";
 import onlyMonsterProxyHandler from "./api/onlymonster/proxy.js";
 import onlyMonsterAnalyticsHandler from "./api/onlymonster/analytics.js";
 import onlyMonsterAdminHandler, { purgeExpiredLiveEvents } from "./api/onlymonster/admin.js";
@@ -416,6 +417,18 @@ async function startServer() {
   app.all("/api/webhook", (req, res) => webhookHandler(req, res));
   app.all("/api/onlymonster/webhook", (req, res) => webhookHandler(req, res));
   app.all("/api/onlymonster/admin", (req, res) => onlyMonsterAdminHandler(req, res));
+  app.all("/api/onlymonster/events", (req, res) => {
+    try {
+      req.query = Object.assign({}, req.query, { resource: 'events' });
+    } catch (e) {}
+    return onlyMonsterAdminHandler(req, res);
+  });
+  app.all("/api/onlymonster/live-events", (req, res) => {
+    try {
+      req.query = Object.assign({}, req.query, { resource: 'live-events' });
+    } catch (e) {}
+    return onlyMonsterAdminHandler(req, res);
+  });
   app.all("/api/onlymonster/webhooks", (req, res) => onlyMonsterAdminHandler(req, res));
   app.all("/api/onlymonster/db-tables", (req, res) => onlyMonsterAdminHandler(req, res));
 
@@ -447,7 +460,7 @@ async function startServer() {
   }
 
   let inspectorDiagnostics: InspectorDiagnostics = {
-    hasKey: Boolean(process.env.ONLYMONSTER_API_KEY && process.env.ONLYMONSTER_API_KEY.trim().length > 5),
+    hasKey: Boolean(process.env.ONLYMONSTER_API_KEY && !isPlaceholderToken(process.env.ONLYMONSTER_API_KEY)),
     maskedKey: "отсутствует",
     lastCheckedAt: null,
     httpStatus: null,
@@ -607,8 +620,6 @@ async function startServer() {
   app.all("/api/onlymonster/shift-comparison", (req, res) => onlyMonsterAnalyticsHandler(req, res));
   app.all("/api/onlymonster/operator-model-breakdown", (req, res) => onlyMonsterAnalyticsHandler(req, res));
   app.all("/api/onlymonster/account-detail", (req, res) => onlyMonsterAnalyticsHandler(req, res));
-  app.all("/api/onlymonster/admin", (req, res) => onlyMonsterAdminHandler(req, res));
-  app.all("/api/onlymonster/live-events", (req, res) => onlyMonsterAdminHandler(req, res));
 
   // Periodic lightweight cleanup for live events older than 24h (every 30 minutes)
   setInterval(() => {

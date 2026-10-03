@@ -74,9 +74,82 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // Webhook event database persistence is temporarily paused to protect Supabase from overload
-    // Returning 200 OK immediately with paused: true so OnlyMonster will not trigger retries
-    return sendJson(res, 200, { success: true, received: true, paused: true });
+    // 1. Full persistence of incoming webhook event to Supabase om_webhook_events
+    let savedToDb = false;
+    let dbError: string | null = null;
+    const supabase = await getSupabaseClient();
+
+    if (supabase) {
+      try {
+        const rowToInsert = {
+          event_type: eventType,
+          account_id: accountId,
+          platform_account_id: platformAccountId,
+          payload: parsedPayload,
+          event_timestamp: eventTimestamp,
+          received_at: new Date().toISOString(),
+          dedup_key: dedupKey,
+          delivery_id: deliveryId
+        };
+
+        const { error: upsertErr } = await supabase
+          .from('om_webhook_events')
+          .upsert(rowToInsert, { onConflict: 'dedup_key', ignoreDuplicates: true });
+
+        if (upsertErr) {
+          // Fallback if dedup_key unique constraint is not configured
+          const { error: insertErr } = await supabase
+            .from('om_webhook_events')
+            .insert(rowToInsert);
+
+          if (insertErr) {
+            dbError = insertErr.message;
+            console.error('[Webhook] Error saving event to om_webhook_events:', insertErr.message);
+          } else {
+            savedToDb = true;
+          }
+        } else {
+          savedToDb = true;
+        }
+      } catch (insertEx: any) {
+        dbError = insertEx?.message || String(insertEx);
+        console.error('[Webhook] Exception saving event to Supabase:', insertEx);
+      }
+    }
+
+    // 2. Lightweight probabilistic auto-cleanup of old events (~2% probability, fire-and-forget)
+    // SQL equivalent: DELETE FROM om_webhook_events WHERE received_at < NOW() - INTERVAL '30 days';
+    if (Math.random() < 0.02) {
+      (async () => {
+        try {
+          const cleanupClient = await getSupabaseClient();
+          if (cleanupClient) {
+            const cutoffDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+            const { count, error } = await cleanupClient
+              .from('om_webhook_events')
+              .delete({ count: 'exact' })
+              .lt('received_at', cutoffDate);
+
+            if (error) {
+              console.error('[Cleanup] Error deleting old webhook events:', error.message);
+            } else {
+              console.log(`[Cleanup] Removed ${count ?? 0} old webhook events (older than 30 days)`);
+            }
+          }
+        } catch (cleanupErr: any) {
+          console.error('[Cleanup] Background cleanup exception:', cleanupErr?.message || cleanupErr);
+        }
+      })();
+    }
+
+    return sendJson(res, 200, {
+      success: true,
+      received: true,
+      saved: savedToDb,
+      error: dbError,
+      eventType,
+      dedupKey
+    });
   } catch (err: any) {
     console.error('[Webhook] Exception in webhook handler:', err);
     return sendJson(res, 500, { success: false, error: err.message || 'Internal server error' });

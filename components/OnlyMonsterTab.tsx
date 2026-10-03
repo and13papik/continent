@@ -1473,13 +1473,19 @@ export const RealtimeEventFeed: React.FC<{
     const pollLiveEvents = async () => {
       try {
         const params = new URLSearchParams();
+        params.append('resource', 'events');
         params.append('limit', '50');
         if (lastKnownIdRef.current) {
           params.append('since_id', String(lastKnownIdRef.current));
         }
 
-        const res = await fetch(`/api/onlymonster/events?${params.toString()}`);
+        const res = await fetch(`/api/onlymonster/admin?${params.toString()}`);
         if (!res.ok) return;
+
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          return;
+        }
 
         const data = await res.json();
         if (!isMounted || !data.success || !Array.isArray(data.events)) return;
@@ -1517,8 +1523,10 @@ export const RealtimeEventFeed: React.FC<{
             evaluateMilestones();
           }
         }
-      } catch (err) {
-        console.error('[RealtimeEventFeed] Polling error:', err);
+      } catch (err: any) {
+        if (!err?.message?.includes('Unexpected token') && !err?.message?.includes('is not valid JSON')) {
+          console.warn('[RealtimeEventFeed] Polling warning:', err?.message || err);
+        }
       } finally {
         if (isMounted) setIsLoading(false);
       }

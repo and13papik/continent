@@ -1,5 +1,6 @@
-import { getOmToken, setOmToken, getOmWebhookId, setOmWebhookId, isKvConfigured } from '../_lib/om-store.js';
+import { getOmToken, setOmToken, getOmWebhookId, setOmWebhookId, isKvConfigured, isPlaceholderToken } from '../_lib/om-store.js';
 import { getSupabaseCredentials, setSupabaseCredentials } from '../_lib/supabase.js';
+import { clearAuthFailure } from './analytics.js';
 
 function sendJson(res: any, status: number, data: any) {
   if (typeof res.status === 'function' && typeof res.json === 'function') {
@@ -18,7 +19,7 @@ export default async function handler(req: any, res: any) {
 
   if (method === 'GET') {
     const activeKey = await getOmToken();
-    const isCustomKey = Boolean(activeKey && activeKey.length > 5 && !activeKey.startsWith("om_token_fc269e0"));
+    const isCustomKey = Boolean(activeKey && activeKey.length > 5 && !isPlaceholderToken(activeKey));
     const webhookId = await getOmWebhookId();
     const webhookSecret = process.env.WEBHOOK_SECRET || process.env.OM_WEBHOOK_SECRET || '';
     const supabaseCreds = await getSupabaseCredentials();
@@ -48,6 +49,7 @@ export default async function handler(req: any, res: any) {
     const keyToUse = (token || apiKey || "").trim();
     if (keyToUse) {
       await setOmToken(keyToUse);
+      clearAuthFailure();
     }
     if (webhookId) {
       await setOmWebhookId(webhookId);

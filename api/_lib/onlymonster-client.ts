@@ -1,3 +1,5 @@
+import { isPlaceholderToken } from './om-store.js';
+
 export function getOnlyMonsterBaseUrl(): string {
   const url = process.env.ONLYMONSTER_API_BASE_URL || "https://omapi.onlymonster.ai/api/v0";
   return url.replace(/\/+$/, "");
@@ -30,7 +32,7 @@ export function sanitizeSampleJSON(obj: any): any {
 
 export function handleOnlyMonsterInspector() {
   const key = process.env.ONLYMONSTER_API_KEY;
-  const isConfigured = Boolean(key && key.trim().length > 5);
+  const isConfigured = Boolean(key && key.trim().length > 5 && !isPlaceholderToken(key));
 
   if (!isConfigured) {
     return {
@@ -103,7 +105,7 @@ export function handleOnlyMonsterInspector() {
 export async function handleOnlyMonsterTest() {
   const key = process.env.ONLYMONSTER_API_KEY;
 
-  if (!key || key.trim().length < 5) {
+  if (!key || key.trim().length < 5 || isPlaceholderToken(key)) {
     return {
       statusCode: 503,
       body: {

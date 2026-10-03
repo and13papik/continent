@@ -1,4 +1,4 @@
-import { getOmToken } from '../_lib/om-store.js';
+import { getOmToken, isPlaceholderToken } from '../_lib/om-store.js';
 import { 
   getOperationalDayRange,
   getCurrentKyivShift, 
@@ -44,6 +44,29 @@ async function fetchWithTimeout(url: string, headers: Record<string, string>, ti
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+// In-memory auth failure tracker to prevent spamming 401 requests repeatedly
+let lastAuthFailureToken: string | null = null;
+let lastAuthFailureTime = 0;
+
+export function isTokenKnownInvalid(token: string): boolean {
+  if (isPlaceholderToken(token)) return true;
+  if (lastAuthFailureToken === token.trim()) {
+    return true;
+  }
+  return false;
+}
+
+export function recordAuthFailure(token: string) {
+  if (!token) return;
+  lastAuthFailureToken = token.trim();
+  lastAuthFailureTime = Date.now();
+}
+
+export function clearAuthFailure() {
+  lastAuthFailureToken = null;
+  lastAuthFailureTime = 0;
 }
 
 /* =========================================================================
@@ -119,6 +142,10 @@ async function getAccountEarnings(
       clearTimeout(timeoutId);
 
       if (!response || !response.ok) {
+        if (response && response.status === 401) {
+          recordAuthFailure(token);
+          return { total: null, today: null, currency: 'USD', label, error: 'Unauthorized (401)' };
+        }
         let errBody: any = null;
         if (response) {
           try { errBody = await response.json(); } catch (e) {}
@@ -261,7 +288,7 @@ export async function getAllAccountsShiftEarnings(
 ): Promise<{ 1: number; 2: number; 3: number; 4: number }> {
   const shiftTotals = { 1: 0, 2: 0, 3: 0, 4: 0 };
   try {
-    if (!token || !token.trim() || token.startsWith("om_token_fc269e0")) {
+    if (isTokenKnownInvalid(token)) {
       return shiftTotals;
     }
 
@@ -296,9 +323,7 @@ export async function getAllAccountsShiftEarnings(
 
       if (!accRes || !accRes.ok) {
         if (accRes && accRes.status === 401) {
-          console.warn(`[getAllAccountsShiftEarnings] OnlyMonster API authentication failed (Status: 401). Please verify ONLYMONSTER_API_KEY.`);
-        } else {
-          console.warn(`[getAllAccountsShiftEarnings] Could not fetch accounts from OnlyMonster API. Status: ${accRes ? accRes.status : 'Network error'}`);
+          recordAuthFailure(token);
         }
         return shiftTotals;
       }
@@ -357,7 +382,6 @@ export async function getAllAccountsShiftEarnings(
       4: Math.round(shiftTotals[4] * 100) / 100
     };
   } catch (e: any) {
-    console.error('[getAllAccountsShiftEarnings] Unexpected exception:', e?.message || e);
     return shiftTotals;
   }
 }
@@ -369,11 +393,20 @@ async function handleEarnings(req: any, res: any, queryParams: Record<string, st
   }
 
   const omToken = await getOmToken();
-  if (!omToken || !omToken.trim() || omToken.startsWith("om_token_fc269e0")) {
+  if (isPlaceholderToken(omToken)) {
     return sendJson(res, 200, {
       success: false,
       not_configured: true,
       error: "API-ключ OnlyMonster не настроен. Укажите переменную ONLYMONSTER_API_KEY в Vercel."
+    });
+  }
+
+  const token = omToken.trim();
+  if (isTokenKnownInvalid(token)) {
+    return sendJson(res, 200, {
+      success: false,
+      unauthorized: true,
+      error: "OnlyMonster API authentication failed (Status: 401). Please verify ONLYMONSTER_API_KEY."
     });
   }
 
@@ -432,7 +465,7 @@ async function handleEarnings(req: any, res: any, queryParams: Record<string, st
 
 async function handleShiftOperators(req: any, res: any, queryParams: Record<string, string>) {
   const omToken = await getOmToken();
-  if (!omToken || !omToken.trim() || omToken.startsWith("om_token_fc269e0")) {
+  if (isPlaceholderToken(omToken)) {
     return sendJson(res, 200, {
       success: false,
       not_configured: true,
@@ -441,6 +474,14 @@ async function handleShiftOperators(req: any, res: any, queryParams: Record<stri
   }
 
   const token = omToken.trim();
+  if (isTokenKnownInvalid(token)) {
+    return sendJson(res, 200, {
+      success: false,
+      unauthorized: true,
+      error: "OnlyMonster API authentication failed (Status: 401). Please verify ONLYMONSTER_API_KEY.",
+      operators: []
+    });
+  }
 
   const period = (queryParams.period || 'shift').toLowerCase();
   const day = (queryParams.day || 'today').toLowerCase();
@@ -511,6 +552,15 @@ async function handleShiftOperators(req: any, res: any, queryParams: Record<stri
       }
 
       if (!response.ok) {
+        if (response.status === 401) {
+          recordAuthFailure(token);
+          return sendJson(res, 200, {
+            success: false,
+            unauthorized: true,
+            error: "OnlyMonster API authentication failed (Status: 401). Please verify ONLYMONSTER_API_KEY.",
+            operators: []
+          });
+        }
         let errText = `Ошибка OnlyMonster API (${response.status})`;
         try {
           const errBody = await response.json();
@@ -808,7 +858,13 @@ async function fetchShiftMetrics(
       return { totalMessages: 0, totalEarnings: 0, operatorCount: 0, error: err.message };
     }
 
-    if (!response.ok) break;
+    if (!response.ok) {
+      if (response.status === 401) {
+        recordAuthFailure(headers['x-om-auth-token'] || '');
+        return { totalMessages: 0, totalEarnings: 0, operatorCount: 0, error: 'Unauthorized (401)' };
+      }
+      break;
+    }
 
     const body: any = await response.json();
     let pageItems: any[] = [];
@@ -859,7 +915,7 @@ async function fetchShiftMetrics(
 
 async function handleShiftComparison(req: any, res: any, queryParams: Record<string, string>) {
   const omToken = await getOmToken();
-  if (!omToken || !omToken.trim() || omToken.startsWith("om_token_fc269e0")) {
+  if (isPlaceholderToken(omToken)) {
     return sendJson(res, 200, {
       success: false,
       not_configured: true,
@@ -868,6 +924,14 @@ async function handleShiftComparison(req: any, res: any, queryParams: Record<str
   }
 
   const token = omToken.trim();
+  if (isTokenKnownInvalid(token)) {
+    return sendJson(res, 200, {
+      success: false,
+      unauthorized: true,
+      error: "OnlyMonster API authentication failed (Status: 401). Please verify ONLYMONSTER_API_KEY."
+    });
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     'x-om-auth-token': token
@@ -888,6 +952,13 @@ async function handleShiftComparison(req: any, res: any, queryParams: Record<str
       try {
         accountShiftTotals = await getAllAccountsShiftEarnings(token, day, providedAccIds);
       } catch (errAcc: any) {
+        if (errAcc?.status === 401 || errAcc?.message?.includes('401')) {
+          return sendJson(res, 200, {
+            success: false,
+            unauthorized: true,
+            error: "OnlyMonster API authentication failed (Status: 401). Please verify ONLYMONSTER_API_KEY."
+          });
+        }
         console.error('[shift-comparison] Error in getAllAccountsShiftEarnings:', errAcc?.message || errAcc);
       }
 
@@ -914,6 +985,13 @@ async function handleShiftComparison(req: any, res: any, queryParams: Record<str
         const url = `https://omapi.onlymonster.ai/api/v0/users/metrics?from=${encodeURIComponent(range.start)}&to=${encodeURIComponent(range.end)}`;
 
         const data = await fetchShiftMetrics(url, headers);
+        if (data.error === 'Unauthorized (401)') {
+          return sendJson(res, 200, {
+            success: false,
+            unauthorized: true,
+            error: "OnlyMonster API authentication failed (Status: 401). Please verify ONLYMONSTER_API_KEY."
+          });
+        }
 
         const accountEarnings = accountShiftTotals[s as 1 | 2 | 3 | 4] ?? 0;
         const operatorEarnings = data.totalEarnings ?? 0;
@@ -1089,7 +1167,7 @@ async function handleShiftComparison(req: any, res: any, queryParams: Record<str
 
 async function handleOperatorModelBreakdown(req: any, res: any, queryParams: Record<string, string>) {
   const omToken = await getOmToken();
-  if (!omToken || !omToken.trim() || omToken.startsWith("om_token_fc269e0")) {
+  if (isPlaceholderToken(omToken)) {
     return sendJson(res, 200, {
       success: false,
       not_configured: true,
@@ -1098,6 +1176,14 @@ async function handleOperatorModelBreakdown(req: any, res: any, queryParams: Rec
   }
 
   const token = omToken.trim();
+  if (isTokenKnownInvalid(token)) {
+    return sendJson(res, 200, {
+      success: false,
+      unauthorized: true,
+      error: "OnlyMonster API authentication failed (Status: 401). Please verify ONLYMONSTER_API_KEY."
+    });
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     'x-om-auth-token': token
@@ -1129,6 +1215,14 @@ async function handleOperatorModelBreakdown(req: any, res: any, queryParams: Rec
     }
 
     if (!response.ok) {
+      if (response.status === 401) {
+        recordAuthFailure(token);
+        return sendJson(res, 200, {
+          success: false,
+          unauthorized: true,
+          error: "OnlyMonster API authentication failed (Status: 401). Please verify ONLYMONSTER_API_KEY."
+        });
+      }
       return sendJson(res, 200, {
         success: false,
         error: `OnlyMonster API вернул статус ${response.status}`
@@ -1224,7 +1318,7 @@ async function handleAccountDetail(req: any, res: any, queryParams: Record<strin
   }
 
   const omToken = await getOmToken();
-  if (!omToken || !omToken.trim() || omToken.startsWith("om_token_fc269e0")) {
+  if (isPlaceholderToken(omToken)) {
     return sendJson(res, 200, {
       success: false,
       not_configured: true,
@@ -1244,6 +1338,13 @@ async function handleAccountDetail(req: any, res: any, queryParams: Record<strin
   }
 
   const cleanToken = omToken.trim();
+  if (isTokenKnownInvalid(cleanToken)) {
+    return sendJson(res, 200, {
+      success: false,
+      unauthorized: true,
+      error: "OnlyMonster API authentication failed (Status: 401). Please verify ONLYMONSTER_API_KEY."
+    });
+  }
 
   try {
     const [txResult, subResult] = await Promise.all([
@@ -1263,7 +1364,12 @@ async function handleAccountDetail(req: any, res: any, queryParams: Record<strin
             'x-om-auth-token': cleanToken
           }, 12000);
 
-          if (!response.ok) break;
+          if (!response.ok) {
+            if (response.status === 401) {
+              recordAuthFailure(cleanToken);
+            }
+            break;
+          }
 
           const body: any = await response.json();
           let pageItems: any[] = [];

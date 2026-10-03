@@ -1,5 +1,19 @@
 import { kv } from '@vercel/kv';
 
+export const KNOWN_PLACEHOLDER_TOKENS = new Set([
+  "om_token_fc269e0cc20370b29c803be7ad2e85c8c43b3d84366a6cf0f3ae0c5001c9f2ca",
+  "om_token_3f1262d1fa72d55bf9c52995576ca3fdff05815013b31b3da8dd97862140f63d"
+]);
+
+export function isPlaceholderToken(token: string | null | undefined): boolean {
+  if (!token || typeof token !== 'string') return true;
+  const t = token.trim();
+  if (!t || t.length < 10) return true;
+  if (KNOWN_PLACEHOLDER_TOKENS.has(t)) return true;
+  if (t.startsWith("om_token_fc269e0cc20370b2") || t.startsWith("om_token_3f1262d1fa72d55b")) return true;
+  return false;
+}
+
 let localInMemoryToken = process.env.ONLYMONSTER_API_KEY || process.env.ONLYMONSTER_TOKEN || "";
 let localInMemoryWebhookId = process.env.ONLYMONSTER_WEBHOOK_ID || "";
 

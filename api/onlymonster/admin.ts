@@ -553,7 +553,15 @@ export default async function handler(req: any, res: any) {
     } catch (e) {}
   }
 
-  const resource = (queryParams.resource || 'webhooks').toLowerCase().trim();
+  let resource = (queryParams.resource || '').toLowerCase().trim();
+  if (!resource) {
+    const rawPath = (req.path || req.url || '').split('?')[0];
+    if (rawPath.endsWith('/events')) resource = 'events';
+    else if (rawPath.endsWith('/live-events')) resource = 'live-events';
+    else if (rawPath.endsWith('/webhooks')) resource = 'webhooks';
+    else if (rawPath.endsWith('/db-tables')) resource = 'db-tables';
+    else resource = 'webhooks';
+  }
 
   if (resource === 'events') {
     return handleEvents(req, res, queryParams);
