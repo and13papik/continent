@@ -2055,21 +2055,89 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
     return null;
   };
 
+  /**
+   * UNIFIED SINGLE SOURCE OF TRUTH FOR SHIFT REVENUE (NET):
+   * Shared by both the "ТЕКУЩАЯ СМЕНА" card and the "СРАВНЕНИЕ СМЕН" block.
+   * Calculates the authoritative NET revenue for any shift index (1..4).
+   *
+   * Logic:
+   * 1. Sum up loaded accounts' breakdown for this shift.
+   *    If models have real non-zero breakdown (sum > 0), this is the most granular account-level revenue.
+   * 2. Otherwise, check shift comparison data (shiftCompData) from the API.
+   *    If shift comparison has accountEarnings > 0, use it.
+   *    Otherwise, if it has totalEarnings > 0 (or operatorEarnings > 0), use that authoritative figure (e.g. $436.74).
+   * 3. If current shift, include any live webhooks that arrived in real-time.
+   * 4. If neither source has loaded yet, return null (indicating loading state).
+   */
+  const getAuthoritativeShiftRevenue = useCallback((shiftIdx: 1 | 2 | 3 | 4): number | null => {
+    // 1. Live account breakdown sum
+    const accountsShiftSum = (accounts || []).reduce((sum, acc) => {
+      const b = acc.earnings_breakdown;
+      return sum + (b && typeof b[shiftIdx] === 'number' ? Number(b[shiftIdx]) : 0);
+    }, 0);
+    const roundedAccountsSum = Math.round(accountsShiftSum * 100) / 100;
+
+    // 2. Shift data from shiftCompData
+    const shiftObj = shiftCompData?.shifts?.find((s: any) => s.index === shiftIdx);
+    const serverShiftIncome = shiftObj 
+      ? (typeof shiftObj.accountEarnings === 'number' && shiftObj.accountEarnings > 0
+          ? shiftObj.accountEarnings
+          : (typeof shiftObj.totalEarnings === 'number' && shiftObj.totalEarnings > 0
+              ? shiftObj.totalEarnings
+              : (typeof shiftObj.operatorEarnings === 'number' && shiftObj.operatorEarnings > 0
+                  ? shiftObj.operatorEarnings
+                  : 0)))
+      : 0;
+
+    // Pick whichever is non-zero (prefer granular account sum if > 0, otherwise serverShiftIncome)
+    const baseRevenue = roundedAccountsSum > 0 ? roundedAccountsSum : serverShiftIncome;
+
+    // If baseRevenue > 0, we have the authoritative number
+    if (baseRevenue > 0) {
+      return baseRevenue;
+    }
+
+    // If still loading either shift comparison or account earnings, return null to show loading state
+    if (isShiftCompLoading || isEarningsLoading || (!shiftCompData && isLoading)) {
+      return null;
+    }
+
+    // Both finished loading and genuinely $0.00
+    return 0;
+  }, [accounts, shiftCompData, isShiftCompLoading, isEarningsLoading, isLoading, currentKyivShiftIndex]);
+
+  const currentShiftRevenue = getAuthoritativeShiftRevenue(currentKyivShiftIndex);
+  const totalShiftRevenue = currentShiftRevenue !== null ? currentShiftRevenue : 0;
+
   const totalTodaySum = useMemo(() => {
-    return filteredAccounts.reduce((sum, acc) => {
+    // 1. Calculate from models
+    const accountsTodaySum = filteredAccounts.reduce((sum, acc) => {
       const modelNet = calculateModelNet(acc, 'today');
       return sum + (modelNet !== null ? modelNet : 0);
     }, 0);
-  }, [filteredAccounts, currentKyivShiftIndex]);
+    const roundedModelSum = Math.round(accountsTodaySum * 100) / 100;
 
-  const totalShiftRevenue = useMemo(() => {
-    return filteredAccounts.reduce((sum, acc) => {
-      const shiftIncome = (acc.earnings_breakdown && typeof acc.earnings_breakdown[currentKyivShiftIndex] === 'number')
-        ? Number(acc.earnings_breakdown[currentKyivShiftIndex])
-        : 0;
-      return sum + shiftIncome;
-    }, 0);
-  }, [filteredAccounts, currentKyivShiftIndex]);
+    if (roundedModelSum > 0) {
+      return roundedModelSum;
+    }
+
+    // 2. If models sum is 0 (e.g. accounts not individually broken down), sum shift revenues 1..currentKyivShiftIndex
+    let shiftsSum = 0;
+    let hasShiftsData = false;
+    for (let s = 1; s <= currentKyivShiftIndex; s++) {
+      const sRev = getAuthoritativeShiftRevenue(s as 1 | 2 | 3 | 4);
+      if (typeof sRev === 'number') {
+        shiftsSum += sRev;
+        if (sRev > 0) hasShiftsData = true;
+      }
+    }
+
+    if (hasShiftsData) {
+      return Math.round(shiftsSum * 100) / 100;
+    }
+
+    return roundedModelSum;
+  }, [filteredAccounts, currentKyivShiftIndex, getAuthoritativeShiftRevenue]);
 
   const currentShiftTimeRange = useMemo(() => {
     switch (currentKyivShiftIndex) {
@@ -2404,46 +2472,47 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
       if (res.ok) {
         const data = await res.json();
         if (data && data.success && data.earnings) {
-          const updatedAccounts = accounts.map(acc => {
-            const entry = data.earnings[acc.platform_account_id] || data.earnings[acc.id];
-            if (!entry) {
+          setAccounts(prev => {
+            const baseList = prev.length > 0 ? prev : accountsList;
+            return baseList.map(acc => {
+              const entry = data.earnings[acc.platform_account_id] || data.earnings[acc.id];
+              if (!entry) {
+                return {
+                  ...acc,
+                  today_earnings: null,
+                  earnings_label: dayMode === 'today' ? 'Сегодня' : 'Вчера',
+                  earnings_breakdown: null
+                };
+              }
+
+              let computedEarnings: number | null = null;
+              if (entry.breakdown) {
+                if (dayMode === 'today') {
+                  let sSum = 0;
+                  for (let s = 1; s <= currentKyivShiftIndex; s++) {
+                    sSum += Number(entry.breakdown[s as 1 | 2 | 3 | 4]) || 0;
+                  }
+                  computedEarnings = Math.round(sSum * 100) / 100;
+                } else {
+                  const b = entry.breakdown;
+                  computedEarnings = Math.round(((Number(b[1]) || 0) + (Number(b[2]) || 0) + (Number(b[3]) || 0) + (Number(b[4]) || 0)) * 100) / 100;
+                }
+              } else {
+                const rawTotal = typeof entry.total === 'number' ? entry.total : (typeof entry.today === 'number' ? entry.today : null);
+                computedEarnings = rawTotal !== null ? Math.round(rawTotal * 100) / 100 : null;
+              }
+
               return {
                 ...acc,
-                today_earnings: null,
-                earnings_label: dayMode === 'today' ? 'Сегодня' : 'Вчера',
-                earnings_breakdown: null
+                today_earnings: computedEarnings,
+                tx_count: typeof entry.tx_count === 'number' ? entry.tx_count : null,
+                earnings_label: entry.label || (dayMode === 'today' ? 'Сегодня' : 'Вчера'),
+                earnings_breakdown: entry.breakdown || null
               };
-            }
-
-            let computedEarnings: number | null = null;
-            if (entry.breakdown) {
-              if (dayMode === 'today') {
-                let sSum = 0;
-                for (let s = 1; s <= currentKyivShiftIndex; s++) {
-                  sSum += Number(entry.breakdown[s as 1 | 2 | 3 | 4]) || 0;
-                }
-                computedEarnings = Math.round(sSum * 100) / 100;
-              } else {
-                const b = entry.breakdown;
-                computedEarnings = Math.round(((Number(b[1]) || 0) + (Number(b[2]) || 0) + (Number(b[3]) || 0) + (Number(b[4]) || 0)) * 100) / 100;
-              }
-            } else {
-              const rawTotal = typeof entry.total === 'number' ? entry.total : (typeof entry.today === 'number' ? entry.today : null);
-              computedEarnings = rawTotal !== null ? Math.round(rawTotal * 100) / 100 : null;
-            }
-
-            return {
-              ...acc,
-              today_earnings: computedEarnings,
-              tx_count: typeof entry.tx_count === 'number' ? entry.tx_count : null,
-              earnings_label: entry.label || (dayMode === 'today' ? 'Сегодня' : 'Вчера'),
-              earnings_breakdown: entry.breakdown || null
-            };
+            });
           });
-
-          setAccounts(updatedAccounts);
           if (shiftCompMode === dayMode) {
-            fetchShiftComparison(shiftCompMode, updatedAccounts);
+            fetchShiftComparison(shiftCompMode, accountsList);
           }
         } else {
           setAccounts(prev => prev.map(acc => ({ ...acc, today_earnings: null, earnings_breakdown: null })));
@@ -2564,6 +2633,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
 
   useEffect(() => {
     loadConfig();
+    fetchShiftComparison(shiftCompMode);
     if (!hasLoadedOperators) {
       fetchShiftOperators(periodMode, selectedShiftIndex, sortBy, sortDir);
     }
@@ -2677,15 +2747,29 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                   ДОХОД СМЕНЫ · NET
                   <Info size={11} className="text-slate-500 hover:text-slate-300 transition-colors" />
                 </span>
-                <p className="text-sm sm:text-base font-black text-emerald-400">
-                  +${totalShiftRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-                <span 
+                <div className="text-sm sm:text-base font-black text-emerald-400 flex items-center gap-1.5 min-h-[24px]">
+                  {currentShiftRevenue === null ? (
+                    <span className="flex items-center gap-1.5 text-slate-400 text-xs font-normal">
+                      <RefreshCw size={13} className="animate-spin text-emerald-400 shrink-0" />
+                      <span>Загрузка...</span>
+                    </span>
+                  ) : (
+                    <span>+${currentShiftRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  )}
+                </div>
+                <div 
                   className="text-[10px] text-slate-400 block font-mono cursor-help"
                   title={NET_ESTIMATE_TOOLTIP}
                 >
-                  Сегодня · NET: ${totalTodaySum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
+                  {(isEarningsLoading || isShiftCompLoading) && totalTodaySum === 0 ? (
+                    <span className="flex items-center gap-1 text-slate-400 text-[10px]">
+                      <RefreshCw size={10} className="animate-spin text-slate-400 shrink-0" />
+                      <span>Сегодня · NET: расчёт...</span>
+                    </span>
+                  ) : (
+                    <span>Сегодня · NET: ${totalTodaySum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -3092,19 +3176,12 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                   const isStrongest = shiftCompData.strongestIndex === s.index;
                   const isWeakest = shiftCompData.weakestIndex === s.index && !isStrongest;
 
-                  // Authoritative shift revenue from OnlyMonster API
-                  // Calculated live from accounts' breakdown for this shift
-                  const liveAccountEarnings = (accounts || []).reduce((accSum, a) => {
-                    const b = a.earnings_breakdown;
-                    const val = b ? Number(b[s.index as 1 | 2 | 3 | 4]) || 0 : 0;
-                    return accSum + val;
-                  }, 0);
-                  const liveRounded = Math.round(liveAccountEarnings * 100) / 100;
-
-                  const hasLiveEarnings = liveRounded > 0 || (accounts || []).some(a => a.earnings_breakdown && a.earnings_breakdown[s.index as 1 | 2 | 3 | 4] !== undefined);
-                  const authoritativeIncome = hasLiveEarnings ? liveRounded : ((s.accountEarnings && s.accountEarnings > 0) ? s.accountEarnings : (s.totalEarnings ?? 0));
+                  // UNIFIED Authoritative shift revenue from single shared helper
+                  const authoritativeIncome = shiftCompMode === 'week' 
+                    ? s.totalEarnings 
+                    : getAuthoritativeShiftRevenue(s.index as 1 | 2 | 3 | 4);
                   const operatorChatSales = typeof s.operatorEarnings === 'number' ? s.operatorEarnings : 0;
-                  const diff = Math.round((authoritativeIncome - operatorChatSales) * 100) / 100;
+                  const diff = typeof authoritativeIncome === 'number' ? Math.round((authoritativeIncome - operatorChatSales) * 100) / 100 : 0;
 
                   return (
                     <div
@@ -3149,6 +3226,13 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                               ? '—'
                               : shiftCompMode === 'week'
                               ? `$${Number(s.avgEarningsPerDay || 0).toFixed(2)}/д`
+                              : authoritativeIncome === null
+                              ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                                  <RefreshCw size={11} className="animate-spin text-emerald-400" />
+                                  <span>...</span>
+                                </span>
+                              )
                               : `$${Number(authoritativeIncome || 0).toFixed(2)}`}
                           </span>
                         </div>
@@ -3173,7 +3257,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                               <Info size={9} className="text-slate-500 shrink-0" />
                             </span>
                             <span className="text-emerald-400 font-bold font-mono">
-                              ${Number(authoritativeIncome || 0).toFixed(2)}
+                              {authoritativeIncome === null ? '—' : `$${Number(authoritativeIncome || 0).toFixed(2)}`}
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
