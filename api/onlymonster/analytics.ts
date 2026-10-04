@@ -1755,14 +1755,10 @@ async function handleOperatorDeepStats(req: any, res: any, queryParams: Record<s
   }
 
   try {
-    let currentStart = queryParams.start;
-    let currentEnd = queryParams.end;
-
-    if (!currentStart || !currentEnd) {
-      const week = getWeekRange();
-      currentStart = week.start;
-      currentEnd = week.end;
-    }
+    // Fair week comparison (always Monday 00:00 Kyiv to now vs previous 7-day equivalent):
+    const week = getWeekRange();
+    const currentStart = week.start;
+    const currentEnd = week.end;
 
     const currentStartMs = new Date(currentStart).getTime();
     const currentEndMs = new Date(currentEnd).getTime();
@@ -1815,6 +1811,11 @@ async function handleOperatorDeepStats(req: any, res: any, queryParams: Record<s
     };
 
     // 5. Calculate team trends across all operators in current vs previous
+    const sortByParam = (queryParams.sort_by || queryParams.sortBy || 'messages').toLowerCase().trim();
+    const validSortBy = ['messages', 'reply_time', 'ppv_sent', 'ppv_sold', 'earnings'].includes(sortByParam)
+      ? sortByParam
+      : 'messages';
+
     const teamCurrByUser = new Map<string, any[]>();
     for (const item of currentBulkItems) {
       const uId = String(item.user_id || item.id || item.member_id || '');
@@ -1831,8 +1832,16 @@ async function handleOperatorDeepStats(req: any, res: any, queryParams: Record<s
       teamPrevByUser.get(uId)!.push(item);
     }
 
-    // Rank operator in current period
-    const operatorLeaderboard: { userId: string; messages: number; earnings: number }[] = [];
+    // Rank operator in current period based on selected sort_by metric
+    const operatorLeaderboard: { 
+      userId: string; 
+      messages: number; 
+      earnings: number; 
+      reply_time: number | null; 
+      ppv_sent: number; 
+      ppv_sold: number; 
+    }[] = [];
+
     let teamCurrTotalMsgs = 0;
     let teamCurrTotalEarn = 0;
     let teamCurrPaidMsgs = 0;
@@ -1842,7 +1851,14 @@ async function handleOperatorDeepStats(req: any, res: any, queryParams: Record<s
 
     teamCurrByUser.forEach((items, uId) => {
       const agg = aggregateMetricsItems(items);
-      operatorLeaderboard.push({ userId: uId, messages: agg.messages_count, earnings: agg.earnings });
+      operatorLeaderboard.push({
+        userId: uId,
+        messages: agg.messages_count,
+        earnings: agg.earnings,
+        reply_time: agg.reply_time_avg,
+        ppv_sent: agg.paid_messages_count,
+        ppv_sold: agg.sold_messages_count
+      });
       teamCurrTotalMsgs += agg.messages_count;
       teamCurrTotalEarn += agg.earnings;
       teamCurrPaidMsgs += agg.paid_messages_count;
@@ -1853,7 +1869,28 @@ async function handleOperatorDeepStats(req: any, res: any, queryParams: Record<s
       }
     });
 
-    operatorLeaderboard.sort((a, b) => b.messages - a.messages);
+    operatorLeaderboard.sort((a, b) => {
+      if (validSortBy === 'earnings') {
+        return b.earnings - a.earnings;
+      } else if (validSortBy === 'ppv_sent') {
+        return b.ppv_sent - a.ppv_sent;
+      } else if (validSortBy === 'ppv_sold') {
+        return b.ppv_sold - a.ppv_sold;
+      } else if (validSortBy === 'reply_time') {
+        // Ascending sort (smaller time is better).
+        // null or <= 0 values go to the end of the list.
+        const aHasTime = a.reply_time !== null && a.reply_time > 0;
+        const bHasTime = b.reply_time !== null && b.reply_time > 0;
+        if (!aHasTime && !bHasTime) return 0;
+        if (!aHasTime) return 1;
+        if (!bHasTime) return -1;
+        return (a.reply_time as number) - (b.reply_time as number);
+      } else {
+        // default: 'messages'
+        return b.messages - a.messages;
+      }
+    });
+
     const rankIndex = operatorLeaderboard.findIndex(op => String(op.userId) === String(userId));
     const rank = rankIndex !== -1 ? rankIndex + 1 : 1;
     const totalOperators = Math.max(operatorLeaderboard.length, 1);
@@ -1900,6 +1937,7 @@ async function handleOperatorDeepStats(req: any, res: any, queryParams: Record<s
       avatar: operatorAvatar,
       rank,
       totalOperators,
+      sortBy: validSortBy,
       periods: {
         current: { start: currentStart, end: currentEnd },
         previous: { start: prevStart, end: prevEnd }

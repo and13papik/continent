@@ -41,7 +41,24 @@ export interface OperatorDeepStatsModalProps {
     reply_time_avg?: number | null;
   };
   onClose: () => void;
-  dateRange?: { start?: string; end?: string };
+  currentShiftLabel?: string;
+  currentSortBy?: 'messages' | 'reply_time' | 'ppv_sent' | 'ppv_sold' | 'earnings';
+}
+
+export function getSortByLabel(sb?: string): string {
+  switch (sb) {
+    case 'earnings':
+      return 'по доходу';
+    case 'reply_time':
+      return 'по скорости ответа';
+    case 'ppv_sent':
+      return 'по отправленным PPV';
+    case 'ppv_sold':
+      return 'по проданным PPV';
+    case 'messages':
+    default:
+      return 'по сообщениям';
+  }
 }
 
 interface MetricChange {
@@ -58,6 +75,7 @@ interface DeepStatsResponse {
   avatar: string;
   rank: number;
   totalOperators: number;
+  sortBy?: 'messages' | 'reply_time' | 'ppv_sent' | 'ppv_sold' | 'earnings';
   periods: {
     current: { start: string; end: string };
     previous: { start: string; end: string };
@@ -214,7 +232,8 @@ export function generateWeeklyNarrative(
 export const OperatorDeepStatsModal: React.FC<OperatorDeepStatsModalProps> = ({
   operator,
   onClose,
-  dateRange
+  currentShiftLabel,
+  currentSortBy
 }) => {
   const [data, setData] = useState<DeepStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -233,11 +252,7 @@ export const OperatorDeepStatsModal: React.FC<OperatorDeepStatsModalProps> = ({
         params.append('user_id', operator.user_id);
         if (operator.name) params.append('name', operator.name);
         if (operator.avatar) params.append('avatar', operator.avatar);
-
-        if (dateRange?.start && dateRange?.end) {
-          params.append('start', dateRange.start);
-          params.append('end', dateRange.end);
-        }
+        params.append('sort_by', currentSortBy || 'messages');
 
         const res = await fetch(`/api/onlymonster/analytics?${params.toString()}`);
         if (!res.ok) {
@@ -263,7 +278,7 @@ export const OperatorDeepStatsModal: React.FC<OperatorDeepStatsModalProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [operator.user_id, dateRange?.start, dateRange?.end]);
+  }, [operator.user_id, operator.name, operator.avatar, currentSortBy]);
 
   const handleDownloadCard = async () => {
     if (!cardRef.current || isExporting) return;
@@ -558,13 +573,16 @@ export const OperatorDeepStatsModal: React.FC<OperatorDeepStatsModalProps> = ({
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-black text-white">{operator.name}</h3>
                 {data && (
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30">
-                    Ранг #{data.rank} из {data.totalOperators}
+                  <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 flex items-center gap-1">
+                    <span>Ранг #{data.rank} из {data.totalOperators}</span>
+                    <span className="opacity-75 font-semibold text-slate-300">
+                      ({getSortByLabel(data.sortBy || currentSortBy)})
+                    </span>
                   </span>
                 )}
               </div>
               <p className="text-xs text-slate-400 font-mono">
-                Детальный анализ оператора • OnlyMonster ID: {operator.user_id}
+                Недельный анализ (неделя к неделе){currentShiftLabel ? ` • Смена: ${currentShiftLabel}` : ''} • ID: {operator.user_id}
               </p>
             </div>
           </div>
@@ -912,7 +930,12 @@ export const OperatorDeepStatsModal: React.FC<OperatorDeepStatsModalProps> = ({
 
                     <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-500/20 border border-violet-400/40 text-violet-300 text-xs font-black">
                       <Crown size={12} className="text-amber-400" />
-                      <span>РАНГ #{data.rank} ИЗ {data.totalOperators}</span>
+                      <span>
+                        РАНГ #{data.rank} ИЗ {data.totalOperators}{' '}
+                        <span className="text-[10px] font-bold text-violet-200/80 uppercase">
+                          ({getSortByLabel(data.sortBy || currentSortBy)})
+                        </span>
+                      </span>
                     </div>
                   </div>
 

@@ -4120,7 +4120,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
         <OperatorDeepStatsModal
           operator={selectedOperatorForDeepStats}
           onClose={() => setSelectedOperatorForDeepStats(null)}
-          dateRange={shiftInfo?.start && shiftInfo?.end ? { start: shiftInfo.start, end: shiftInfo.end } : undefined}
+          currentShiftLabel={shiftInfo?.label}
+          currentSortBy={sortBy}
         />
       )}
     </div>
