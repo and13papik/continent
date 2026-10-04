@@ -27,7 +27,7 @@ export function createInitialState(): AppState {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      return {
+      const loadedState = {
         ...parsed,
         deletedIds: parsed.deletedIds || [],
         incomeData: parsed.incomeData || [],
@@ -52,6 +52,7 @@ export function createInitialState(): AppState {
         operatorAssessments: parsed.operatorAssessments || [],
         modelGroups: parsed.modelGroups || []
       };
+      return deduplicatePeriods(loadedState);
     } catch (e) {
       console.error("Failed to parse storage", e);
     }
@@ -167,6 +168,168 @@ function mergeArraysById<T extends { id: string; updatedAt?: string; createdAt?:
   return Array.from(map.values());
 }
 
+const MONTHS_RU_STEMS = ['январ', 'феврал', 'март', 'апрел', 'май', 'июн', 'июл', 'август', 'сентябр', 'октябр', 'ноябр', 'декабр'];
+
+export function getPeriodDeduplicationKey(p: AccountingPeriod): string {
+  // Normalize whitespace (including \u00a0 non-breaking spaces, zero-width spaces, multiple spaces)
+  let norm = (p.label || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000\ufeff]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/г\.|г$|года|год/g, '')
+    .trim();
+
+  // Normalize Latin lookalike characters commonly typed on EN keyboard (O, c, a, e, p, x)
+  norm = norm
+    .replace(/o/g, 'о')
+    .replace(/c/g, 'с')
+    .replace(/a/g, 'а')
+    .replace(/e/g, 'е')
+    .replace(/p/g, 'р')
+    .replace(/x/g, 'х');
+
+  // Check if label contains a Russian month stem and 4-digit year (e.g. "октябрь 2026")
+  const foundMonthIdx = MONTHS_RU_STEMS.findIndex(m => norm.includes(m));
+  const yearMatch = norm.match(/\b(20\d{2})\b/);
+  if (foundMonthIdx !== -1 && yearMatch) {
+    const labelYear = parseInt(yearMatch[1], 10);
+    return `cal_${labelYear}_${foundMonthIdx}`;
+  }
+
+  // If startAt has valid date, also map to calendar month if label indicates month
+  if (p.startAt) {
+    const d = new Date(p.startAt);
+    if (!isNaN(d.getTime())) {
+      const y = d.getUTCFullYear();
+      const m = d.getUTCMonth();
+      if (foundMonthIdx !== -1) {
+        return `cal_${y}_${m}`;
+      }
+    }
+  }
+
+  return norm;
+}
+
+export function deduplicatePeriods(state: AppState): AppState {
+  if (!state.accountingPeriods || state.accountingPeriods.length <= 1) return state;
+
+  const periodsByKey = new Map<string, AccountingPeriod[]>();
+  state.accountingPeriods.forEach(p => {
+    const key = getPeriodDeduplicationKey(p);
+    if (!periodsByKey.has(key)) {
+      periodsByKey.set(key, []);
+    }
+    periodsByKey.get(key)!.push(p);
+  });
+
+  let hasDuplicates = false;
+  periodsByKey.forEach(list => {
+    if (list.length > 1) hasDuplicates = true;
+  });
+
+  if (!hasDuplicates) return state;
+
+  const idRemap = new Map<string, string>(); // duplicateId -> canonicalId
+  const keptPeriods: AccountingPeriod[] = [];
+  const removedIds: string[] = [];
+
+  periodsByKey.forEach((list) => {
+    if (list.length === 1) {
+      keptPeriods.push(list[0]);
+      return;
+    }
+
+    // Rank periods with identical calendar identity by amount of attached records & age
+    const scored = list.map(p => {
+      const incCount = (state.incomeData || []).filter(i => i.periodId === p.id).length;
+      const opCount = (state.operationsData || []).filter(o => o.periodId === p.id).length;
+      const rosCount = (state.rosterData || []).filter(r => r.periodId === p.id).length;
+      const expCount = (state.ownerExpenses || []).filter(e => e.periodId === p.id).length;
+      const manCount = (state.ownerManualIncomes || []).filter(m => m.periodId === p.id).length;
+      const totalCount = incCount + opCount + rosCount + expCount + manCount;
+      const createdAtMs = new Date(p.createdAt || 0).getTime() || 0;
+      return { p, totalCount, createdAtMs };
+    });
+
+    // The canonical period is the one with the most records, or created earlier
+    scored.sort((a, b) => {
+      if (b.totalCount !== a.totalCount) return b.totalCount - a.totalCount;
+      return a.createdAtMs - b.createdAtMs;
+    });
+
+    // If one of the duplicate periods is open, keep canonical open
+    const hasOpenStatus = list.some(item => item.status === 'open');
+    let canonical = scored[0].p;
+    if (hasOpenStatus && canonical.status !== 'open') {
+      canonical = { ...canonical, status: 'open', endAt: null };
+    }
+
+    keptPeriods.push(canonical);
+
+    // All others are marked as duplicates to be merged into canonical
+    for (let i = 1; i < scored.length; i++) {
+      const dup = scored[i].p;
+      idRemap.set(dup.id, canonical.id);
+      removedIds.push(dup.id);
+    }
+  });
+
+  if (removedIds.length === 0) return state;
+
+  const remapId = (oldId: string | undefined): string => {
+    if (!oldId) return oldId || '';
+    return idRemap.get(oldId) || oldId;
+  };
+
+  const nextIncome = (state.incomeData || []).map(i => ({
+    ...i,
+    periodId: remapId(i.periodId)
+  }));
+
+  const nextOps = (state.operationsData || []).map(o => ({
+    ...o,
+    periodId: remapId(o.periodId)
+  }));
+
+  const nextRoster = (state.rosterData || []).map(r => ({
+    ...r,
+    periodId: remapId(r.periodId)
+  }));
+
+  const nextAssessments = (state.operatorAssessments || []).map(a => ({
+    ...a,
+    periodId: remapId(a.periodId)
+  }));
+
+  const nextManualIncomes = (state.ownerManualIncomes || []).map(m => ({
+    ...m,
+    periodId: remapId(m.periodId)
+  }));
+
+  const nextTotalEntries = (state.totalTableEntries || []).map(t => ({
+    ...t,
+    periodId: remapId(t.periodId)
+  }));
+
+  const nextSelectedPeriodId = remapId(state.selectedPeriodId);
+
+  return {
+    ...state,
+    accountingPeriods: keptPeriods,
+    selectedPeriodId: nextSelectedPeriodId,
+    incomeData: nextIncome,
+    operationsData: nextOps,
+    rosterData: nextRoster,
+    operatorAssessments: nextAssessments,
+    ownerManualIncomes: nextManualIncomes,
+    totalTableEntries: nextTotalEntries,
+    deletedIds: Array.from(new Set([...(state.deletedIds || []), ...removedIds])),
+    lastUpdated: Date.now()
+  };
+}
+
 export function mergeStates(local: AppState, remote: AppState): AppState {
   const combinedDeletedIds = Array.from(new Set([
     ...(local.deletedIds || []).map(id => String(id)), 
@@ -252,7 +415,7 @@ export function mergeStates(local: AppState, remote: AppState): AppState {
 
   finalState.lastUpdated = Date.now();
   
-  return finalState;
+  return deduplicatePeriods(finalState);
 }
 
 export async function syncToCloud(state: AppState): Promise<{ success: boolean; newState?: AppState }> {
@@ -334,7 +497,7 @@ export async function fetchFromCloud(url: string, key?: string): Promise<AppStat
     });
     if (!response.ok) return null;
     const data = await response.json();
-    return (data.length > 0) ? data[0].state : null;
+    return (data.length > 0) ? deduplicatePeriods(data[0].state) : null;
   } catch (e) {
     return null;
   }

@@ -4,6 +4,7 @@ import { AppState, CloudSnapshot, AccountingPeriod } from '../types';
 import { ICONS } from '../constants';
 import { 
   fetchFromCloud, 
+  deduplicatePeriods,
   testDatabaseConnection, 
   listCloudSnapshots, 
   createEmergencyBackup, 
@@ -356,8 +357,34 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
     alert('Все финансовые данные успешно удалены. Операторы и модели сохранены.');
   };
 
-  const handleApplySettings = () => {
-    updateState(p => ({ ...p, syncUrl: syncUrlInput, syncKey: syncKeyInput }));
+  const handleApplySettings = async () => {
+    const cleanUrl = syncUrlInput.trim();
+    const cleanKey = syncKeyInput.trim();
+
+    if (cleanUrl && cleanKey) {
+      setIsManualSyncing(true);
+      try {
+        const remote = await fetchFromCloud(cleanUrl, cleanKey);
+        if (remote && remote.accountingPeriods && remote.accountingPeriods.length > 0) {
+          const localHasRecords = (state.incomeData && state.incomeData.length > 0) ||
+                                  (state.operationsData && state.operationsData.length > 0);
+          
+          if (!localHasRecords) {
+            // Fresh browser / empty local state: adopt the cloud data directly
+            updateState(() => deduplicatePeriods({ ...remote, syncUrl: cleanUrl, syncKey: cleanKey }));
+            alert('Настройки сохранены. Данные из базы успешно загружены!');
+            setIsManualSyncing(false);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Initial cloud fetch on apply error:', e);
+      } finally {
+        setIsManualSyncing(false);
+      }
+    }
+
+    updateState(p => deduplicatePeriods({ ...p, syncUrl: cleanUrl, syncKey: cleanKey }));
     alert('Настройки сохранены локально.');
   };
 
