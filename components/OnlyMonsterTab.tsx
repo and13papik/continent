@@ -3544,20 +3544,34 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                           </div>
                         </div>
 
-                        {/* ACCENT EARNINGS BADGE */}
-                        <div 
-                          className="shrink-0"
-                          title={NET_ESTIMATE_TOOLTIP}
-                        >
-                          <div className={`px-2.5 py-1 rounded-xl font-black text-xs sm:text-sm tracking-tight shadow-sm whitespace-nowrap transition-all duration-500 flex items-center gap-1 cursor-help ${
-                            raceMode
-                              ? 'bg-blue-950/80 border border-cyan-400/50 text-cyan-300 shadow-[0_0_10px_rgba(56,189,248,0.2)]'
-                              : 'bg-emerald-950/20 border border-emerald-500/30 text-emerald-400'
-                          }`}>
-                            <span>{op.earnings && op.earnings > 0 ? `+$${op.earnings}` : `$${op.earnings ?? 0}`}</span>
-                            <span className="text-[9px] font-bold opacity-75">NET</span>
-                            <Info size={10} className="opacity-60" />
+                        {/* RIGHT ACTION/BADGE GROUP: EARNINGS BADGE + DEEP STATS ICON BUTTON */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <div 
+                            className="shrink-0"
+                            title={NET_ESTIMATE_TOOLTIP}
+                          >
+                            <div className={`px-2.5 py-1 rounded-xl font-black text-xs sm:text-sm tracking-tight shadow-sm whitespace-nowrap transition-all duration-500 flex items-center gap-1 cursor-help ${
+                              raceMode
+                                ? 'bg-blue-950/80 border border-cyan-400/50 text-cyan-300 shadow-[0_0_10px_rgba(56,189,248,0.2)]'
+                                : 'bg-emerald-950/20 border border-emerald-500/30 text-emerald-400'
+                            }`}>
+                              <span>{op.earnings && op.earnings > 0 ? `+$${op.earnings}` : `$${op.earnings ?? 0}`}</span>
+                              <span className="text-[9px] font-bold opacity-75">NET</span>
+                              <Info size={10} className="opacity-60" />
+                            </div>
                           </div>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedOperatorForDeepStats(op);
+                            }}
+                            title="Подробнее"
+                            aria-label="Подробнее"
+                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-violet-600/15 hover:bg-violet-600/30 border border-violet-500/30 hover:border-violet-500/60 text-violet-300 hover:text-white flex items-center justify-center transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-sm group/btn shrink-0"
+                          >
+                            <Activity size={14} className="text-violet-400 group-hover/btn:scale-110 transition-transform" />
+                          </button>
                         </div>
                       </div>
 
@@ -3736,18 +3750,6 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                           </>
                         )}
                       </div>
-
-                      {/* DETAILS ("ПОДРОБНЕЕ") BUTTON */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedOperatorForDeepStats(op);
-                        }}
-                        className="w-full mt-2 py-1.5 px-3 rounded-xl bg-violet-600/15 hover:bg-violet-600/30 border border-violet-500/25 hover:border-violet-500/50 text-violet-300 hover:text-white font-mono text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm group/btn"
-                      >
-                        <Activity size={13} className="text-violet-400 group-hover/btn:scale-110 transition-transform" />
-                        <span>Подробнее</span>
-                      </button>
                     </div>
                   );
                 })}
