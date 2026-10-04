@@ -620,6 +620,7 @@ async function startServer() {
   app.all("/api/onlymonster/shift-comparison", (req, res) => onlyMonsterAnalyticsHandler(req, res));
   app.all("/api/onlymonster/operator-model-breakdown", (req, res) => onlyMonsterAnalyticsHandler(req, res));
   app.all("/api/onlymonster/account-detail", (req, res) => onlyMonsterAnalyticsHandler(req, res));
+  app.all("/api/onlymonster/operator-deep-stats", (req, res) => onlyMonsterAnalyticsHandler(req, res));
 
   // Periodic lightweight cleanup for live events older than 24h (every 30 minutes)
   setInterval(() => {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { LiveTrackModal } from './LiveTrackModal';
+import { OperatorDeepStatsModal } from './OperatorDeepStatsModal';
 import { 
   RefreshCw, 
   AlertCircle, 
@@ -1873,6 +1874,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
 
   // Account detail modal state
   const [selectedAccountForDetail, setSelectedAccountForDetail] = useState<OnlyMonsterAccount | null>(null);
+  const [selectedOperatorForDeepStats, setSelectedOperatorForDeepStats] = useState<ShiftOperator | null>(null);
   const [accountDetailData, setAccountDetailData] = useState<any | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -3734,6 +3736,18 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
                           </>
                         )}
                       </div>
+
+                      {/* DETAILS ("ПОДРОБНЕЕ") BUTTON */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedOperatorForDeepStats(op);
+                        }}
+                        className="w-full mt-2 py-1.5 px-3 rounded-xl bg-violet-600/15 hover:bg-violet-600/30 border border-violet-500/25 hover:border-violet-500/50 text-violet-300 hover:text-white font-mono text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm group/btn"
+                      >
+                        <Activity size={13} className="text-violet-400 group-hover/btn:scale-110 transition-transform" />
+                        <span>Подробнее</span>
+                      </button>
                     </div>
                   );
                 })}
@@ -4099,6 +4113,15 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
             ) : null}
           </div>
         </div>
+      )}
+
+      {/* OPERATOR DEEP STATS MODAL */}
+      {selectedOperatorForDeepStats && (
+        <OperatorDeepStatsModal
+          operator={selectedOperatorForDeepStats}
+          onClose={() => setSelectedOperatorForDeepStats(null)}
+          dateRange={shiftInfo?.start && shiftInfo?.end ? { start: shiftInfo.start, end: shiftInfo.end } : undefined}
+        />
       )}
     </div>
   );

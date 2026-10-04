@@ -1538,6 +1538,387 @@ async function handleAccountDetail(req: any, res: any, queryParams: Record<strin
 }
 
 /* =========================================================================
+   5. OPERATOR DEEP STATS & WEEK-OVER-WEEK COMPARISON
+   ========================================================================= */
+
+interface UserMetricsAggregation {
+  messages_count: number;
+  typed_messages_count: number;
+  ai_generated_messages_count: number;
+  copied_messages_count: number;
+  template_messages_count: number;
+  internal_templates_count: number;
+  free_media_messages_count: number;
+  paid_messages_count: number;
+  sold_messages_count: number;
+  sold_messages_price_sum: number;
+  sold_posts_price_sum: number;
+  tips_amount_sum: number;
+  fans_count: number;
+  reply_time_avg: number | null;
+  earnings: number;
+  conversion: number;
+  messageTypeBreakdown: {
+    typed: { count: number; percent: number };
+    ai: { count: number; percent: number };
+    copied: { count: number; percent: number };
+    template: { count: number; percent: number };
+    internal_templates: { count: number; percent: number };
+    free_media: { count: number; percent: number };
+    paid: { count: number; percent: number };
+  };
+}
+
+function aggregateMetricsItems(items: any[]): UserMetricsAggregation {
+  let messages_count = 0;
+  let typed_messages_count = 0;
+  let ai_generated_messages_count = 0;
+  let copied_messages_count = 0;
+  let template_messages_count = 0;
+  let internal_templates_count = 0;
+  let free_media_messages_count = 0;
+  let paid_messages_count = 0;
+  let sold_messages_count = 0;
+  let sold_messages_price_sum = 0;
+  let sold_posts_price_sum = 0;
+  let tips_amount_sum = 0;
+  let fans_count = 0;
+  let reply_time_sum = 0;
+  let reply_time_count = 0;
+
+  for (const item of items) {
+    const msg = typeof item.messages_count === 'number'
+      ? item.messages_count
+      : (item.messages || item.sent_messages || 0);
+    messages_count += msg;
+
+    typed_messages_count += typeof item.typed_messages_count === 'number' ? item.typed_messages_count : 0;
+    ai_generated_messages_count += typeof item.ai_generated_messages_count === 'number' ? item.ai_generated_messages_count : 0;
+    copied_messages_count += typeof item.copied_messages_count === 'number' ? item.copied_messages_count : 0;
+    template_messages_count += typeof item.template_messages_count === 'number' ? item.template_messages_count : 0;
+    internal_templates_count += typeof item.internal_templates_count === 'number' ? item.internal_templates_count : 0;
+    free_media_messages_count += typeof item.free_media_messages_count === 'number' ? item.free_media_messages_count : 0;
+
+    paid_messages_count += typeof item.paid_messages_count === 'number' ? item.paid_messages_count : (item.paid_messages || 0);
+    sold_messages_count += typeof item.sold_messages_count === 'number' ? item.sold_messages_count : (item.sold_messages || 0);
+
+    sold_messages_price_sum += typeof item.sold_messages_price_sum === 'number'
+      ? item.sold_messages_price_sum
+      : (parseFloat(item.sold_messages_price_sum) || 0);
+    sold_posts_price_sum += typeof item.sold_posts_price_sum === 'number'
+      ? item.sold_posts_price_sum
+      : (parseFloat(item.sold_posts_price_sum) || 0);
+    tips_amount_sum += typeof item.tips_amount_sum === 'number'
+      ? item.tips_amount_sum
+      : (parseFloat(item.tips_amount_sum) || 0);
+
+    fans_count += typeof item.fans_count === 'number'
+      ? item.fans_count
+      : (typeof item.fans === 'number' ? item.fans : (typeof item.dialogs_count === 'number' ? item.dialogs_count : 0));
+
+    const rt = typeof item.reply_time_avg === 'number'
+      ? item.reply_time_avg
+      : (typeof item.reply_time === 'number' ? item.reply_time : null);
+    if (rt !== null && rt > 0) {
+      reply_time_sum += rt * (msg || 1);
+      reply_time_count += (msg || 1);
+    }
+  }
+
+  const gross = sold_messages_price_sum + sold_posts_price_sum + tips_amount_sum;
+  const earnings = Math.round(gross * PLATFORM_NET_MULTIPLIER * 100) / 100;
+  const reply_time_avg = reply_time_count > 0 ? Math.round(reply_time_sum / reply_time_count) : null;
+  const conversion = paid_messages_count > 0
+    ? Math.round((sold_messages_count / paid_messages_count) * 1000) / 10
+    : 0;
+
+  const calcPct = (count: number) => messages_count > 0 ? Math.round((count / messages_count) * 1000) / 10 : 0;
+
+  return {
+    messages_count,
+    typed_messages_count,
+    ai_generated_messages_count,
+    copied_messages_count,
+    template_messages_count,
+    internal_templates_count,
+    free_media_messages_count,
+    paid_messages_count,
+    sold_messages_count,
+    sold_messages_price_sum,
+    sold_posts_price_sum,
+    tips_amount_sum,
+    fans_count,
+    reply_time_avg,
+    earnings,
+    conversion,
+    messageTypeBreakdown: {
+      typed: { count: typed_messages_count, percent: calcPct(typed_messages_count) },
+      ai: { count: ai_generated_messages_count, percent: calcPct(ai_generated_messages_count) },
+      copied: { count: copied_messages_count, percent: calcPct(copied_messages_count) },
+      template: { count: template_messages_count, percent: calcPct(template_messages_count) },
+      internal_templates: { count: internal_templates_count, percent: calcPct(internal_templates_count) },
+      free_media: { count: free_media_messages_count, percent: calcPct(free_media_messages_count) },
+      paid: { count: paid_messages_count, percent: calcPct(paid_messages_count) }
+    }
+  };
+}
+
+function computeStatChange(curr: number, prev: number) {
+  if (prev === 0 && curr === 0) {
+    return { current: curr, previous: prev, percent: 0, status: 'no_data' as const };
+  }
+  if (prev === 0 && curr > 0) {
+    return { current: curr, previous: prev, percent: 100, status: 'new' as const };
+  }
+  if (prev > 0 && curr === 0) {
+    return { current: curr, previous: prev, percent: -100, status: 'down' as const };
+  }
+  const pct = Math.round(((curr - prev) / prev) * 1000) / 10;
+  return {
+    current: curr,
+    previous: prev,
+    percent: pct,
+    status: pct > 0 ? ('up' as const) : pct < 0 ? ('down' as const) : ('same' as const)
+  };
+}
+
+async function fetchUsersMetrics(
+  fromISO: string,
+  toISO: string,
+  token: string,
+  userIds?: string
+): Promise<any[]> {
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-om-auth-token': token
+  };
+  const items: any[] = [];
+  let offset = 0;
+  const limit = 100;
+  const maxPages = 5;
+
+  for (let page = 0; page < maxPages; page++) {
+    let url = `https://omapi.onlymonster.ai/api/v0/users/metrics?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}&offset=${offset}&limit=${limit}`;
+    if (userIds) {
+      url += `&user_ids=${encodeURIComponent(userIds)}`;
+    }
+    let response: Response;
+    try {
+      response = await fetchWithTimeout(url, headers, 12000);
+    } catch (e) {
+      break;
+    }
+    if (!response.ok) {
+      if (response.status === 401) recordAuthFailure(token);
+      break;
+    }
+    let body: any = null;
+    try {
+      body = await response.json();
+    } catch (e) {
+      break;
+    }
+    let pageItems: any[] = [];
+    if (Array.isArray(body)) pageItems = body;
+    else if (body && typeof body === 'object') {
+      pageItems = body.items || body.metrics || body.data || body.results || [];
+    }
+    items.push(...pageItems);
+    if (pageItems.length < limit) break;
+    offset += limit;
+  }
+  return items;
+}
+
+async function handleOperatorDeepStats(req: any, res: any, queryParams: Record<string, string>) {
+  const userId = queryParams.user_id || queryParams.userId;
+  if (!userId || typeof userId !== 'string' || !userId.trim()) {
+    return sendJson(res, 400, { success: false, error: "Missing required 'user_id' parameter" });
+  }
+
+  const omToken = await getOmToken();
+  if (isPlaceholderToken(omToken)) {
+    return sendJson(res, 200, {
+      success: false,
+      not_configured: true,
+      error: "API-ключ OnlyMonster не настроен."
+    });
+  }
+
+  const token = omToken.trim();
+  if (isTokenKnownInvalid(token)) {
+    return sendJson(res, 200, {
+      success: false,
+      unauthorized: true,
+      error: "OnlyMonster API authentication failed (Status: 401). Please verify ONLYMONSTER_API_KEY."
+    });
+  }
+
+  try {
+    let currentStart = queryParams.start;
+    let currentEnd = queryParams.end;
+
+    if (!currentStart || !currentEnd) {
+      const week = getWeekRange();
+      currentStart = week.start;
+      currentEnd = week.end;
+    }
+
+    const currentStartMs = new Date(currentStart).getTime();
+    const currentEndMs = new Date(currentEnd).getTime();
+    const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
+    const prevStart = new Date(currentStartMs - SEVEN_DAYS_MS).toISOString();
+    const prevEnd = new Date(currentEndMs - SEVEN_DAYS_MS).toISOString();
+
+    // 1. Fetch current week and previous week bulk metrics for team trend & operator
+    const [currentBulkItems, prevBulkItems] = await Promise.all([
+      fetchUsersMetrics(currentStart, currentEnd, token),
+      fetchUsersMetrics(prevStart, prevEnd, token)
+    ]);
+
+    // 2. Filter or specifically fetch user metrics
+    let currentUserItems = currentBulkItems.filter(i => String(i.user_id || i.id || i.member_id) === String(userId));
+    if (currentUserItems.length === 0) {
+      currentUserItems = await fetchUsersMetrics(currentStart, currentEnd, token, userId);
+    }
+
+    let prevUserItems = prevBulkItems.filter(i => String(i.user_id || i.id || i.member_id) === String(userId));
+    if (prevUserItems.length === 0) {
+      prevUserItems = await fetchUsersMetrics(prevStart, prevEnd, token, userId);
+    }
+
+    // 3. Aggregate user metrics for current and previous periods
+    const currentAgg = aggregateMetricsItems(currentUserItems);
+    const prevAgg = aggregateMetricsItems(prevUserItems);
+
+    // 4. Calculate changes for all categories and metrics
+    const changes = {
+      messages_count: computeStatChange(currentAgg.messages_count, prevAgg.messages_count),
+      paid_messages_count: computeStatChange(currentAgg.paid_messages_count, prevAgg.paid_messages_count),
+      sold_messages_count: computeStatChange(currentAgg.sold_messages_count, prevAgg.sold_messages_count),
+      earnings: computeStatChange(currentAgg.earnings, prevAgg.earnings),
+      conversion: computeStatChange(currentAgg.conversion, prevAgg.conversion),
+      reply_time_avg: (() => {
+        const cRt = currentAgg.reply_time_avg || 0;
+        const pRt = prevAgg.reply_time_avg || 0;
+        return computeStatChange(cRt, pRt);
+      })(),
+      messageTypes: {
+        typed: computeStatChange(currentAgg.typed_messages_count, prevAgg.typed_messages_count),
+        ai: computeStatChange(currentAgg.ai_generated_messages_count, prevAgg.ai_generated_messages_count),
+        copied: computeStatChange(currentAgg.copied_messages_count, prevAgg.copied_messages_count),
+        template: computeStatChange(currentAgg.template_messages_count, prevAgg.template_messages_count),
+        internal_templates: computeStatChange(currentAgg.internal_templates_count, prevAgg.internal_templates_count),
+        free_media: computeStatChange(currentAgg.free_media_messages_count, prevAgg.free_media_messages_count),
+        paid: computeStatChange(currentAgg.paid_messages_count, prevAgg.paid_messages_count)
+      }
+    };
+
+    // 5. Calculate team trends across all operators in current vs previous
+    const teamCurrByUser = new Map<string, any[]>();
+    for (const item of currentBulkItems) {
+      const uId = String(item.user_id || item.id || item.member_id || '');
+      if (!uId) continue;
+      if (!teamCurrByUser.has(uId)) teamCurrByUser.set(uId, []);
+      teamCurrByUser.get(uId)!.push(item);
+    }
+
+    const teamPrevByUser = new Map<string, any[]>();
+    for (const item of prevBulkItems) {
+      const uId = String(item.user_id || item.id || item.member_id || '');
+      if (!uId) continue;
+      if (!teamPrevByUser.has(uId)) teamPrevByUser.set(uId, []);
+      teamPrevByUser.get(uId)!.push(item);
+    }
+
+    // Rank operator in current period
+    const operatorLeaderboard: { userId: string; messages: number; earnings: number }[] = [];
+    let teamCurrTotalMsgs = 0;
+    let teamCurrTotalEarn = 0;
+    let teamCurrPaidMsgs = 0;
+    let teamCurrSoldMsgs = 0;
+    let teamCurrReplySum = 0;
+    let teamCurrReplyCount = 0;
+
+    teamCurrByUser.forEach((items, uId) => {
+      const agg = aggregateMetricsItems(items);
+      operatorLeaderboard.push({ userId: uId, messages: agg.messages_count, earnings: agg.earnings });
+      teamCurrTotalMsgs += agg.messages_count;
+      teamCurrTotalEarn += agg.earnings;
+      teamCurrPaidMsgs += agg.paid_messages_count;
+      teamCurrSoldMsgs += agg.sold_messages_count;
+      if (agg.reply_time_avg) {
+        teamCurrReplySum += agg.reply_time_avg;
+        teamCurrReplyCount++;
+      }
+    });
+
+    operatorLeaderboard.sort((a, b) => b.messages - a.messages);
+    const rankIndex = operatorLeaderboard.findIndex(op => String(op.userId) === String(userId));
+    const rank = rankIndex !== -1 ? rankIndex + 1 : 1;
+    const totalOperators = Math.max(operatorLeaderboard.length, 1);
+
+    let teamPrevTotalMsgs = 0;
+    let teamPrevTotalEarn = 0;
+    let teamPrevPaidMsgs = 0;
+    let teamPrevSoldMsgs = 0;
+    let teamPrevReplySum = 0;
+    let teamPrevReplyCount = 0;
+
+    teamPrevByUser.forEach((items) => {
+      const agg = aggregateMetricsItems(items);
+      teamPrevTotalMsgs += agg.messages_count;
+      teamPrevTotalEarn += agg.earnings;
+      teamPrevPaidMsgs += agg.paid_messages_count;
+      teamPrevSoldMsgs += agg.sold_messages_count;
+      if (agg.reply_time_avg) {
+        teamPrevReplySum += agg.reply_time_avg;
+        teamPrevReplyCount++;
+      }
+    });
+
+    const teamCurrConv = teamCurrPaidMsgs > 0 ? (teamCurrSoldMsgs / teamCurrPaidMsgs) * 100 : 0;
+    const teamPrevConv = teamPrevPaidMsgs > 0 ? (teamPrevSoldMsgs / teamPrevPaidMsgs) * 100 : 0;
+
+    const teamCurrReplyAvg = teamCurrReplyCount > 0 ? teamCurrReplySum / teamCurrReplyCount : 0;
+    const teamPrevReplyAvg = teamPrevReplyCount > 0 ? teamPrevReplySum / teamPrevReplyCount : 0;
+
+    const teamTrend = {
+      messages: teamPrevTotalMsgs > 0 ? Math.round(((teamCurrTotalMsgs - teamPrevTotalMsgs) / teamPrevTotalMsgs) * 1000) / 10 : 0,
+      earnings: teamPrevTotalEarn > 0 ? Math.round(((teamCurrTotalEarn - teamPrevTotalEarn) / teamPrevTotalEarn) * 1000) / 10 : 0,
+      conversion: teamPrevConv > 0 ? Math.round(((teamCurrConv - teamPrevConv) / teamPrevConv) * 1000) / 10 : 0,
+      reply_time: teamPrevReplyAvg > 0 ? Math.round(((teamCurrReplyAvg - teamPrevReplyAvg) / teamPrevReplyAvg) * 1000) / 10 : 0
+    };
+
+    const operatorName = queryParams.name || currentUserItems[0]?.user_name || `Оператор #${userId}`;
+    const operatorAvatar = queryParams.avatar || currentUserItems[0]?.avatar || '';
+
+    return sendJson(res, 200, {
+      success: true,
+      user_id: String(userId),
+      name: operatorName,
+      avatar: operatorAvatar,
+      rank,
+      totalOperators,
+      periods: {
+        current: { start: currentStart, end: currentEnd },
+        previous: { start: prevStart, end: prevEnd }
+      },
+      current: currentAgg,
+      previous: prevAgg,
+      changes,
+      teamTrend
+    });
+
+  } catch (err: any) {
+    return sendJson(res, 200, {
+      success: false,
+      error: `Error generating operator deep stats: ${err.message || err}`
+    });
+  }
+}
+
+/* =========================================================================
    MAIN ROUTER
    ========================================================================= */
 
@@ -1580,6 +1961,8 @@ export default async function handler(req: any, res: any) {
       return handleOperatorModelBreakdown(req, res, queryParams);
     case 'account-detail':
       return handleAccountDetail(req, res, queryParams);
+    case 'operator-deep-stats':
+      return handleOperatorDeepStats(req, res, queryParams);
     default:
       return sendJson(res, 400, { success: false, error: `Unknown resource '${resource}'` });
   }
