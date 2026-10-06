@@ -45,9 +45,12 @@ export const PLATFORM_FEE_PERCENT = 20;
 export const PLATFORM_NET_MULTIPLIER = (100 - PLATFORM_FEE_PERCENT) / 100; // 0.8
 export const NET_ESTIMATE_TOOLTIP = "Расчётное значение (Gross минус 20% комиссии платформы). Точное NET-значение после фактических удержаний доступно только в самой панели OnlyMonster.";
 
-interface OnlyMonsterTabProps {
+export interface OnlyMonsterTabProps {
   agencyModels: string[];
   userRole?: 'user' | 'owner' | null;
+  activeView?: 'live' | 'operators' | 'models';
+  onNavigateView?: (view: 'live' | 'operators' | 'models') => void;
+  hideHeaderAndTabs?: boolean;
 }
 
 interface OnlyMonsterAccount {
@@ -1789,9 +1792,23 @@ export const RealtimeEventFeed: React.FC<{
   );
 };
 
-export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, userRole }) => {
+export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ 
+  agencyModels, 
+  userRole,
+  activeView,
+  onNavigateView,
+  hideHeaderAndTabs = false
+}) => {
   // Sub-tabs state: 'live' (default), 'models', 'operator_metrics'
-  const [activeSubTab, setActiveSubTab] = useState<'live' | 'models' | 'operator_metrics'>('live');
+  const [activeSubTab, setActiveSubTab] = useState<'live' | 'models' | 'operator_metrics'>(() => {
+    if (activeView === 'operators') return 'operator_metrics';
+    if (activeView === 'models') return 'models';
+    return 'live';
+  });
+
+  const effectiveSubTab: 'live' | 'models' | 'operator_metrics' = activeView
+    ? (activeView === 'operators' ? 'operator_metrics' : activeView)
+    : activeSubTab;
   const [alertSeverityFilter, setAlertSeverityFilter] = useState<'all' | 'red' | 'amber'>('all');
 
   // Accounts & API state
@@ -2441,6 +2458,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
 
   const handleSubTabChange = (tab: 'live' | 'models' | 'operator_metrics') => {
     setActiveSubTab(tab);
+    if (onNavigateView) {
+      onNavigateView(tab === 'operator_metrics' ? 'operators' : tab);
+    }
     if (tab === 'models' || tab === 'live') {
       if (accounts.length === 0 && !isLoading) {
         fetchAccounts();
@@ -2458,6 +2478,29 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
       }
     }
   };
+
+  useEffect(() => {
+    if (activeView) {
+      const targetSubTab = activeView === 'operators' ? 'operator_metrics' : activeView;
+      setActiveSubTab(targetSubTab);
+      if (targetSubTab === 'models' || targetSubTab === 'live') {
+        if (accounts.length === 0 && !isLoading) {
+          fetchAccounts();
+        }
+      }
+      if (targetSubTab === 'operator_metrics' || targetSubTab === 'live') {
+        if (accounts.length === 0 && !isLoading) {
+          fetchAccounts();
+        }
+        if (!hasLoadedOperators) {
+          fetchShiftOperators(periodMode, selectedShiftIndex, sortBy, sortDir);
+        }
+        if (!shiftCompData) {
+          fetchShiftComparison(shiftCompMode, accounts);
+        }
+      }
+    }
+  }, [activeView]);
 
   // Fetch earnings for all accounts with operational day range and shift breakdown
   const fetchEarnings = async (
@@ -2651,77 +2694,80 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
 
   return (
     <div className="space-y-6">
-      {/* HEADER BAR */}
-      <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/10">
-        <h2 className="text-base sm:text-lg font-black uppercase text-white tracking-wider font-mono flex items-center gap-2.5">
-          <RefreshCw size={20} className="text-violet-400" />
-          ONLYMONSTER
-        </h2>
-      </div>
+      {/* HEADER BAR & SUB-TABS NAVIGATION (Hidden when controlled externally by main menu) */}
+      {!hideHeaderAndTabs && (
+        <>
+          <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/10">
+            <h2 className="text-base sm:text-lg font-black uppercase text-white tracking-wider font-mono flex items-center gap-2.5">
+              <RefreshCw size={20} className="text-violet-400" />
+              ONLYMONSTER
+            </h2>
+          </div>
 
-      {/* SUB-TABS NAVIGATION (1. LIVE [default], 2. МОДЕЛИ, 3. ОПЕРАТОРЫ) */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-3">
-        <button
-          onClick={() => handleSubTabChange('live')}
-          className={`px-4 py-2.5 rounded-xl font-mono text-xs font-bold uppercase transition-all flex items-center gap-2 ${
-            activeSubTab === 'live'
-              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-950/50 border border-emerald-400/30'
-              : 'bg-slate-900/60 text-slate-400 border border-white/5 hover:bg-slate-800 hover:text-slate-200'
-          }`}
-        >
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-          </span>
-          <Activity size={15} />
-          LIVE
-        </button>
+          <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-3">
+            <button
+              onClick={() => handleSubTabChange('live')}
+              className={`px-4 py-2.5 rounded-xl font-mono text-xs font-bold uppercase transition-all flex items-center gap-2 ${
+                effectiveSubTab === 'live'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-950/50 border border-emerald-400/30'
+                  : 'bg-slate-900/60 text-slate-400 border border-white/5 hover:bg-slate-800 hover:text-slate-200'
+              }`}
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+              </span>
+              <Activity size={15} />
+              LIVE
+            </button>
 
-        <button
-          onClick={() => handleSubTabChange('models')}
-          className={`px-4 py-2.5 rounded-xl font-mono text-xs font-bold uppercase transition-all flex items-center gap-2 ${
-            activeSubTab === 'models'
-              ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-950/50 border border-violet-400/30'
-              : 'bg-slate-900/60 text-slate-400 border border-white/5 hover:bg-slate-800 hover:text-slate-200'
-          }`}
-        >
-          <Users size={15} />
-          Модели
-          {filteredAccounts.length > 0 && (
-            <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-slate-300">
-              {filteredAccounts.length}
-            </span>
-          )}
-        </button>
+            <button
+              onClick={() => handleSubTabChange('models')}
+              className={`px-4 py-2.5 rounded-xl font-mono text-xs font-bold uppercase transition-all flex items-center gap-2 ${
+                effectiveSubTab === 'models'
+                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-950/50 border border-violet-400/30'
+                  : 'bg-slate-900/60 text-slate-400 border border-white/5 hover:bg-slate-800 hover:text-slate-200'
+              }`}
+            >
+              <Users size={15} />
+              Модели
+              {filteredAccounts.length > 0 && (
+                <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-slate-300">
+                  {filteredAccounts.length}
+                </span>
+              )}
+            </button>
 
-        <button
-          onClick={() => handleSubTabChange('operator_metrics')}
-          className={`px-4 py-2.5 rounded-xl font-mono text-xs font-bold uppercase transition-all flex items-center gap-2 ${
-            activeSubTab === 'operator_metrics'
-              ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-950/50 border border-violet-400/30'
-              : 'bg-slate-900/60 text-slate-400 border border-white/5 hover:bg-slate-800 hover:text-slate-200'
-          }`}
-        >
-          <UserCheck size={15} />
-          Операторы
-          {operators.length > 0 && (
-            <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-slate-300">
-              {operators.length}
-            </span>
-          )}
-        </button>
-      </div>
+            <button
+              onClick={() => handleSubTabChange('operator_metrics')}
+              className={`px-4 py-2.5 rounded-xl font-mono text-xs font-bold uppercase transition-all flex items-center gap-2 ${
+                effectiveSubTab === 'operator_metrics'
+                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-950/50 border border-violet-400/30'
+                  : 'bg-slate-900/60 text-slate-400 border border-white/5 hover:bg-slate-800 hover:text-slate-200'
+              }`}
+            >
+              <UserCheck size={15} />
+              Операторы
+              {operators.length > 0 && (
+                <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-slate-300">
+                  {operators.length}
+                </span>
+              )}
+            </button>
+          </div>
+        </>
+      )}
 
       {/* ========================================================================= */}
       {/* 1. TAB "LIVE" (DEFAULT): REALTIME EVENT FEED + PULSE */}
       {/* ========================================================================= */}
-      {activeSubTab === 'live' && (
+      {effectiveSubTab === 'live' && (
         <div className="space-y-6">
           {/* 1) "ЛЕНТА СОБЫТИЙ В РЕАЛЬНОМ ВРЕМЕНИ" (RealtimeEventFeed) */}
           <RealtimeEventFeed
             accounts={accounts}
             onAccountClick={(acc) => handleAccountClick(acc)}
-            onNavigateToAccountsTab={() => setActiveSubTab('models')}
+            onNavigateToAccountsTab={() => handleSubTabChange('models')}
           />
 
           {/* 2) ТЕКУЩАЯ СМЕНА (Оперативная сводка) */}
@@ -2789,7 +2835,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
       {/* ========================================================================= */}
       {/* 2. TAB "МОДЕЛИ": CONNECTED MODEL ACCOUNTS */}
       {/* ========================================================================= */}
-      {activeSubTab === 'models' && statusMessage && connStatus !== 'live' && (
+      {effectiveSubTab === 'models' && statusMessage && connStatus !== 'live' && (
         <div className={`p-4 rounded-2xl border flex gap-3 items-start font-mono text-xs ${
           connStatus === 'error'
             ? 'bg-rose-950/30 border-rose-500/30 text-rose-300'
@@ -2804,7 +2850,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
         </div>
       )}
 
-      {activeSubTab === 'models' && (
+      {effectiveSubTab === 'models' && (
         <div className="glass-card p-6 rounded-3xl border border-white/10 bg-slate-800/85 space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/5 pb-4">
             <div>
@@ -3072,7 +3118,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
       )}
 
       {/* SUB-TAB 2: OPERATOR METRICS */}
-      {activeSubTab === 'operator_metrics' && (
+      {effectiveSubTab === 'operator_metrics' && (
         <div
           className={`glass-card p-6 rounded-3xl transition-all duration-500 space-y-5 ${
             raceMode
@@ -4129,4 +4175,17 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({ agencyModels, us
     </div>
   );
 };
+
+export const OnlyMonsterLiveTab: React.FC<Omit<OnlyMonsterTabProps, 'activeView'>> = (props) => (
+  <OnlyMonsterTab {...props} activeView="live" hideHeaderAndTabs />
+);
+
+export const OnlyMonsterOperatorsTab: React.FC<Omit<OnlyMonsterTabProps, 'activeView'>> = (props) => (
+  <OnlyMonsterTab {...props} activeView="operators" hideHeaderAndTabs />
+);
+
+export const OnlyMonsterModelsTab: React.FC<Omit<OnlyMonsterTabProps, 'activeView'>> = (props) => (
+  <OnlyMonsterTab {...props} activeView="models" hideHeaderAndTabs />
+);
+
 

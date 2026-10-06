@@ -374,6 +374,7 @@ const App: React.FC = () => {
             <Routes>
               <Route path="/" element={<Dashboard state={state} updateState={updateState} userRole={userRole} />} />
               <Route path="/metrics" element={<Metrics state={state} updateState={updateState} userRole={userRole} />} />
+              <Route path="/metrics/:tab" element={<Metrics state={state} updateState={updateState} userRole={userRole} />} />
               <Route path="/add-income" element={<AddIncome state={state} updateState={updateState} />} />
               <Route path="/advance-request" element={<AdvanceRequest state={state} updateState={updateState} />} />
               <Route path="/operations" element={<Operations state={state} updateState={updateState} />} />
