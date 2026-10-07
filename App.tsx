@@ -20,8 +20,16 @@ import Settings from './pages/Settings';
 import Metrics from './pages/Metrics';
 import AdvanceRequest from './pages/AdvanceRequest';
 import HalloweenOverlay from './components/HalloweenOverlay';
+import HalloweenIntroGate from './components/HalloweenIntroGate';
 
 const App: React.FC = () => {
+  const [showIntroGate, setShowIntroGate] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('continental_halloween_intro_seen_v1') !== 'true';
+    } catch {
+      return false;
+    }
+  });
   const [state, setState] = useState<AppState>(createInitialState());
   const [isSyncing, setIsSyncing] = useState(false);
   const [cloudStatus, setCloudStatus] = useState<'idle' | 'loading' | 'success' | 'error' | 'conflict'>('idle');
@@ -174,10 +182,14 @@ const App: React.FC = () => {
     }
   };
 
+  if (showIntroGate) {
+    return <HalloweenIntroGate onComplete={() => setShowIntroGate(false)} />;
+  }
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-        <HalloweenOverlay />
+        <HalloweenOverlay onReplayIntro={() => setShowIntroGate(true)} />
         <div className="w-full max-w-md glass-card p-8 border border-slate-800/50 rounded-3xl shadow-2xl relative z-10">
           <div className="flex flex-col items-center gap-6">
             <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20 relative">
@@ -221,7 +233,7 @@ const App: React.FC = () => {
 
   return (
     <HashRouter>
-      <HalloweenOverlay />
+      <HalloweenOverlay onReplayIntro={() => setShowIntroGate(true)} />
       <div className="flex flex-col md:flex-row min-h-screen bg-[#0d111d] text-slate-100">
         <nav className="w-full md:w-64 bg-[#111726]/95 backdrop-blur-3xl border-r border-slate-700/60 shadow-2xl flex flex-col sticky top-0 h-auto md:h-screen z-50 overflow-hidden">
           {/* Header Section */}

@@ -347,7 +347,7 @@ export const CursorBatFollower: React.FC<{ enabled: boolean }> = ({ enabled }) =
   );
 };
 
-export const HalloweenOverlay: React.FC = () => {
+export const HalloweenOverlay: React.FC<{ onReplayIntro?: () => void }> = ({ onReplayIntro }) => {
   // Halloween mode state (persisted in localStorage)
   const [isEnabled, setIsEnabled] = useState<boolean>(() => {
     try {
@@ -876,6 +876,17 @@ export const HalloweenOverlay: React.FC = () => {
           >
             <span className="text-[11px] leading-none">🦇</span>
           </button>
+
+          {/* Replay Intro Video Button */}
+          {onReplayIntro && (
+            <button
+              onClick={onReplayIntro}
+              className="px-1.5 py-1 rounded-lg transition-colors flex items-center gap-1 text-amber-300 hover:text-amber-200 hover:bg-amber-500/20"
+              title="Посмотреть Хэллоуин-видео со звуком снова 🎬"
+            >
+              <span className="text-[11px] leading-none">🎬</span>
+            </button>
+          )}
 
           {/* Sound Mute/Unmute button */}
           <button
