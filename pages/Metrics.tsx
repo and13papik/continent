@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { AppState, IncomeRecord } from '../types';
 import { ICONS } from '../constants';
 import { OnlyMonsterTab } from '../components/OnlyMonsterTab';
+import { Activity, UserCheck, Users } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   Cell, LineChart, Line, AreaChart, Area, PieChart, Pie
@@ -14,6 +16,16 @@ interface MetricsProps {
   updateState: (updater: (prev: AppState) => AppState) => void;
   userRole?: 'user' | 'owner' | null;
 }
+
+export type MetricsTabId = 
+  | 'live' 
+  | 'om_operators' 
+  | 'om_models' 
+  | 'overview' 
+  | 'diagnostics' 
+  | 'models' 
+  | 'operators' 
+  | 'calendar';
 
 const METRICS_COLORS = {
   indigo: '#6366f1',
@@ -29,8 +41,32 @@ const METRICS_COLORS = {
 };
 
 const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
+  const { tab: urlTab } = useParams<{ tab?: string }>();
+  const navigate = useNavigate();
+
+  const resolveTabFromParam = (param?: string): MetricsTabId => {
+    if (!param) return 'live';
+    const norm = param.toLowerCase();
+    if (norm === 'live') return 'live';
+    if (norm === 'om-operators' || norm === 'om_operators') return 'om_operators';
+    if (norm === 'om-models' || norm === 'om_models') return 'om_models';
+    if (norm === 'overview') return 'overview';
+    if (norm === 'diagnostics') return 'diagnostics';
+    if (norm === 'models') return 'models';
+    if (norm === 'operators') return 'operators';
+    if (norm === 'calendar') return 'calendar';
+    if (norm === 'onlymonster') return 'live';
+    return 'live';
+  };
+
   const incomeData = state.incomeData || [];
-  const [activeTab, setActiveTab] = useState<'overview' | 'diagnostics' | 'models' | 'operators' | 'calendar' | 'onlymonster'>('onlymonster');
+  const [activeTab, setActiveTab] = useState<MetricsTabId>(() => resolveTabFromParam(urlTab));
+
+  useEffect(() => {
+    if (urlTab) {
+      setActiveTab(resolveTabFromParam(urlTab));
+    }
+  }, [urlTab]);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [modelFilterSearch, setModelFilterSearch] = useState('');
   const [opFilterSearch, setOpFilterSearch] = useState('');
@@ -608,26 +644,38 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
       {/* METRICS SUB-TABS */}
       <div className="flex flex-wrap gap-1.5 bg-slate-800/80 p-1.5 rounded-2xl border border-slate-700/80 shadow-md">
         {[
+          { id: 'live', label: 'LIVE', icon: Activity, isLive: true },
+          { id: 'om_operators', label: 'OM Операторы', icon: UserCheck },
+          { id: 'om_models', label: 'OM Модели', icon: Users },
           { id: 'overview', label: 'Обзор', icon: ICONS.Dashboard },
           { id: 'diagnostics', label: 'Анализ & Инсайты', icon: ICONS.Penalty, highlight: metrics.diagnostics.warnings.length > 0 },
           { id: 'models', label: 'Модели & Планы', icon: ICONS.Models },
           { id: 'operators', label: 'Операторы', icon: ICONS.Reports },
-          { id: 'calendar', label: 'Дни и Тренды', icon: ICONS.Calendar },
-          { id: 'onlymonster', label: 'OnlyMonster', icon: ICONS.Clock }
+          { id: 'calendar', label: 'Дни и Тренды', icon: ICONS.Calendar }
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => {
+                const targetTab = tab.id as MetricsTabId;
+                setActiveTab(targetTab);
+                navigate(`/metrics/${targetTab.replace('_', '-')}`, { replace: true });
+              }}
               className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs font-bold uppercase font-mono tracking-wider transition-all duration-300 flex items-center justify-center gap-2 border ${
                 isActive 
                   ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white border-indigo-400/50 shadow-md shadow-indigo-600/30 font-black' 
                   : 'text-slate-300 border-transparent hover:text-white hover:bg-slate-700/60'
               }`}
             >
-              {Icon && <Icon size={14} />}
+              {tab.isLive && (
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                </span>
+              )}
+              {Icon && <Icon size={14} className={tab.isLive && isActive ? 'text-emerald-300' : ''} />}
               <span>{tab.label}</span>
               {tab.highlight && (
                 <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse shrink-0" />
@@ -641,7 +689,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
       <div className="outline-none">
         <AnimatePresence mode="wait">
           <motion.div
-            key={activeTab}
+            key={activeTab === 'live' || activeTab === 'om_operators' || activeTab === 'om_models' ? 'om-shared-screen' : activeTab}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -1269,8 +1317,18 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
               </div>
             )}
 
-            {activeTab === 'onlymonster' && (
-              <OnlyMonsterTab agencyModels={state.models || []} userRole={userRole} />
+            {(activeTab === 'live' || activeTab === 'om_operators' || activeTab === 'om_models' || (activeTab as string) === 'onlymonster') && (
+              <OnlyMonsterTab 
+                agencyModels={state.models || []} 
+                userRole={userRole}
+                activeView={activeTab === 'om_operators' ? 'operators' : activeTab === 'om_models' ? 'models' : 'live'}
+                hideHeaderAndTabs
+                onNavigateView={(view) => {
+                  const nextTab: MetricsTabId = view === 'operators' ? 'om_operators' : view === 'models' ? 'om_models' : 'live';
+                  setActiveTab(nextTab);
+                  navigate(`/metrics/${nextTab.replace('_', '-')}`, { replace: true });
+                }}
+              />
             )}
           </motion.div>
         </AnimatePresence>

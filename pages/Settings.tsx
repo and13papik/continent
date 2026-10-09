@@ -14,6 +14,7 @@ import {
   getAllSystemModels,
   inspectModelData,
   purgeModelData,
+  purgeOrphanedRecords,
   ModelDataInspection,
   PurgeModelStats
 } from '../store';
@@ -257,6 +258,12 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
     const badOps = state.operationsData.filter(o => !periodIds.has(o.periodId)).length;
     return badIncomes + badOps;
   }, [state.incomeData, state.operationsData, state.accountingPeriods]);
+
+  const purgeData = () => {
+    if (!confirm(`Окончательно удалить все ${homelessCount} записей без периода из базы данных и облачной синхронизации? Это действие необратимо.`)) return;
+    updateState(prev => purgeOrphanedRecords(prev).nextState);
+    alert('Записи успешно очищены из базы данных!');
+  };
 
   const repairData = () => {
     if (!confirm('Это перераспределит все записи (доходы, операции, задачи) по правильным месяцам на основе их даты. Продолжить?')) return;
@@ -502,16 +509,42 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                     (state.totalTableEntries || []).some(e => e.periodId === id);
 
     if (hasData) {
-      if (!confirm(`В периоде "${period.label}" есть данные! Если вы удалите период, эти данные станут "бездомными". Продолжить?`)) return;
+      if (!confirm(`В периоде "${period.label}" есть данные. Удалить этот период вместе со всеми его записями (доходы, операции)? Это действие необратимо.`)) return;
     } else {
       if (!confirm(`Удалить пустой период "${period.label}"?`)) return;
     }
 
+    const itemIdsToDelete = [
+      id,
+      ...state.incomeData.filter(i => i.periodId === id).map(i => i.id),
+      ...state.operationsData.filter(o => o.periodId === id).map(o => o.id),
+      ...(state.ownerManualIncomes || []).filter(m => m.periodId === id).map(m => m.id),
+      ...(state.ownerExpenses || []).filter(e => e.periodId === id).map(e => e.id),
+      ...(state.ownerAdvances || []).filter(a => a.periodId === id).map(a => a.id),
+      ...(state.modelBonuses || []).filter(b => b.periodId === id).map(b => b.id),
+      ...(state.totalTableEntries || []).filter(t => t.periodId === id).map(t => t.id),
+      ...(state.rosterData || []).filter(r => r.periodId === id).map(r => r.id),
+      ...(state.operatorAssessments || []).filter(a => a.periodId === id).map(a => a.id),
+      ...(state.advanceRequests || []).filter(r => r.periodId === id).map(r => r.id),
+      ...(state.paidStatuses || []).filter(p => p.periodId === id).map(p => p.id),
+    ];
+
     updateState(prev => ({
       ...prev,
       accountingPeriods: prev.accountingPeriods.filter(p => p.id !== id),
-      deletedIds: Array.from(new Set([...(prev.deletedIds || []), id])),
-      selectedPeriodId: prev.selectedPeriodId === id ? (prev.accountingPeriods[0]?.id || '') : prev.selectedPeriodId,
+      incomeData: prev.incomeData.filter(i => i.periodId !== id),
+      operationsData: prev.operationsData.filter(o => o.periodId !== id),
+      ownerManualIncomes: (prev.ownerManualIncomes || []).filter(m => m.periodId !== id),
+      ownerExpenses: (prev.ownerExpenses || []).filter(e => e.periodId !== id),
+      ownerAdvances: (prev.ownerAdvances || []).filter(a => a.periodId !== id),
+      modelBonuses: (prev.modelBonuses || []).filter(b => b.periodId !== id),
+      totalTableEntries: (prev.totalTableEntries || []).filter(t => t.periodId !== id),
+      rosterData: (prev.rosterData || []).filter(r => r.periodId !== id),
+      operatorAssessments: (prev.operatorAssessments || []).filter(a => a.periodId !== id),
+      advanceRequests: (prev.advanceRequests || []).filter(r => r.periodId !== id),
+      paidStatuses: (prev.paidStatuses || []).filter(p => p.periodId !== id),
+      deletedIds: Array.from(new Set([...(prev.deletedIds || []), ...itemIdsToDelete])),
+      selectedPeriodId: prev.selectedPeriodId === id ? (prev.accountingPeriods.find(p => p.id !== id)?.id || '') : prev.selectedPeriodId,
       lastUpdated: Date.now(),
       version: prev.version + 1
     }));
@@ -540,17 +573,32 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
       </header>
 
       {homelessCount > 0 && (
-         <div className="bg-amber-600/10 border border-amber-500/40 p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl">
+         <div className="bg-amber-600/10 border border-amber-500/40 p-8 rounded-[2.5rem] flex flex-col xl:flex-row items-center justify-between gap-8 shadow-2xl">
             <div className="flex items-center gap-5">
-               <div className="w-16 h-16 rounded-3xl bg-amber-500/20 flex items-center justify-center text-amber-500">
+               <div className="w-16 h-16 rounded-3xl bg-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
                   <ICONS.AlertTriangle size={32} />
                </div>
                <div>
-                  <h3 className="text-xl font-bold text-white font-outfit">Инструмент восстановления</h3>
-                  <p className="text-sm text-slate-400 mt-1">Обнаружено {homelessCount} записей без периода. Нажмите для восстановления структуры.</p>
+                  <h3 className="text-xl font-bold text-white font-outfit">Записи удаленных периодов ({homelessCount})</h3>
+                  <p className="text-sm text-slate-400 mt-1">
+                    Обнаружено {homelessCount} записей без периода. Если периоды были удалены намеренно — подтвердите их удаление для очистки архива.
+                  </p>
                </div>
             </div>
-            <button onClick={repairData} className="bg-amber-600 hover:bg-amber-500 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95">Восстановить</button>
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <button 
+                onClick={purgeData} 
+                className="bg-rose-600 hover:bg-rose-500 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-rose-600/30 active:scale-95 flex items-center gap-2"
+              >
+                <Trash2 size={16} /> Подтвердить удаление
+              </button>
+              <button 
+                onClick={repairData} 
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95 flex items-center gap-2"
+              >
+                <RefreshCw size={16} /> По датам
+              </button>
+            </div>
          </div>
       )}
 

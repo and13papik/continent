@@ -591,6 +591,94 @@ export function findPeriodIdByDate(dateStr: string, periods: AccountingPeriod[])
   return match ? match.id : null;
 }
 
+export function getOrphanedRecordsBreakdown(state: AppState) {
+  const validPeriodIds = new Set((state.accountingPeriods || []).map(p => p.id));
+  const isOrphan = (item: { periodId?: string }) => !item || !item.periodId || !validPeriodIds.has(item.periodId);
+
+  const orphanIncome = (state.incomeData || []).filter(isOrphan);
+  const orphanOps = (state.operationsData || []).filter(isOrphan);
+  const orphanManual = (state.ownerManualIncomes || []).filter(isOrphan);
+  const orphanExpenses = (state.ownerExpenses || []).filter(isOrphan);
+  const orphanOther = [
+    ...(state.ownerAdvances || []).filter(isOrphan),
+    ...(state.modelBonuses || []).filter(isOrphan),
+    ...(state.totalTableEntries || []).filter(isOrphan),
+    ...(state.rosterData || []).filter(isOrphan),
+    ...(state.operatorAssessments || []).filter(isOrphan),
+    ...(state.advanceRequests || []).filter(isOrphan),
+    ...(state.paidStatuses || []).filter(isOrphan)
+  ];
+
+  const total = orphanIncome.length + orphanOps.length + orphanManual.length + orphanExpenses.length + orphanOther.length;
+
+  return {
+    total,
+    incomeCount: orphanIncome.length,
+    operationsCount: orphanOps.length,
+    manualIncomesCount: orphanManual.length,
+    expensesCount: orphanExpenses.length,
+    otherCount: orphanOther.length
+  };
+}
+
+export function purgeOrphanedRecords(state: AppState): { nextState: AppState; purgedCount: number } {
+  const validPeriodIds = new Set((state.accountingPeriods || []).map(p => p.id));
+  const isOrphan = (item: { periodId?: string }) => !item || !item.periodId || !validPeriodIds.has(item.periodId);
+
+  const orphanIncome = (state.incomeData || []).filter(isOrphan);
+  const orphanOps = (state.operationsData || []).filter(isOrphan);
+  const orphanManual = (state.ownerManualIncomes || []).filter(isOrphan);
+  const orphanExpenses = (state.ownerExpenses || []).filter(isOrphan);
+  const orphanAdvances = (state.ownerAdvances || []).filter(isOrphan);
+  const orphanBonuses = (state.modelBonuses || []).filter(isOrphan);
+  const orphanTotals = (state.totalTableEntries || []).filter(isOrphan);
+  const orphanRoster = (state.rosterData || []).filter(isOrphan);
+  const orphanAssessments = (state.operatorAssessments || []).filter(isOrphan);
+  const orphanRequests = (state.advanceRequests || []).filter(isOrphan);
+  const orphanPaid = (state.paidStatuses || []).filter(isOrphan);
+
+  const purgedCount = orphanIncome.length + orphanOps.length + orphanManual.length + 
+    orphanExpenses.length + orphanAdvances.length + orphanBonuses.length + 
+    orphanTotals.length + orphanRoster.length + orphanAssessments.length + 
+    orphanRequests.length + orphanPaid.length;
+
+  const purgedIds: string[] = [
+    ...orphanIncome.map(x => x.id),
+    ...orphanOps.map(x => x.id),
+    ...orphanManual.map(x => x.id),
+    ...orphanExpenses.map(x => x.id),
+    ...orphanAdvances.map(x => x.id),
+    ...orphanBonuses.map(x => x.id),
+    ...orphanTotals.map(x => x.id),
+    ...orphanRoster.map(x => x.id),
+    ...orphanAssessments.map(x => x.id),
+    ...orphanRequests.map(x => x.id),
+    ...orphanPaid.map(x => x.id),
+  ].filter(Boolean);
+
+  const nextDeletedIds = Array.from(new Set([...(state.deletedIds || []).map(String), ...purgedIds]));
+
+  const nextState: AppState = {
+    ...state,
+    incomeData: (state.incomeData || []).filter(i => !isOrphan(i)),
+    operationsData: (state.operationsData || []).filter(o => !isOrphan(o)),
+    ownerManualIncomes: (state.ownerManualIncomes || []).filter(m => !isOrphan(m)),
+    ownerExpenses: (state.ownerExpenses || []).filter(e => !isOrphan(e)),
+    ownerAdvances: (state.ownerAdvances || []).filter(a => !isOrphan(a)),
+    modelBonuses: (state.modelBonuses || []).filter(b => !isOrphan(b)),
+    totalTableEntries: (state.totalTableEntries || []).filter(t => !isOrphan(t)),
+    rosterData: (state.rosterData || []).filter(r => !isOrphan(r)),
+    operatorAssessments: (state.operatorAssessments || []).filter(a => !isOrphan(a)),
+    advanceRequests: (state.advanceRequests || []).filter(r => !isOrphan(r)),
+    paidStatuses: (state.paidStatuses || []).filter(p => !isOrphan(p)),
+    deletedIds: nextDeletedIds,
+    lastUpdated: Date.now(),
+    version: (state.version || 0) + 1
+  };
+
+  return { nextState, purgedCount };
+}
+
 export function reindexAllDataByDate(state: AppState): AppState {
   const periods = state.accountingPeriods;
   
