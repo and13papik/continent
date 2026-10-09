@@ -58,19 +58,27 @@ const App: React.FC = () => {
     const initCloud = async () => {
       if (state.syncUrl && state.syncKey) {
         setCloudStatus('loading');
+        // Notify server backend to keep Supabase connection active
+        fetch('/api/database/keepalive', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ syncUrl: state.syncUrl, syncKey: state.syncKey })
+        }).catch(() => {});
+
         try {
           const remoteData = await fetchFromCloud(state.syncUrl, state.syncKey);
-          if (remoteData && (remoteData.version > state.version || remoteData.lastUpdated > state.lastUpdated)) {
-            setState(prev => ({ 
-              ...remoteData, 
-              syncUrl: prev.syncUrl, 
-              syncKey: prev.syncKey 
-            }));
+          if (remoteData) {
+            if (remoteData.version > state.version || remoteData.lastUpdated > state.lastUpdated) {
+              setState(prev => ({ 
+                ...remoteData, 
+                syncUrl: prev.syncUrl, 
+                syncKey: prev.syncKey 
+              }));
+            }
             setCloudStatus('success');
             setLastSyncTime(new Date().toLocaleTimeString());
           } else {
-            // If already in success, keep it. Otherwise idle.
-            setCloudStatus(prev => prev === 'success' ? 'success' : 'success');
+            setCloudStatus('error');
           }
         } catch (e) {
           setCloudStatus('error');
@@ -111,7 +119,7 @@ const App: React.FC = () => {
     return () => clearInterval(pollInterval);
   }, [state.version, state.syncUrl, state.syncKey, isCloudReady]);
 
-  // 3. Авто-синхронизация с защитой от перезаписи
+  // 3. Авто-синхронизация с защитой от перезаписи (быстрый дебаунс 2.5 сек)
   useEffect(() => {
     saveLocal(state);
     
@@ -120,8 +128,6 @@ const App: React.FC = () => {
         const versionAtStart = state.version; 
         
         setIsSyncing(true);
-        // Don't set cloudStatus to 'loading' for routine background syncs 
-        // if we are already in a success state to prevent flickering
         if (cloudStatus !== 'success') {
           setCloudStatus('loading');
         }
@@ -145,7 +151,7 @@ const App: React.FC = () => {
           setCloudStatus('error');
         }
         setIsSyncing(false);
-      }, 10000); 
+      }, 2500); 
       return () => clearTimeout(timer);
     }
   }, [state.version, state.syncUrl, state.syncKey, isCloudReady]);
@@ -302,10 +308,16 @@ const App: React.FC = () => {
           {/* Fixed Status Footer Area */}
           <div className="p-4 shrink-0 bg-[#151c2e]/95 backdrop-blur-xl border-t border-slate-700/60 space-y-3">
             <div 
-              className={`relative p-3 rounded-2xl border transition-all duration-700 overflow-hidden ${
+              onClick={() => {
+                if (cloudStatus === 'error' || cloudStatus === 'idle') {
+                  forcePull();
+                }
+              }}
+              title={cloudStatus === 'error' ? 'Нажмите для повторного подключения' : lastSyncTime ? `Последняя синхронизация: ${lastSyncTime}` : undefined}
+              className={`relative p-3 rounded-2xl border transition-all duration-700 overflow-hidden cursor-pointer select-none ${
                 cloudStatus === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_20px_-10px_rgba(16,185,129,0.3)]' : 
                 cloudStatus === 'loading' ? 'bg-amber-500/10 border-amber-500/30' :
-                cloudStatus === 'conflict' ? 'bg-rose-500/10 border-rose-500/30' : 
+                cloudStatus === 'conflict' || cloudStatus === 'error' ? 'bg-rose-500/10 border-rose-500/30' : 
                 'bg-slate-800/80 border-slate-700/70 shadow-sm'
               }`}
             >
@@ -313,7 +325,7 @@ const App: React.FC = () => {
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-500 ${
                   cloudStatus === 'success' ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300 shadow-inner' :
                   cloudStatus === 'loading' ? 'bg-amber-500/20 border-amber-500/30 text-amber-300' :
-                  cloudStatus === 'conflict' ? 'bg-rose-500/20 border-rose-500/30 text-rose-300' :
+                  cloudStatus === 'conflict' || cloudStatus === 'error' ? 'bg-rose-500/20 border-rose-500/30 text-rose-300' :
                   'bg-slate-700/70 border-slate-600/70 text-slate-300'
                 }`}>
                   {isSyncing || cloudStatus === 'loading' ? (
@@ -322,7 +334,7 @@ const App: React.FC = () => {
                     </motion.div>
                   ) : cloudStatus === 'success' ? (
                     <ICONS.Check size={16} />
-                  ) : cloudStatus === 'conflict' ? (
+                  ) : cloudStatus === 'conflict' || cloudStatus === 'error' ? (
                     <ICONS.AlertTriangle size={16} />
                   ) : (
                     <ICONS.Unlock size={14} />
@@ -335,17 +347,18 @@ const App: React.FC = () => {
                     <div className={`w-1.5 h-1.5 rounded-full ${
                       cloudStatus === 'success' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]' : 
                       cloudStatus === 'loading' ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]' : 
-                      cloudStatus === 'conflict' ? 'bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.8)]' : 
+                      cloudStatus === 'conflict' || cloudStatus === 'error' ? 'bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.8)]' : 
                       'bg-slate-500'
                     }`} />
                   </div>
                   <span className={`text-[9.5px] font-black tracking-wider transition-colors duration-500 truncate uppercase ${
                     cloudStatus === 'success' ? 'text-emerald-300' :
                     cloudStatus === 'loading' ? 'text-amber-300' :
-                    cloudStatus === 'conflict' ? 'text-rose-300 font-bold' :
+                    cloudStatus === 'conflict' || cloudStatus === 'error' ? 'text-rose-300 font-bold' :
                     'text-slate-300'
                   }`}>
                     {cloudStatus === 'conflict' ? 'SYNC CONFLICT' : 
+                     cloudStatus === 'error' ? 'OFFLINE / RETRY' :
                      !state.syncUrl ? 'CLOUD OFFLINE' : 
                      cloudStatus === 'success' ? 'SYSTEM ONLINE' :
                      isSyncing || cloudStatus === 'loading' ? 'SYNCING...' :

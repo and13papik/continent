@@ -516,6 +516,42 @@ async function startServer() {
     res.status(result.statusCode).json(result.body);
   });
 
+  // Supabase Keep-Alive to prevent cold start / pause on idle instances
+  let keepAliveUrl = process.env.SUPABASE_URL || '';
+  let keepAliveKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+
+  app.post("/api/database/keepalive", async (req, res) => {
+    try {
+      const { syncUrl, syncKey } = req.body || {};
+      if (syncUrl && syncKey) {
+        keepAliveUrl = syncUrl.trim().replace(/\/$/, '');
+        keepAliveKey = syncKey.trim();
+        try {
+          const { setSupabaseCredentials } = await import("./api/_lib/supabase.js");
+          await setSupabaseCredentials(keepAliveUrl, keepAliveKey);
+        } catch (_) {}
+      }
+      res.json({ ok: true, active: Boolean(keepAliveUrl && keepAliveKey) });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Background ping every 4.5 minutes to keep Supabase awake
+  setInterval(async () => {
+    if (keepAliveUrl && keepAliveKey) {
+      try {
+        await fetch(`${keepAliveUrl}/rest/v1/app_storage?select=id&limit=1`, {
+          headers: {
+            'apikey': keepAliveKey,
+            'Authorization': `Bearer ${keepAliveKey}`,
+            'Cache-Control': 'no-cache'
+          }
+        });
+      } catch (_) {}
+    }
+  }, 4.5 * 60 * 1000);
+
   // Test API Connection Endpoint (Official OpenAPI Base URL: https://omapi.onlymonster.ai/api/v0)
   app.post("/api/integrations/onlymonster/test", async (req, res) => {
     const result = await handleOnlyMonsterTest();

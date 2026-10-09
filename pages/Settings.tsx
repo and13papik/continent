@@ -362,6 +362,13 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
     const cleanKey = syncKeyInput.trim();
 
     if (cleanUrl && cleanKey) {
+      // Keep server in sync for keep-alive pings
+      fetch('/api/database/keepalive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ syncUrl: cleanUrl, syncKey: cleanKey })
+      }).catch(() => {});
+
       setIsManualSyncing(true);
       try {
         const remote = await fetchFromCloud(cleanUrl, cleanKey);

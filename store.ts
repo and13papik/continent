@@ -418,6 +418,15 @@ export function mergeStates(local: AppState, remote: AppState): AppState {
   return deduplicatePeriods(finalState);
 }
 
+function createTimeoutSignal(ms: number): AbortSignal {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 export async function syncToCloud(state: AppState): Promise<{ success: boolean; newState?: AppState }> {
   if (!state.syncUrl || !state.syncKey) return { success: false };
   
@@ -426,16 +435,20 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
   const headers = { 
     'apikey': state.syncKey.trim(), 
     'Authorization': `Bearer ${state.syncKey.trim()}`,
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache'
   };
 
   try {
-    const checkResponse = await fetch(`${url}?id=eq.main&select=state`, { headers });
+    const checkResponse = await fetch(`${url}?id=eq.main&select=state`, { 
+      headers,
+      signal: createTimeoutSignal(12000)
+    });
     let finalState = { ...state };
 
     if (checkResponse.ok) {
       const cloudData = await checkResponse.json();
-      if (cloudData.length > 0) {
+      if (cloudData && cloudData.length > 0 && cloudData[0].state) {
         const remote: AppState = cloudData[0].state;
         finalState = mergeStates(state, remote);
       }
@@ -448,7 +461,8 @@ export async function syncToCloud(state: AppState): Promise<{ success: boolean; 
         id: 'main',
         state: { ...finalState, lastSyncedAt: new Date().toISOString() }, 
         updated_at: new Date().toISOString() 
-      })
+      }),
+      signal: createTimeoutSignal(15000)
     });
 
     return { success: response.ok, newState: finalState };
@@ -466,7 +480,8 @@ export async function forcePushToCloud(state: AppState): Promise<boolean> {
   const headers = { 
     'apikey': state.syncKey.trim(), 
     'Authorization': `Bearer ${state.syncKey.trim()}`,
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache'
   };
 
   try {
@@ -477,7 +492,8 @@ export async function forcePushToCloud(state: AppState): Promise<boolean> {
         id: 'main',
         state: { ...state, lastSyncedAt: new Date().toISOString() }, 
         updated_at: new Date().toISOString() 
-      })
+      }),
+      signal: createTimeoutSignal(15000)
     });
     return response.ok;
   } catch (e) {
@@ -486,19 +502,25 @@ export async function forcePushToCloud(state: AppState): Promise<boolean> {
   }
 }
 
-export async function fetchFromCloud(url: string, key?: string): Promise<AppState | null> {
+export async function fetchFromCloud(url: string, key?: string, timeoutMs = 12000): Promise<AppState | null> {
   if (!url || !key) return null;
   const baseUrl = url.trim().replace(/\/$/, "");
   const fetchUrl = `${baseUrl}/rest/v1/app_storage?id=eq.main&select=state`;
 
   try {
     const response = await fetch(fetchUrl, {
-      headers: { 'apikey': key.trim(), 'Authorization': `Bearer ${key.trim()}` }
+      headers: { 
+        'apikey': key.trim(), 
+        'Authorization': `Bearer ${key.trim()}`,
+        'Cache-Control': 'no-cache'
+      },
+      signal: createTimeoutSignal(timeoutMs)
     });
     if (!response.ok) return null;
     const data = await response.json();
-    return (data.length > 0) ? deduplicatePeriods(data[0].state) : null;
+    return (data && data.length > 0 && data[0].state) ? deduplicatePeriods(data[0].state) : null;
   } catch (e) {
+    console.warn("fetchFromCloud error:", e);
     return null;
   }
 }
@@ -509,7 +531,12 @@ export async function listCloudSnapshots(url: string, key?: string): Promise<Clo
   const fetchUrl = `${baseUrl}/rest/v1/app_storage?select=id,state,updated_at&order=updated_at.desc&limit=20`;
   try {
     const response = await fetch(fetchUrl, {
-      headers: { 'apikey': key.trim(), 'Authorization': `Bearer ${key.trim()}` }
+      headers: { 
+        'apikey': key.trim(), 
+        'Authorization': `Bearer ${key.trim()}`,
+        'Cache-Control': 'no-cache'
+      },
+      signal: createTimeoutSignal(10000)
     });
     return response.ok ? await response.json() : [];
   } catch (e) {
@@ -521,7 +548,12 @@ export async function testDatabaseConnection(url: string, key: string): Promise<
   const baseUrl = url.trim().replace(/\/$/, "");
   try {
     const checkTable = await fetch(`${baseUrl}/rest/v1/app_storage?select=id&limit=1`, {
-      headers: { 'apikey': key.trim(), 'Authorization': `Bearer ${key.trim()}` }
+      headers: { 
+        'apikey': key.trim(), 
+        'Authorization': `Bearer ${key.trim()}`,
+        'Cache-Control': 'no-cache'
+      },
+      signal: createTimeoutSignal(6000)
     });
     if (!checkTable.ok) return { success: false, message: "Ошибка подключения" };
     return { success: true, message: "Соединение установлено!" };
