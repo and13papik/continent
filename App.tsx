@@ -19,17 +19,8 @@ import TotalTable from './pages/TotalTable';
 import Settings from './pages/Settings';
 import Metrics from './pages/Metrics';
 import AdvanceRequest from './pages/AdvanceRequest';
-import HalloweenOverlay from './components/HalloweenOverlay';
-import HalloweenIntroGate from './components/HalloweenIntroGate';
 
 const App: React.FC = () => {
-  const [showIntroGate, setShowIntroGate] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('continental_halloween_intro_seen_v1') !== 'true';
-    } catch {
-      return false;
-    }
-  });
   const [state, setState] = useState<AppState>(createInitialState());
   const [isSyncing, setIsSyncing] = useState(false);
   const [cloudStatus, setCloudStatus] = useState<'idle' | 'loading' | 'success' | 'error' | 'conflict'>('idle');
@@ -182,25 +173,16 @@ const App: React.FC = () => {
     }
   };
 
-  if (showIntroGate) {
-    return <HalloweenIntroGate onComplete={() => setShowIntroGate(false)} />;
-  }
-
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-        <HalloweenOverlay onReplayIntro={() => setShowIntroGate(true)} />
-        <div className="w-full max-w-md glass-card p-8 border border-slate-800/50 rounded-3xl shadow-2xl relative z-10">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <div className="w-full max-w-md glass-card p-8 border border-slate-800/50 rounded-3xl shadow-2xl">
           <div className="flex flex-col items-center gap-6">
-            <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20 relative">
+            <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
               <ICONS.Lock className="text-white" size={32} />
-              <span className="absolute -top-2 -right-2 text-base animate-bounce">🎃</span>
             </div>
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-white mb-2 flex items-center justify-center gap-2">
-                Continental Vault
-                <span className="text-lg">🕸️</span>
-              </h1>
+              <h1 className="text-2xl font-bold text-white mb-2">Continental Vault</h1>
               <p className="text-slate-400 text-sm">Введите пароль для доступа к системе</p>
             </div>
             <form onSubmit={handleLogin} className="w-full space-y-4">
@@ -233,20 +215,17 @@ const App: React.FC = () => {
 
   return (
     <HashRouter>
-      <HalloweenOverlay onReplayIntro={() => setShowIntroGate(true)} />
       <div className="flex flex-col md:flex-row min-h-screen bg-[#0d111d] text-slate-100">
         <nav className="w-full md:w-64 bg-[#111726]/95 backdrop-blur-3xl border-r border-slate-700/60 shadow-2xl flex flex-col sticky top-0 h-auto md:h-screen z-50 overflow-hidden">
           {/* Header Section */}
           <div className="p-4 pb-3 shrink-0 flex flex-col gap-2.5 border-b border-slate-700/60 bg-[#151c2e]/90 backdrop-blur-xl">
-            {/* Logo Continental - Laconic with Halloween Accent */}
+            {/* Logo Continental - Laconic and Simple */}
             <div className="flex items-center gap-2.5 px-0.5 pt-0.5">
-              <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md shadow-indigo-600/40 shrink-0 border border-indigo-400/40 relative">
+              <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md shadow-indigo-600/40 shrink-0 border border-indigo-400/40">
                 <span className="text-white font-outfit text-sm font-black tracking-tight">C</span>
-                <span className="absolute -top-1.5 -right-1.5 text-[9px] animate-bounce" title="Halloween Edition">🕷️</span>
               </div>
-              <span className="font-outfit text-lg font-bold tracking-tight text-white leading-none flex items-center gap-1.5">
+              <span className="font-outfit text-lg font-bold tracking-tight text-white leading-none">
                 Continental
-                <span className="text-xs" title="Счастливого Хэллоуина!">🎃</span>
               </span>
             </div>
 
@@ -395,7 +374,6 @@ const App: React.FC = () => {
             <Routes>
               <Route path="/" element={<Dashboard state={state} updateState={updateState} userRole={userRole} />} />
               <Route path="/metrics" element={<Metrics state={state} updateState={updateState} userRole={userRole} />} />
-              <Route path="/metrics/:tab" element={<Metrics state={state} updateState={updateState} userRole={userRole} />} />
               <Route path="/add-income" element={<AddIncome state={state} updateState={updateState} />} />
               <Route path="/advance-request" element={<AdvanceRequest state={state} updateState={updateState} />} />
               <Route path="/operations" element={<Operations state={state} updateState={updateState} />} />
