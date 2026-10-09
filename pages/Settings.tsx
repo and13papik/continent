@@ -357,6 +357,14 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
     alert('Все финансовые данные успешно удалены. Операторы и модели сохранены.');
   };
 
+  const handleTestDatabase = async () => {
+    setDbTestResult(null);
+    setIsManualSyncing(true);
+    const result = await testDatabaseConnection(syncUrlInput, syncKeyInput);
+    setDbTestResult(result);
+    setIsManualSyncing(false);
+  };
+
   const handleApplySettings = async () => {
     const cleanUrl = syncUrlInput.trim();
     const cleanKey = syncKeyInput.trim();
@@ -578,7 +586,23 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
             </div>
           </div>
 
+          {dbTestResult && (
+            <div className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
+              dbTestResult.success ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/15 border-rose-500/30 text-rose-300'
+            }`}>
+              <div className={`w-2 h-2 rounded-full shrink-0 ${dbTestResult.success ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+              <span>{dbTestResult.message}</span>
+            </div>
+          )}
+
           <div className="flex flex-col gap-3 pt-4">
+            <button 
+              onClick={handleTestDatabase} 
+              disabled={isManualSyncing}
+              className="w-full bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 py-2.5 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {isManualSyncing ? 'Проверка...' : '⚡ Проверить подключение'}
+            </button>
             <button onClick={handleApplySettings} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-2xl font-bold text-sm shadow-lg shadow-indigo-600/30 transition-all active:scale-95 cursor-pointer">Применить</button>
             <button onClick={forcePull} disabled={isManualSyncing} className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer">Загрузить "main"</button>
             {userRole === 'owner' && (

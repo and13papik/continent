@@ -544,8 +544,10 @@ export async function listCloudSnapshots(url: string, key?: string): Promise<Clo
   }
 }
 
-export async function testDatabaseConnection(url: string, key: string): Promise<{ success: boolean; message: string }> {
+export async function testDatabaseConnection(url: string, key: string): Promise<{ success: boolean; message: string; pingMs?: number }> {
+  if (!url || !key) return { success: false, message: "Введите URL и Ключ" };
   const baseUrl = url.trim().replace(/\/$/, "");
+  const start = Date.now();
   try {
     const checkTable = await fetch(`${baseUrl}/rest/v1/app_storage?select=id&limit=1`, {
       headers: { 
@@ -555,10 +557,23 @@ export async function testDatabaseConnection(url: string, key: string): Promise<
       },
       signal: createTimeoutSignal(6000)
     });
-    if (!checkTable.ok) return { success: false, message: "Ошибка подключения" };
-    return { success: true, message: "Соединение установлено!" };
-  } catch (e) {
-    return { success: false, message: "Сервер недоступен" };
+    const pingMs = Date.now() - start;
+    if (checkTable.status === 401 || checkTable.status === 403) {
+      return { success: false, message: "Ошибка 401: Неверный Anon Key", pingMs };
+    }
+    if (checkTable.status === 404) {
+      return { success: false, message: "Ошибка 404: Таблица app_storage не найдена", pingMs };
+    }
+    if (!checkTable.ok) {
+      return { success: false, message: `Ошибка ${checkTable.status}: ${checkTable.statusText}`, pingMs };
+    }
+    return { success: true, message: `Соединение успешно (${pingMs}ms)`, pingMs };
+  } catch (e: any) {
+    const pingMs = Date.now() - start;
+    if (e?.name === 'AbortError') {
+      return { success: false, message: "Таймаут (6с): инстанс не отвечает или на паузе", pingMs };
+    }
+    return { success: false, message: `Ошибка сети: ${e?.message || 'Сервер недоступен'}`, pingMs };
   }
 }
 

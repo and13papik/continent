@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ICONS } from './constants';
@@ -26,6 +26,11 @@ const App: React.FC = () => {
   const [cloudStatus, setCloudStatus] = useState<'idle' | 'loading' | 'success' | 'error' | 'conflict'>('idle');
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [isCloudReady, setIsCloudReady] = useState(false);
+  
+  // Флаги контроля синхронизации — исключают бесконечный цикл фоновых сохранений
+  const hasLocalChangesRef = useRef<boolean>(false);
+  const lastSyncedVersionRef = useRef<number>(state.version || 1);
+
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return localStorage.getItem('continental_auth') === 'true';
   });
@@ -74,7 +79,11 @@ const App: React.FC = () => {
                 syncUrl: prev.syncUrl, 
                 syncKey: prev.syncKey 
               }));
+              lastSyncedVersionRef.current = remoteData.version;
+            } else {
+              lastSyncedVersionRef.current = state.version;
             }
+            hasLocalChangesRef.current = false;
             setCloudStatus('success');
             setLastSyncTime(new Date().toLocaleTimeString());
           } else {
@@ -104,6 +113,8 @@ const App: React.FC = () => {
             if (remoteData.version > prev.version) {
               const merged = mergeStates(prev, remoteData);
               saveLocal(merged);
+              lastSyncedVersionRef.current = merged.version;
+              hasLocalChangesRef.current = false;
               return merged;
             }
             return prev;
@@ -119,29 +130,33 @@ const App: React.FC = () => {
     return () => clearInterval(pollInterval);
   }, [state.version, state.syncUrl, state.syncKey, isCloudReady]);
 
-  // 3. Авто-синхронизация с защитой от перезаписи (быстрый дебаунс 2.5 сек)
+  // 3. Авто-синхронизация с защитой от перезаписи и защитой от бесконечного цикла
   useEffect(() => {
     saveLocal(state);
+    
+    // Синхронизируем ТОЛЬКО если были реальные локальные правки!
+    if (!hasLocalChangesRef.current) {
+      return;
+    }
     
     if (state.syncUrl && state.syncKey && isCloudReady && !isSyncing) {
       const timer = setTimeout(async () => {
         const versionAtStart = state.version; 
         
         setIsSyncing(true);
-        if (cloudStatus !== 'success') {
-          setCloudStatus('loading');
-        }
-        
         const result = await syncToCloud(state);
         
         if (result.success && result.newState) {
+          hasLocalChangesRef.current = false;
+          lastSyncedVersionRef.current = result.newState.version;
           setState(current => {
              setCloudStatus('success');
              setLastSyncTime(new Date().toLocaleTimeString());
              if (current.version === versionAtStart) {
                 return result.newState!;
              } else {
-                // Local state changed during sync; merge concurrent changes to preserve both
+                // Если за время отправки пользователь внёс ещё правки:
+                hasLocalChangesRef.current = true;
                 const merged = mergeStates(current, result.newState!);
                 saveLocal(merged);
                 return merged;
@@ -157,6 +172,7 @@ const App: React.FC = () => {
   }, [state.version, state.syncUrl, state.syncKey, isCloudReady]);
 
   const updateState = useCallback((updater: (prev: AppState) => AppState) => {
+    hasLocalChangesRef.current = true;
     setState(prev => {
       const newState = updater(prev);
       return { 
@@ -168,14 +184,46 @@ const App: React.FC = () => {
     });
   }, []);
 
+  const refreshCloudStatus = async () => {
+    if (!state.syncUrl || !state.syncKey || isSyncing) return;
+    setCloudStatus('loading');
+    try {
+      const remoteData = await fetchFromCloud(state.syncUrl, state.syncKey);
+      if (remoteData) {
+        if (remoteData.version > state.version || remoteData.lastUpdated > state.lastUpdated) {
+          setState(prev => ({ 
+            ...remoteData, 
+            syncUrl: prev.syncUrl, 
+            syncKey: prev.syncKey 
+          }));
+          lastSyncedVersionRef.current = remoteData.version;
+        } else {
+          lastSyncedVersionRef.current = state.version;
+        }
+        hasLocalChangesRef.current = false;
+        setCloudStatus('success');
+        setLastSyncTime(new Date().toLocaleTimeString());
+      } else {
+        setCloudStatus('error');
+      }
+    } catch {
+      setCloudStatus('error');
+    }
+  };
+
   const forcePull = async () => {
     if (!state.syncUrl || !state.syncKey) return;
     setCloudStatus('loading');
     const remoteData = await fetchFromCloud(state.syncUrl, state.syncKey);
     if (remoteData) {
+      hasLocalChangesRef.current = false;
+      lastSyncedVersionRef.current = remoteData.version;
       updateState(() => ({ ...remoteData, syncUrl: state.syncUrl, syncKey: state.syncKey }));
       setCloudStatus('success');
       alert('Данные обновлены до последней версии из облака.');
+    } else {
+      setCloudStatus('error');
+      alert('Не удалось подключиться к базе данных. Проверьте настройки URL и Anon Key.');
     }
   };
 
@@ -308,28 +356,24 @@ const App: React.FC = () => {
           {/* Fixed Status Footer Area */}
           <div className="p-4 shrink-0 bg-[#151c2e]/95 backdrop-blur-xl border-t border-slate-700/60 space-y-3">
             <div 
-              onClick={() => {
-                if (cloudStatus === 'error' || cloudStatus === 'idle') {
-                  forcePull();
-                }
-              }}
-              title={cloudStatus === 'error' ? 'Нажмите для повторного подключения' : lastSyncTime ? `Последняя синхронизация: ${lastSyncTime}` : undefined}
+              onClick={refreshCloudStatus}
+              title={cloudStatus === 'error' ? 'Нажмите для повторного подключения' : lastSyncTime ? `Последняя синхронизация: ${lastSyncTime} (нажмите для проверки)` : 'Нажмите для проверки связи'}
               className={`relative p-3 rounded-2xl border transition-all duration-700 overflow-hidden cursor-pointer select-none ${
-                cloudStatus === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_20px_-10px_rgba(16,185,129,0.3)]' : 
-                cloudStatus === 'loading' ? 'bg-amber-500/10 border-amber-500/30' :
+                cloudStatus === 'success' && !isSyncing ? 'bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_20px_-10px_rgba(16,185,129,0.3)]' : 
+                isSyncing || cloudStatus === 'loading' ? 'bg-amber-500/10 border-amber-500/30' :
                 cloudStatus === 'conflict' || cloudStatus === 'error' ? 'bg-rose-500/10 border-rose-500/30' : 
                 'bg-slate-800/80 border-slate-700/70 shadow-sm'
               }`}
             >
               <div className="relative flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-500 ${
-                  cloudStatus === 'success' ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300 shadow-inner' :
-                  cloudStatus === 'loading' ? 'bg-amber-500/20 border-amber-500/30 text-amber-300' :
+                  cloudStatus === 'success' && !isSyncing ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300 shadow-inner' :
+                  isSyncing || cloudStatus === 'loading' ? 'bg-amber-500/20 border-amber-500/30 text-amber-300' :
                   cloudStatus === 'conflict' || cloudStatus === 'error' ? 'bg-rose-500/20 border-rose-500/30 text-rose-300' :
                   'bg-slate-700/70 border-slate-600/70 text-slate-300'
                 }`}>
                   {isSyncing || cloudStatus === 'loading' ? (
-                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}>
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}>
                       <ICONS.RotateCcw size={14} />
                     </motion.div>
                   ) : cloudStatus === 'success' ? (
@@ -345,23 +389,24 @@ const App: React.FC = () => {
                   <div className="flex items-center gap-1.5">
                     <span className="text-[8px] text-slate-400 uppercase font-black tracking-widest">Database Hub</span>
                     <div className={`w-1.5 h-1.5 rounded-full ${
-                      cloudStatus === 'success' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]' : 
-                      cloudStatus === 'loading' ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]' : 
+                      cloudStatus === 'success' && !isSyncing ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]' : 
+                      isSyncing || cloudStatus === 'loading' ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]' : 
                       cloudStatus === 'conflict' || cloudStatus === 'error' ? 'bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.8)]' : 
                       'bg-slate-500'
                     }`} />
                   </div>
                   <span className={`text-[9.5px] font-black tracking-wider transition-colors duration-500 truncate uppercase ${
-                    cloudStatus === 'success' ? 'text-emerald-300' :
-                    cloudStatus === 'loading' ? 'text-amber-300' :
+                    cloudStatus === 'success' && !isSyncing ? 'text-emerald-300' :
+                    isSyncing || cloudStatus === 'loading' ? 'text-amber-300' :
                     cloudStatus === 'conflict' || cloudStatus === 'error' ? 'text-rose-300 font-bold' :
                     'text-slate-300'
                   }`}>
                     {cloudStatus === 'conflict' ? 'SYNC CONFLICT' : 
                      cloudStatus === 'error' ? 'OFFLINE / RETRY' :
                      !state.syncUrl ? 'CLOUD OFFLINE' : 
+                     isSyncing ? 'SAVING...' :
+                     cloudStatus === 'loading' ? 'CONNECTING...' :
                      cloudStatus === 'success' ? 'SYSTEM ONLINE' :
-                     isSyncing || cloudStatus === 'loading' ? 'SYNCING...' :
                      'HUB STANDBY'}
                   </span>
                 </div>
