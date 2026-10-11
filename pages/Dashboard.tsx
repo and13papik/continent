@@ -1,9 +1,15 @@
-
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppState, AccountingPeriod, PaidStatus, OperationRecord, IncomeRecord } from '../types';
 import { ICONS } from '../constants';
-import { purgeOrphanedRecords, getOrphanedRecordsBreakdown } from '../store';
+import { 
+  purgeOrphanedRecords, 
+  getOrphanedRecordsBreakdown, 
+  getOrphanedRecordsSignature, 
+  isOrphanedBannerDismissed, 
+  dismissOrphanedBanner 
+} from '../store';
+import { EyeOff } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell
@@ -116,6 +122,37 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
   const homelessBreakdown = useMemo(() => {
     return getOrphanedRecordsBreakdown(state);
   }, [state]);
+
+  const orphanedSignature = useMemo(() => {
+    return getOrphanedRecordsSignature(state);
+  }, [state]);
+
+  const [isBannerDismissed, setIsBannerDismissed] = useState(() => {
+    return isOrphanedBannerDismissed(orphanedSignature);
+  });
+
+  // Если состав архивных записей изменится, снова показываем уведомление
+  useEffect(() => {
+    setIsBannerDismissed(isOrphanedBannerDismissed(orphanedSignature));
+  }, [orphanedSignature]);
+
+  // Слушаем изменение статуса скрытия из настроек или других вкладок
+  useEffect(() => {
+    const handleBannerChange = () => {
+      setIsBannerDismissed(isOrphanedBannerDismissed(orphanedSignature));
+    };
+    window.addEventListener('continental_orphaned_banner_changed', handleBannerChange);
+    window.addEventListener('storage', handleBannerChange);
+    return () => {
+      window.removeEventListener('continental_orphaned_banner_changed', handleBannerChange);
+      window.removeEventListener('storage', handleBannerChange);
+    };
+  }, [orphanedSignature]);
+
+  const handleDismissBanner = () => {
+    dismissOrphanedBanner(orphanedSignature);
+    setIsBannerDismissed(true);
+  };
 
   const homelessRecords = useMemo(() => {
     const periodIds = new Set(state.accountingPeriods.map(p => p.id));
@@ -587,7 +624,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
         </div>
       </header>
 
-      {homelessBreakdown.total > 0 && (
+      {homelessBreakdown.total > 0 && !isBannerDismissed && (
         <div className="bg-gradient-to-r from-rose-950/40 via-[#161d31] to-slate-900 border border-rose-500/40 p-6 rounded-[2rem] flex flex-col xl:flex-row items-center justify-between gap-6 shadow-2xl backdrop-blur-xl">
            <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 shadow-inner shrink-0">
@@ -608,8 +645,15 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
            </div>
            <div className="flex flex-wrap items-center gap-3 shrink-0">
               <button 
+                onClick={handleDismissBanner}
+                className="flex items-center gap-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white px-5 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all border border-slate-700 hover:border-slate-600 active:scale-95 cursor-pointer"
+                title="Скрыть баннер в этом браузере до изменения состава архивных записей"
+              >
+                 <ICONS.X size={15} /> Скрыть уведомление
+              </button>
+              <button 
                 onClick={repairHomeless} 
-                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/30 active:scale-95"
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/30 active:scale-95 cursor-pointer"
               >
                  <ICONS.RotateCcw size={15} /> Восстановить в период
               </button>

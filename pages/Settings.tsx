@@ -15,7 +15,11 @@ import {
   inspectModelData,
   purgeModelData,
   ModelDataInspection,
-  PurgeModelStats
+  PurgeModelStats,
+  getOrphanedRecordsBreakdown,
+  getOrphanedRecordsSignature,
+  isOrphanedBannerDismissed,
+  resetOrphanedBannerDismissal
 } from '../store';
 import { Eraser, AlertTriangle, CheckCircle2, ShieldAlert, Sparkles, RefreshCw, X, Trash2 } from 'lucide-react';
 import PeriodBadge from '../components/PeriodBadge';
@@ -51,6 +55,26 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
   const [purgeRemoveFromList, setPurgeRemoveFromList] = useState(true);
   const [isPurging, setIsPurging] = useState(false);
   const [purgeSuccessResult, setPurgeSuccessResult] = useState<PurgeModelStats | null>(null);
+
+  const orphanedBreakdown = useMemo(() => getOrphanedRecordsBreakdown(state), [state]);
+  const orphanedSignature = useMemo(() => getOrphanedRecordsSignature(state), [state]);
+  const [isBannerDismissedInSettings, setIsBannerDismissedInSettings] = useState(() => isOrphanedBannerDismissed(orphanedSignature));
+
+  useEffect(() => {
+    setIsBannerDismissedInSettings(isOrphanedBannerDismissed(orphanedSignature));
+  }, [orphanedSignature]);
+
+  useEffect(() => {
+    const handleBannerChange = () => {
+      setIsBannerDismissedInSettings(isOrphanedBannerDismissed(orphanedSignature));
+    };
+    window.addEventListener('continental_orphaned_banner_changed', handleBannerChange);
+    window.addEventListener('storage', handleBannerChange);
+    return () => {
+      window.removeEventListener('continental_orphaned_banner_changed', handleBannerChange);
+      window.removeEventListener('storage', handleBannerChange);
+    };
+  }, [orphanedSignature]);
 
   const allSystemModels = useMemo(() => getAllSystemModels(state), [state]);
 
@@ -1363,6 +1387,68 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                 );
               })}
             </div>
+          </div>
+        </div>
+
+        {/* Управление уведомлением об архивных записях удалённых периодов */}
+        <div className="p-6 rounded-[24px] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-4 md:col-span-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <ICONS.AlertTriangle size={18} className="text-amber-400" />
+                Баннер «Архивные записи удалённых периодов»
+              </h2>
+              <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                Если вы намеренно удалили старые периоды, уведомление на главной панели можно скрыть. Все финансовые данные остаются в целостности. При изменении состава записей баннер появится снова автоматически.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0">
+              {orphanedBreakdown.total > 0 ? (
+                isBannerDismissedInSettings ? (
+                  <button
+                    onClick={() => {
+                      resetOrphanedBannerDismissal();
+                    }}
+                    className="flex items-center gap-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-white px-5 py-2.5 rounded-xl border border-amber-500/40 text-xs font-bold transition-all shadow-lg shadow-amber-950/20 cursor-pointer"
+                  >
+                    <RefreshCw size={14} /> Показать скрытый баннер обратно
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-xs font-bold text-slate-300">
+                    <CheckCircle2 size={15} className="text-emerald-400" />
+                    <span>Баннер активен на панели</span>
+                  </div>
+                )
+              ) : (
+                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-xs font-bold text-slate-400">
+                  <CheckCircle2 size={15} className="text-emerald-400" />
+                  <span>Архивных записей без периода нет</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3">
+              <span className="text-slate-400">Статус в текущем браузере:</span>
+              {orphanedBreakdown.total === 0 ? (
+                <span className="font-semibold text-slate-400">Нет записей для отображения</span>
+              ) : isBannerDismissedInSettings ? (
+                <span className="px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-amber-300 font-bold">
+                  Скрыто пользователем
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-300 font-bold">
+                  Отображается на Дашборде
+                </span>
+              )}
+            </div>
+            {orphanedBreakdown.total > 0 && (
+              <div className="text-slate-400 font-mono text-[11px]">
+                Архивных записей: <span className="text-white font-bold">{orphanedBreakdown.total}</span> (доходов: {orphanedBreakdown.incomeCount}, операций: {orphanedBreakdown.operationsCount}, ручных: {orphanedBreakdown.manualIncomesCount}, расходов: {orphanedBreakdown.expensesCount})
+              </div>
+            )}
           </div>
         </div>
       </div>

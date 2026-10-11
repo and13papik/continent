@@ -1,3 +1,22 @@
+// Initialize mock window & localStorage for Node test runner
+const mockLocalStorageStore: Record<string, string> = {};
+const mockLocalStorageObj = {
+  getItem: (key: string) => mockLocalStorageStore[key] ?? null,
+  setItem: (key: string, val: string) => { mockLocalStorageStore[key] = String(val); },
+  removeItem: (key: string) => { delete mockLocalStorageStore[key]; }
+};
+if (typeof (globalThis as any).window === 'undefined') {
+  (globalThis as any).window = {
+    localStorage: mockLocalStorageObj,
+    dispatchEvent: () => true,
+    addEventListener: () => {},
+    removeEventListener: () => {}
+  };
+}
+if (typeof (globalThis as any).localStorage === 'undefined') {
+  (globalThis as any).localStorage = mockLocalStorageObj;
+}
+
 import { 
   getKyivShiftRange, 
   isEventInCurrentKyivShift, 
@@ -13,6 +32,15 @@ import {
   FeedProcessorState 
 } from '../components/feedProcessor';
 import { formatEvents, handleEvents } from '../api/onlymonster/admin';
+import { 
+  getOrphanedRecordsBreakdown, 
+  getOrphanedRecordsSignature, 
+  isOrphanedBannerDismissed, 
+  dismissOrphanedBanner, 
+  resetOrphanedBannerDismissal,
+  ORPHANED_BANNER_STORAGE_KEY 
+} from '../store';
+import { AppState } from '../types';
 
 async function runAllVerificationScenarios() {
   console.log('================================================================');
@@ -20,7 +48,7 @@ async function runAllVerificationScenarios() {
   console.log('================================================================\n');
 
   let passedTests = 0;
-  let totalTests = 12;
+  let totalTests = 13;
 
   // -------------------------------------------------------------------------
   // SCENARIO 1: 120 событий при первом открытии (полная пагинация без пропусков)
@@ -740,6 +768,86 @@ async function runAllVerificationScenarios() {
       passedTests++;
     } else {
       throw new Error('FAIL: Сценарий 12');
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // SCENARIO 13: Скрытие баннера архивных записей в localStorage,
+  // повторный показ при изменении состава записей и возврат через настройки
+  // -------------------------------------------------------------------------
+  console.log('--- SCENARIO 13: Скрытие баннера архивных записей и повторный показ при изменении состава ---');
+  {
+    // Clean mock storage for this scenario
+    resetOrphanedBannerDismissal();
+
+    // Baseline state: 1 period exists ("p1"), but 2 orphaned income records exist from deleted period "p_deleted"
+    const baseState: Partial<AppState> = {
+      accountingPeriods: [
+        { id: 'p1', label: 'Октябрь 2026', startAt: '2026-10-01', endAt: null, status: 'open', createdAt: '', updatedAt: '' }
+      ],
+      incomeData: [
+        { id: 'inc_orphan_1', periodId: 'p_deleted', date: '2026-08-01', model: 'ModelA', amount: 100, shift: 1, platform: 'OnlyFans', createdAt: '' } as any,
+        { id: 'inc_orphan_2', periodId: 'p_deleted', date: '2026-08-02', model: 'ModelB', amount: 200, shift: 1, platform: 'OnlyFans', createdAt: '' } as any
+      ],
+      operationsData: [],
+      ownerManualIncomes: [],
+      ownerExpenses: []
+    };
+
+    // 1. Initial check: banner must NOT be dismissed initially
+    const sig1 = getOrphanedRecordsSignature(baseState as AppState);
+    const breakdown1 = getOrphanedRecordsBreakdown(baseState as AppState);
+    console.log(`Orphaned records count : ${breakdown1.total}`);
+    console.log(`Signature 1            : ${sig1.slice(0, 45)}...`);
+    const initialDismissed = isOrphanedBannerDismissed(sig1);
+    console.log(`Initial isDismissed    : ${initialDismissed} (expected: false)`);
+
+    // 2. User clicks "Скрыть уведомление": signature is saved in localStorage
+    dismissOrphanedBanner(sig1);
+    const afterDismiss = isOrphanedBannerDismissed(sig1);
+    console.log(`After user hides banner: isDismissed = ${afterDismiss} (expected: true)`);
+
+    // 3. Financial contents remain completely unchanged without mutation
+    const incomeBefore = (baseState.incomeData || []).length;
+
+    // 4. Composition changes: a new orphaned record appears (e.g. from another deleted month or import)
+    const modifiedState: Partial<AppState> = {
+      ...baseState,
+      incomeData: [
+        ...(baseState.incomeData || []),
+        { id: 'inc_orphan_3', periodId: 'p_deleted_2', date: '2026-07-15', model: 'ModelC', amount: 300, shift: 1, platform: 'OnlyFans', createdAt: '' } as any
+      ]
+    };
+    const sig2 = getOrphanedRecordsSignature(modifiedState as AppState);
+    const breakdown2 = getOrphanedRecordsBreakdown(modifiedState as AppState);
+    console.log(`Modified orphaned count: ${breakdown2.total}`);
+    console.log(`Signature 2            : ${sig2.slice(0, 45)}...`);
+    console.log(`Signatures differ      : ${sig1 !== sig2}`);
+    const isDismissedAfterChange = isOrphanedBannerDismissed(sig2);
+    console.log(`Banner reappears after content change: isDismissed = ${isDismissedAfterChange} (expected: false)`);
+
+    // 5. Hide the new composition too
+    dismissOrphanedBanner(sig2);
+    console.log(`Dismissed new sig2     : ${isOrphanedBannerDismissed(sig2)} (expected: true)`);
+
+    // 6. User goes to Settings and clicks "Показать скрытый баннер обратно"
+    resetOrphanedBannerDismissal();
+    const afterResetFromSettings = isOrphanedBannerDismissed(sig2);
+    console.log(`After settings reset   : isDismissed = ${afterResetFromSettings} (expected: false)`);
+
+    if (
+      breakdown1.total === 2 &&
+      initialDismissed === false &&
+      afterDismiss === true &&
+      incomeBefore === 2 &&
+      sig1 !== sig2 &&
+      isDismissedAfterChange === false &&
+      afterResetFromSettings === false
+    ) {
+      console.log('PASS: Сценарий 13 успешно пройден (скрытие в localStorage, автоматический показ при изменении состава и возврат в настройках)\n');
+      passedTests++;
+    } else {
+      throw new Error('FAIL: Сценарий 13');
     }
   }
 

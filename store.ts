@@ -1090,3 +1090,57 @@ export function purgeOrphanedRecords(state: AppState): { nextState: AppState; pu
   // This function is kept for signature compatibility only and preserves all data intact.
   return { nextState: state, purgedCount: 0 };
 }
+
+export const ORPHANED_BANNER_STORAGE_KEY = 'continental_dismissed_orphaned_signature';
+
+/**
+ * Returns a deterministic signature of all currently orphaned (archive) records.
+ * If any orphaned record is added, removed or changed, this signature changes.
+ */
+export function getOrphanedRecordsSignature(state: AppState): string {
+  const periodIds = new Set((state.accountingPeriods || []).map(p => p.id));
+  const badIncome = (state.incomeData || []).filter(i => !periodIds.has(i.periodId));
+  const badOps = (state.operationsData || []).filter(o => !periodIds.has(o.periodId));
+  const badManual = (state.ownerManualIncomes || []).filter(m => !periodIds.has(m.periodId));
+  const badExpenses = (state.ownerExpenses || []).filter(e => !periodIds.has(e.periodId));
+
+  const total = badIncome.length + badOps.length + badManual.length + badExpenses.length;
+  if (total === 0) return '';
+
+  const allKeys = [
+    ...badIncome.map(i => `inc:${i.id || `${i.periodId}_${i.date}_${i.model}_${i.total || 0}`}`),
+    ...badOps.map(o => `op:${o.id || `${o.periodId}_${o.date}_${o.amount}`}`),
+    ...badManual.map(m => `man:${m.id || `${m.periodId}_${m.date}_${m.amount}`}`),
+    ...badExpenses.map(e => `exp:${e.id || `${e.periodId}_${e.date}_${e.amount}`}`)
+  ].sort();
+
+  return `${total}:${allKeys.join('|')}`;
+}
+
+export function isOrphanedBannerDismissed(currentSignature: string): boolean {
+  if (!currentSignature) return false;
+  if (typeof window === 'undefined' || !window.localStorage) return false;
+  try {
+    const saved = localStorage.getItem(ORPHANED_BANNER_STORAGE_KEY);
+    return saved === currentSignature;
+  } catch {
+    return false;
+  }
+}
+
+export function dismissOrphanedBanner(signature: string): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    localStorage.setItem(ORPHANED_BANNER_STORAGE_KEY, signature);
+    window.dispatchEvent(new Event('continental_orphaned_banner_changed'));
+  } catch {}
+}
+
+export function resetOrphanedBannerDismissal(): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    localStorage.removeItem(ORPHANED_BANNER_STORAGE_KEY);
+    window.dispatchEvent(new Event('continental_orphaned_banner_changed'));
+  } catch {}
+}
+
