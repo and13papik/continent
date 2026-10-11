@@ -126,135 +126,35 @@ const describeArc = (cx: number, cy: number, r: number, startAngleDeg: number, e
   ].join(" ");
 };
 
-export const getClientKyivShiftIndexForDate = (d: Date = new Date()): 1 | 2 | 3 | 4 => {
-  try {
-    const hourFormatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: "Europe/Kyiv",
-      hour: "numeric",
-      hour12: false
-    });
-    const hour = parseInt(hourFormatter.format(d), 10) || 0;
-    if (hour >= 2 && hour < 8) return 1;
-    if (hour >= 8 && hour < 14) return 2;
-    if (hour >= 14 && hour < 20) return 3;
-    return 4;
-  } catch (e) {
-    return 1;
-  }
-};
+export {
+  getClientKyivShiftIndexForDate,
+  type KyivShiftRange,
+  getKyivShiftRange,
+  getKyivOpDateStr,
+  isEventInCurrentKyivShift,
+  createFeedProcessorState,
+  resetFeedStateForShift,
+  processEventBatch,
+  runPollDrainLoop,
+  type LiveShiftEventRecord,
+  type FeedProcessorState,
+  type ProcessBatchResult,
+  type EventRecord,
+  FINANCIAL_EVENT_TYPES
+} from './feedProcessor';
 
-export interface KyivShiftRange {
-  label: string;
-  start: string; // ISO 8601 UTC
-  end: string;   // ISO 8601 UTC
-  index: 1 | 2 | 3 | 4;
-}
+import {
+  getClientKyivShiftIndexForDate,
+  type KyivShiftRange,
+  getKyivShiftRange,
+  isEventInCurrentKyivShift,
+  createFeedProcessorState,
+  resetFeedStateForShift,
+  runPollDrainLoop,
+  type LiveShiftEventRecord,
+  type ProcessBatchResult
+} from './feedProcessor';
 
-export function getKyivShiftRange(date: Date = new Date()): KyivShiftRange {
-  const hourFormatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Europe/Kyiv",
-    hour: "numeric",
-    hour12: false
-  });
-  const kyivHour = parseInt(hourFormatter.format(date), 10) || 0;
-
-  let shiftIndex: 1 | 2 | 3 | 4 = 1;
-  let label = "02:00–08:00";
-  let startHour = 2;
-  let endHour = 8;
-
-  if (kyivHour >= 2 && kyivHour < 8) {
-    shiftIndex = 1;
-    label = "02:00–08:00";
-    startHour = 2;
-    endHour = 8;
-  } else if (kyivHour >= 8 && kyivHour < 14) {
-    shiftIndex = 2;
-    label = "08:00–14:00";
-    startHour = 8;
-    endHour = 14;
-  } else if (kyivHour >= 14 && kyivHour < 20) {
-    shiftIndex = 3;
-    label = "14:00–20:00";
-    startHour = 14;
-    endHour = 20;
-  } else {
-    shiftIndex = 4;
-    label = "20:00–02:00";
-    startHour = 20;
-    endHour = 2;
-  }
-
-  const getKyivDateStr = (offsetDays: number = 0) => {
-    const d = new Date(date.getTime() + offsetDays * 86400000);
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Europe/Kyiv",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    }).format(d);
-  };
-
-  const kyivWallTimeToUTC = (dStr: string, hour: number) => {
-    const padded = String(hour).padStart(2, '0');
-    const naiveUtc = new Date(`${dStr}T${padded}:00:00.000Z`);
-    const hFmt = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Kyiv", hour: "numeric", hour12: false });
-    const kH = parseInt(hFmt.format(naiveUtc), 10) || 0;
-    let offset = kH - hour;
-    if (offset > 12) offset -= 24;
-    if (offset < -12) offset += 24;
-    return new Date(naiveUtc.getTime() - offset * 3600000).toISOString();
-  };
-
-  if (shiftIndex !== 4) {
-    const todayStr = getKyivDateStr(0);
-    const start = kyivWallTimeToUTC(todayStr, startHour);
-    const end = kyivWallTimeToUTC(todayStr, endHour);
-    return { label, start, end, index: shiftIndex };
-  } else {
-    if (kyivHour < 2) {
-      const prevDayStr = getKyivDateStr(-1);
-      const todayStr = getKyivDateStr(0);
-      const start = kyivWallTimeToUTC(prevDayStr, 20);
-      const end = kyivWallTimeToUTC(todayStr, 2);
-      return { label, start, end, index: 4 };
-    } else {
-      const todayStr = getKyivDateStr(0);
-      const nextDayStr = getKyivDateStr(1);
-      const start = kyivWallTimeToUTC(todayStr, 20);
-      const end = kyivWallTimeToUTC(nextDayStr, 2);
-      return { label, start, end, index: 4 };
-    }
-  }
-}
-
-export const getKyivOpDateStr = (d: Date = new Date()): string => {
-  try {
-    const hourFmt = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Kyiv", hour: "numeric", hour12: false });
-    const kHour = parseInt(hourFmt.format(d), 10) || 0;
-    const offsetDays = kHour >= 2 ? 0 : -1;
-    const target = new Date(d.getTime() + offsetDays * 86400000);
-    return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Kyiv", year: "numeric", month: "2-digit", day: "2-digit" }).format(target);
-  } catch (e) {
-    return '';
-  }
-};
-
-export const isEventInCurrentKyivShift = (rawTs: string | number | undefined | null, targetShiftIndex: number) => {
-  if (!rawTs) return false;
-  try {
-    const d = new Date(rawTs);
-    if (isNaN(d.getTime())) return false;
-    const shiftIdx = getClientKyivShiftIndexForDate(d);
-    if (shiftIdx !== targetShiftIndex) return false;
-
-    const eventOpDate = getKyivOpDateStr(d);
-    const currentOpDate = getKyivOpDateStr(new Date());
-    return eventOpDate === currentOpDate;
-  } catch (e) {
-    return false;
-  }
-};
 
 const STATIC_PARTICLES = [
   { aOff: -10, rOff: 8, opacity: 0.6, size: 1.5 },
@@ -1258,6 +1158,18 @@ export const LiveFeedDetailModal: React.FC<{
   );
 };
 
+// Module-level cache to survive tab unmount/remount in Continental Dashboard
+export const moduleFeedState = createFeedProcessorState();
+
+export function recalculateLiveWebhookIncome(_syncTimestampMs?: number): Record<string, number> {
+  const newMap: Record<string, number> = {};
+  moduleFeedState.shiftLiveEvents.forEach(ev => {
+    newMap[ev.accountId] = Math.round(((newMap[ev.accountId] || 0) + ev.amount) * 100) / 100;
+  });
+  moduleFeedState.liveIncomeByAccount = newMap;
+  return newMap;
+}
+
 export const RealtimeEventFeed: React.FC<{
   accounts: OnlyMonsterAccount[];
   onAccountClick: (acc: OnlyMonsterAccount) => void;
@@ -1273,11 +1185,16 @@ export const RealtimeEventFeed: React.FC<{
   const [filter, setFilter] = useState<LiveEventFilter>('all');
   const [selectedDetailEvent, setSelectedDetailEvent] = useState<LiveFeedItem | null>(null);
 
+  // Keep a stable ref to accounts to avoid re-triggering polling effects
+  const accountsRef = useRef<OnlyMonsterAccount[]>(accounts);
+  useEffect(() => {
+    accountsRef.current = accounts;
+  }, [accounts]);
+
   // Core internal states
   const [liveEventsMap, setLiveEventsMap] = useState<Map<string, LiveFeedItem>>(new Map());
-  const lastKnownIdRef = useRef<number | string | null>(null);
   const activeShiftRef = useRef<KyivShiftRange>(getKyivShiftRange(new Date()));
-  const liveWebhookIncomeByAccountRef = useRef<Record<string, number>>({});
+  const liveWebhookIncomeByAccountRef = useRef<Record<string, number>>(moduleFeedState.liveIncomeByAccount);
 
   // Clock ticker for relative times
   useEffect(() => {
@@ -1342,6 +1259,14 @@ export const RealtimeEventFeed: React.FC<{
     const shiftIndex = currentShift.index;
     const shiftLabel = currentShift.label || `Смена ${shiftIndex}`;
     const shiftId = `shift_${currentShift.start.slice(0, 10)}_${shiftIndex}`;
+
+    // Reset live webhook income counters when transitioning to a new shift window
+    if (moduleFeedState.lastShiftId && moduleFeedState.lastShiftId !== shiftId) {
+      resetFeedStateForShift(moduleFeedState, shiftId);
+      liveWebhookIncomeByAccountRef.current = {};
+    }
+    moduleFeedState.lastShiftId = shiftId;
+
     const nowIso = new Date().toISOString();
     const expiresIso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
 
@@ -1351,7 +1276,8 @@ export const RealtimeEventFeed: React.FC<{
       const next = new Map(prev);
       let changed = false;
 
-      accounts.forEach(acc => {
+      const currentAccounts = accountsRef.current || [];
+      currentAccounts.forEach(acc => {
         if (isAccountHidden(acc.name) || acc.status === 'inactive') return;
         const accId = String(acc.platform_account_id || acc.id || '');
         if (!accId) return;
@@ -1361,8 +1287,10 @@ export const RealtimeEventFeed: React.FC<{
           ? Number(acc.earnings_breakdown[shiftIndex])
           : 0;
 
-        const liveWebhookRevenue = liveWebhookIncomeByAccountRef.current[accId] || 0;
-        const accountShiftRevenue = Math.max(0, baseShiftRevenue + liveWebhookRevenue);
+        // Requirement 2: Do NOT sum unconfirmed live delta into confirmed analytics revenue without transaction confirmation.
+        // Confirmed shift revenue is strictly baseShiftRevenue from OnlyMonster analytics breakdown.
+        // Live events are displayed separately in the Live Feed.
+        const accountShiftRevenue = Math.max(0, baseShiftRevenue);
 
         // Find all reached thresholds among [100, 200, 500]
         const reachedMilestones = ACCOUNT_SHIFT_REVENUE_MILESTONES.filter(m => accountShiftRevenue >= m);
@@ -1463,84 +1391,177 @@ export const RealtimeEventFeed: React.FC<{
         console.error('[RealtimeEventFeed] Error posting new milestones:', e);
       });
     }
-  }, [accounts]);
+  }, []);
 
-  // Re-evaluate on accounts change
+  // Re-evaluate on accounts change (when analytics updates earnings_breakdown)
   useEffect(() => {
+    liveWebhookIncomeByAccountRef.current = moduleFeedState.liveIncomeByAccount;
     evaluateMilestones();
-  }, [evaluateMilestones]);
+  }, [accounts, evaluateMilestones]);
 
-  // Periodic polling for incoming confirmed webhooks (every 10s)
+  // Periodic polling for incoming confirmed webhooks using shared feedProcessor
   useEffect(() => {
     let isMounted = true;
+    let pollTimeout: any = null;
+    let activeFetchAbortController: AbortController | null = null;
+    let activeFetchTimeoutId: any = null;
+    let isPolling = false;
 
-    const pollLiveEvents = async () => {
+    const executePoll = async () => {
+      if (!isMounted || isPolling) return;
+      if (typeof document !== 'undefined' && document.hidden) {
+        // Tab is inactive; postpone poll check
+        pollTimeout = setTimeout(executePoll, 10000);
+        return;
+      }
+
+      isPolling = true;
+
       try {
-        const params = new URLSearchParams();
-        params.append('resource', 'events');
-        params.append('limit', '50');
-        if (lastKnownIdRef.current) {
-          params.append('since_id', String(lastKnownIdRef.current));
-        }
+        const currentShift = getKyivShiftRange(new Date());
+        activeShiftRef.current = currentShift;
+        const shiftIdx = currentShift.index;
+        const shiftId = `shift_${currentShift.start.slice(0, 10)}_${shiftIdx}`;
 
-        const res = await fetch(`/api/onlymonster/admin?${params.toString()}`);
-        if (!res.ok) return;
-
-        const contentType = res.headers.get('content-type') || '';
-        if (!contentType.includes('application/json')) {
-          return;
-        }
-
-        const data = await res.json();
-        if (!isMounted || !data.success || !Array.isArray(data.events)) return;
-
-        if (data.events.length > 0) {
-          const firstId = data.events[0]?.id;
-          if (firstId) {
-            lastKnownIdRef.current = firstId;
-          }
-
-          let newIncome = false;
-          data.events.forEach((e: any) => {
-            const rawPayload = e.payload || {};
-            const p = rawPayload.payload || rawPayload;
-            const type = (e.event_type || '').toLowerCase().trim();
-
-            if (
-              type === 'fans.tip.received' ||
-              type === 'fans.ppv.purchased' ||
-              type === 'fans.message.purchased' ||
-              type === 'fans.post.purchased' ||
-              type === 'payment.received'
-            ) {
-              const grossAmt = Number(p.price_gross ?? p.amount_gross ?? p.amount ?? p.price ?? 0);
-              const amt = grossAmt * PLATFORM_NET_MULTIPLIER;
-              const rawAccId = String(e.account_id || e.platform_account_id || p.account_id || p.platform_account_id || p.creator_id || '').trim();
-              if (rawAccId && amt > 0) {
-                liveWebhookIncomeByAccountRef.current[rawAccId] = (liveWebhookIncomeByAccountRef.current[rawAccId] || 0) + amt;
-                newIncome = true;
-              }
+        await runPollDrainLoop({
+          fetchBatch: async (cursor, shiftRange, signal) => {
+            const params = new URLSearchParams();
+            params.append('resource', 'events');
+            params.append('compact', '1');
+            params.append('limit', '50');
+            params.append('order', 'asc');
+            params.append('shift_start', shiftRange.start);
+            params.append('shift_end', shiftRange.end);
+            if (cursor) {
+              params.append('since_id', String(cursor));
             }
-          });
 
-          if (newIncome) {
-            evaluateMilestones();
-          }
-        }
+            const res = await fetch(`/api/onlymonster/admin?${params.toString()}`, { signal });
+            if (!res.ok) {
+              return { ok: false, status: res.status };
+            }
+            const contentType = res.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+              return { ok: false, status: res.status };
+            }
+            const data = await res.json();
+            return { ok: true, status: res.status, data };
+          },
+          state: moduleFeedState,
+          currentShift,
+          isDocumentHidden: () => typeof document !== 'undefined' && document.hidden,
+          isMounted: () => isMounted,
+          onActiveControllerCreated: (controller, timeoutId) => {
+            activeFetchAbortController = controller;
+            activeFetchTimeoutId = timeoutId;
+          },
+          onActiveControllerCleared: () => {
+            activeFetchAbortController = null;
+            activeFetchTimeoutId = null;
+          },
+          onBatchProcessed: (batchResult: ProcessBatchResult) => {
+            liveWebhookIncomeByAccountRef.current = moduleFeedState.liveIncomeByAccount;
+
+            if (batchResult.newLiveEvents.length > 0) {
+              setLiveEventsMap(prev => {
+                const next = new Map(prev);
+                batchResult.newLiveEvents.forEach(rec => {
+                  const matchingAcc = accountsRef.current?.find(a => 
+                    String(a.platform_account_id || a.id || '') === rec.accountId ||
+                    String(a.id || '') === rec.accountId
+                  );
+                  const accName = matchingAcc?.name || 'Аккаунт';
+
+                  let eventLabel = 'Продажа';
+                  if (rec.eventType === 'fans.tip.received') eventLabel = 'Чаевые';
+                  else if (rec.eventType === 'fans.ppv.purchased') eventLabel = 'Покупка PPV';
+                  else if (rec.eventType === 'fans.message.purchased') eventLabel = 'Платное сообщение';
+                  else if (rec.eventType === 'fans.post.purchased') eventLabel = 'Платный пост';
+                  else if (rec.eventType === 'payment.received') eventLabel = 'Оплата';
+
+                  const feedItemKey = `live_sale:${rec.id || rec.dedupKey || `${rec.accountId}_${rec.timestampIso}`}`;
+                  const liveItem: LiveFeedItem = {
+                    id: feedItemKey,
+                    dedupe_key: feedItemKey,
+                    category: 'finance',
+                    event_type: rec.eventType,
+                    severity: 'green',
+                    account_id: rec.accountId,
+                    account_name: accName,
+                    shift_id: shiftId,
+                    shift_label: currentShift.label || `Смена ${shiftIdx}`,
+                    amount: rec.amount,
+                    currency: 'USD',
+                    title: `💰 ${eventLabel} $${rec.amount.toFixed(2)} — ${accName}`,
+                    description: `Live событие: $${rec.amount.toFixed(2)} NET (Gross: $${rec.grossAmount.toFixed(2)})`,
+                    status: 'active',
+                    created_at: rec.timestampIso,
+                    updated_at: rec.timestampIso,
+                    expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+                  };
+                  next.set(feedItemKey, liveItem);
+                });
+                return next;
+              });
+            }
+
+            if (batchResult.newIncome) {
+              evaluateMilestones();
+            }
+          },
+          maxBatches: 20,
+          batchLimit: 50,
+          timeoutMs: 10000,
+          isEventInShiftFn: isEventInCurrentKyivShift
+        });
+
       } catch (err: any) {
-        if (!err?.message?.includes('Unexpected token') && !err?.message?.includes('is not valid JSON')) {
-          console.warn('[RealtimeEventFeed] Polling warning:', err?.message || err);
+        if (err?.name !== 'AbortError') {
+          if (!err?.message?.includes('Unexpected token') && !err?.message?.includes('is not valid JSON')) {
+            console.warn('[RealtimeEventFeed] Polling warning:', err?.message || err);
+          }
         }
       } finally {
-        if (isMounted) setIsLoading(false);
+        isPolling = false;
+        if (isMounted) {
+          setIsLoading(false);
+          // Exponential backoff up to 60s upon consecutive network/server errors
+          const nextDelay = moduleFeedState.consecutiveErrors > 0 
+            ? Math.min(60000, 10000 * Math.pow(2, moduleFeedState.consecutiveErrors - 1))
+            : 10000;
+          pollTimeout = setTimeout(executePoll, nextDelay);
+        }
       }
     };
 
-    pollLiveEvents();
-    const interval = setInterval(pollLiveEvents, 10000);
+    // Immediate initial poll
+    executePoll();
+
+    // Catch up immediately when returning to tab
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && !document.hidden && isMounted) {
+        clearTimeout(pollTimeout);
+        executePoll();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      if (activeFetchTimeoutId) {
+        clearTimeout(activeFetchTimeoutId);
+        activeFetchTimeoutId = null;
+      }
+      if (activeFetchAbortController) {
+        activeFetchAbortController.abort();
+        activeFetchAbortController = null;
+      }
+      clearTimeout(pollTimeout);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
     };
   }, [evaluateMilestones]);
 
@@ -1919,91 +1940,232 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
   // Poll unanswered messages count & oldest unreplied ts every 30s
   useEffect(() => {
     let isMounted = true;
+    let timer: any = null;
+    let abortController: AbortController | null = null;
+    let isFetching = false;
+    let consecutiveErrors = 0;
+
     const fetchUnanswered = async () => {
+      if (!isMounted || isFetching) return;
+      if (typeof document !== 'undefined' && document.hidden) {
+        timer = setTimeout(fetchUnanswered, 30000);
+        return;
+      }
+
+      let isTimedOut = false;
+      isFetching = true;
+      abortController = new AbortController();
+      const timeoutId = setTimeout(() => {
+        isTimedOut = true;
+        if (abortController) abortController.abort();
+      }, 10000);
+
       try {
-        const res = await fetch('/api/onlymonster/admin?resource=unanswered-counts');
-        if (!res.ok) return;
-        const data = await res.json();
-        if (isMounted && data.success) {
-          if (data.unansweredCounts) {
-            setUnansweredCountsByAccount(data.unansweredCounts);
+        const res = await fetch('/api/onlymonster/admin?resource=unanswered-counts', {
+          signal: abortController.signal
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data.success) {
+            if (data.unansweredCounts) {
+              setUnansweredCountsByAccount(data.unansweredCounts);
+            }
+            if (data.oldestUnansweredTsByAccount) {
+              setOldestUnansweredTsByAccount(data.oldestUnansweredTsByAccount);
+            }
+            consecutiveErrors = 0;
+          } else {
+            consecutiveErrors++;
           }
-          if (data.oldestUnansweredTsByAccount) {
-            setOldestUnansweredTsByAccount(data.oldestUnansweredTsByAccount);
-          }
+        } else {
+          consecutiveErrors++;
         }
-      } catch (err) {
-        console.error('[OnlyMonsterTab] Error fetching unanswered-counts:', err);
+      } catch (err: any) {
+        if (isTimedOut || (err?.name !== 'AbortError' && isMounted)) {
+          consecutiveErrors++;
+          console.error('[OnlyMonsterTab] Error fetching unanswered-counts:', err);
+        }
+      } finally {
+        clearTimeout(timeoutId);
+        isFetching = false;
+        if (isMounted) {
+          const nextDelay = consecutiveErrors > 0
+            ? Math.min(120000, 30000 * Math.pow(2, consecutiveErrors - 1))
+            : 30000;
+          timer = setTimeout(fetchUnanswered, nextDelay);
+        }
       }
     };
+
     fetchUnanswered();
-    const interval = setInterval(fetchUnanswered, 30000);
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && !document.hidden && isMounted) {
+        clearTimeout(timer);
+        fetchUnanswered();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+    }
+
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      if (abortController) abortController.abort();
+      clearTimeout(timer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
     };
   }, []);
 
   // Poll last hour operator messages every 5m
   useEffect(() => {
     let isMounted = true;
+    let timer: any = null;
+    let abortController: AbortController | null = null;
+    let isFetching = false;
+    let consecutiveErrors = 0;
+
     const fetchLastHourOperators = async () => {
+      if (!isMounted || isFetching) return;
+      if (typeof document !== 'undefined' && document.hidden) {
+        timer = setTimeout(fetchLastHourOperators, 300000);
+        return;
+      }
+
+      let isTimedOut = false;
+      isFetching = true;
+      abortController = new AbortController();
+      const timeoutId = setTimeout(() => {
+        isTimedOut = true;
+        if (abortController) abortController.abort();
+      }, 10000);
+
       try {
         const toISO = new Date().toISOString();
         const fromISO = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-        const res = await fetch(`/api/onlymonster/analytics?resource=shift-operators&from=${fromISO}&to=${toISO}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (isMounted && data.success && Array.isArray(data.operators)) {
-          const map: Record<string, { count: number; name: string }> = {};
-          data.operators.forEach((op: any) => {
-            if (op.user_id) {
-              map[op.user_id] = {
-                count: op.messages_count || 0,
-                name: op.name || 'Оператор',
-              };
-            }
-          });
-          setLastHourOperatorMessages(map);
+        const res = await fetch(`/api/onlymonster/analytics?resource=shift-operators&from=${fromISO}&to=${toISO}`, {
+          signal: abortController.signal
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data.success && Array.isArray(data.operators)) {
+            const map: Record<string, { count: number; name: string }> = {};
+            data.operators.forEach((op: any) => {
+              if (op.user_id) {
+                map[op.user_id] = {
+                  count: op.messages_count || 0,
+                  name: op.name || 'Оператор',
+                };
+              }
+            });
+            setLastHourOperatorMessages(map);
+            consecutiveErrors = 0;
+          } else {
+            consecutiveErrors++;
+          }
+        } else {
+          consecutiveErrors++;
         }
-      } catch (err) {
-        console.error('[OnlyMonsterTab] Error fetching last-hour shift-operators:', err);
+      } catch (err: any) {
+        if (isTimedOut || (err?.name !== 'AbortError' && isMounted)) {
+          consecutiveErrors++;
+          console.error('[OnlyMonsterTab] Error fetching last-hour shift-operators:', err);
+        }
+      } finally {
+        clearTimeout(timeoutId);
+        isFetching = false;
+        if (isMounted) {
+          const nextDelay = consecutiveErrors > 0
+            ? Math.min(600000, 300000 * Math.pow(2, consecutiveErrors - 1))
+            : 300000;
+          timer = setTimeout(fetchLastHourOperators, nextDelay);
+        }
       }
     };
+
     fetchLastHourOperators();
-    const interval = setInterval(fetchLastHourOperators, 300000);
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && !document.hidden && isMounted) {
+        clearTimeout(timer);
+        fetchLastHourOperators();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+    }
+
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      if (abortController) abortController.abort();
+      clearTimeout(timer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
     };
   }, []);
 
+  const accountsLocalRef = useRef<OnlyMonsterAccount[]>(accounts);
+  useEffect(() => {
+    accountsLocalRef.current = accounts;
+  }, [accounts]);
+
   useEffect(() => {
     let isMounted = true;
+    let timer: any = null;
+    let abortController: AbortController | null = null;
+    let isFetching = false;
+    let consecutiveErrors = 0;
+
     const fetchInitialLastActivity = async () => {
+      if (!isMounted || isFetching) return;
+      if (typeof document !== 'undefined' && document.hidden) {
+        timer = setTimeout(fetchInitialLastActivity, 30000);
+        return;
+      }
+
+      let isTimedOut = false;
+      isFetching = true;
+      abortController = new AbortController();
+      const timeoutId = setTimeout(() => {
+        isTimedOut = true;
+        if (abortController) abortController.abort();
+      }, 10000);
+
       try {
-        const accParam = (accounts || [])
+        const currentAccs = accountsLocalRef.current || [];
+        const accParam = currentAccs
           .map(a => [a.id, a.platform_account_id, (a as any).account_id].filter(Boolean))
           .flat()
           .join(',');
         const url = '/api/onlymonster/admin?resource=last-activity' + (accParam ? `&accounts=${encodeURIComponent(accParam)}` : '');
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: abortController.signal });
+
         if (!res.ok) {
           if (isMounted) setLastActivitySyncSuccess(false);
+          consecutiveErrors++;
           return;
         }
         const data = await res.json();
+        if (!data.success) {
+          if (isMounted) setLastActivitySyncSuccess(false);
+          consecutiveErrors++;
+          return;
+        }
         if (isMounted && data.success && data.lastOutgoingAtByAccount) {
           const rawIncoming: Record<string, number | null> = data.lastOutgoingAtByAccount;
           const nowTs = Date.now();
           setLastActivitySyncAt(nowTs);
           setLastActivitySyncSuccess(true);
+          consecutiveErrors = 0;
 
           setLastOutgoingAtByAccount(prev => {
             const next = { ...prev };
-            // Full bulk check: If an account was explicitly requested and received null/0 in the fresh response,
-            // we remove any stale positive value from next so it doesn't cause false inactivity calculations.
-            accounts.forEach(acc => {
+            currentAccs.forEach(acc => {
               const keys = [
                 String(acc.id || ''),
                 String(acc.platform_account_id || ''),
@@ -2016,13 +2178,11 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
                 if (maxFresh > 0) {
                   keys.forEach(k => { next[k] = Math.max(next[k] || 0, maxFresh); });
                 } else {
-                  // Explicitly confirmed as having no outgoing activity in full check
                   keys.forEach(k => { delete next[k]; });
                 }
               }
             });
 
-            // Also ingest any other keys returned
             Object.entries(rawIncoming).forEach(([key, ts]) => {
               const numTs = Number(ts);
               if (numTs > 0) {
@@ -2034,19 +2194,47 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
           });
         } else if (isMounted) {
           setLastActivitySyncSuccess(false);
+          consecutiveErrors++;
         }
-      } catch (err) {
-        if (isMounted) setLastActivitySyncSuccess(false);
-        console.error('[OnlyMonsterTab] Error fetching last-activity:', err);
+      } catch (err: any) {
+        if (isTimedOut || (err?.name !== 'AbortError' && isMounted)) {
+          if (isMounted) setLastActivitySyncSuccess(false);
+          consecutiveErrors++;
+          console.error('[OnlyMonsterTab] Error fetching last-activity:', err);
+        }
+      } finally {
+        clearTimeout(timeoutId);
+        isFetching = false;
+        if (isMounted) {
+          const nextDelay = consecutiveErrors > 0
+            ? Math.min(120000, 30000 * Math.pow(2, consecutiveErrors - 1))
+            : 30000;
+          timer = setTimeout(fetchInitialLastActivity, nextDelay);
+        }
       }
     };
+
     fetchInitialLastActivity();
-    const interval = setInterval(fetchInitialLastActivity, 30000);
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && !document.hidden && isMounted) {
+        clearTimeout(timer);
+        fetchInitialLastActivity();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+    }
+
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      if (abortController) abortController.abort();
+      clearTimeout(timer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
     };
-  }, [accounts]);
+  }, []);
 
   const isActivitySyncFresh = useMemo(() => {
     if (!lastActivitySyncSuccess || !lastActivitySyncAt) return false;
@@ -2521,10 +2709,14 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
       }
       params.set('resource', 'earnings');
 
+      const syncStartTime = Date.now();
       const res = await fetch(`/api/onlymonster/analytics?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         if (data && data.success && data.earnings) {
+          if (dayMode === 'today') {
+            recalculateLiveWebhookIncome();
+          }
           setAccounts(prev => {
             const baseList = prev.length > 0 ? prev : accountsList;
             return baseList.map(acc => {

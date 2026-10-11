@@ -12,7 +12,47 @@ function sendJson(res: any, status: number, data: any) {
   return res.end(JSON.stringify(data));
 }
 
-async function handleEvents(req: any, res: any, queryParams: Record<string, string>) {
+export function formatEvents(rows: any[], isCompact: boolean = true) {
+  return rows.map((r: any) => {
+    // Enforce string preservation for 64-bit integer (bigint) safety.
+    // When querying PostgREST with 'id:id::text', the ID arrives from PostgreSQL as a string,
+    // avoiding IEEE 754 precision loss that occurs when JSON.parse parses numbers > Number.MAX_SAFE_INTEGER.
+    let strId: string | null = null;
+    if (r.id !== undefined && r.id !== null) {
+      if (typeof r.id === 'number' && !Number.isSafeInteger(r.id)) {
+        throw new Error(
+          `Unsafe bigint ID: event ID ${r.id} is an unsafe JavaScript number exceeding Number.MAX_SAFE_INTEGER. ` +
+          `Precision has been compromised. ID must be queried as string ('id:id::text') from database to prevent cursor corruption.`
+        );
+      }
+      strId = String(r.id).trim();
+    }
+    if (!isCompact) {
+      return { ...r, id: strId };
+    }
+    const rawP = r.payload?.payload || r.payload || {};
+    return {
+      id: strId,
+      event_type: r.event_type,
+      account_id: r.account_id,
+      platform_account_id: r.platform_account_id,
+      received_at: r.received_at,
+      event_timestamp: r.event_timestamp,
+      dedup_key: r.dedup_key,
+      payload: {
+        price_gross: rawP.price_gross ?? rawP.amount_gross ?? rawP.amount ?? rawP.price ?? 0,
+        amount_gross: rawP.amount_gross ?? null,
+        amount: rawP.amount ?? null,
+        price: rawP.price ?? null,
+        account_id: rawP.account_id ?? null,
+        platform_account_id: rawP.platform_account_id ?? null,
+        creator_id: rawP.creator_id ?? null,
+      }
+    };
+  });
+}
+
+export async function handleEvents(req: any, res: any, queryParams: Record<string, string>) {
   try {
     const supabase = await getSupabaseClient();
     if (!supabase) {
@@ -25,30 +65,58 @@ async function handleEvents(req: any, res: any, queryParams: Record<string, stri
 
     const shiftStart = queryParams.shift_start;
     const shiftEnd = queryParams.shift_end;
-    const afterId = queryParams.after_id;
+    // Item 1: Harmonize after_id and since_id for backwards & forwards compatibility
+    const rawAfterId = queryParams.after_id || queryParams.since_id || '';
+    const afterId = typeof rawAfterId === 'string' ? rawAfterId.trim() : String(rawAfterId || '');
+    const isCompact = queryParams.compact === '1' || queryParams.compact === 'true';
+
+
+
+    // Cast id to text via PostgREST column casting syntax 'id:id::text' so that PostgREST transmits
+    // the 64-bit bigint as a JSON string, guaranteeing that client/server JSON.parse does NOT convert
+    // it to a JavaScript Number and corrupt values exceeding Number.MAX_SAFE_INTEGER (9007199254740991).
+    const selectFields = 'id:id::text, event_type, account_id, platform_account_id, payload, received_at, event_timestamp, dedup_key';
+    const fallbackSelectFields = 'id, event_type, account_id, platform_account_id, payload, received_at, event_timestamp, dedup_key';
 
     // Shift-bounded query: load all events within the operational shift boundaries
     if (shiftStart && shiftEnd) {
       const limit = Math.min(Math.max(parseInt(queryParams.limit || '500', 10) || 500, 1), 1000);
+      const isAsc = queryParams.order === 'asc' || (Boolean(afterId) && queryParams.order !== 'desc');
 
       let query = supabase
         .from('om_webhook_events')
-        .select('id, event_type, account_id, platform_account_id, payload, received_at, event_timestamp')
+        .select(selectFields)
         .gte('received_at', shiftStart)
         .lte('received_at', shiftEnd)
-        .order('received_at', { ascending: false })
+        .order(isAsc ? 'id' : 'received_at', { ascending: isAsc })
         .limit(limit);
 
       if (afterId) {
-        const numAfterId = parseInt(afterId, 10);
-        if (!isNaN(numAfterId)) {
-          query = query.gt('id', numAfterId);
-        } else {
-          query = query.gt('id', afterId);
-        }
+        // Schema Note: om_webhook_events.id is a monotonically increasing 64-bit integer (bigint).
+        // Passing the string representation directly to PostgREST preserves exact 64-bit precision.
+        // NOTE: Random UUIDs are NOT supported with `id > cursor` because non-monotonic UUIDs
+        // cause events with lexicographically smaller IDs to be missed.
+        query = query.gt('id', afterId);
       }
 
-      const { data, error } = await query;
+      let { data, error } = await query;
+
+      // Graceful fallback if a mock Supabase or specific PostgREST version doesn't support column casting syntax
+      if (error && (error.message?.includes('id::text') || error.message?.includes('syntax') || error.message?.includes('failed to parse'))) {
+        let fallbackQuery = supabase
+          .from('om_webhook_events')
+          .select(fallbackSelectFields)
+          .gte('received_at', shiftStart)
+          .lte('received_at', shiftEnd)
+          .order(isAsc ? 'id' : 'received_at', { ascending: isAsc })
+          .limit(limit);
+        if (afterId) {
+          fallbackQuery = fallbackQuery.gt('id', afterId);
+        }
+        const fallbackRes = await fallbackQuery;
+        data = fallbackRes.data;
+        error = fallbackRes.error;
+      }
 
       if (error) {
         console.error('[Events History] Error fetching shift events from Supabase:', error);
@@ -59,8 +127,9 @@ async function handleEvents(req: any, res: any, queryParams: Record<string, stri
         });
       }
 
-      const events = data || [];
-      const truncated = events.length >= limit;
+      const rawEvents = data || [];
+      const events = formatEvents(rawEvents, isCompact);
+      const truncated = rawEvents.length >= limit;
 
       return sendJson(res, 200, {
         success: true,
@@ -69,25 +138,36 @@ async function handleEvents(req: any, res: any, queryParams: Record<string, stri
       });
     }
 
-    // Fallback: limit/after_id without shift bounds for backwards compatibility
+    // Fallback: limit/after_id without shift bounds
     const limit = Math.min(Math.max(parseInt(queryParams.limit || '50', 10) || 50, 1), 100);
+    // When polling with after_id/since_id, sort ascending chronologically so no events are skipped when > limit arrive
+    const isAsc = queryParams.order === 'asc' || Boolean(afterId);
 
     let query = supabase
       .from('om_webhook_events')
-      .select('id, event_type, account_id, platform_account_id, payload, received_at, event_timestamp')
-      .order('received_at', { ascending: false })
+      .select(selectFields)
+      .order(isAsc ? 'id' : 'received_at', { ascending: isAsc })
       .limit(limit);
 
     if (afterId) {
-      const numAfterId = parseInt(afterId, 10);
-      if (!isNaN(numAfterId)) {
-        query = query.gt('id', numAfterId);
-      } else {
-        query = query.gt('id', afterId);
-      }
+      query = query.gt('id', afterId);
     }
 
-    const { data, error } = await query;
+    let { data, error } = await query;
+
+    if (error && (error.message?.includes('id::text') || error.message?.includes('syntax') || error.message?.includes('failed to parse'))) {
+      let fallbackQuery = supabase
+        .from('om_webhook_events')
+        .select(fallbackSelectFields)
+        .order(isAsc ? 'id' : 'received_at', { ascending: isAsc })
+        .limit(limit);
+      if (afterId) {
+        fallbackQuery = fallbackQuery.gt('id', afterId);
+      }
+      const fallbackRes = await fallbackQuery;
+      data = fallbackRes.data;
+      error = fallbackRes.error;
+    }
 
     if (error) {
       console.error('[Events History] Error fetching from Supabase:', error);
@@ -98,9 +178,13 @@ async function handleEvents(req: any, res: any, queryParams: Record<string, stri
       });
     }
 
+    const rawData = data || [];
+    const formattedData = formatEvents(rawData, isCompact);
+
     return sendJson(res, 200, {
       success: true,
-      events: data || []
+      events: formattedData,
+      truncated: rawData.length >= limit
     });
   } catch (err: any) {
     console.error('[Events History] Exception:', err);
@@ -112,7 +196,7 @@ async function handleEvents(req: any, res: any, queryParams: Record<string, stri
   }
 }
 
-async function handleWebhooks(req: any, res: any) {
+async function handleWebhooks(req: any, res: any, queryParams: Record<string, string> = {}) {
   try {
     const supabase = await getSupabaseClient();
     if (!supabase) {
@@ -123,9 +207,44 @@ async function handleWebhooks(req: any, res: any) {
       });
     }
 
+    const singleId = queryParams.id || queryParams.webhook_id;
+    if (singleId) {
+      // Detailed single webhook view by ID (loads full payload on demand)
+      // Passing singleId directly as string to PostgREST preserves bigint/string precision
+      const query = supabase
+        .from('om_webhook_events')
+        .select('id, received_at, event_timestamp, event_type, dedup_key, account_id, platform_account_id, signature_valid, payload')
+        .eq('id', singleId);
+
+      const { data, error } = await query.single();
+      if (error) {
+        return sendJson(res, 200, {
+          success: false,
+          error: error.message
+        });
+      }
+
+      return sendJson(res, 200, {
+        success: true,
+        webhook: {
+          id: data.id,
+          timestamp: data.received_at || data.event_timestamp,
+          type: data.event_type,
+          dedupKey: data.dedup_key,
+          accountId: data.account_id,
+          platformAccountId: data.platform_account_id,
+          signatureValid: data.signature_valid,
+          data: data.payload,
+          payload: data.payload,
+          source: 'OnlyMonster Webhook'
+        }
+      });
+    }
+
+    // List view: select lightweight summary without full JSON blob to save network bandwidth and memory
     const { data, error } = await supabase
       .from('om_webhook_events')
-      .select('*')
+      .select('id, received_at, event_timestamp, event_type, dedup_key, account_id, platform_account_id, signature_valid')
       .order('received_at', { ascending: false })
       .limit(100);
 
@@ -146,7 +265,6 @@ async function handleWebhooks(req: any, res: any) {
       accountId: row.account_id,
       platformAccountId: row.platform_account_id,
       signatureValid: row.signature_valid,
-      data: row.payload,
       source: 'OnlyMonster Webhook'
     }));
 
@@ -578,6 +696,6 @@ export default async function handler(req: any, res: any) {
   } else if (resource === 'db-tables' || resource === 'tables') {
     return handleDbTables(req, res);
   } else {
-    return handleWebhooks(req, res);
+    return handleWebhooks(req, res, queryParams);
   }
 }

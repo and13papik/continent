@@ -117,31 +117,6 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // 2. Lightweight probabilistic auto-cleanup of old events (~2% probability, fire-and-forget)
-    // SQL equivalent: DELETE FROM om_webhook_events WHERE received_at < NOW() - INTERVAL '30 days';
-    if (Math.random() < 0.02) {
-      (async () => {
-        try {
-          const cleanupClient = await getSupabaseClient();
-          if (cleanupClient) {
-            const cutoffDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-            const { count, error } = await cleanupClient
-              .from('om_webhook_events')
-              .delete({ count: 'exact' })
-              .lt('received_at', cutoffDate);
-
-            if (error) {
-              console.error('[Cleanup] Error deleting old webhook events:', error.message);
-            } else {
-              console.log(`[Cleanup] Removed ${count ?? 0} old webhook events (older than 30 days)`);
-            }
-          }
-        } catch (cleanupErr: any) {
-          console.error('[Cleanup] Background cleanup exception:', cleanupErr?.message || cleanupErr);
-        }
-      })();
-    }
-
     return sendJson(res, 200, {
       success: true,
       received: true,

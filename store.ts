@@ -1058,3 +1058,35 @@ export function purgeModelData(
   return { newState, stats };
 }
 
+export interface OrphanedRecordsBreakdown {
+  total: number;
+  incomeCount: number;
+  operationsCount: number;
+  manualIncomesCount: number;
+  expensesCount: number;
+  otherCount: number;
+}
+
+export function getOrphanedRecordsBreakdown(state: AppState): OrphanedRecordsBreakdown {
+  const periodIds = new Set((state.accountingPeriods || []).map(p => p.id));
+  const badIncome = (state.incomeData || []).filter(i => !periodIds.has(i.periodId));
+  const badOps = (state.operationsData || []).filter(o => !periodIds.has(o.periodId));
+  const badManual = (state.ownerManualIncomes || []).filter(m => !periodIds.has(m.periodId));
+  const badExpenses = (state.ownerExpenses || []).filter(e => !periodIds.has(e.periodId));
+
+  const total = badIncome.length + badOps.length + badManual.length + badExpenses.length;
+  return {
+    total,
+    incomeCount: badIncome.length,
+    operationsCount: badOps.length,
+    manualIncomesCount: badManual.length,
+    expensesCount: badExpenses.length,
+    otherCount: 0
+  };
+}
+
+export function purgeOrphanedRecords(state: AppState): { nextState: AppState; purgedCount: number } {
+  // CRITICAL: Financial records must NEVER be deleted or added to deletedIds.
+  // This function is kept for signature compatibility only and preserves all data intact.
+  return { nextState: state, purgedCount: 0 };
+}

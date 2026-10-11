@@ -124,22 +124,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
     return [...badIncome, ...badOps];
   }, [state.incomeData, state.operationsData, state.accountingPeriods]);
 
-  const [showConfirmPurgeModal, setShowConfirmPurgeModal] = useState(false);
-  const [purgeSuccessMessage, setPurgeSuccessMessage] = useState<string | null>(null);
-
-  const handlePurgeHomeless = () => {
-    let countPurged = 0;
-    updateState(prev => {
-      const { nextState, purgedCount } = purgeOrphanedRecords(prev);
-      countPurged = purgedCount;
-      return nextState;
-    });
-    setShowConfirmPurgeModal(false);
-    setPurgeSuccessMessage(`Успешно очищено ${countPurged} архивных записей. База данных обновлена.`);
-    setTimeout(() => {
-      setPurgeSuccessMessage(null);
-    }, 5000);
-  };
 
   const repairHomeless = () => {
     const confirmRepair = confirm(`Обнаружено ${homelessBreakdown.total} записей без привязки к периоду. Создать для них новый период "Восстановленные данные"?`);
@@ -603,18 +587,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
         </div>
       </header>
 
-      {purgeSuccessMessage && (
-        <div className="bg-emerald-500/20 border border-emerald-500/40 p-4 rounded-2xl flex items-center justify-between gap-4 text-emerald-300 shadow-lg">
-          <div className="flex items-center gap-3">
-            <ICONS.CheckCircle size={20} className="text-emerald-400 shrink-0" />
-            <span className="text-xs font-semibold">{purgeSuccessMessage}</span>
-          </div>
-          <button onClick={() => setPurgeSuccessMessage(null)} className="text-emerald-400 hover:text-white transition-colors">
-            <ICONS.Close size={18} />
-          </button>
-        </div>
-      )}
-
       {homelessBreakdown.total > 0 && (
         <div className="bg-gradient-to-r from-rose-950/40 via-[#161d31] to-slate-900 border border-rose-500/40 p-6 rounded-[2rem] flex flex-col xl:flex-row items-center justify-between gap-6 shadow-2xl backdrop-blur-xl">
            <div className="flex items-center gap-4">
@@ -629,74 +601,19 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
                     </span>
                  </h3>
                  <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                    Найдено {homelessBreakdown.total} записей (доходов: {homelessBreakdown.incomeCount}, операций: {homelessBreakdown.operationsCount}), у которых был удален период. 
-                    Если вы удалили старые месяцы намеренно — подтвердите удаление, чтобы очистить архив и убрать это сообщение.
+                    Найдено {homelessBreakdown.total} записей (доходов: {homelessBreakdown.incomeCount}, операций: {homelessBreakdown.operationsCount}, ручных доходов: {homelessBreakdown.manualIncomesCount}, расходов: {homelessBreakdown.expensesCount}), у которых отсутствует привязка к существующему периоду.
+                    Все финансовые записи сохранены без изменений. Вы можете восстановить их в рабочий период для полного учета.
                  </p>
               </div>
            </div>
            <div className="flex flex-wrap items-center gap-3 shrink-0">
               <button 
-                onClick={() => setShowConfirmPurgeModal(true)} 
-                className="flex items-center gap-2 bg-rose-600 hover:bg-rose-500 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-rose-600/30 active:scale-95"
-              >
-                 <ICONS.Trash size={15} /> Подтвердить удаление
-              </button>
-              <button 
                 onClick={repairHomeless} 
-                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 hover:border-slate-600 px-5 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all active:scale-95"
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/30 active:scale-95"
               >
                  <ICONS.RotateCcw size={15} /> Восстановить в период
               </button>
            </div>
-        </div>
-      )}
-
-      {showConfirmPurgeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-[#161d31] border border-rose-500/30 max-w-md w-full rounded-3xl p-6 shadow-2xl space-y-5">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 border border-rose-500/30">
-                <ICONS.Trash size={22} />
-              </div>
-              <div>
-                <h4 className="text-lg font-bold text-white font-outfit">Подтвердить удаление?</h4>
-                <p className="text-xs text-slate-400">Очистка {homelessBreakdown.total} архивных записей</p>
-              </div>
-            </div>
-            
-            <div className="text-xs text-slate-300 leading-relaxed bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2">
-              <p>
-                Вы собираетесь навсегда удалить <span className="font-bold text-rose-400 font-mono">{homelessBreakdown.total}</span> записей, оставшихся после удаления старых месяцев:
-              </p>
-              <div className="text-[11px] text-slate-400 pl-2 space-y-1">
-                {homelessBreakdown.incomeCount > 0 && <div>• Записи доходов: <b className="text-white font-mono">{homelessBreakdown.incomeCount}</b></div>}
-                {homelessBreakdown.operationsCount > 0 && <div>• Записи операций: <b className="text-white font-mono">{homelessBreakdown.operationsCount}</b></div>}
-                {homelessBreakdown.manualIncomesCount > 0 && <div>• Ручные доходы: <b className="text-white font-mono">{homelessBreakdown.manualIncomesCount}</b></div>}
-                {homelessBreakdown.expensesCount > 0 && <div>• Расходы: <b className="text-white font-mono">{homelessBreakdown.expensesCount}</b></div>}
-                {homelessBreakdown.otherCount > 0 && <div>• Прочие записи: <b className="text-white font-mono">{homelessBreakdown.otherCount}</b></div>}
-              </div>
-            </div>
-
-            <div className="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl flex items-start gap-2">
-              <ICONS.AlertTriangle size={16} className="shrink-0 mt-0.5 text-amber-400" />
-              <span>Эти записи будут удалены из локальной базы и облачной синхронизации. Уведомление исчезнет.</span>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                onClick={() => setShowConfirmPurgeModal(false)}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-all"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={handlePurgeHomeless}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-rose-600 hover:bg-rose-500 shadow-lg shadow-rose-600/30 transition-all active:scale-95"
-              >
-                <ICONS.Trash size={14} /> Да, удалить навсегда ({homelessBreakdown.total})
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
