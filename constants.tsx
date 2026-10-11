@@ -87,6 +87,7 @@ export const ICONS: Record<string, any> = {
   Internship: GraduationCap,
   Crown: Crown,
   Close: X,
+  X: X,
   Search: Search,
   ClipboardList: ClipboardList,
   Check: Check,
