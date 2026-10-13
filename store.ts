@@ -11,6 +11,8 @@ import {
   PaidStatus, 
   OperatorAssessment 
 } from './types';
+import { syncToCloud } from './cloudSync';
+import { loadSyncBase } from './syncStorage';
 
 const STORAGE_KEY = 'continental_dashboard_v3';
 const EMERGENCY_KEY = 'continental_emergency_backup';
@@ -52,7 +54,8 @@ export function createInitialState(): AppState {
         operatorAssessments: parsed.operatorAssessments || [],
         modelGroups: parsed.modelGroups || []
       };
-      return deduplicatePeriods(loadedState);
+      // Loading a browser backup must not rewrite periods or their financial links.
+      return loadedState;
     } catch (e) {
       console.error("Failed to parse storage", e);
     }
@@ -427,79 +430,12 @@ function createTimeoutSignal(ms: number): AbortSignal {
   return controller.signal;
 }
 
-export async function syncToCloud(state: AppState): Promise<{ success: boolean; newState?: AppState }> {
-  if (!state.syncUrl || !state.syncKey) return { success: false };
-  
-  const baseUrl = state.syncUrl.trim().replace(/\/$/, "");
-  const url = `${baseUrl}/rest/v1/app_storage`;
-  const headers = { 
-    'apikey': state.syncKey.trim(), 
-    'Authorization': `Bearer ${state.syncKey.trim()}`,
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-cache'
-  };
-
-  try {
-    const checkResponse = await fetch(`${url}?id=eq.main&select=state`, { 
-      headers,
-      signal: createTimeoutSignal(12000)
-    });
-    let finalState = { ...state };
-
-    if (checkResponse.ok) {
-      const cloudData = await checkResponse.json();
-      if (cloudData && cloudData.length > 0 && cloudData[0].state) {
-        const remote: AppState = cloudData[0].state;
-        finalState = mergeStates(state, remote);
-      }
-    }
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { ...headers, 'Prefer': 'resolution=merge-duplicates' },
-      body: JSON.stringify({ 
-        id: 'main',
-        state: { ...finalState, lastSyncedAt: new Date().toISOString() }, 
-        updated_at: new Date().toISOString() 
-      }),
-      signal: createTimeoutSignal(15000)
-    });
-
-    return { success: response.ok, newState: finalState };
-  } catch (e) {
-    console.error("Cloud Sync Error:", e);
-    return { success: false };
-  }
-}
+export { syncToCloud } from './cloudSync';
 
 export async function forcePushToCloud(state: AppState): Promise<boolean> {
-  if (!state.syncUrl || !state.syncKey) return false;
-  
-  const baseUrl = state.syncUrl.trim().replace(/\/$/, "");
-  const url = `${baseUrl}/rest/v1/app_storage`;
-  const headers = { 
-    'apikey': state.syncKey.trim(), 
-    'Authorization': `Bearer ${state.syncKey.trim()}`,
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-cache'
-  };
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { ...headers, 'Prefer': 'resolution=merge-duplicates' },
-      body: JSON.stringify({ 
-        id: 'main',
-        state: { ...state, lastSyncedAt: new Date().toISOString() }, 
-        updated_at: new Date().toISOString() 
-      }),
-      signal: createTimeoutSignal(15000)
-    });
-    return response.ok;
-  } catch (e) {
-    console.error("Force Push Error:", e);
-    return false;
-  }
+  if (!state.syncUrl) return false;
+  const result = await syncToCloud(state, { baseState: await loadSyncBase(state.syncUrl) });
+  return result.success;
 }
 
 export async function fetchFromCloud(url: string, key?: string, timeoutMs = 12000): Promise<AppState | null> {
@@ -518,7 +454,7 @@ export async function fetchFromCloud(url: string, key?: string, timeoutMs = 1200
     });
     if (!response.ok) return null;
     const data = await response.json();
-    return (data && data.length > 0 && data[0].state) ? deduplicatePeriods(data[0].state) : null;
+    return (data && data.length > 0 && data[0].state) ? data[0].state : null;
   } catch (e) {
     console.warn("fetchFromCloud error:", e);
     return null;
