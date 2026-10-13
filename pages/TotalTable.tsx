@@ -1,3 +1,4 @@
+import { telegramFetch } from '../telegramClient';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
@@ -6,7 +7,6 @@ import { ICONS } from '../constants';
 import { findPeriodIdByDate } from '../store';
 import PeriodBadge from '../components/PeriodBadge';
 
-const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
 const DEFAULT_CHAT_ID = '-1003748692600';
 
 const SHIFTS = [
@@ -543,75 +543,19 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
           `🔔 <a href="tg://user?id=8679682362">@adm_viksi_viii [Adm]Vi</a> <a href="tg://user?id=6537516111">@adm_rctr Rector</a> <a href="tg://user?id=1434399006">@continental_agency</a>`;
       }
 
-      let sentSuccessfully = false;
-      let backendError = '';
-
-      // 1. Try sending via backend proxy
-      try {
-        const res = await fetch('/api/telegram/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'photo',
-            image: dataUrl,
-            text: captionToSend
-          })
+      const res = await fetch('/api/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'photo', image: dataUrl, text: captionToSend, chat_id: chatId })
+      });
+      const resultData = await res.json();
+      if (!res.ok || !resultData.ok) throw new Error(resultData.error || 'Отправка не подтверждена. Проверьте чат перед повтором.');
+      const sentSuccessfully = true;
+      if (message.length > 950) {
+        const fullText = await telegramFetch('sendMessage', {
+          method: 'POST', body: JSON.stringify({ text: message, chat_id: chatId })
         });
-
-        const resData = await res.json().catch(() => ({}));
-        if (res.ok && (resData.ok !== false)) {
-          sentSuccessfully = true;
-        } else {
-          backendError = resData.error || resData.description || `HTTP ${res.status}`;
-        }
-      } catch (err: any) {
-        console.warn('Backend send failed, falling back to direct Telegram API:', err);
-        backendError = err.message || String(err);
-      }
-
-      // 2. Direct fallback if backend proxy failed
-      if (!sentSuccessfully) {
-        const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
-        if (!blob) throw new Error('Не удалось создать изображение таблицы');
-
-        const formData = new FormData();
-        formData.append('chat_id', chatId);
-        formData.append('photo', blob, 'report.jpg');
-        formData.append('caption', captionToSend);
-        formData.append('parse_mode', 'HTML');
-
-        const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
-          method: 'POST',
-          body: formData
-        });
-
-        const resultData = await res.json().catch(() => ({}));
-        if (res.ok && resultData.ok) {
-          sentSuccessfully = true;
-        } else {
-          throw new Error(`Ошибка Telegram: ${resultData.description || backendError || 'Неизвестная ошибка'}`);
-        }
-      }
-
-      // Send full text message if caption was shortened
-      if (sentSuccessfully && message.length > 950) {
-        try {
-          await fetch('/api/telegram/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'text', text: message })
-          });
-        } catch {
-          fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: chatId,
-              text: message,
-              parse_mode: 'HTML'
-            })
-          }).catch(() => {});
-        }
+        if (!fullText.ok) throw new Error('Изображение отправлено, полный текст не подтверждён. Проверьте чат перед повтором.');
       }
 
       if (sentSuccessfully) {

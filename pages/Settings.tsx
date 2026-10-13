@@ -1,3 +1,4 @@
+import { cloudFetch } from '../cloudTransport';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { AppState, CloudSnapshot, AccountingPeriod } from '../types';
@@ -203,7 +204,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
 
       if (state.syncUrl && state.syncKey) {
         const cleanUrl = state.syncUrl.trim().replace(/\/$/, '');
-        const res = await fetch(`${cleanUrl}/rest/v1/app_storage?id=eq.main&select=id,state,updated_at`, {
+        const res = await cloudFetch(`${cleanUrl}/rest/v1/app_storage?id=eq.main&select=id,state,updated_at`, {
           headers: { 'apikey': state.syncKey.trim(), 'Authorization': `Bearer ${state.syncKey.trim()}` }
         });
         if (res.ok) {
@@ -297,8 +298,8 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
   };
 
   useEffect(() => {
-    loadSnapshots();
-  }, [state.syncUrl, state.syncKey]);
+    if (userRole === 'owner') loadSnapshots();
+  }, [state.syncUrl, state.syncKey, userRole]);
 
   const handleUpdateDefaultGoal = (modelName: string, shift: 'night' | 'morning' | 'day' | 'evening', value: string) => {
     const val = parseFloat(value) || 0;
@@ -319,7 +320,8 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
   };
 
   const exportData = () => {
-    const dataStr = JSON.stringify(state, null, 2);
+    const { syncKey, dbUrl, ...backup } = state;
+    const dataStr = JSON.stringify(backup, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
@@ -387,44 +389,6 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
     const result = await testDatabaseConnection(syncUrlInput, syncKeyInput);
     setDbTestResult(result);
     setIsManualSyncing(false);
-  };
-
-  const handleApplySettings = async () => {
-    const cleanUrl = syncUrlInput.trim();
-    const cleanKey = syncKeyInput.trim();
-
-    if (cleanUrl && cleanKey) {
-      // Keep server in sync for keep-alive pings
-      fetch('/api/database/keepalive', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ syncUrl: cleanUrl, syncKey: cleanKey })
-      }).catch(() => {});
-
-      setIsManualSyncing(true);
-      try {
-        const remote = await fetchFromCloud(cleanUrl, cleanKey);
-        if (remote && remote.accountingPeriods && remote.accountingPeriods.length > 0) {
-          const localHasRecords = (state.incomeData && state.incomeData.length > 0) ||
-                                  (state.operationsData && state.operationsData.length > 0);
-          
-          if (!localHasRecords) {
-            // Fresh browser / empty local state: adopt the cloud data directly
-            updateState(() => deduplicatePeriods({ ...remote, syncUrl: cleanUrl, syncKey: cleanKey }));
-            alert('Настройки сохранены. Данные из базы успешно загружены!');
-            setIsManualSyncing(false);
-            return;
-          }
-        }
-      } catch (e) {
-        console.warn('Initial cloud fetch on apply error:', e);
-      } finally {
-        setIsManualSyncing(false);
-      }
-    }
-
-    updateState(p => deduplicatePeriods({ ...p, syncUrl: cleanUrl, syncKey: cleanKey }));
-    alert('Настройки сохранены локально.');
   };
 
   const forcePull = async () => {
@@ -596,19 +560,10 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-1 p-8 rounded-[2.5rem] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-6">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <ICONS.Dashboard size={20} className="text-indigo-400" /> Supabase Config
+            <ICONS.Dashboard size={20} className="text-indigo-400" /> Облачное подключение
           </h2>
           
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Project URL</label>
-              <input className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3 text-sm text-white outline-none focus:border-indigo-400 transition-all" value={syncUrlInput} onChange={e => setSyncUrlInput(e.target.value)} placeholder="https://xxxx.supabase.co" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Anon Key</label>
-              <input type="password" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3 text-sm text-white outline-none focus:border-indigo-400 transition-all" value={syncKeyInput} onChange={e => setSyncKeyInput(e.target.value)} placeholder="eyJhb..." />
-            </div>
-          </div>
+          <p className="text-sm text-slate-400">Подключение защищено сервером. Для работы достаточно войти в свой аккаунт.</p>
 
           {dbTestResult && (
             <div className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
@@ -627,7 +582,6 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
             >
               {isManualSyncing ? 'Проверка...' : '⚡ Проверить подключение'}
             </button>
-            <button onClick={handleApplySettings} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-2xl font-bold text-sm shadow-lg shadow-indigo-600/30 transition-all active:scale-95 cursor-pointer">Применить</button>
             <button onClick={forcePull} disabled={isManualSyncing} className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer">Загрузить "main"</button>
             {userRole === 'owner' && (
               <button onClick={handleWipeData} className="w-full bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/30 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer">Сбросить доходы</button>

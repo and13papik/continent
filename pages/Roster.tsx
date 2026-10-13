@@ -1,3 +1,4 @@
+import { telegramFetch } from '../telegramClient';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
@@ -131,7 +132,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       // If reached 7 days and never notified
       if (days >= 7 && !alreadyNotified) {
         try {
-          await fetch('/api/telegram/send', {
+          await fetch('/api/telegram', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -229,7 +230,6 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       // JPEG compressed 0.85
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
-      const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
       const DEFAULT_CHAT_ID = '-1003748692600';
 
       const headerText = (isCorrection || rosterNeedsFix)
@@ -249,6 +249,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
 
       let sentSuccessfully = false;
       let lastErrMsg = '';
+      let legacyEndpointMissing = false;
 
       // 1. Try sending via backend proxy
       try {
@@ -275,6 +276,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
           sentSuccessfully = true;
         } else {
           lastErrMsg = result?.error || `HTTP ${response.status}: Ошибка сервера`;
+          legacyEndpointMissing = response.status === 404 || response.status === 405;
         }
       } catch (apiErr: any) {
         console.warn("Backend API call failed, falling back to direct Telegram send:", apiErr);
@@ -283,6 +285,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
 
       // 2. Fallback to direct Telegram API if backend failed
       if (!sentSuccessfully) {
+        if (!legacyEndpointMissing) throw new Error(lastErrMsg || 'Отправка не подтверждена. Проверьте чат перед повтором.');
         const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
         if (!blob) throw new Error('Не удалось сформировать изображение');
 
@@ -293,7 +296,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         formData.append('parse_mode', 'HTML');
         formData.append('reply_markup', JSON.stringify(replyMarkup));
 
-        const directRes = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
+        const directRes = await telegramFetch('sendPhoto', {
           method: 'POST',
           body: formData
         });

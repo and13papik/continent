@@ -1,3 +1,4 @@
+import { cloudFetch } from './cloudTransport';
 
 import { 
   AppState, 
@@ -444,7 +445,7 @@ export async function fetchFromCloud(url: string, key?: string, timeoutMs = 1200
   const fetchUrl = `${baseUrl}/rest/v1/app_storage?id=eq.main&select=state`;
 
   try {
-    const response = await fetch(fetchUrl, {
+    const response = await cloudFetch(fetchUrl, {
       headers: { 
         'apikey': key.trim(), 
         'Authorization': `Bearer ${key.trim()}`,
@@ -466,7 +467,7 @@ export async function listCloudSnapshots(url: string, key?: string): Promise<Clo
   const baseUrl = url.trim().replace(/\/$/, "");
   const fetchUrl = `${baseUrl}/rest/v1/app_storage?select=id,state,updated_at&order=updated_at.desc&limit=20`;
   try {
-    const response = await fetch(fetchUrl, {
+    const response = await cloudFetch(fetchUrl, {
       headers: { 
         'apikey': key.trim(), 
         'Authorization': `Bearer ${key.trim()}`,
@@ -474,7 +475,16 @@ export async function listCloudSnapshots(url: string, key?: string): Promise<Clo
       },
       signal: createTimeoutSignal(10000)
     });
-    return response.ok ? await response.json() : [];
+    if (!response.ok) return [];
+    const rows = await response.json();
+    const snapshots: CloudSnapshot[] = [];
+    for (const row of rows) {
+      const item = await cloudFetch(`${baseUrl}/rest/v1/app_storage?id=eq.${encodeURIComponent(row.id)}&select=id,state,updated_at`, { signal: createTimeoutSignal(10000) });
+      if (!item.ok) continue;
+      const result = await item.json();
+      if (result[0]?.state) snapshots.push(result[0]);
+    }
+    return snapshots;
   } catch (e) {
     return [];
   }
@@ -485,7 +495,7 @@ export async function testDatabaseConnection(url: string, key: string): Promise<
   const baseUrl = url.trim().replace(/\/$/, "");
   const start = Date.now();
   try {
-    const checkTable = await fetch(`${baseUrl}/rest/v1/app_storage?select=id&limit=1`, {
+    const checkTable = await cloudFetch(`${baseUrl}/rest/v1/app_storage?id=eq.main&select=id&limit=1`, {
       headers: { 
         'apikey': key.trim(), 
         'Authorization': `Bearer ${key.trim()}`,

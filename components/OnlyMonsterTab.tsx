@@ -2789,9 +2789,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
       const res = await fetch('/api/onlymonster/config');
       if (res.ok) {
         const data = await res.json();
-        const activeToken = data.token || (data.apiKeyConfigured ? 'env_configured' : '');
-        if (data.apiKeyConfigured || (activeToken && !activeToken.startsWith('om_token_fc269e0'))) {
-          fetchAccounts(activeToken || 'env_configured');
+        if (data.apiKeyConfigured) {
+          fetchAccounts();
         } else {
           setConnStatus('not_configured');
           setStatusMessage('API-ключ не настроен. Укажите переменную ONLYMONSTER_API_KEY в Vercel Dashboard.');

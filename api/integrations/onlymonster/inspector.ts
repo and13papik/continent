@@ -1,3 +1,4 @@
+import { requireSession } from '../../_lib/auth.js';
 function sendJson(res: any, status: number, data: any) {
   if (typeof res.status === 'function' && typeof res.json === 'function') {
     return res.status(status).json(data);
@@ -10,6 +11,7 @@ function sendJson(res: any, status: number, data: any) {
 }
 
 export default async function handler(req: any, res: any) {
+  if (!await requireSession(req, res, true)) return;
   try {
     const method = req.method || 'GET';
     if (method !== 'GET' && method !== 'HEAD') {

@@ -1,3 +1,4 @@
+import { requireSession } from '../_lib/auth.js';
 import { getSupabaseClient, getSupabaseCredentials, listExistingSupabaseTables } from '../_lib/supabase.js';
 import { parseChatMessageDirection, classifyChatMessage } from '../_lib/om-webhook-utils.js';
 
@@ -611,13 +612,8 @@ async function handleLiveEvents(req: any, res: any, queryParams: Record<string, 
 
 async function handleCleanupLiveEvents(req: any, res: any, queryParams: Record<string, string>) {
   try {
-    const authHeader = req.headers?.authorization || req.headers?.Authorization;
-    const cronSecret = process.env.CRON_SECRET || process.env.ADMIN_SECRET || 'om_cron_secret';
-    const providedSecret = queryParams.secret || (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '');
-
-    if (providedSecret !== cronSecret && process.env.NODE_ENV === 'production') {
-      return sendJson(res, 401, { success: false, error: 'Unauthorized: Invalid cron secret' });
-    }
+    if (req.method !== 'POST') return sendJson(res, 405, { error: 'Use POST for cleanup' });
+    if (!await requireSession(req, res, true)) return;
 
     const result = await purgeExpiredLiveEvents();
     return sendJson(res, 200, {
@@ -655,6 +651,7 @@ async function handleDbTables(req: any, res: any) {
 }
 
 export default async function handler(req: any, res: any) {
+  if (!await requireSession(req, res, false)) return;
   if (req.method !== 'GET' && req.method !== 'POST') {
     return sendJson(res, 405, { success: false, error: 'Method not allowed' });
   }
@@ -684,6 +681,7 @@ export default async function handler(req: any, res: any) {
   if (resource === 'events') {
     return handleEvents(req, res, queryParams);
   } else if (resource === 'raw-diagnostic' || resource === 'raw-events' || resource === 'raw_events') {
+    if (!await requireSession(req, res, true)) return;
     return handleRawDiagnostic(req, res, queryParams);
   } else if (resource === 'live-events' || resource === 'live_events') {
     return handleLiveEvents(req, res, queryParams);
@@ -694,6 +692,7 @@ export default async function handler(req: any, res: any) {
   } else if (resource === 'unanswered-counts' || resource === 'unanswered_counts') {
     return handleUnansweredCounts(req, res);
   } else if (resource === 'db-tables' || resource === 'tables') {
+    if (!await requireSession(req, res, true)) return;
     return handleDbTables(req, res);
   } else {
     return handleWebhooks(req, res, queryParams);

@@ -1,3 +1,4 @@
+import { requireSession } from '../_lib/auth.js';
 import { getOmToken, isPlaceholderToken } from '../_lib/om-store.js';
 import { 
   getOperationalDayRange,
@@ -1961,6 +1962,7 @@ async function handleOperatorDeepStats(req: any, res: any, queryParams: Record<s
    ========================================================================= */
 
 export default async function handler(req: any, res: any) {
+  if (!await requireSession(req, res, false)) return;
   const method = req.method || 'GET';
   if (method !== 'GET') {
     return sendJson(res, 405, { error: 'Method not allowed' });

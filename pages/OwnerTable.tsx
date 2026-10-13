@@ -1,3 +1,4 @@
+import { telegramFetch } from '../telegramClient';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { AppState, OwnerTask, TaskPriority, TaskStatus, OwnerTag, TaskNote, TaskAssignee, TaskType, RecurrenceCycle, TaskAuditEntry, OwnerNote, TaskDescriptionBlock } from '../types';
 import { BlockDescriptionEditor, BlockDescriptionViewer } from '../components/BlockDescriptionEditor';
@@ -38,7 +39,6 @@ import {
   Check
 } from 'lucide-react';
 
-const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
 const DEFAULT_CHAT_ID = '-1003748692600';
 
 // --- ПОМОЩНИКИ ---
@@ -380,7 +380,7 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
           formData.append('photo', firstPhoto);
         }
 
-        res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
+        res = await telegramFetch('sendPhoto', {
           method: 'POST',
           body: formData
         });
@@ -403,14 +403,14 @@ const OwnerTable: React.FC<OwnerTableProps> = ({ state, updateState }) => {
             } else {
               extraFormData.append('photo', extraPhoto);
             }
-            await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, {
+            await telegramFetch('sendPhoto', {
               method: 'POST',
               body: extraFormData
             });
           }
         }
       } else {
-        res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+        res = await telegramFetch('sendMessage', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
