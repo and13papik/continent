@@ -446,14 +446,14 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
 
   const forcePush = async () => {
     if (!syncUrlInput || !syncKeyInput) return alert('Сначала введите URL и Ключ');
-    if (!confirm('ВНИМАНИЕ: Это ЗАМЕНИТ данные в облаке вашими текущими локальными данными. Это действие нельзя отменить. Продолжить?')) return;
+    if (!confirm('Отправить локальные изменения в облако? Изменения других пользователей будут сохранены. При конфликте отправка будет остановлена.')) return;
     
     setIsManualSyncing(true);
     const success = await forcePushToCloud(state);
     if (success) {
-      alert('Данные успешно отправлены в облако и заменили старые!');
+      alert('Изменения безопасно синхронизированы с облаком.');
     } else {
-      alert('Ошибка при отправке данных.');
+      alert('Синхронизация не завершена. Проверьте соединение и уведомление о конфликте. Локальные данные сохранены.');
     }
     setIsManualSyncing(false);
   };

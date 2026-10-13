@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ICONS } from './constants';
-import { createInitialState, saveLocal, syncToCloud, fetchFromCloud, mergeStates } from './store';
+import { useCloudState } from './useCloudState';
 import { AppState } from './types';
 import PeriodSelector from './components/PeriodSelector';
 import Dashboard from './pages/Dashboard';
@@ -21,15 +21,15 @@ import Metrics from './pages/Metrics';
 import AdvanceRequest from './pages/AdvanceRequest';
 
 const App: React.FC = () => {
-  const [state, setState] = useState<AppState>(createInitialState());
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [cloudStatus, setCloudStatus] = useState<'idle' | 'loading' | 'success' | 'error' | 'conflict'>('idle');
-  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
-  const [isCloudReady, setIsCloudReady] = useState(false);
-  
-  // Флаги контроля синхронизации — исключают бесконечный цикл фоновых сохранений
-  const hasLocalChangesRef = useRef<boolean>(false);
-  const lastSyncedVersionRef = useRef<number>(state.version || 1);
+  const { state, updateState, isSyncing, cloudStatus, lastSyncTime, refreshCloudStatus } = useCloudState();
+
+  useEffect(() => {
+    if (!state.syncUrl || !state.syncKey) return;
+    fetch('/api/database/keepalive', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ syncUrl: state.syncUrl, syncKey: state.syncKey })
+    }).catch(() => {});
+  }, [state.syncUrl, state.syncKey]);
 
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return localStorage.getItem('continental_auth') === 'true';
@@ -55,175 +55,6 @@ const App: React.FC = () => {
     } else {
       setError(true);
       setPassword('');
-    }
-  };
-
-  // 1. Первоначальная загрузка
-  useEffect(() => {
-    const initCloud = async () => {
-      if (state.syncUrl && state.syncKey) {
-        setCloudStatus('loading');
-        // Notify server backend to keep Supabase connection active
-        fetch('/api/database/keepalive', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ syncUrl: state.syncUrl, syncKey: state.syncKey })
-        }).catch(() => {});
-
-        try {
-          const remoteData = await fetchFromCloud(state.syncUrl, state.syncKey);
-          if (remoteData) {
-            if (remoteData.version > state.version || remoteData.lastUpdated > state.lastUpdated) {
-              setState(prev => ({ 
-                ...remoteData, 
-                syncUrl: prev.syncUrl, 
-                syncKey: prev.syncKey 
-              }));
-              lastSyncedVersionRef.current = remoteData.version;
-            } else {
-              lastSyncedVersionRef.current = state.version;
-            }
-            hasLocalChangesRef.current = false;
-            setCloudStatus('success');
-            setLastSyncTime(new Date().toLocaleTimeString());
-          } else {
-            setCloudStatus('error');
-          }
-        } catch (e) {
-          setCloudStatus('error');
-        } finally {
-          setIsCloudReady(true);
-        }
-      } else {
-        setIsCloudReady(true);
-      }
-    };
-    initCloud();
-  }, []);
-
-  // 2. Фоновый опрос для обнаружения изменений от других пользователей
-  useEffect(() => {
-    if (!state.syncUrl || !state.syncKey || !isCloudReady) return;
-
-    const pollInterval = setInterval(async () => {
-      try {
-        const remoteData = await fetchFromCloud(state.syncUrl!, state.syncKey!);
-        if (remoteData && remoteData.version > state.version) {
-          setState(prev => {
-            if (remoteData.version > prev.version) {
-              const merged = mergeStates(prev, remoteData);
-              saveLocal(merged);
-              lastSyncedVersionRef.current = merged.version;
-              hasLocalChangesRef.current = false;
-              return merged;
-            }
-            return prev;
-          });
-          setCloudStatus('success');
-          setLastSyncTime(new Date().toLocaleTimeString());
-        }
-      } catch (e) {
-        console.warn("Polling error", e);
-      }
-    }, 30000);
-
-    return () => clearInterval(pollInterval);
-  }, [state.version, state.syncUrl, state.syncKey, isCloudReady]);
-
-  // 3. Авто-синхронизация с защитой от перезаписи и защитой от бесконечного цикла
-  useEffect(() => {
-    saveLocal(state);
-    
-    // Синхронизируем ТОЛЬКО если были реальные локальные правки!
-    if (!hasLocalChangesRef.current) {
-      return;
-    }
-    
-    if (state.syncUrl && state.syncKey && isCloudReady && !isSyncing) {
-      const timer = setTimeout(async () => {
-        const versionAtStart = state.version; 
-        
-        setIsSyncing(true);
-        const result = await syncToCloud(state);
-        
-        if (result.success && result.newState) {
-          hasLocalChangesRef.current = false;
-          lastSyncedVersionRef.current = result.newState.version;
-          setState(current => {
-             setCloudStatus('success');
-             setLastSyncTime(new Date().toLocaleTimeString());
-             if (current.version === versionAtStart) {
-                return result.newState!;
-             } else {
-                // Если за время отправки пользователь внёс ещё правки:
-                hasLocalChangesRef.current = true;
-                const merged = mergeStates(current, result.newState!);
-                saveLocal(merged);
-                return merged;
-             }
-          });
-        } else {
-          setCloudStatus('error');
-        }
-        setIsSyncing(false);
-      }, 2500); 
-      return () => clearTimeout(timer);
-    }
-  }, [state.version, state.syncUrl, state.syncKey, isCloudReady]);
-
-  const updateState = useCallback((updater: (prev: AppState) => AppState) => {
-    hasLocalChangesRef.current = true;
-    setState(prev => {
-      const newState = updater(prev);
-      return { 
-        ...newState, 
-        lastUpdated: Date.now(),
-        version: (prev.version || 0) + 1,
-        remoteVersion: undefined 
-      };
-    });
-  }, []);
-
-  const refreshCloudStatus = async () => {
-    if (!state.syncUrl || !state.syncKey || isSyncing) return;
-    setCloudStatus('loading');
-    try {
-      const remoteData = await fetchFromCloud(state.syncUrl, state.syncKey);
-      if (remoteData) {
-        if (remoteData.version > state.version || remoteData.lastUpdated > state.lastUpdated) {
-          setState(prev => ({ 
-            ...remoteData, 
-            syncUrl: prev.syncUrl, 
-            syncKey: prev.syncKey 
-          }));
-          lastSyncedVersionRef.current = remoteData.version;
-        } else {
-          lastSyncedVersionRef.current = state.version;
-        }
-        hasLocalChangesRef.current = false;
-        setCloudStatus('success');
-        setLastSyncTime(new Date().toLocaleTimeString());
-      } else {
-        setCloudStatus('error');
-      }
-    } catch {
-      setCloudStatus('error');
-    }
-  };
-
-  const forcePull = async () => {
-    if (!state.syncUrl || !state.syncKey) return;
-    setCloudStatus('loading');
-    const remoteData = await fetchFromCloud(state.syncUrl, state.syncKey);
-    if (remoteData) {
-      hasLocalChangesRef.current = false;
-      lastSyncedVersionRef.current = remoteData.version;
-      updateState(() => ({ ...remoteData, syncUrl: state.syncUrl, syncKey: state.syncKey }));
-      setCloudStatus('success');
-      alert('Данные обновлены до последней версии из облака.');
-    } else {
-      setCloudStatus('error');
-      alert('Не удалось подключиться к базе данных. Проверьте настройки URL и Anon Key.');
     }
   };
 
@@ -306,14 +137,14 @@ const App: React.FC = () => {
               <motion.div 
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                onClick={forcePull}
+                onClick={refreshCloudStatus}
                 className="p-3 bg-rose-500/15 border border-rose-500/40 rounded-xl cursor-pointer group transition-all hover:bg-rose-500/25"
               >
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
                   <p className="text-[9px] font-black text-rose-400 uppercase tracking-widest leading-none">Sync Conflict</p>
                 </div>
-                <p className="text-[10px] font-bold text-slate-300 group-hover:text-white transition-colors">Manual override required.</p>
+                <p className="text-[10px] font-bold text-slate-300 group-hover:text-white transition-colors">Одну запись изменили одновременно. Правки сохранены на этом устройстве. Сначала сделайте экспорт в Настройках.</p>
               </motion.div>
             )}
           </div>

@@ -282,6 +282,7 @@ export interface AppState {
   lastUpdated: number;
   version: number;
   remoteVersion?: number;
+  syncRevision?: string;
   operators: string[];
   operatorWallets?: OperatorWallet[];
   models: string[];
