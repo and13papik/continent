@@ -1,6 +1,6 @@
 # Access hardening — activation checklist
 
-This branch is not a drop-in deployment until the activation checks below are complete. Financial records and database permissions remain unchanged. The three requested Auth accounts and the additional production server variables have been provisioned; the application itself has not been published.
+Released to https://continental.monster on 2026-10-13 after explicit publication approval. GitHub PR #2 is merged. All three accounts are active; direct `anon` and `authenticated` access to the 20 public tables and three views is revoked, and all public tables have RLS enabled. The server retains read/write access.
 
 ## Verified preparation, 2026-10-13
 
@@ -9,7 +9,9 @@ This branch is not a drop-in deployment until the activation checks below are co
 - The verification server permitted only financial reads. It performed zero financial writes; the main row digest and all 52 snapshot rows remained unchanged. External notifications were blocked.
 - Added production `APP_ORIGIN`, `SUPABASE_PUBLISHABLE_KEY`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_CHAT_ID` in Vercel. Existing Supabase/OnlyMonster/webhook variables were preserved. None of these changes redeploys the site automatically.
 - Telegram uses its existing bot credential to preserve current reports. Previously exposed Telegram and OnlyMonster credentials have **not been rotated**; moving them to server settings does not invalidate old copies. Coordinate rotation separately and verify the replacement credentials before switching them.
-- Live production integration checks, deployment, and the prepared database-access migration are still pending release approval. Current production continues to use the previous login and database permissions.
+- Production verification passed for four browser sessions: all three usernames, two independent owner sessions, session refresh, secure HttpOnly cookies, owner navigation restrictions, anonymous API denial, and direct database denial for both anonymous and signed-in users. The production browser test blocked business writes and sent no external messages.
+- Applied `restrict_direct_dashboard_database_access`. Immediately before and after the permission switch, all 52 stored snapshots had the same combined checksum. A later comparison confirmed all 51 history snapshots unchanged and no removed rows. Current production activity subsequently filled five previously empty daytime balances in `totalTableEntries`; these live saves were preserved, not rolled back. The test itself made zero financial writes.
+- The active Git production deployment was READY with no 5xx request logs in the checked post-release interval. Account credentials and pre/post-release backups remain in the private local backup folder outside Git.
 
 ## User-facing login
 
@@ -29,9 +31,9 @@ Approved account manifest (keep the real manifest and generated passwords outsid
 
 The new browser uses `/api/cloud` and receives no database secret. This alone does not revoke direct access through an old key or permissive Supabase policies. Before calling the deployment secure, inspect grants and RLS on the existing tables and block anonymous/direct authenticated access to `app_storage` and integration event tables. Keep server service-role access intact. Do not run speculative RLS or grant changes without inspecting the actual schema and existing integrations first.
 
-Read-only production audit on 2026-10-13 confirmed 20 public tables and three accounting views with direct `anon` and `authenticated` privileges. RLS is disabled on 19 tables; only `om_webhook_events` has RLS enabled. No RLS policies, public routines, or foreign tables were found. Auth currently has zero users. The browser's stored database key is a publishable key, so revoking direct table privileges is essential even after adding login.
+Read-only production audit on 2026-10-13 confirmed 20 public tables and three accounting views with direct `anon` and `authenticated` privileges. RLS is disabled on 19 tables; only `om_webhook_events` has RLS enabled. No RLS policies, public routines, or foreign tables were found. At the initial audit, Auth had zero users; the three requested accounts have since been provisioned. The browser's stored database key is a publishable key, so revoking direct table privileges is essential even after adding login.
 
-`security/activate-database-boundary.sql` is a prepared manual release step, **not applied**. It refuses a changed public schema, revokes direct privileges on the audited tables/views, enables table RLS, and asserts that server access and `app_storage` contents remain intact. Apply through Supabase `apply_migration` only after credentials and logins work and existing integrations are confirmed to use server credentials. It does not provision users or alter financial rows. Database permissions for future tables still need explicit review.
+`security/activate-database-boundary.sql` was applied on 2026-10-13 as `restrict_direct_dashboard_database_access`. It refuses a changed public schema, revokes direct privileges on the audited tables/views, enables table RLS, and asserts that server access and `app_storage` contents remain intact. Apply through Supabase `apply_migration` only after credentials and logins work and existing integrations are confirmed to use server credentials. It does not provision users or alter financial rows. Database permissions for future tables still need explicit review.
 
 The existing main JSON document is shared with authenticated staff. Owner documents and finances are protected against admin writes, including tombstone deletion, but this change does **not** partition the shared JSON into confidential per-role read views. Hiding a navigation item is not a confidentiality boundary. Existing browser backups also remain on their devices to preserve unsynced work.
 
