@@ -1,3 +1,4 @@
+import { cloudFetch } from './cloudTransport';
 import type { AppState } from './types';
 
 const LOCAL_FIELDS = new Set(['syncUrl', 'syncKey', 'dbUrl', 'selectedPeriodId']);
@@ -112,7 +113,7 @@ function requestSignal(ms: number, signal?: AbortSignal): AbortSignal {
 export async function readCloudSnapshot(url: string, key: string, signal?: AbortSignal): Promise<{ state: AppState; updated_at: string | null }> {
   const endpoint = new URL('/rest/v1/app_storage', url.trim().replace(/\/$/, '') + '/');
   endpoint.search = new URLSearchParams({ id: 'eq.main', select: 'state,updated_at' }).toString();
-  const response = await fetch(endpoint, { headers: { apikey: key.trim(), Authorization: `Bearer ${key.trim()}`, 'Cache-Control': 'no-cache' }, signal: requestSignal(12000, signal) });
+  const response = await cloudFetch(endpoint, { headers: { apikey: key.trim(), Authorization: `Bearer ${key.trim()}`, 'Cache-Control': 'no-cache' }, signal: requestSignal(12000, signal) });
   if (!response.ok) throw new Error(`Cloud read failed (${response.status})`);
   const rows = await response.json();
   if (!Array.isArray(rows) || rows.length !== 1 || !validCloudState(rows[0].state) || !(rows[0].updated_at === null || typeof rows[0].updated_at === 'string')) throw new Error('Cloud main record is missing or invalid');
@@ -140,7 +141,7 @@ export async function syncToCloud(state: AppState, options: { baseState?: AppSta
       updated_at: snapshot.updated_at === null ? 'is.null' : `eq.${snapshot.updated_at}`,
       'state->>syncRevision': snapshot.state.syncRevision ? `eq.${snapshot.state.syncRevision}` : 'is.null' }).toString();
     try {
-      const response = await fetch(endpoint, { method: 'PATCH', headers: { apikey: state.syncKey.trim(), Authorization: `Bearer ${state.syncKey.trim()}`,
+      const response = await cloudFetch(endpoint, { method: 'PATCH', headers: { apikey: state.syncKey.trim(), Authorization: `Bearer ${state.syncKey.trim()}`,
         'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify({ state: newState, updated_at: new Date().toISOString() }), signal: requestSignal(15000, options.signal) });
       if (!response.ok) return { success: false, reason: 'write' };
       const rows = await response.json();

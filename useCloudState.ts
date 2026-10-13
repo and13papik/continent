@@ -6,8 +6,11 @@ import type { AppState } from './types';
 
 type CloudStatus = 'idle' | 'loading' | 'success' | 'error' | 'conflict';
 
-export function useCloudState() {
-  const [state, setState] = useState<AppState>(createInitialState);
+export function useCloudState(connection?: Pick<AppState, 'syncUrl' | 'syncKey'>) {
+  const [state, setState] = useState<AppState>(() => {
+    const initial = createInitialState();
+    return connection ? { ...initial, ...connection, dbUrl: undefined } : initial;
+  });
   const [isSyncing, setIsSyncing] = useState(false);
   const [cloudStatus, setCloudStatus] = useState<CloudStatus>('idle');
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
@@ -27,7 +30,8 @@ export function useCloudState() {
 
   const updateState = useCallback((updater: (previous: AppState) => AppState) => {
     const previous = current.current;
-    const changed = updater(previous);
+    const updated = updater(previous);
+    const changed = connection ? { ...updated, ...connection, dbUrl: undefined } : updated;
     const next = { ...changed, lastUpdated: Date.now(), version: (previous.version || 0) + 1, remoteVersion: undefined };
     if (hasSharedChanges(next, previous)) {
       pending.current = true;

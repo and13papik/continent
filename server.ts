@@ -1,3 +1,7 @@
+import cloudHandler from './api/cloud.js';
+import authHandler from './api/auth.js';
+import telegramHandler from './api/telegram.js';
+import { requireSession } from './api/_lib/auth.js';
 import express from "express";
 import path from "path";
 import fs from "fs";
@@ -24,10 +28,21 @@ async function startServer() {
 
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
+  app.all('/api/auth', authHandler);
+  app.use('/api', async (req, res, next) => {
+    // Webhooks authenticate with their provider signature, never a dashboard cookie.
+    if (req.path === '/webhook' || req.path === '/onlymonster/webhook') return next();
+    const ownerOnly = req.path.startsWith('/admin/') || req.path.startsWith('/integrations/');
+    if (await requireSession(req, res, ownerOnly)) next();
+  });
+  app.all('/api/cloud', cloudHandler);
+  app.all('/api/telegram', telegramHandler);
+  app.post('/api/telegram/send', telegramHandler);
+
 
   // Telegram Configuration
-  const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
-  const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1003748692600';
+  const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+  const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
 
   // Roster state management
   interface RosterServerState {
@@ -73,6 +88,7 @@ async function startServer() {
 
   // Interval checking 10:00 and 22:00 Kyiv time daily for automated Telegram send
   setInterval(async () => {
+    if (!BOT_TOKEN || !CHAT_ID || process.env.ENABLE_TELEGRAM_SCHEDULE !== 'true') return;
     const kyiv = getKyivTimeInfo();
     const is10am = kyiv.hour === 10 && kyiv.minute >= 0 && kyiv.minute <= 3;
     const is10pm = kyiv.hour === 22 && kyiv.minute >= 0 && kyiv.minute <= 3;
@@ -243,7 +259,7 @@ async function startServer() {
   }
 
   // Always run telegram polling
-  pollTelegram().catch(console.error);
+  if (BOT_TOKEN && CHAT_ID && process.env.ENABLE_TELEGRAM_POLLING === 'true') pollTelegram().catch(() => console.error('Telegram polling failed'));
 
   // Endpoint to get roster state
   app.get("/api/roster/status", (req, res) => {
@@ -410,8 +426,6 @@ async function startServer() {
     }
   });
 
-  let omToken = process.env.ONLYMONSTER_TOKEN || "om_token_fc269e0cc20370b29c803be7ad2e85c8c43b3d84366a6cf0f3ae0c5001c9f2ca";
-  let omWebhookId = process.env.ONLYMONSTER_WEBHOOK_ID || "om_webhook_c0c072250515454194c4619f1c7e3d0c3a58b8349bf1b092519e22c670ca41a4";
 
   // OnlyMonster Webhook handlers & DB tools
   app.all("/api/webhook", (req, res) => webhookHandler(req, res));
@@ -522,15 +536,6 @@ async function startServer() {
 
   app.post("/api/database/keepalive", async (req, res) => {
     try {
-      const { syncUrl, syncKey } = req.body || {};
-      if (syncUrl && syncKey) {
-        keepAliveUrl = syncUrl.trim().replace(/\/$/, '');
-        keepAliveKey = syncKey.trim();
-        try {
-          const { setSupabaseCredentials } = await import("./api/_lib/supabase.js");
-          await setSupabaseCredentials(keepAliveUrl, keepAliveKey);
-        } catch (_) {}
-      }
       res.json({ ok: true, active: Boolean(keepAliveUrl && keepAliveKey) });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -660,6 +665,7 @@ async function startServer() {
 
   // Periodic lightweight cleanup for live events older than 24h (every 30 minutes)
   setInterval(() => {
+    if (process.env.ENABLE_LIVE_EVENT_CLEANUP !== 'true') return;
     purgeExpiredLiveEvents().catch(err => {
       console.error('[PeriodicCleanup] Error purging expired live events:', err);
     });
@@ -675,7 +681,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('/{*path}', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

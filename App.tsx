@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ICONS } from './constants';
 import { useCloudState } from './useCloudState';
 import { AppState } from './types';
+import AuthGate, { signOut, SignedInUser } from './AuthGate';
 import PeriodSelector from './components/PeriodSelector';
 import Dashboard from './pages/Dashboard';
 import AddIncome from './pages/AddIncome';
@@ -20,83 +21,11 @@ import Settings from './pages/Settings';
 import Metrics from './pages/Metrics';
 import AdvanceRequest from './pages/AdvanceRequest';
 
-const App: React.FC = () => {
-  const { state, updateState, isSyncing, cloudStatus, lastSyncTime, refreshCloudStatus } = useCloudState();
+const App: React.FC = () => <AuthGate>{user => <DashboardApp user={user} />}</AuthGate>;
 
-  useEffect(() => {
-    if (!state.syncUrl || !state.syncKey) return;
-    fetch('/api/database/keepalive', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ syncUrl: state.syncUrl, syncKey: state.syncKey })
-    }).catch(() => {});
-  }, [state.syncUrl, state.syncKey]);
-
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem('continental_auth') === 'true';
-  });
-  const [userRole, setUserRole] = useState<'user' | 'owner' | null>(() => {
-    return localStorage.getItem('continental_role') as 'user' | 'owner' | null;
-  });
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(false);
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === '6690') {
-      setIsAuthenticated(true);
-      setUserRole('user');
-      localStorage.setItem('continental_auth', 'true');
-      localStorage.setItem('continental_role', 'user');
-    } else if (password === '1123') {
-      setIsAuthenticated(true);
-      setUserRole('owner');
-      localStorage.setItem('continental_auth', 'true');
-      localStorage.setItem('continental_role', 'owner');
-    } else {
-      setError(true);
-      setPassword('');
-    }
-  };
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <div className="w-full max-w-md glass-card p-8 border border-slate-800/50 rounded-3xl shadow-2xl">
-          <div className="flex flex-col items-center gap-6">
-            <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-              <ICONS.Lock className="text-white" size={32} />
-            </div>
-            <div className="text-center">
-              <h1 className="text-2xl font-bold text-white mb-2">Continental Vault</h1>
-              <p className="text-slate-400 text-sm">Введите пароль для доступа к системе</p>
-            </div>
-            <form onSubmit={handleLogin} className="w-full space-y-4">
-              <div className="relative">
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setError(false);
-                  }}
-                  placeholder="Пароль"
-                  className={`w-full bg-slate-900/50 border ${error ? 'border-rose-500' : 'border-slate-800'} text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-center text-xl tracking-[0.5em] font-mono`}
-                  autoFocus
-                />
-                {error && <p className="text-rose-500 text-xs mt-2 text-center">Неверный пароль</p>}
-              </div>
-              <button
-                type="submit"
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98]"
-              >
-                Войти
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    );
-  }
+const DashboardApp: React.FC<{ user: SignedInUser }> = ({ user }) => {
+  const { state, updateState, isSyncing, cloudStatus, lastSyncTime, refreshCloudStatus } = useCloudState({ syncUrl: user.cloudUrl, syncKey: 'server-session' });
+  const userRole = user.role === 'owner' ? 'owner' : 'user';
 
   return (
     <HashRouter>
@@ -245,11 +174,7 @@ const App: React.FC = () => {
             </div>
 
             <button 
-              onClick={() => {
-                localStorage.removeItem('continental_auth');
-                localStorage.removeItem('continental_role');
-                window.location.reload();
-              }}
+              onClick={() => { void signOut().catch(error => alert(error.message)); }}
               className="w-full flex items-center justify-center gap-3 px-3 py-3 text-slate-400 hover:text-white hover:bg-rose-500/15 border border-slate-700/60 hover:border-rose-500/30 rounded-2xl transition-all text-[9.5px] font-black uppercase tracking-[0.2em] group"
             >
               <ICONS.Unlock size={14} className="group-hover:rotate-12 transition-transform text-slate-400 group-hover:text-rose-300" /> 

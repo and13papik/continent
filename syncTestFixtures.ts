@@ -15,7 +15,7 @@ export function fakeDatabase(initial: AppState, firstReaders = 0, fixedTimestamp
   const barrier = new Promise<void>(resolve => { release = resolve; });
   const requests: { method: string; url: URL }[] = [];
   const fetch = vi.fn(async (input: any, options: any = {}) => {
-    const url = new URL(String(input)), method = options.method || 'GET';
+    const url = new URL(String(input), 'https://dashboard.invalid'), method = options.method || 'GET';
     requests.push({ method, url });
     if (method === 'GET') {
       if (failures > 0) { failures--; return new Response('', { status: 503 }); }

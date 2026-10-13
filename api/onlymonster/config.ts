@@ -1,5 +1,6 @@
+import { requireSession } from '../_lib/auth.js';
 import { getOmToken, setOmToken, getOmWebhookId, setOmWebhookId, isKvConfigured, isPlaceholderToken } from '../_lib/om-store.js';
-import { getSupabaseCredentials, setSupabaseCredentials } from '../_lib/supabase.js';
+import { getSupabaseCredentials } from '../_lib/supabase.js';
 import { clearAuthFailure } from './analytics.js';
 
 function sendJson(res: any, status: number, data: any) {
@@ -14,6 +15,7 @@ function sendJson(res: any, status: number, data: any) {
 }
 
 export default async function handler(req: any, res: any) {
+  if (!await requireSession(req, res, req.method !== 'GET')) return;
   const method = req.method || 'GET';
   const kvActive = isKvConfigured();
 
@@ -26,7 +28,6 @@ export default async function handler(req: any, res: any) {
 
     return sendJson(res, 200, {
       success: true,
-      token: activeKey,
       apiKeyConfigured: isCustomKey,
       webhookId,
       webhookSecretConfigured: Boolean(webhookSecret && webhookSecret.trim().length > 0),
@@ -45,7 +46,7 @@ export default async function handler(req: any, res: any) {
         body = {};
       }
     }
-    const { token, apiKey, webhookId, webhookSecret, supabaseUrl, supabaseKey } = body;
+    const { token, apiKey, webhookId, webhookSecret } = body;
     const keyToUse = (token || apiKey || "").trim();
     if (keyToUse) {
       await setOmToken(keyToUse);
@@ -58,9 +59,7 @@ export default async function handler(req: any, res: any) {
       process.env.WEBHOOK_SECRET = webhookSecret.trim();
       process.env.OM_WEBHOOK_SECRET = webhookSecret.trim();
     }
-    if (supabaseUrl && supabaseKey) {
-      await setSupabaseCredentials(supabaseUrl, supabaseKey);
-    }
+    // Database credentials are server environment configuration, never browser input.
 
     const currentKey = await getOmToken();
     const currentWebhookId = await getOmWebhookId();
@@ -72,7 +71,6 @@ export default async function handler(req: any, res: any) {
       message: kvActive 
         ? "Конфигурация успешно сохранена в Vercel KV" 
         : "Конфигурация обновлена в текущем инстансе",
-      token: currentKey,
       apiKeyConfigured: Boolean(currentKey && currentKey.length > 5 && !currentKey.startsWith("om_token_fc269e0")),
       webhookId: currentWebhookId,
       webhookSecretConfigured: Boolean(activeSecret && activeSecret.trim().length > 0),

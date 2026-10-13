@@ -1,3 +1,4 @@
+import { requireSession } from '../_lib/auth.js';
 import { getOmToken } from '../_lib/om-store.js';
 
 function sendJson(res: any, status: number, data: any) {
@@ -12,6 +13,7 @@ function sendJson(res: any, status: number, data: any) {
 }
 
 export default async function handler(req: any, res: any) {
+  if (!await requireSession(req, res, false)) return;
   const method = req.method || 'GET';
   if (method !== 'GET') {
     return sendJson(res, 405, { error: 'Method not allowed' });
@@ -33,6 +35,7 @@ export default async function handler(req: any, res: any) {
   }
 
   const cleanSubpath = subpath.replace(/^\//, "");
+  if (cleanSubpath !== 'accounts') return sendJson(res, 400, { error: 'Unsupported resource' });
   const apiUrl = `https://omapi.onlymonster.ai/api/v0/${cleanSubpath}`;
 
   try {
@@ -45,7 +48,8 @@ export default async function handler(req: any, res: any) {
         "Content-Type": "application/json",
         "x-om-auth-token": omToken.trim()
       },
-      signal: controller.signal as any
+      signal: controller.signal as any,
+      redirect: 'error'
     });
 
     clearTimeout(timeoutId);

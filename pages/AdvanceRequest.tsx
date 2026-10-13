@@ -1,3 +1,4 @@
+import { telegramFetch } from '../telegramClient';
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -65,7 +66,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     if (!selectedOperator || !amount || !walletAddress) return;
     
     setIsSending(true);
-    const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
+
     const DEFAULT_CHAT_ID = '-1003748692600';
 
     const requestId = `adv-${Date.now()}`;
@@ -83,7 +84,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     message += `⚠️ <i>Статус: Ожидает подтверждения</i>`;
 
     try {
-      const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      const res = await telegramFetch('sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -93,7 +94,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
           reply_markup: {
             inline_keyboard: [
               [
-                { text: "🔗 Открыть в Dashboard", url: "https://ais-dev-7xz7xwj4qktl4ynp4sez7n-38906691745.europe-west2.run.app/#/advance-request" }
+                { text: "🔗 Открыть в Dashboard", url: "https://continental.monster/#/advance-request" }
               ]
             ]
           }
@@ -101,10 +102,9 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
       });
 
       let tgMessageId: number | undefined;
-      if (res.ok) {
-        const data = await res.json();
-        tgMessageId = data.result?.message_id;
-      }
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Telegram не подтвердил отправку. Проверьте чат перед повтором.');
+      tgMessageId = data.result?.message_id;
 
       const newRequest: AdvanceRequestItem = {
         id: requestId,
@@ -169,7 +169,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     }));
 
     if (request.tgMessageId) {
-      const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
+
       const DEFAULT_CHAT_ID = '-1003748692600';
 
       let message = `❌ <b>ЗАПРОС НА АВАНС ОТКЛОНЕН / УДАЛЕН</b>\n`;
@@ -180,7 +180,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
       message += `🔴 <b>Запрос удален из системы администратором</b>`;
 
       try {
-        await fetch(`https://api.telegram.org/bot${TG_TOKEN}/editMessageText`, {
+        await telegramFetch('editMessageText', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -225,7 +225,6 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
       return nextState;
     });
 
-    const TG_TOKEN = '8497961851:AAEmwmEgJNV6KwyQjdcG62GY3IdX8zz6YV4';
     const DEFAULT_CHAT_ID = '-1003748692600';
 
     if (request.tgMessageId) {
@@ -243,7 +242,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
       message += `✅ <b>СТАТУС: ВЫПЛАЧЕНО ${new Date().toLocaleString()}</b>`;
 
       try {
-        await fetch(`https://api.telegram.org/bot${TG_TOKEN}/editMessageText`, {
+        await telegramFetch('editMessageText', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -270,7 +269,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     newNotif += `🕒 <b>Время выплаты:</b> ${new Date().toLocaleString('ru-RU')}`;
 
     try {
-      await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      await telegramFetch('sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
