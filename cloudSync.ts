@@ -1,4 +1,4 @@
-import { cloudFetch } from './cloudTransport';
+import { cloudFetch } from './cloudTransport.js';
 import type { AppState } from './types';
 
 const LOCAL_FIELDS = new Set(['syncUrl', 'syncKey', 'dbUrl', 'selectedPeriodId']);
