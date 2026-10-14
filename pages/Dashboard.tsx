@@ -1,3 +1,5 @@
+import { startNextPeriod } from '../accountingPeriods';
+import { manualIncomeTotal } from '../stateAccess';
 import React, { useMemo, useState, useEffect } from 'react';
 import { calculateOperatorEarnings, periodOperatorNames } from '../financialCalculations';
 import { useNavigate } from 'react-router-dom';
@@ -196,13 +198,12 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState, syn
 
   const stats = useMemo(() => {
     const periodIncomes = state.incomeData.filter(r => r.periodId === activePeriodId);
-    const manualIncomes = (state.ownerManualIncomes || []).filter(i => i.periodId === activePeriodId);
     const periodOps = state.operationsData.filter(o => o.periodId === activePeriodId);
     const currentAdmins = activePeriod?.admins || state.admins;
     const adminNames = currentAdmins.map(a => a.name);
     
     const rawPlatformGross = periodIncomes.reduce((s, r) => s + r.total, 0);
-    const rawManualGross = manualIncomes.reduce((s, i) => s + i.amount, 0);
+    const rawManualGross = manualIncomeTotal(state, activePeriodId);
     const totalRefunds = periodOps.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
     
     const totalGross = (rawPlatformGross + rawManualGross) - totalRefunds;
@@ -279,7 +280,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState, syn
     totals.remainder = Math.max(0, (totals.netEarned + totals.bonuses) - (totals.penalties + totals.paidOut));
     currentAdmins.forEach(admin => { totals.adminDetails.push({ name: admin.name, amount: totalGross * (admin.rate / 100), rate: admin.rate }); });
     return totals;
-  }, [state.incomeData, state.ownerManualIncomes, state.operationsData, state.admins, activePeriodId, activePeriod, state.modelMonthlyPlans, state.accountingPeriods, state.models, currentOperators]);
+  }, [state.accessScope, state.manualIncomeTotals, state.incomeData, state.ownerManualIncomes, state.operationsData, state.admins, activePeriodId, activePeriod, state.modelMonthlyPlans, state.accountingPeriods, state.models, currentOperators]);
 
   const operatorRows = useMemo(() => {
     const raw = currentOperators.map(op => {
@@ -376,174 +377,13 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState, syn
 
   const handleCloseMonth = () => {
     if (!activePeriod || activePeriod.status === 'closed') return;
-    const confirmClose = window.confirm(`Закрыть период "${activePeriod.label}"? Это переключит вас на следующий месяц.`);
-    if (!confirmClose) return;
-
-    updateState(prev => {
-      const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-      
-      const sortedPeriods = [...prev.accountingPeriods].sort((a, b) => 
-        new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
-      );
-
-      const activeIdx = sortedPeriods.findIndex(p => p.id === activePeriodId);
-      const nextInList = sortedPeriods[activeIdx + 1];
-      
-      let nextId = nextInList?.id;
-      let newPeriods = prev.accountingPeriods.map(p => 
-        p.id === activePeriodId ? { ...p, status: 'closed' as const, endAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : p
-      );
-
-      if (!nextId) {
-        const latestP = sortedPeriods[sortedPeriods.length - 1];
-        let nextMonthIdx: number;
-        let nextYear: number;
-        
-        if (latestP) {
-          const d = new Date(latestP.startAt);
-          // Используем UTC методы для надежности
-          nextMonthIdx = d.getUTCMonth() + 1; 
-          nextYear = d.getUTCFullYear();
-          if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
-        } else {
-          const now = new Date();
-          nextMonthIdx = now.getUTCMonth();
-          nextYear = now.getUTCFullYear();
-        }
-
-        // Защита от дубликатов: если такой месяц уже есть, идем дальше
-        while (prev.accountingPeriods.some(p => p.label === `${months[nextMonthIdx]} ${nextYear}`)) {
-          nextMonthIdx++;
-          if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
-        }
-
-        nextId = String(Date.now());
-        const newP: AccountingPeriod = { 
-          id: nextId, 
-          label: `${months[nextMonthIdx]} ${nextYear}`, 
-          startAt: new Date(Date.UTC(nextYear, nextMonthIdx, 1)).toISOString(), 
-          endAt: null, 
-          status: 'open',
-          operators: activePeriod?.operators || prev.operators,
-          models: activePeriod?.models || prev.models,
-          modelRates: activePeriod?.modelRates || prev.modelRates,
-          modelDefaultGoals: activePeriod?.modelDefaultGoals || prev.modelDefaultGoals,
-          admins: activePeriod?.admins || prev.admins,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        newPeriods = [...newPeriods, newP];
-
-        // Carry over rosterData to new month
-        const sourceRoster = (prev.rosterData || []).filter(r => r.periodId === activePeriodId);
-        const clonedRoster = sourceRoster.map(r => ({
-          ...r,
-          id: `roster_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          periodId: nextId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }));
-
-        // Carry over operator assessments
-        const sourceAssessments = (prev.operatorAssessments || []).filter(a => a.periodId === activePeriodId);
-        const clonedAssessments = sourceAssessments.map(a => ({
-          ...a,
-          id: `asmt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          periodId: nextId,
-          updatedAt: new Date().toISOString()
-        }));
-
-        return { 
-          ...prev, 
-          accountingPeriods: newPeriods, 
-          selectedPeriodId: nextId,
-          rosterData: [...(prev.rosterData || []), ...clonedRoster],
-          operatorAssessments: [...(prev.operatorAssessments || []), ...clonedAssessments]
-        };
-      }
-
-      return { 
-        ...prev, 
-        accountingPeriods: newPeriods, 
-        selectedPeriodId: nextId 
-      };
-    });
+    if (!window.confirm(`Закрыть период "${activePeriod.label}"? Это переключит вас на следующий месяц.`)) return;
+    updateState(prev => startNextPeriod(prev, activePeriodId, true));
   };
 
   const handleStartNextMonth = () => {
-    updateState(prev => {
-      const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-      
-      const sortedPeriods = [...prev.accountingPeriods].sort((a, b) => 
-        new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
-      );
-      
-      const latestP = sortedPeriods[sortedPeriods.length - 1];
-      let nextMonthIdx: number;
-      let nextYear: number;
-      
-      if (latestP) {
-        const d = new Date(latestP.startAt);
-        nextMonthIdx = d.getUTCMonth() + 1; 
-        nextYear = d.getUTCFullYear();
-        if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
-      } else {
-        const now = new Date();
-        nextMonthIdx = now.getUTCMonth();
-        nextYear = now.getUTCFullYear();
-      }
-
-      // Защита от дубликатов
-      while (prev.accountingPeriods.some(p => p.label === `${months[nextMonthIdx]} ${nextYear}`)) {
-        nextMonthIdx++;
-        if (nextMonthIdx > 11) { nextMonthIdx = 0; nextYear += 1; }
-      }
-
-      const nextId = String(Date.now());
-      const newP: AccountingPeriod = { 
-        id: nextId, 
-        label: `${months[nextMonthIdx]} ${nextYear}`, 
-        startAt: new Date(Date.UTC(nextYear, nextMonthIdx, 1)).toISOString(), 
-        endAt: null, 
-        status: 'open',
-        operators: activePeriod?.operators || prev.operators,
-        models: activePeriod?.models || prev.models,
-        modelRates: activePeriod?.modelRates || prev.modelRates,
-        modelDefaultGoals: activePeriod?.modelDefaultGoals || prev.modelDefaultGoals,
-        admins: activePeriod?.admins || prev.admins,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      // Carry over rosterData to new month
-      const sourceRoster = (prev.rosterData || []).filter(r => r.periodId === activePeriodId);
-      const clonedRoster = sourceRoster.map(r => ({
-        ...r,
-        id: `roster_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        periodId: nextId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }));
-
-      // Carry over operator assessments
-      const sourceAssessments = (prev.operatorAssessments || []).filter(a => a.periodId === activePeriodId);
-      const clonedAssessments = sourceAssessments.map(a => ({
-        ...a,
-        id: `asmt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        periodId: nextId,
-        updatedAt: new Date().toISOString()
-      }));
-      
-      return { 
-        ...prev, 
-        accountingPeriods: [...prev.accountingPeriods, newP], 
-        selectedPeriodId: nextId,
-        rosterData: [...(prev.rosterData || []), ...clonedRoster],
-        operatorAssessments: [...(prev.operatorAssessments || []), ...clonedAssessments]
-      };
-    });
+    updateState(prev => startNextPeriod(prev, activePeriodId));
   };
-
   const sortedPeriodsForCheck = [...state.accountingPeriods].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
   const isLatestPeriod = sortedPeriodsForCheck[sortedPeriodsForCheck.length - 1]?.id === activePeriodId;
   const canStartNext = isLatestPeriod; // Можно добавить проверку на текущую дату, если нужно

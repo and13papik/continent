@@ -279,6 +279,9 @@ export interface ModelGroup {
 }
 
 export interface AppState {
+  /** Server-derived admin view; never persisted as financial data. */
+  accessScope?: 'admin';
+  manualIncomeTotals?: Record<string, number>;
   lastUpdated: number;
   version: number;
   remoteVersion?: number;

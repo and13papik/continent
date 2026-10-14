@@ -559,6 +559,7 @@ const AdminTable: React.FC<{
         priority: newPrio, 
         taskType: activeMode === 'directive' ? 'directive' : activeMode === 'recurring' ? 'recurring' : 'regular', 
         assignedTo: newTo,
+        isForAdmins: true,
         dueDate: newDueDate || undefined,
         models: newSelectedModels.length > 0 ? newSelectedModels : undefined,
         tags: [], 

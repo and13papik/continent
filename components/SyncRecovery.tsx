@@ -5,9 +5,9 @@ import type { RecoveryItem } from '../cloudSync';
 import { sameValue } from '../cloudSync';
 import type { RecoveryNotice } from '../syncStorage';
 import { recoveryValue } from '../syncRecovery';
+import { adminRecoveryItem } from '../stateAccess';
 
 const labels: Record<string, string> = { incomeData: 'Доходы', operationsData: 'Операции', totalTableEntries: 'Total Table', rosterData: 'Состав', ownerExpenses: 'Расходы овнеров', ownerManualIncomes: 'Доходы овнеров', ownerAdvances: 'Авансы овнеров', accountingPeriods: 'Периоды', modelRates: 'Ставки', paidStatuses: 'Выплаты', ownerDocument: 'Документ овнеров', completedDocument: 'Завершённые задачи' };
-const ownerFields = new Set(['ownerExpenses', 'ownerManualIncomes', 'ownerAdvances', 'ownerTasks', 'ownerNotes', 'ownerDocument', 'completedDocument']);
 const fieldLabels: Record<string, string> = { date: 'Дата', model: 'Модель', modelName: 'Модель', operator: 'Оператор', total: 'Всего', amount: 'Сумма', onlyFans: 'OnlyFans', paypal: 'PayPal', crypto: 'Crypto', nettoOF: 'Зарплата · OnlyFans', nettoPP: 'Зарплата · PayPal', nettoCrypto: 'Зарплата · Crypto', percentOF: 'Ставка OF, %', percentPP: 'Ставка PP, %', percentCrypto: 'Ставка Crypto, %', balance: 'Баланс', goal: 'План', night: 'Ночь', morning: 'Утро', day: 'День', evening: 'Вечер', comment: 'Комментарий', type: 'Тип', category: 'Категория', platform: 'Платформа', status: 'Статус', name: 'Имя', title: 'Название', rate: 'Ставка', label: 'Название', startAt: 'Начало', endAt: 'Окончание', of: 'OnlyFans', pp: 'PayPal', cr: 'Crypto' };
 function ValuePreview({ value, other }: { value: any; other: any }) {
   if (value === undefined) return <p className="text-sm text-slate-400">Запись отсутствует / удалена</p>;
@@ -36,7 +36,7 @@ export default function SyncRecovery({ state, notices, owner, resolve }: {
     document.addEventListener('keydown', keydown);
     return () => { document.removeEventListener('keydown', keydown); previous?.focus(); };
   }, [open]);
-  const items = notices.flatMap(notice => notice.items.map(item => ({ notice, item })));
+  const items = notices.flatMap(notice => notice.items.filter(item => owner || adminRecoveryItem(item)).map(item => ({ notice, item })));
   if (!items.length) return null;
   const choose = async (notice: RecoveryNotice, item: RecoveryItem, useLocal: boolean, expected: any) => {
     setBusy(true); setError('');
@@ -64,7 +64,7 @@ export default function SyncRecovery({ state, notices, owner, resolve }: {
             </div>
             <div className="flex flex-wrap gap-3">
               <button disabled={busy} onClick={() => void choose(notice, item, false, current)} className="px-4 py-2 rounded-lg bg-slate-700 disabled:opacity-50">Оставить текущее</button>
-              {(owner || !ownerFields.has(root)) && <button disabled={busy} onClick={() => void choose(notice, item, true, current)} className="px-4 py-2 rounded-lg bg-indigo-600 disabled:opacity-50">Применить правку устройства</button>}
+              {(owner || adminRecoveryItem(item)) && <button disabled={busy} onClick={() => void choose(notice, item, true, current)} className="px-4 py-2 rounded-lg bg-indigo-600 disabled:opacity-50">Применить правку устройства</button>}
             </div>
           </section>;
         })}

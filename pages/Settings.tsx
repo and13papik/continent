@@ -1,4 +1,5 @@
 import { cloudFetch } from '../cloudTransport';
+import { periodValidationError } from '../accountingPeriods';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { AppState, CloudSnapshot, AccountingPeriod } from '../types';
@@ -489,6 +490,8 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
       setEditPeriod(null);
       return;
     }
+    const error = periodValidationError(state.accountingPeriods, state.accountingPeriods.map(p => p.id === editPeriod.id ? { ...p, label: editPeriod.label } : p));
+    if (error) { alert(error); return; }
     updateState(prev => ({
       ...prev,
       accountingPeriods: prev.accountingPeriods.map(p => p.id === editPeriod.id ? { ...p, label: editPeriod.label, updatedAt: new Date().toISOString() } : p)
