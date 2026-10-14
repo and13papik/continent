@@ -19,7 +19,11 @@ export function startNextPeriod(state: AppState, sourceId: string, closeSource =
   let suffix = 1;
   while (!existing && state.deletedIds.includes(nextId)) nextId = `month-${key}:${++suffix}`;
   const periods = state.accountingPeriods.map(period => closeSource && period.id === sourceId && period.status !== 'closed'
-    ? { ...period, status: 'closed' as const, endAt: now, updatedAt: now } : period);
+    ? { ...period, operators: period.operators || state.operators, models: period.models || state.models,
+      admins: period.admins || state.admins, modelRates: period.modelRates || state.modelRates,
+      modelDefaultGoals: period.modelDefaultGoals || state.modelDefaultGoals || {},
+      modelMonthlyPlans: period.modelMonthlyPlans || state.modelMonthlyPlans || {},
+      status: 'closed' as const, endAt: now, updatedAt: now } : period);
   if (existing) return { ...state, accountingPeriods: periods, selectedPeriodId: nextId };
   const next: AccountingPeriod = { id: nextId, label: `${months[start.getUTCMonth()]} ${start.getUTCFullYear()}`, startAt: start.toISOString(), endAt: null, status: 'open',
     operators: source.operators || state.operators, models: source.models || state.models,
@@ -37,6 +41,7 @@ export function periodValidationError(before: AccountingPeriod[], after: Account
   if (new Set(after.map(period => period.id)).size !== after.length) return 'Повторяющийся ID периода';
   const old = new Map(before.map(period => [period.id, period]));
   for (const period of after) {
+    if (!['open', 'closed'].includes(period.status)) return 'Некорректный статус периода';
     if ((!old.has(period.id) || old.get(period.id)!.startAt !== period.startAt) && !monthKey(period)) return 'Некорректная дата периода';
     if (typeof period.label !== 'string' || !period.label.trim()) return 'Укажите название периода';
   }

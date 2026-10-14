@@ -1,5 +1,6 @@
 import { cloudFetch } from '../cloudTransport';
 import { periodValidationError } from '../accountingPeriods';
+import { reopenPeriod } from '../closedPeriods';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { AppState, CloudSnapshot, AccountingPeriod } from '../types';
@@ -30,7 +31,7 @@ import { runMigrationDryRun, MigrationDryRunResult } from '../scripts/dry_run_mi
 
 interface SettingsProps {
   state: AppState;
-  updateState: (updater: (prev: AppState) => AppState) => void;
+  updateState: (updater: (prev: AppState) => AppState) => boolean | void;
   userRole?: 'user' | 'owner' | null;
 }
 
@@ -121,7 +122,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
         removeFromModelList: purgeRemoveFromList
       });
 
-      updateState(() => newState);
+      if (updateState(() => newState) === false) return;
 
       if (newState.syncUrl && newState.syncKey) {
         await forcePushToCloud(newState);
@@ -136,7 +137,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
   };
 
   const handleRestoreModelToPeriod = (modelName: string) => {
-    updateState(p => {
+    if (updateState(p => {
       const activeP = p.accountingPeriods.find(ap => ap.id === p.selectedPeriodId);
       const currentMods = activeP?.models || p.models;
       if (currentMods.includes(modelName)) return p;
@@ -148,20 +149,20 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
           updatedAt: new Date().toISOString()
         } : ap)
       };
-    });
+    }) === false) return;
   };
 
   const handleAddAdmin = () => {
     if (!newAdminName) return;
     const rate = parseFloat(newAdminRate) || 0;
-    updateState(p => ({
+    if (updateState(p => ({
       ...p,
       accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { 
         ...ap, 
         admins: [...(ap.admins || p.admins), { id: String(Date.now()), name: newAdminName, rate }],
         updatedAt: new Date().toISOString()
       } : ap)
-    }));
+    })) === false) return;
     setNewAdminName('');
     setNewAdminRate('8');
   };
@@ -287,7 +288,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
 
   const repairData = () => {
     if (!confirm('Это перераспределит все записи (доходы, операции, задачи) по правильным месяцам на основе их даты. Продолжить?')) return;
-    updateState(prev => reindexAllDataByDate(prev));
+    if (updateState(prev => reindexAllDataByDate(prev)) === false) return;
     alert('Данные перераспределены!');
   };
 
@@ -305,7 +306,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
 
   const handleUpdateDefaultGoal = (modelName: string, shift: 'night' | 'morning' | 'day' | 'evening', value: string) => {
     const val = parseFloat(value) || 0;
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       accountingPeriods: prev.accountingPeriods.map(p => p.id === activePeriodId ? {
         ...p,
@@ -318,7 +319,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
           }
         }
       } : p)
-    }));
+    })) === false) return;
   };
 
   const exportData = () => {
@@ -339,7 +340,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
       try {
         const json = JSON.parse(event.target?.result as string);
         if (confirm('Это заменит все текущие данные. Продолжить?')) {
-          updateState(() => json);
+          if (updateState(() => json) === false) return;
         }
       } catch (err) {
         alert('Ошибка файла.');
@@ -366,7 +367,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
       ...(state.totalTableEntries || []).map(e => e.id)
     ];
 
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       incomeData: [],
       operationsData: [],
@@ -380,7 +381,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
       deletedIds: Array.from(new Set([...(prev.deletedIds || []), ...allIds])),
       lastUpdated: Date.now(),
       version: prev.version + 1
-    }));
+    })) === false) return;
     
     alert('Все финансовые данные успешно удалены. Операторы и модели сохранены.');
   };
@@ -401,8 +402,9 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
      createEmergencyBackup(state); 
      
      const remote = await fetchFromCloud(syncUrlInput, syncKeyInput);
+     setIsManualSyncing(false);
      if (remote && remote.accountingPeriods) {
-        updateState(() => ({ ...remote, syncUrl: syncUrlInput, syncKey: syncKeyInput }));
+        if (updateState(() => ({ ...remote, syncUrl: syncUrlInput, syncKey: syncKeyInput })) === false) return;
         alert('Данные успешно загружены!');
      } else {
         alert('Данные не найдены.');
@@ -429,11 +431,11 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
     if (!confirm(`Вы действительно хотите откатить ВСЮ систему к состоянию на ${dateStr}? Текущие данные будут стерты.`)) return;
     
     createEmergencyBackup(state); 
-    updateState(() => ({
+    if (updateState(() => ({
       ...snap.state,
       syncUrl: state.syncUrl,
       syncKey: state.syncKey
-    }));
+    })) === false) return;
     alert('Система успешно восстановлена из снапшота!');
   };
 
@@ -442,7 +444,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
       setEditOp(null);
       return;
     }
-    updateState(prev => {
+    if (updateState(prev => {
       const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
       const updatedPeriods = prev.accountingPeriods.map(p => {
         if (p.id === prev.selectedPeriodId) {
@@ -458,7 +460,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
         incomeData: prev.incomeData.map(r => (r.operator === editOp.old && r.periodId === prev.selectedPeriodId) ? { ...r, operator: editOp.current } : r),
         operationsData: prev.operationsData.map(o => (o.operator === editOp.old && o.periodId === prev.selectedPeriodId) ? { ...o, operator: editOp.current } : o)
       };
-    });
+    }) === false) return;
     setEditOp(null);
   };
 
@@ -467,7 +469,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
       setEditModel(null);
       return;
     }
-    updateState(prev => {
+    if (updateState(prev => {
       const updatedPeriods = prev.accountingPeriods.map(p => {
         if (p.id === prev.selectedPeriodId) {
           const mods = p.models || prev.models;
@@ -482,7 +484,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
         incomeData: prev.incomeData.map(r => (r.model === editModel.old && r.periodId === prev.selectedPeriodId) ? { ...r, model: editModel.current } : r),
         modelBonuses: (prev.modelBonuses || []).map(b => (b.model === editModel.old && b.periodId === prev.selectedPeriodId) ? { ...b, model: editModel.current } : b)
       };
-    });
+    }) === false) return;
     setEditModel(null);
   };
 
@@ -493,10 +495,10 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
     }
     const error = periodValidationError(state.accountingPeriods, state.accountingPeriods.map(p => p.id === editPeriod.id ? { ...p, label: editPeriod.label } : p));
     if (error) { alert(error); return; }
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       accountingPeriods: prev.accountingPeriods.map(p => p.id === editPeriod.id ? { ...p, label: editPeriod.label, updatedAt: new Date().toISOString() } : p)
-    }));
+    })) === false) return;
     setEditPeriod(null);
   };
 
@@ -514,14 +516,14 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
       if (!confirm(`Удалить пустой период "${period.label}"?`)) return;
     }
 
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       accountingPeriods: prev.accountingPeriods.filter(p => p.id !== id),
       deletedIds: Array.from(new Set([...(prev.deletedIds || []), id])),
       selectedPeriodId: prev.selectedPeriodId === id ? (prev.accountingPeriods[0]?.id || '') : prev.selectedPeriodId,
       lastUpdated: Date.now(),
       version: prev.version + 1
-    }));
+    })) === false) return;
   };
 
   return (
@@ -536,7 +538,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
         </div>
         <div className="flex gap-2">
           {userRole === 'owner' && (
-            <button onClick={() => { const b = restoreEmergencyBackup(); if(b) updateState(() => b); }} className="bg-rose-600/20 text-rose-400 border border-rose-500/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-rose-600/30 transition-all">Черный ящик</button>
+            <button onClick={() => { const b = restoreEmergencyBackup(); if(b) if (updateState(() => b) === false) return; }} className="bg-rose-600/20 text-rose-400 border border-rose-500/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-rose-600/30 transition-all">Черный ящик</button>
           )}
           <label className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all">
             Импорт
@@ -1016,7 +1018,10 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                           <span className="text-sm font-bold text-slate-100">{p.label}</span>
                           <span className="text-[8px] text-slate-400 uppercase font-black">{p.status === 'closed' ? 'Закрыт 🔒' : 'Открыт 🟢'}</span>
                        </div>
-                       <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                       <div className="flex gap-3 items-center">
+                          {p.status === 'closed' && <button type="button" className="text-xs text-amber-300 hover:text-amber-100" onClick={() => {
+                            if (window.confirm(`Открыть «${p.label}» для исправлений? После синхронизации записи смогут изменять все участники. Открытие будет записано в историю действий.`)) if (updateState(previous => reopenPeriod(previous, p.id)) === false) return;
+                          }}>Открыть месяц</button>}
                           <button onClick={() => setEditPeriod({ id: p.id, label: p.label })} className="text-slate-400 hover:text-indigo-400 cursor-pointer"><ICONS.Edit size={14}/></button>
                           <button onClick={() => deletePeriod(p.id)} className="text-slate-400 hover:text-rose-400 cursor-pointer"><ICONS.Trash size={14}/></button>
                        </div>
@@ -1025,7 +1030,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                  </div>
                ))}
             </div>
-            <p className="text-[9px] text-slate-400 italic">Здесь вы можете переименовать "Восстановленные" периоды в нормальные названия месяцев.</p>
+            <p className="text-[10px] text-slate-400">Закрытый месяц защищён от изменений. Для исправлений откройте его, дождитесь синхронизации, внесите правки и снова закройте на Dashboard. Действия сохраняются в истории.</p>
           </div>
         )}
 
@@ -1037,7 +1042,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
              <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-sky-400" placeholder="Имя..." value={newOp} onChange={e => setNewOp(e.target.value)}/>
              <button onClick={() => { 
                if(newOp) { 
-                 updateState(p => {
+                 if (updateState(p => {
                     const activeP = p.accountingPeriods.find(ap => ap.id === p.selectedPeriodId);
                     const currentOps = activeP?.operators || p.operators;
                     if (currentOps.includes(newOp)) return p;
@@ -1052,7 +1057,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                       operators: newGlobalOps,
                       accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, operators: [...currentOps, newOp], updatedAt: new Date().toISOString() } : ap)
                     };
-                 }); 
+                 }) === false) return;
                  setNewOp(''); 
                } 
              }} className="bg-sky-600 hover:bg-sky-500 text-white px-3 rounded-lg cursor-pointer transition-colors"><ICONS.Plus size={18}/></button>
@@ -1137,7 +1142,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
              <input className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-indigo-400" placeholder="Название..." value={newModel} onChange={e => setNewModel(e.target.value)}/>
              <button onClick={() => { 
                if(newModel) { 
-                 updateState(p => {
+                 if (updateState(p => {
                     const activeP = p.accountingPeriods.find(ap => ap.id === p.selectedPeriodId);
                     const currentMods = activeP?.models || p.models;
                     if (currentMods.includes(newModel)) return p;
@@ -1152,7 +1157,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                       models: newGlobalModels,
                       accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, models: [...currentMods, newModel], updatedAt: new Date().toISOString() } : ap)
                     };
-                 }); 
+                 }) === false) return;
                  setNewModel(''); 
                } 
              }} className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 rounded-lg cursor-pointer transition-colors"><ICONS.Plus size={18}/></button>
@@ -1180,10 +1185,10 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                         <button onClick={() => setEditModel({ old: m, current: m })} className="text-slate-400 hover:text-indigo-400 p-1.5 rounded hover:bg-slate-700/60 cursor-pointer"><ICONS.Edit size={14}/></button>
                         <button onClick={() => {
                           if (confirm(`Удалить модель «${m}» из списка моделей за ${activePeriod?.label}?\n\n(Чтобы очистить все финансовые данные и обнулить балансы, нажмите кнопку «Очистить»).`)) {
-                            updateState(p => ({
+                            if (updateState(p => ({
                               ...p, 
                               accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, models: (ap.models || p.models).filter(x => x !== m), updatedAt: new Date().toISOString() } : ap)
-                            }));
+                            })) === false) return;
                           }
                         }} className="text-slate-400 hover:text-rose-400 p-1.5 rounded hover:bg-slate-700/60 cursor-pointer"><ICONS.Trash size={14}/></button>
                      </div>
@@ -1218,10 +1223,10 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                         const newRate = prompt(`Новая ставка для ${a.name} (%):`, String(a.rate));
                         if (newRate !== null) {
                           const rate = parseFloat(newRate) || 0;
-                          updateState(p => ({
+                          if (updateState(p => ({
                             ...p,
                             accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? { ...ap, admins: (ap.admins || p.admins).map(x => x.id === a.id ? { ...x, rate } : x), updatedAt: new Date().toISOString() } : ap)
-                          }));
+                          })) === false) return;
                         }
                       }} className="text-slate-400 hover:text-amber-400 cursor-pointer"><ICONS.Edit size={14}/></button>
                       <button onClick={() => updateState(p => ({
@@ -1279,14 +1284,14 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                       value={currentPlans[m] || ''}
                       onChange={e => {
                         const val = parseFloat(e.target.value) || 0;
-                        updateState(p => ({
+                        if (updateState(p => ({
                           ...p,
                           accountingPeriods: p.accountingPeriods.map(ap => ap.id === p.selectedPeriodId ? {
                             ...ap,
                             modelMonthlyPlans: { ...(ap.modelMonthlyPlans || {}), [m]: val },
                             updatedAt: new Date().toISOString()
                           } : ap)
-                        }));
+                        })) === false) return;
                       }}
                     />
                     <span className="text-xs text-slate-400">$</span>

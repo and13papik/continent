@@ -5,6 +5,7 @@ import { archiveRecovery, dismissRecoveryItem, loadRecoveries, loadSyncBase, mar
 import { applyRecoveryChoice } from './syncRecovery';
 import type { AppState } from './types';
 import { adminView, adminRecoveryItem } from './stateAccess';
+import { closedPeriodChanges, CLOSED_PERIOD_MESSAGE } from './closedPeriods';
 
 type CloudStatus = 'idle' | 'loading' | 'success' | 'error' | 'conflict';
 
@@ -17,6 +18,7 @@ export function useCloudState(connection?: Pick<AppState, 'syncUrl' | 'syncKey'>
   const [cloudStatus, setCloudStatus] = useState<CloudStatus>('idle');
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [recoveries, setRecoveries] = useState<RecoveryNotice[]>([]);
+  const [mutationError, setMutationError] = useState('');
   const current = useRef(state);
   const base = useRef<AppState>();
   const pending = useRef(false);
@@ -36,6 +38,11 @@ export function useCloudState(connection?: Pick<AppState, 'syncUrl' | 'syncKey'>
   const updateState = useCallback((updater: (previous: AppState) => AppState) => {
     const previous = current.current;
     const updated = updater(previous);
+    if (closedPeriodChanges(previous, updated, role).length || (base.current && closedPeriodChanges(base.current, updated, role).length)) {
+      setMutationError(CLOSED_PERIOD_MESSAGE);
+      return false;
+    }
+    setMutationError('');
     const changed = connection ? { ...updated, ...connection, dbUrl: undefined } : updated;
     const next = { ...changed, lastUpdated: Date.now(), version: (previous.version || 0) + 1, remoteVersion: undefined };
     if (hasSharedChanges(next, previous)) {
@@ -47,7 +54,7 @@ export function useCloudState(connection?: Pick<AppState, 'syncUrl' | 'syncKey'>
       setCloudStatus('idle');
     }
     return apply(next);
-  }, [apply]);
+  }, [apply, role]);
 
   useEffect(() => {
     const url = state.syncUrl, key = state.syncKey;
@@ -190,11 +197,15 @@ export function useCloudState(connection?: Pick<AppState, 'syncUrl' | 'syncKey'>
   const refreshCloudStatus = useCallback(() => refresh.current(), []);
   const resolveRecovery = useCallback(async (notice: RecoveryNotice, item: RecoveryItem, useLocal: boolean, expected: any) => {
     if (role === 'admin' && !adminRecoveryItem(item)) throw new Error('Доступно только овнеру');
-    if (useLocal && !updateState(previous => applyRecoveryChoice(previous, item, expected))) throw new Error('Не удалось сохранить выбор на устройстве. Освободите место и повторите.');
+    if (useLocal) {
+      const choice = applyRecoveryChoice(current.current, item, expected);
+      if (closedPeriodChanges(current.current, choice, role).length || (base.current && closedPeriodChanges(base.current, choice, role).length)) throw new Error(CLOSED_PERIOD_MESSAGE);
+      if (!updateState(() => choice)) throw new Error('Не удалось сохранить выбор на устройстве. Освободите место и повторите.');
+    }
     const notices = await dismissRecoveryItem(current.current.syncUrl!, notice.id, item.field);
     setRecoveries(notices);
   }, [updateState, role]);
   const visibleState = role === 'admin' ? { ...adminView(state), syncKey: connection?.syncKey } : state;
   const visibleRecoveries = role === 'admin' ? recoveries.map(notice => ({ ...notice, items: notice.items.filter(adminRecoveryItem) })).filter(notice => notice.items.length) : recoveries;
-  return { state: visibleState, updateState, isSyncing, cloudStatus, lastSyncTime, refreshCloudStatus, recoveries: visibleRecoveries, resolveRecovery };
+  return { state: visibleState, updateState, isSyncing, cloudStatus, lastSyncTime, refreshCloudStatus, recoveries: visibleRecoveries, resolveRecovery, mutationError };
 }

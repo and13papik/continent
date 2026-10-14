@@ -25,7 +25,7 @@ import SyncRecovery from './components/SyncRecovery';
 const App: React.FC = () => <AuthGate>{user => <DashboardApp key={`${user.id}:${user.role}`} user={user} />}</AuthGate>;
 
 const DashboardApp: React.FC<{ user: SignedInUser }> = ({ user }) => {
-  const { state, updateState, isSyncing, cloudStatus, lastSyncTime, refreshCloudStatus, recoveries, resolveRecovery } = useCloudState({ syncUrl: user.cloudUrl, syncKey: 'server-session' }, user.role);
+  const { state, updateState, isSyncing, cloudStatus, lastSyncTime, refreshCloudStatus, recoveries, resolveRecovery, mutationError } = useCloudState({ syncUrl: user.cloudUrl, syncKey: 'server-session' }, user.role);
   const userRole = user.role === 'owner' ? 'owner' : 'user';
 
   return (
@@ -186,6 +186,7 @@ const DashboardApp: React.FC<{ user: SignedInUser }> = ({ user }) => {
         </nav>
 
         <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-gradient-to-br from-[#101524] via-[#0d111d] to-[#0a0d17]">
+          {mutationError && <p role="alert" className="sticky top-2 z-40 mb-4 p-4 rounded-xl bg-amber-950 border border-amber-500/50 text-amber-100 text-sm">{mutationError}</p>}
           <div className="max-w-7xl mx-auto">
             <Suspense fallback={<p role="status" className="p-8 text-slate-400">Загрузка раздела…</p>}><Routes>
               <Route path="/" element={<Dashboard state={state} updateState={updateState} userRole={userRole} syncStatus={cloudStatus} needsReview={recoveries.length > 0} />} />

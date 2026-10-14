@@ -1,0 +1,13 @@
+# Closed accounting months
+
+Closed months remain readable. Their income, operations, owner expenses/income/advances, model bonuses, payment markers, advance requests, Total Table, roster and operator assessments cannot be created, changed, deleted, moved or tombstoned. Both a record's period ID and its financial date are checked, so selecting an open month does not permit backdating into a closed one. Existing mismatched records are preserved without rewriting them.
+
+The authenticated `/api/cloud` PATCH compares against the current full database state after reconstructing an admin's private fields. Violations return `423 PERIOD_CLOSED` before the database write. The existing timestamp/revision compare-and-swap prevents concurrent changes between validation and commit. Browser roles cannot update `app_storage` directly. This is an application rule; privileged database maintenance remains outside this boundary.
+
+Only an owner can explicitly reopen a month in Settings → Управление периодами. Confirm, wait for synchronization, make the correction, then close the month again on Dashboard. A reopening request cannot also change that closed month's records or settings. The existing audit trigger records the status changes with the verified account, like other accounting-period changes. Shared owner logins remain attributable to the account only.
+
+Period metadata and inherited settings affecting closed calculations are protected. Newly closed periods capture their staff, rates and goals from current effective settings. Legacy closed periods that still inherit a global setting prevent changes to that fallback; reopen the affected month before editing it. Tasks, notes and unrelated open-month activity remain editable.
+
+The browser guards edits before updating its cache and keeps form values when an update is rejected. If another user closes a month while a device is offline, pending changes are durably archived through the existing recovery system before accepting cloud records. Unrelated permitted edits continue syncing. Applying the archived change still requires reopening; it is never silently dropped or retried endlessly as a financial write. If the recovery archive cannot be saved, synchronization pauses with the existing conflict warning and retains local data.
+
+No schema migration, backfill, financial recalculation or redesign is required. Validation covers each protected collection, deletion/move/backdating/duplicate-ID bypasses, verified roles, reopening acknowledgement, closing/offline races, durable recovery, and normal open-month writes. Browser tests use an isolated local copy and mock writes; production checks are read-only.

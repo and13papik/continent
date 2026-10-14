@@ -33,7 +33,7 @@ const getCellStatusClasses = (balance: any, goal: number) => {
   return 'bg-emerald-600/50 border-emerald-400 text-emerald-100 font-black shadow-[0_0_15px_rgba(16,185,129,0.3)]';
 };
 
-const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppState) => AppState) => void }> = ({ state, updateState }) => {
+const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppState) => AppState) => boolean | void }> = ({ state, updateState }) => {
   const tableRef = useRef<HTMLDivElement>(null);
   const [isSending, setIsSending] = useState<string | null>(null);
 
@@ -118,6 +118,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
   useEffect(() => {
     if (selectedDate) {
       const targetPeriodId = findPeriodIdByDate(selectedDate, state.accountingPeriods) || state.selectedPeriodId;
+      if (state.accountingPeriods.find(period => period.id === targetPeriodId)?.status === 'closed') return;
       
       // 1. Получаем список имен моделей, у которых есть месячный план (динамические цели)
       // И которые НЕ скрыты на постоянной основе
@@ -158,7 +159,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       });
       
       if (newEntries.length > 0) {
-        updateState(prev => {
+        if (updateState(prev => {
           const existingIds = new Set((prev.totalTableEntries || []).map(e => e.id));
           const filteredNew = newEntries.filter(ne => !existingIds.has(ne.id));
           
@@ -168,15 +169,15 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
             ...prev, 
             totalTableEntries: [...(prev.totalTableEntries || []), ...filteredNew] 
           };
-        });
+        }) === false) return;
       }
     }
-  }, [selectedDate, currentPlans, entriesForDate.length, state.deletedIds, state.inactiveModels, updateState]);
+  }, [selectedDate, currentPlans, entriesForDate.length, state.deletedIds, state.inactiveModels, state.accountingPeriods, state.selectedPeriodId, updateState]);
 
   const handleUpdate = (entryId: string, shift: keyof DailyTotalEntry, field: keyof ShiftData, value: string) => {
     const val = value === '' ? undefined : parseFloat(value);
     
-    updateState(prev => {
+    if (updateState(prev => {
       const targetEntry = (prev.totalTableEntries || []).find(e => e.id === entryId);
       const modelName = targetEntry?.modelName;
 
@@ -203,13 +204,13 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
           } : e
         )
       };
-    });
+    }) === false) return;
   };
 
   const handleSyncGoalsToAll = () => {
     if (!confirm('Применить текущие цели из этой таблицы КО ВСЕМ дням (существующим и будущим)?')) return;
     
-    updateState(prev => {
+    if (updateState(prev => {
       const currentDateEntries = (prev.totalTableEntries || []).filter(e => e.date === selectedDate);
       const newDefaults: Record<string, any> = { ...currentGoals };
       
@@ -241,14 +242,14 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         accountingPeriods: prev.accountingPeriods.map(p => p.id === activePeriodId ? { ...p, modelDefaultGoals: newDefaults } : p),
         totalTableEntries: updatedTotalEntries
       };
-    });
+    }) === false) return;
     alert('Цели успешно синхронизированы по всей системе!');
   };
 
   const handleRecalculateDynamicGoals = () => {
     if (!confirm('Пересчитать динамические цели для всех анкет на эту дату на основе месячного плана и остатка?')) return;
     
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       totalTableEntries: (prev.totalTableEntries || []).map(e => {
         if (e.date !== selectedDate) return e;
@@ -263,16 +264,16 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
           updatedAt: new Date().toISOString()
         };
       })
-    }));
+    })) === false) return;
   };
 
   const handleRenameModel = (entryId: string, newName: string) => {
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       totalTableEntries: (prev.totalTableEntries || []).map(e => 
         (e && e.id === entryId) ? { ...e, modelName: newName, updatedAt: new Date().toISOString() } : e
       )
-    }));
+    })) === false) return;
   };
 
   const handleRemoveModel = (entryId: string) => {
@@ -284,7 +285,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     if (action) {
       const hidePermanently = confirm(`Скрыть "${entry.modelName}" НА СОВСЕМ из Total Table (чтобы не возвращалась завтра)?`);
       
-      updateState(prev => {
+      if (updateState(prev => {
         let newState = {
           ...prev,
           deletedIds: [...(prev.deletedIds || []), entryId],
@@ -296,7 +297,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         }
 
         return newState;
-      });
+      }) === false) return;
     }
   };
 
@@ -318,16 +319,16 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       day: { balance: undefined as any, goal: goals.day },
       evening: { balance: undefined as any, goal: goals.evening }
     };
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       totalTableEntries: [...(prev.totalTableEntries || []), newEntry]
-    }));
+    })) === false) return;
   };
 
   const handleReset = () => {
     if (!confirm('Очистить БАЛАНСЫ за выбранную дату? ЦЕЛИ останутся зафиксированными.')) return;
     const now = new Date().toISOString();
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       totalTableEntries: (prev.totalTableEntries || []).map(e => 
         (e && e.date === selectedDate) ? {
@@ -339,7 +340,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
           evening: { ...(e.evening || {}), balance: undefined as any }
         } : e
       )
-    }));
+    })) === false) return;
   };
 
   const totals = useMemo(() => {

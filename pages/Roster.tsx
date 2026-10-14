@@ -18,7 +18,7 @@ const ASSESSMENT_META: Record<OperatorStatus, { label: string; color: string; bg
 
 interface RosterProps {
   state: AppState;
-  updateState: (updater: (prev: AppState) => AppState) => void;
+  updateState: (updater: (prev: AppState) => AppState) => boolean | void;
 }
 
 const SHIFTS: { type: ShiftType; label: string; time: string; color: string }[] = [
@@ -72,7 +72,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
 
   // Auto-clone roster to current month if it is empty so it is fixed and persisted across months
   useEffect(() => {
-    if (!state.selectedPeriodId) return;
+    if (!state.selectedPeriodId || currentPeriod?.status === 'closed') return;
     const hasCurrent = (state.rosterData || []).some((e: RosterEntry) => e.periodId === state.selectedPeriodId);
     if (!hasCurrent && fallbackPeriodId && fallbackPeriodId !== state.selectedPeriodId) {
       const sourceEntries = (state.rosterData || []).filter(e => e.periodId === fallbackPeriodId);
@@ -94,14 +94,14 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
           updatedAt: new Date().toISOString()
         }));
 
-        updateState(prev => ({
+        if (updateState(prev => ({
           ...prev,
           rosterData: [...(prev.rosterData || []), ...cloned],
           operatorAssessments: [...(prev.operatorAssessments || []), ...clonedAsmts]
-        }));
+        })) === false) return;
       }
     }
-  }, [state.selectedPeriodId, fallbackPeriodId, state.rosterData, state.operatorAssessments, updateState]);
+  }, [state.selectedPeriodId, currentPeriod?.status, fallbackPeriodId, state.rosterData, state.operatorAssessments, updateState]);
 
   const operatorWorkingDays = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -140,10 +140,10 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
             })
           });
 
-          updateState(prev => ({
+          if (updateState(prev => ({
             ...prev,
             notifiedInterns: [...(prev.notifiedInterns || []), opName]
-          }));
+          })) === false) return;
         } catch (e) {
           console.error("Failed to notify graduate", e);
         }
@@ -354,7 +354,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
   }, [state.models, currentPeriod?.models]);
 
   const addModelToPeriod = (modelName: string) => {
-    updateState(prev => {
+    if (updateState(prev => {
       const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
       if (!activeP) return prev;
       
@@ -376,14 +376,14 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
             : p
         )
       };
-    });
+    }) === false) return;
     setNewModelName('');
   };
 
   const removeModelFromPeriod = (modelName: string) => {
     if (!confirm(`Скрыть анкету "${modelName}" из состава на этот период? Данные в отчетах сохранятся, анкета останется в системе.`)) return;
     
-    updateState(prev => {
+    if (updateState(prev => {
       const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
       if (!activeP) return prev;
       
@@ -396,7 +396,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
             : p
         )
       };
-    });
+    }) === false) return;
   };
 
   const availableOperators = useMemo(() => {
@@ -405,7 +405,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
   }, [state.operators, currentPeriod?.operators]);
 
   const addOperatorToPeriod = (opName: string) => {
-    updateState(prev => {
+    if (updateState(prev => {
       const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
       if (!activeP) return prev;
       
@@ -426,14 +426,14 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
             : p
         )
       };
-    });
+    }) === false) return;
     setNewOperatorName('');
   };
 
   const removeOperatorFromPeriod = (opName: string) => {
     if (!confirm(`Скрыть оператора "${opName}" из состава на этот период?`)) return;
     
-    updateState(prev => {
+    if (updateState(prev => {
       const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
       if (!activeP) return prev;
       
@@ -446,7 +446,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
             : p
         )
       };
-    });
+    }) === false) return;
   };
 
   const operators = currentPeriod?.operators || state.operators;
@@ -488,7 +488,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     const model = assessmentTarget.modelName;
     const period = state.selectedPeriodId;
 
-    updateState(prev => {
+    if (updateState(prev => {
       const allAssessments = prev.operatorAssessments || [];
       let eliminatedIds: string[] = [];
       
@@ -542,11 +542,11 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         operatorAssessments: assessments,
         deletedIds: Array.from(new Set([...(prev.deletedIds || []), ...eliminatedIds]))
       };
-    });
+    }) === false) return;
   };
 
   const toggleModelStatus = (model: string, status: 'priority' | 'inactive') => {
-    updateState(prev => {
+    if (updateState(prev => {
       let newPriority = [...(prev.priorityModels || [])];
       let newInactive = [...(prev.inactiveModels || [])];
 
@@ -567,7 +567,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       }
 
       return { ...prev, priorityModels: newPriority, inactiveModels: newInactive };
-    });
+    }) === false) return;
   };
 
   const handleAssign = (operator: string) => {
@@ -576,7 +576,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
     const daysWorked = operatorWorkingDays[operator] || 0;
     const isTrainee = operator !== 'ДЫРКА' && daysWorked < 7;
 
-    updateState(prev => {
+    if (updateState(prev => {
       const currentPeriodId = prev.selectedPeriodId;
       const roster = [...(prev.rosterData || [])];
       const now = new Date().toISOString();
@@ -662,13 +662,13 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       });
 
       return { ...prev, rosterData: updatedRoster, deletedIds: newDeletedIds };
-    });
+    }) === false) return;
     setEditingCell(null);
   };
 
   const clearCell = () => {
     if (!editingCell) return;
-    updateState(prev => {
+    if (updateState(prev => {
       const currentPeriodId = prev.selectedPeriodId;
       const now = new Date().toISOString();
       
@@ -701,7 +701,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
       }).filter(e => e.models.length > 0);
       
       return { ...prev, rosterData: roster, deletedIds: newDeletedIds };
-    });
+    }) === false) return;
     setEditingCell(null);
   };
 
@@ -723,7 +723,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
 
     const totalBindings = currentRoster.reduce((sum, r) => sum + r.models.length, 0);
 
-    updateState(prev => {
+    if (updateState(prev => {
       const now = new Date().toISOString();
       const newEntries: RosterEntry[] = [];
       const deletedIds: string[] = [];
@@ -757,7 +757,7 @@ const Roster: React.FC<RosterProps> = ({ state, updateState }) => {
         rosterData: [...retained, ...newEntries],
         deletedIds: Array.from(new Set([...(prev.deletedIds || []), ...deletedIds]))
       };
-    });
+    }) === false) return;
 
     setSyncBanner({
       message: `Состав успешно зафиксирован на ВСЕ месяцы (${totalBindings} распределений операторов перенесены во все периоды)!`,

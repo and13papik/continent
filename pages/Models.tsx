@@ -6,7 +6,7 @@ import PeriodBadge from '../components/PeriodBadge';
 
 interface ModelsProps {
   state: AppState;
-  updateState: (updater: (prev: AppState) => AppState) => void;
+  updateState: (updater: (prev: AppState) => AppState) => boolean | void;
 }
 
 const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
@@ -156,7 +156,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       date: new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString()
     };
-    updateState(prev => ({ ...prev, modelBonuses: [...(prev.modelBonuses || []), newBonus] }));
+    if (updateState(prev => ({ ...prev, modelBonuses: [...(prev.modelBonuses || []), newBonus] })) === false) return;
     setBonusInputs(prev => ({ ...prev, [model]: '' }));
   };
 
@@ -174,12 +174,12 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       createdAt: new Date().toISOString(),
       periodId: activePeriodId
     };
-    updateState(prev => ({ ...prev, operationsData: [newOp, ...prev.operationsData] }));
+    if (updateState(prev => ({ ...prev, operationsData: [newOp, ...prev.operationsData] })) === false) return;
     setAdvanceInputs(prev => ({ ...prev, [model]: '' }));
   };
 
   const toggleModelPaid = (model: string, currentRemainder: number) => {
-    updateState(prev => {
+    if (updateState(prev => {
       const existing = prev.paidStatuses.find(s => 
         s.entityName === model && 
         s.entityType === 'model' && 
@@ -228,13 +228,13 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
           paidStatuses: [...prev.paidStatuses, newPaid] 
         };
       }
-    });
+    }) === false) return;
   };
 
   const toggleGroupPaid = (groupModelName: string, membersStats: typeof modelStats) => {
     const allPaid = membersStats.every(ms => ms.isPaid);
     
-    updateState(prev => {
+    if (updateState(prev => {
       let nextPaidStatuses = [...prev.paidStatuses];
       let nextOperations = [...prev.operationsData];
       let nextDeletedIds = [...(prev.deletedIds || [])];
@@ -294,25 +294,25 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
         lastUpdated: Date.now(),
         version: (prev.version || 0) + 1
       };
-    });
+    }) === false) return;
   };
 
   const removeBonus = (bonusId: string) => {
     if (!confirm('Удалить этот бонус?')) return;
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       deletedIds: [...prev.deletedIds, bonusId],
       modelBonuses: (prev.modelBonuses || []).filter(b => b.id !== bonusId)
-    }));
+    })) === false) return;
   };
 
   const removeOperation = (id: string) => {
     if (!confirm('Удалить эту операцию?')) return;
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       deletedIds: [...prev.deletedIds, id],
       operationsData: prev.operationsData.filter(o => o.id !== id)
-    }));
+    })) === false) return;
   };
 
   const handleSaveGroup = (name: string, members: string[], existingId: string | null) => {
@@ -326,7 +326,7 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       return;
     }
 
-    updateState(prev => {
+    if (updateState(prev => {
       const groups = prev.modelGroups || [];
       const updatedGroups = existingId
         ? groups.map(g => g.id === existingId ? { ...g, name: trimmedName, members } : g)
@@ -338,17 +338,17 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
         lastUpdated: Date.now(),
         version: (prev.version || 0) + 1
       };
-    });
+    }) === false) return;
   };
 
   const handleDeleteGroup = (id: string) => {
     if (!confirm('Вы уверены, что хотите убрать связку этих анкет? Анкеты останутся в системе как отдельные строки.')) return;
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       modelGroups: (prev.modelGroups || []).filter(g => g.id !== id),
       lastUpdated: Date.now(),
       version: (prev.version || 0) + 1
-    }));
+    })) === false) return;
   };
 
   const toggleGroupExpand = (groupId: string) => {
@@ -357,18 +357,18 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
 
   const updateGlobalRate = (val: string) => {
     const rate = parseFloat(val) || 0;
-    updateState(prev => ({ 
+    if (updateState(prev => ({
       ...prev, 
       accountingPeriods: prev.accountingPeriods.map(p => p.id === activePeriodId ? { ...p, modelRates: { of: rate, pp: rate, cr: rate } } : p)
-    }));
+    })) === false) return;
   };
 
   const updateSpecificRate = (field: keyof typeof state.modelRates, val: string) => {
     const rate = parseFloat(val) || 0;
-    updateState(prev => ({ 
+    if (updateState(prev => ({
       ...prev, 
       accountingPeriods: prev.accountingPeriods.map(p => p.id === activePeriodId ? { ...p, modelRates: { ...(p.modelRates || prev.modelRates), [field]: rate } } : p)
-    }));
+    })) === false) return;
   };
 
   const isUniform = currentRates.of === currentRates.pp && currentRates.pp === currentRates.cr;

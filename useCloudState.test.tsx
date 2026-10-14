@@ -5,6 +5,8 @@ import { useCloudState } from './useCloudState';
 import { fixture, income, fakeDatabase } from './syncTestFixtures';
 import type { AppState } from './types';
 import { adminView } from './stateAccess';
+import { startNextPeriod } from './accountingPeriods';
+import { reopenPeriod } from './closedPeriods';
 
 const journal = vi.hoisted(() => ({ base: undefined as any, pending: null as boolean | null, notices: [] as any[], archives: [] as any[], failArchive: false, holdArchive: undefined as Promise<void> | undefined }));
 vi.mock('./syncStorage', () => ({
@@ -56,6 +58,30 @@ afterEach(async () => {
 });
 
 describe('browser sync lifecycle', () => {
+  it('rejects a closed month edit locally, waits for owner reopen acknowledgement, then saves normally', async()=>{
+    testRole='owner'; const saved=startNextPeriod({...fixture(),incomeData:[income('saved')]},'period',true);
+    journal.base=saved; storage.set('continental_dashboard_v3',JSON.stringify(saved));
+    const db=fakeDatabase(saved);vi.stubGlobal('fetch',db.fetch); await mount();
+    act(()=>{expect(hook.updateState(state=>({...state,incomeData:[{...state.incomeData[0],total:999}]}))).toBe(false);});
+    expect(hook.mutationError).toContain('закрытый месяц'); expect(hook.state.incomeData[0].total).toBe(100);
+    act(()=>{expect(hook.updateState(state=>reopenPeriod(state,'period'))).toBe(true);});
+    act(()=>{expect(hook.updateState(state=>({...state,incomeData:[{...state.incomeData[0],total:999}]}))).toBe(false);});
+    await tick(6000);
+    expect(db.current().accountingPeriods[0].status).toBe('open');
+    act(()=>{expect(hook.updateState(state=>({...state,incomeData:[{...state.incomeData[0],total:999}]}))).toBe(true);});
+    await tick(6000); expect(db.current().incomeData[0].total).toBe(999); expect(hook.cloudStatus).toBe('success');
+  });
+  it('archives offline changes to a newly closed month and continues syncing other work',async()=>{
+    const base={...fixture(),incomeData:[income('saved')]};
+    const local={...structuredClone(base),incomeData:[{...income('saved'),total:999}],ownerDocument:'Other work'};
+    journal.base=base; journal.pending=true; storage.set('continental_dashboard_v3',JSON.stringify(local));
+    const db=fakeDatabase(startNextPeriod(base,'period',true)); vi.stubGlobal('fetch',db.fetch);
+    await mount(); await tick(6000);
+    expect(db.current().incomeData[0].total).toBe(100); expect(db.current().ownerDocument).toBe('Other work');
+    expect(journal.archives.some(archive=>archive.local.incomeData[0].total===999)).toBe(true);
+    expect(hook.recoveries.some(notice=>notice.items.some((item:any)=>item.field==='incomeData[saved]'))).toBe(true);
+    expect(hook.cloudStatus).toBe('success');expect(journal.pending).toBe(false);
+  });
   it('upgrades an admin cache without leaking private fields or losing offline income and owner edits', async () => {
     const base = {...fixture(), ownerDocument:'PRIVATE BASE'};
     const local = {...base, ownerDocument:'PRIVATE OFFLINE', incomeData:[income('offline-admin')]};

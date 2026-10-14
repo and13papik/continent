@@ -4,6 +4,7 @@ import { sameValue, validCloudState } from '../cloudSync.js';
 import { adminView, ADMIN_FIELDS, PRIVATE_OWNER_FIELDS, emptyOwnerField, isAdminTask } from '../stateAccess.js';
 import { periodValidationError } from '../accountingPeriods.js';
 import { readAuditHistory } from './_lib/audit.js';
+import { closedPeriodChanges, CLOSED_PERIOD_MESSAGE } from '../closedPeriods.js';
 
 const LOCAL_FIELDS = ['syncUrl', 'syncKey', 'dbUrl', 'selectedPeriodId'];
 
@@ -93,6 +94,7 @@ export default async function handler(req: any, res: any) {
       if (Object.hasOwn(old.state, key)) next[key] = old.state[key];
       else delete next[key];
     }
+    if (closedPeriodChanges(old.state, next, user.role).length) return json(res, 423, { code: 'PERIOD_CLOSED', error: CLOSED_PERIOD_MESSAGE });
     endpoint.search = new URLSearchParams({ id: 'eq.main', select: 'state,updated_at', updated_at: timestamp, 'state->>syncRevision': revision }).toString();
     const response = await fetch(endpoint, { method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=representation',
       'x-continental-actor-id': user.id, 'x-continental-actor-name': user.username, 'x-continental-actor-role': user.role,

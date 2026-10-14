@@ -1,4 +1,5 @@
 import { telegramFetch } from '../telegramClient';
+import { CLOSED_PERIOD_MESSAGE } from '../closedPeriods';
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -8,7 +9,7 @@ import PeriodBadge from '../components/PeriodBadge';
 
 interface AdvanceRequestProps {
   state: AppState;
-  updateState: (updater: (prev: AppState) => AppState) => void;
+  updateState: (updater: (prev: AppState) => AppState) => boolean | void;
 }
 
 const formatUsername = (name: string): string => {
@@ -64,6 +65,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
 
   const sendToTelegram = async () => {
     if (!selectedOperator || !amount || !walletAddress) return;
+    if (activePeriod?.status === 'closed') { alert(CLOSED_PERIOD_MESSAGE); return; }
     
     setIsSending(true);
 
@@ -120,7 +122,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
         periodId: activePeriodId
       };
 
-      updateState(prev => {
+      if (updateState(prev => {
         const existingRequests = prev.advanceRequests || [];
         let nextState = { 
           ...prev, 
@@ -142,7 +144,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
         }
 
         return nextState;
-      });
+      }) === false) return;
 
       alert('✅ Запрос на аванс успешно отправлен!');
       setSelectedOperator('');
@@ -161,12 +163,12 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     const request = (state.advanceRequests || []).find(r => r.id === reqId);
     if (!request) return;
 
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       advanceRequests: (prev.advanceRequests || []).filter(r => r.id !== reqId),
       deletedIds: [...(prev.deletedIds || []), reqId],
       lastUpdated: Date.now()
-    }));
+    })) === false) return;
 
     if (request.tgMessageId) {
 
@@ -198,7 +200,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     const request = (state.advanceRequests || []).find(r => r.id === reqId);
     if (!request) return;
 
-    updateState(prev => {
+    if (updateState(prev => {
       const updatedRequests: AdvanceRequestItem[] = (prev.advanceRequests || []).map(r => 
         r.id === reqId ? { ...r, status: 'paid' as const, paidAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : r
       );
@@ -223,7 +225,7 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
       }
 
       return nextState;
-    });
+    }) === false) return;
 
     const DEFAULT_CHAT_ID = '-1003748692600';
 
