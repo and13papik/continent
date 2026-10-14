@@ -23,3 +23,9 @@
 Keep backup files and credentials private. For recovery, compare the intended historical version first and preserve the current state before applying the existing full-system restore operation. The live system was not rolled back as a test. Historical records detached from deleted periods remain preserved; reassignment requires a bookkeeping decision.
 
 Supabase security checks reported no new migration warnings. Existing no-policy RLS notices reflect server-only access; enabling browser access is not part of this change. The existing leaked-password protection notice requires a separate Auth configuration decision.
+
+## Follow-up: OnlyMonster event persistence
+
+Release log inspection revealed an existing contract mismatch: the webhook wrote `delivery_id` and targeted a single-column conflict key, while the deployed table has `webhook_delivery_id` and a unique `(event_type, dedup_key)` index. Align the handler to that schema without altering database rows or accounting calculations. A failed persistence attempt now returns 503 with `Retry-After` instead of acknowledging success; duplicate delivery remains a successful no-op.
+
+Seven additional signed-request tests cover storage, duplicate and cross-type delivery, database failure/retry, missing configuration, thrown errors, and invalid signatures. All 131 tests and TypeScript pass. The actual table's constraints/indexes were copied to a temporary table and its duplicate-delivery behavior verified inside a rolled-back transaction. Historical events acknowledged by the previous handler but never saved cannot be reconstructed by this code fix.

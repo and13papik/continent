@@ -89,25 +89,16 @@ export default async function handler(req: any, res: any) {
           event_timestamp: eventTimestamp,
           received_at: new Date().toISOString(),
           dedup_key: dedupKey,
-          delivery_id: deliveryId
+          webhook_delivery_id: deliveryId
         };
 
         const { error: upsertErr } = await supabase
           .from('om_webhook_events')
-          .upsert(rowToInsert, { onConflict: 'dedup_key', ignoreDuplicates: true });
+          .upsert(rowToInsert, { onConflict: 'event_type,dedup_key', ignoreDuplicates: true });
 
         if (upsertErr) {
-          // Fallback if dedup_key unique constraint is not configured
-          const { error: insertErr } = await supabase
-            .from('om_webhook_events')
-            .insert(rowToInsert);
-
-          if (insertErr) {
-            dbError = insertErr.message;
-            console.error('[Webhook] Error saving event to om_webhook_events:', insertErr.message);
-          } else {
-            savedToDb = true;
-          }
+          dbError = upsertErr.message;
+          console.error('[Webhook] Error saving event to om_webhook_events:', upsertErr.message);
         } else {
           savedToDb = true;
         }
@@ -115,6 +106,14 @@ export default async function handler(req: any, res: any) {
         dbError = insertEx?.message || String(insertEx);
         console.error('[Webhook] Exception saving event to Supabase:', insertEx);
       }
+    }
+
+    // Acknowledge only durable storage (including an already stored duplicate).
+    // A 2xx on a database failure would tell the sender to stop retrying.
+    if (!savedToDb) {
+      if (!supabase) console.error('[Webhook] Database is not configured');
+      res.setHeader?.('Retry-After', '30');
+      return sendJson(res, 503, { success: false, received: true, saved: false, error: 'Event storage temporarily unavailable' });
     }
 
     return sendJson(res, 200, {
