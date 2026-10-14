@@ -5,12 +5,25 @@ import { useCloudState } from './useCloudState';
 import { fixture, income, fakeDatabase } from './syncTestFixtures';
 import type { AppState } from './types';
 
-const journal = vi.hoisted(() => ({ base: undefined as any, pending: null as boolean | null }));
+const journal = vi.hoisted(() => ({ base: undefined as any, pending: null as boolean | null, notices: [] as any[], archives: [] as any[], failArchive: false, holdArchive: undefined as Promise<void> | undefined }));
 vi.mock('./syncStorage', () => ({
   loadSyncBase: vi.fn(async () => journal.base),
   saveSyncBase: vi.fn(async (_url, state) => { journal.base = structuredClone(state); }),
   readPendingSync: vi.fn(() => journal.pending),
   markPendingSync: vi.fn((_url, pending) => { journal.pending = pending; }),
+  loadRecoveries: vi.fn(async () => journal.notices),
+  archiveRecovery: vi.fn(async (_url, local, remote, base, items) => {
+    if (journal.failArchive) throw new Error('Quota full');
+    if (journal.holdArchive) await journal.holdArchive;
+    const notice = { id: String(journal.archives.length), createdAt: new Date().toISOString(), items };
+    journal.archives.push(structuredClone({ ...notice, local, remote, base }));
+    journal.notices = [...journal.notices, notice];
+    return journal.notices;
+  }),
+  dismissRecoveryItem: vi.fn(async (_url, id, field) => {
+    journal.notices = journal.notices.map(n => n.id === id ? { ...n, items: n.items.filter((i: any) => i.field !== field) } : n).filter(n => n.items.length);
+    return journal.notices;
+  }),
 }));
 
 let hook: ReturnType<typeof useCloudState>;
@@ -30,6 +43,7 @@ beforeEach(() => {
   vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) });
   vi.stubGlobal('window', new EventTarget());
   journal.base = fixture(); journal.pending = false;
+  journal.notices = []; journal.archives = []; journal.failArchive = false; journal.holdArchive = undefined;
 });
 afterEach(async () => {
   await act(async () => { renderer?.unmount(); });
@@ -42,7 +56,7 @@ describe('browser sync lifecycle', () => {
   it('persists an edit before a network save and keeps it pending after failure', async () => {
     const db = fakeDatabase(fixture()); vi.stubGlobal('fetch', db.fetch);
     await mount(); db.failReads(1);
-    act(() => hook.updateState(state => ({ ...state, incomeData: [income('offline')] })));
+    act(() => { hook.updateState(state => ({ ...state, incomeData: [income('offline')] })); });
     expect(JSON.parse(storage.get('continental_dashboard_v3')!).incomeData[0].id).toBe('offline');
     expect(journal.pending).toBe(true);
     await tick(3000);
@@ -55,7 +69,7 @@ describe('browser sync lifecycle', () => {
   it('retries a failed save without another user edit', async () => {
     const db = fakeDatabase(fixture()); vi.stubGlobal('fetch', db.fetch);
     await mount(); db.failReads(1);
-    act(() => hook.updateState(state => ({ ...state, incomeData: [income('retry')] })));
+    act(() => { hook.updateState(state => ({ ...state, incomeData: [income('retry')] })); });
     await tick(3000);
     expect(hook.cloudStatus).toBe('error');
     await tick(6000);
@@ -89,10 +103,10 @@ describe('browser sync lifecycle', () => {
       return db.fetch(url, options);
     }));
     await mount();
-    act(() => hook.updateState(state => ({ ...state, incomeData: [income('first')] })));
+    act(() => { hook.updateState(state => ({ ...state, incomeData: [income('first')] })); });
     await tick(3000);
     expect(hook.isSyncing).toBe(true);
-    act(() => hook.updateState(state => ({ ...state, incomeData: [...state.incomeData, income('second')] })));
+    act(() => { hook.updateState(state => ({ ...state, incomeData: [...state.incomeData, income('second')] })); });
     await act(async () => { holdPatch!(); });
     expect(hook.state.incomeData.map(row => row.id)).toEqual(['first', 'second']);
     expect(journal.pending).toBe(true);
@@ -107,7 +121,7 @@ describe('browser sync lifecycle', () => {
     vi.stubGlobal('fetch', vi.fn(async (url, options: any = {}) => options.method === 'PATCH' && rejectWrites
       ? new Response('', { status: 503 }) : db.fetch(url, options)));
     await mount();
-    act(() => hook.updateState(state => ({ ...state, incomeData: [income('local')] })));
+    act(() => { hook.updateState(state => ({ ...state, incomeData: [income('local')] })); });
     db.replace({ ...structuredClone(base), version: 2, incomeData: [income('remote')] });
     await tick(15000);
     expect(hook.state.incomeData.map(row => row.id).sort()).toEqual(['local', 'remote']);
@@ -118,7 +132,7 @@ describe('browser sync lifecycle', () => {
     expect(hook.state.incomeData).toHaveLength(2);
   });
 
-  it('retains a same-field conflict locally and does not overwrite the cloud', async () => {
+  it('archives a same-record conflict before showing fresh cloud data without overwriting it', async () => {
     const baseline = { ...fixture(), incomeData: [income('row')] };
     journal.base = baseline; journal.pending = true;
     const local = structuredClone(baseline); local.incomeData[0].total = 150;
@@ -126,8 +140,10 @@ describe('browser sync lifecycle', () => {
     storage.set('continental_dashboard_v3', JSON.stringify(local));
     const db = fakeDatabase(remote); vi.stubGlobal('fetch', db.fetch);
     await mount(); await tick(3000);
-    expect(hook.cloudStatus).toBe('conflict');
-    expect(hook.state.incomeData[0].total).toBe(150);
+    expect(hook.cloudStatus).toBe('success');
+    expect(hook.state.incomeData[0].total).toBe(200);
+    expect(journal.archives[0].local.incomeData[0].total).toBe(150);
+    expect(hook.recoveries[0].items[0].local.total).toBe(150);
     expect(db.current().incomeData[0].total).toBe(200);
     expect(db.requests.some(request => request.method === 'PATCH')).toBe(false);
   });
@@ -138,9 +154,87 @@ describe('browser sync lifecycle', () => {
     storage.set('continental_dashboard_v3', JSON.stringify(local));
     const db = fakeDatabase(remote); vi.stubGlobal('fetch', db.fetch);
     await mount(); await tick(3000);
-    expect(hook.cloudStatus).toBe('conflict');
-    expect(hook.state.ownerDocument).toBe('Unsent local note');
+    expect(hook.cloudStatus).toBe('success');
+    expect(hook.state.ownerDocument).toBe('Other owner note');
+    expect(journal.archives[0].local.ownerDocument).toBe('Unsent local note');
     expect(db.current().ownerDocument).toBe('Other owner note');
+  });
+
+  it('leaves all local edits intact when the recovery archive cannot be committed', async () => {
+    const base = { ...fixture(), incomeData: [income('row')] };
+    journal.base = base; journal.pending = true; journal.failArchive = true;
+    const local = structuredClone(base), remote = structuredClone(base);
+    local.incomeData[0].total = 150; remote.incomeData[0].total = 200;
+    storage.set('continental_dashboard_v3', JSON.stringify(local));
+    const db = fakeDatabase(remote); vi.stubGlobal('fetch', db.fetch);
+    await mount(); await tick(6000);
+    expect(hook.cloudStatus).toBe('conflict');
+    expect(hook.state.incomeData[0].total).toBe(150);
+    expect(JSON.parse(storage.get('continental_dashboard_v3')!).incomeData[0].total).toBe(150);
+    expect(db.requests.some(r => r.method === 'PATCH')).toBe(false);
+  });
+
+  it('retains review choices after reload, and only sends a local choice after explicit selection', async () => {
+    const base = { ...fixture(), incomeData: [income('row')] };
+    journal.base = base; journal.pending = true;
+    const local = structuredClone(base), remote = structuredClone(base);
+    local.incomeData[0].total = 150; remote.incomeData[0].total = 200;
+    storage.set('continental_dashboard_v3', JSON.stringify(local));
+    const db = fakeDatabase(remote); vi.stubGlobal('fetch', db.fetch);
+    await mount();
+    await act(async () => { renderer!.unmount(); }); await mount();
+    expect(hook.recoveries).toHaveLength(1);
+    const notice = hook.recoveries[0], item = notice.items[0];
+    await act(async () => { await hook.resolveRecovery(notice, item, true, remote.incomeData[0]); });
+    await tick(3000);
+    expect(db.current().incomeData[0].total).toBe(150);
+    expect(hook.recoveries).toEqual([]);
+    expect(journal.archives[0].local.incomeData[0].total).toBe(150);
+  });
+
+  it('polls metadata instead of downloading unchanged financial data', async () => {
+    const db = fakeDatabase(fixture()); vi.stubGlobal('fetch', db.fetch);
+    await mount(); await tick(16000);
+    expect(db.requests.filter(r => r.url.searchParams.get('select') === 'state,updated_at')).toHaveLength(1);
+    expect(db.requests.filter(r => r.url.searchParams.get('select') === 'id,updated_at,revision:state->>syncRevision')).toHaveLength(3);
+    expect(db.requests.some(r => r.method === 'PATCH')).toBe(false);
+  });
+
+  it('pulls a changed cloud snapshot on the next metadata poll', async () => {
+    const db = fakeDatabase(fixture()); vi.stubGlobal('fetch', db.fetch);
+    await mount();
+    db.replace({ ...fixture(), incomeData: [income('fresh')] });
+    await tick(5000);
+    expect(hook.state.incomeData[0].id).toBe('fresh');
+    expect(db.requests.some(r => r.method === 'PATCH')).toBe(false);
+  });
+
+  it('notices a new revision even when two saves have the same timestamp', async () => {
+    const initial = { ...fixture(), syncRevision: 'first' }, db = fakeDatabase(initial, 0, true);
+    journal.base = initial; storage.set('continental_dashboard_v3', JSON.stringify(initial));
+    vi.stubGlobal('fetch', db.fetch); await mount();
+    db.replace({ ...initial, syncRevision: 'second', incomeData: [income('new-revision')] });
+    await tick(5000);
+    expect(hook.state.incomeData[0].id).toBe('new-revision');
+  });
+
+  it('does not replace an edit made while the safety archive is being written', async () => {
+    const base = { ...fixture(), incomeData: [income('row')] };
+    journal.base = base; journal.pending = true;
+    const local = structuredClone(base), remote = structuredClone(base);
+    local.incomeData[0].total = 150; remote.incomeData[0].total = 200;
+    storage.set('continental_dashboard_v3', JSON.stringify(local));
+    let release!: () => void;
+    journal.holdArchive = new Promise<void>(resolve => { release = resolve; });
+    vi.stubGlobal('fetch', fakeDatabase(remote).fetch);
+    await mount();
+    act(() => { hook.updateState(state => ({ ...state, incomeData: [...state.incomeData, income('during-archive')] })); });
+    await act(async () => { journal.holdArchive = undefined; release(); });
+    expect(hook.state.incomeData.some(row => row.id === 'during-archive')).toBe(true);
+    expect(hook.state.incomeData[0].total).toBe(150);
+    await tick(5000);
+    expect(hook.state.incomeData.some(row => row.id === 'during-archive')).toBe(true);
+    expect(hook.state.incomeData[0].total).toBe(200);
   });
 
   it('does not save when only changing the selected period', async () => {
@@ -149,7 +243,7 @@ describe('browser sync lifecycle', () => {
     storage.set('continental_dashboard_v3', JSON.stringify(baseline));
     const db = fakeDatabase(baseline); vi.stubGlobal('fetch', db.fetch);
     await mount();
-    act(() => hook.updateState(state => ({ ...state, selectedPeriodId: 'second-period' })));
+    act(() => { hook.updateState(state => ({ ...state, selectedPeriodId: 'second-period' })); });
     await tick(4000);
     expect(hook.state.selectedPeriodId).toBe('second-period');
     expect(db.requests.filter(request => request.method === 'PATCH')).toHaveLength(0);

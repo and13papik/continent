@@ -108,9 +108,11 @@ interface DashboardProps {
   state: AppState;
   userRole: 'user' | 'owner' | null;
   updateState: (updater: (prev: AppState) => AppState) => void;
+  syncStatus?: string;
+  needsReview?: boolean;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) => {
+const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState, syncStatus, needsReview }) => {
   const navigate = useNavigate();
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
@@ -614,8 +616,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState }) =
         <div className="flex flex-col items-end gap-2 shrink-0">
           <div className="flex items-center gap-4 p-3 bg-slate-800/85 border border-slate-700/80 rounded-2xl backdrop-blur-md shadow-md">
             <div className="flex flex-col items-end">
-              <span className="text-[9.5px] font-black text-emerald-400 uppercase tracking-widest">Узлы активны</span>
-              <span className="text-xs font-bold text-white">Облако: 100%</span>
+              <span className="text-[9.5px] font-black text-slate-300 uppercase tracking-widest">Синхронизация</span>
+              <span className="text-xs font-bold text-white">{syncStatus === 'success' ? (needsReview ? 'Обновлено · есть спорные правки' : 'Данные обновлены') : syncStatus === 'error' || syncStatus === 'conflict' ? 'Ожидает синхронизации' : 'Проверяем изменения…'}</span>
             </div>
             <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 shadow-inner">
               <ICONS.ShieldCheck size={20} />

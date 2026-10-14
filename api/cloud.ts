@@ -27,7 +27,7 @@ export default async function handler(req: any, res: any) {
       if (id !== 'eq.main' && user.role !== 'owner') return json(res, 403, { error: 'История доступна овнеру' });
       if (id) endpoint.searchParams.set('id', id);
       const select = query.get('select') || 'id,state,updated_at';
-      if (!['id', 'id,updated_at', 'state', 'state,updated_at', 'id,state,updated_at'].includes(select)) return json(res, 400, { error: 'Invalid selection' });
+      if (!['id', 'id,updated_at', 'id,updated_at,revision:state->>syncRevision', 'state', 'state,updated_at', 'id,state,updated_at'].includes(select)) return json(res, 400, { error: 'Invalid selection' });
       endpoint.searchParams.set('select', select);
       endpoint.searchParams.set('order', 'updated_at.desc');
       endpoint.searchParams.set('limit', id ? '1' : '20');

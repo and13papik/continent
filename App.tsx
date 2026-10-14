@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ICONS } from './constants';
@@ -7,24 +7,25 @@ import { useCloudState } from './useCloudState';
 import { AppState } from './types';
 import AuthGate, { signOut, SignedInUser } from './AuthGate';
 import PeriodSelector from './components/PeriodSelector';
-import Dashboard from './pages/Dashboard';
-import AddIncome from './pages/AddIncome';
-import Operations from './pages/Operations';
-import Reports from './pages/Reports';
-import Models from './pages/Models';
-import Roster from './pages/Roster';
-import Owner from './pages/Owner';
-import OwnerTable from './pages/OwnerTable';
-import AdminTable from './pages/AdminTable';
-import TotalTable from './pages/TotalTable';
-import Settings from './pages/Settings';
-import Metrics from './pages/Metrics';
-import AdvanceRequest from './pages/AdvanceRequest';
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const AddIncome = lazy(() => import('./pages/AddIncome'));
+const Operations = lazy(() => import('./pages/Operations'));
+const Reports = lazy(() => import('./pages/Reports'));
+const Models = lazy(() => import('./pages/Models'));
+const Roster = lazy(() => import('./pages/Roster'));
+const Owner = lazy(() => import('./pages/Owner'));
+const OwnerTable = lazy(() => import('./pages/OwnerTable'));
+const AdminTable = lazy(() => import('./pages/AdminTable'));
+const TotalTable = lazy(() => import('./pages/TotalTable'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Metrics = lazy(() => import('./pages/Metrics'));
+const AdvanceRequest = lazy(() => import('./pages/AdvanceRequest'));
+import SyncRecovery from './components/SyncRecovery';
 
 const App: React.FC = () => <AuthGate>{user => <DashboardApp user={user} />}</AuthGate>;
 
 const DashboardApp: React.FC<{ user: SignedInUser }> = ({ user }) => {
-  const { state, updateState, isSyncing, cloudStatus, lastSyncTime, refreshCloudStatus } = useCloudState({ syncUrl: user.cloudUrl, syncKey: 'server-session' });
+  const { state, updateState, isSyncing, cloudStatus, lastSyncTime, refreshCloudStatus, recoveries, resolveRecovery } = useCloudState({ syncUrl: user.cloudUrl, syncKey: 'server-session' });
   const userRole = user.role === 'owner' ? 'owner' : 'user';
 
   return (
@@ -73,9 +74,10 @@ const DashboardApp: React.FC<{ user: SignedInUser }> = ({ user }) => {
                   <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
                   <p className="text-[9px] font-black text-rose-400 uppercase tracking-widest leading-none">Sync Conflict</p>
                 </div>
-                <p className="text-[10px] font-bold text-slate-300 group-hover:text-white transition-colors">Одну запись изменили одновременно. Правки сохранены на этом устройстве. Сначала сделайте экспорт в Настройках.</p>
+                <p className="text-[10px] font-bold text-slate-300 group-hover:text-white transition-colors">Не удалось сохранить резервную копию спорных правок. Данные оставлены на устройстве. Проверьте свободное место и нажмите для повтора.</p>
               </motion.div>
             )}
+            <SyncRecovery state={state} notices={recoveries} owner={user.role === 'owner'} resolve={resolveRecovery} />
           </div>
 
           {/* Scrollable Navigation Section */}
@@ -185,8 +187,8 @@ const DashboardApp: React.FC<{ user: SignedInUser }> = ({ user }) => {
 
         <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-gradient-to-br from-[#101524] via-[#0d111d] to-[#0a0d17]">
           <div className="max-w-7xl mx-auto">
-            <Routes>
-              <Route path="/" element={<Dashboard state={state} updateState={updateState} userRole={userRole} />} />
+            <Suspense fallback={<p role="status" className="p-8 text-slate-400">Загрузка раздела…</p>}><Routes>
+              <Route path="/" element={<Dashboard state={state} updateState={updateState} userRole={userRole} syncStatus={cloudStatus} needsReview={recoveries.length > 0} />} />
               <Route path="/metrics" element={<Metrics state={state} updateState={updateState} userRole={userRole} />} />
               <Route path="/add-income" element={<AddIncome state={state} updateState={updateState} />} />
               <Route path="/advance-request" element={<AdvanceRequest state={state} updateState={updateState} />} />
@@ -199,7 +201,7 @@ const DashboardApp: React.FC<{ user: SignedInUser }> = ({ user }) => {
               <Route path="/admin-table" element={<AdminTable state={state} updateState={updateState} />} />
               <Route path="/total-table" element={<TotalTable state={state} updateState={updateState} />} />
               <Route path="/settings" element={<Settings state={state} updateState={updateState} userRole={userRole} />} />
-            </Routes>
+            </Routes></Suspense>
           </div>
         </main>
       </div>
