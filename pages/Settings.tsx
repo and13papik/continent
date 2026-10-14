@@ -25,6 +25,7 @@ import {
 } from '../store';
 import { Eraser, AlertTriangle, CheckCircle2, ShieldAlert, Sparkles, RefreshCw, X, Trash2 } from 'lucide-react';
 import PeriodBadge from '../components/PeriodBadge';
+import AuditHistory from '../components/AuditHistory';
 import { runMigrationDryRun, MigrationDryRunResult } from '../scripts/dry_run_migration';
 
 interface SettingsProps {
@@ -544,6 +545,8 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
           <button onClick={exportData} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all">Экспорт</button>
         </div>
       </header>
+
+      {userRole === 'owner' && <AuditHistory />}
 
       {homelessCount > 0 && (
          <div className="bg-amber-600/10 border border-amber-500/40 p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl">
