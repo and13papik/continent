@@ -152,6 +152,16 @@ describe('authenticated cloud data', () => {
   const privateState = () => ({...fixture(), ownerDocument:'OWNER SECRET', ownerExpenses:[{id:'expense',amount:100}],
     ownerManualIncomes:[{id:'manual',periodId:'period',amount:50,comment:'OWNER SECRET'}],
     ownerTasks:[{id:'hidden',assignedTo:'Andrey',title:'OWNER SECRET'},{id:'shared',assignedTo:'Admins',title:'Shared'}],futurePrivate:'OWNER SECRET'} as any);
+  it('supplies the verified saver identity instead of client audit claims', async () => {
+    const before = fixture();
+    vi.mocked(fetch).mockImplementation(async (_input, options) => new Response(JSON.stringify(options?.method === 'PATCH' ? [{ ...JSON.parse(options.body as string) }] : [{ state: before, updated_at: timestamp }])));
+    const req = writeRequest();
+    Object.assign(req.headers, { 'x-continental-actor-id': 'forged-id', 'x-continental-actor-name': 'forged-name', 'x-continental-actor-role': 'admin' });
+    req.body.state.actor_username = 'forged-state';
+    const res = response(); await cloudHandler(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(vi.mocked(fetch).mock.calls[1][1]?.headers).toMatchObject({ 'x-continental-actor-id': 'id-owner_fixture', 'x-continental-actor-name': 'owner_fixture', 'x-continental-actor-role': 'owner' });
+  });
   it.each(['state','state,updated_at','id,state,updated_at'])('redacts admin reads for projection %s', async select => {
     mocks.getUser.mockResolvedValue({data:{user:actor('admin')},error:null});
     vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify([{state:privateState(),updated_at:timestamp}])));

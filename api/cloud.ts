@@ -3,6 +3,7 @@ import { getSupabaseCredentials } from './_lib/supabase.js';
 import { sameValue, validCloudState } from '../cloudSync.js';
 import { adminView, ADMIN_FIELDS, PRIVATE_OWNER_FIELDS, emptyOwnerField, isAdminTask } from '../stateAccess.js';
 import { periodValidationError } from '../accountingPeriods.js';
+import { readAuditHistory } from './_lib/audit.js';
 
 const LOCAL_FIELDS = ['syncUrl', 'syncKey', 'dbUrl', 'selectedPeriodId'];
 
@@ -18,6 +19,7 @@ export default async function handler(req: any, res: any) {
   if (!user) return;
   if (req.method !== 'GET' && req.method !== 'PATCH') return json(res, 405, { error: 'Method not allowed' });
   const query = new URL(req.url || '/', 'https://dashboard.invalid').searchParams;
+  if (query.get('view') === 'audit') return readAuditHistory(req, res, user);
   const creds = await getSupabaseCredentials();
   if (!creds) return json(res, 503, { error: 'База данных не настроена на сервере' });
   const endpoint = new URL('/rest/v1/app_storage', creds.url);
@@ -92,7 +94,9 @@ export default async function handler(req: any, res: any) {
       else delete next[key];
     }
     endpoint.search = new URLSearchParams({ id: 'eq.main', select: 'state,updated_at', updated_at: timestamp, 'state->>syncRevision': revision }).toString();
-    const response = await fetch(endpoint, { method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify({ state: next, updated_at: body.updated_at }), signal: AbortSignal.timeout(15000), redirect: 'error' });
+    const response = await fetch(endpoint, { method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=representation',
+      'x-continental-actor-id': user.id, 'x-continental-actor-name': user.username, 'x-continental-actor-role': user.role,
+    }, body: JSON.stringify({ state: next, updated_at: body.updated_at }), signal: AbortSignal.timeout(15000), redirect: 'error' });
     if (!response.ok) return json(res, 502, { error: 'Облако не подтвердило сохранение' });
     return json(res, 200, (await response.json()).map((row: any) => clientRow(row, user.role)));
   } catch { return json(res, 502, { error: 'Нет подтверждённого ответа базы данных' }); }
