@@ -1,5 +1,9 @@
 import type { AppState } from './types';
 import { validCloudState } from './cloudSync';
+import type { RecoveryItem } from './cloudSync';
+
+export type RecoveryNotice = { id: string; createdAt: string; items: RecoveryItem[] };
+const recoveryIndex = (url: string) => `recovery-index:${normalize(url)}`;
 
 const META_KEY = 'continental_sync_pending_v1';
 const normalize = (url: string) => url.trim().replace(/\/$/, '');
@@ -23,6 +27,57 @@ async function database(): Promise<IDBDatabase> {
     request.onerror = () => reject(request.error);
     request.onblocked = () => reject(new Error('Sync storage is blocked'));
   });
+}
+
+export async function loadRecoveries(url: string): Promise<RecoveryNotice[]> {
+  const db = await database();
+  try {
+    return await new Promise((resolve, reject) => {
+      const request = db.transaction('baselines').objectStore('baselines').get(recoveryIndex(url));
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
+    });
+  } finally { db.close(); }
+}
+
+/** One transaction: original data and the visible review queue survive reload together.
+ * Never silently prune archives. If storage is full, fail before replacing local data. */
+export async function archiveRecovery(url: string, local: AppState, remote: AppState, base: AppState | undefined, items: RecoveryItem[]): Promise<RecoveryNotice[]> {
+  const db = await database();
+  const notice = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), items };
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction('baselines', 'readwrite'), records = tx.objectStore('baselines');
+      let notices: RecoveryNotice[] = [];
+      const request = records.get(recoveryIndex(url));
+      request.onsuccess = () => {
+        notices = [...(request.result || []), notice];
+        records.put({ ...notice, local, remote, base }, `recovery:${normalize(url)}:${notice.id}`);
+        records.put(notices, recoveryIndex(url));
+      };
+      tx.oncomplete = () => resolve(notices);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally { db.close(); }
+}
+
+export async function dismissRecoveryItem(url: string, id: string, field: string): Promise<RecoveryNotice[]> {
+  const db = await database();
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction('baselines', 'readwrite'), records = tx.objectStore('baselines');
+      let notices: RecoveryNotice[] = [];
+      const request = records.get(recoveryIndex(url));
+      request.onsuccess = () => {
+        notices = (request.result || []).map((notice: RecoveryNotice) => notice.id === id ? { ...notice, items: notice.items.filter(item => item.field !== field) } : notice).filter((notice: RecoveryNotice) => notice.items.length);
+        records.put(notices, recoveryIndex(url));
+      };
+      tx.oncomplete = () => resolve(notices);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally { db.close(); }
 }
 export async function loadSyncBase(url: string): Promise<AppState | undefined> {
   let db: IDBDatabase | undefined;

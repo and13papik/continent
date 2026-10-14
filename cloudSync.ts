@@ -38,28 +38,39 @@ export function preserveLocalFields(remote: AppState, local: AppState): AppState
 }
 
 /** Merge against the state this browser actually saw, never against wall-clock ordering. */
-export function mergeConcurrentStates(local: AppState, remote: AppState, base?: AppState): { state: AppState; conflicts: string[] } {
+export type ConflictPath = (string | { id: string })[];
+export type RecoveryItem = { field: string; path: ConflictPath; local: any; remote: any };
+
+export function mergeConcurrentStates(local: AppState, remote: AppState, base?: AppState, recover = false): { state: AppState; conflicts: string[]; recovery: RecoveryItem[] } {
   const conflicts: string[] = [];
+  const recovery: RecoveryItem[] = [];
   // A tab with the old unconditional writer can remove or reuse the revision.
   // Never treat that overwrite as a legitimate deletion of already saved records.
   if (base?.syncRevision && (!remote.syncRevision || (base.syncRevision === remote.syncRevision && hasSharedChanges(base, remote)))) {
-    return { state: local, conflicts: ['syncRevision'] };
+    if (!recover) return { state: local, conflicts: ['syncRevision'], recovery };
+    base = undefined; // Archive first; an untrusted baseline cannot establish user intent.
   }
   const localDeleted = new Set((local.deletedIds || []).map(String));
   const remoteDeleted = new Set((remote.deletedIds || []).map(String));
-  const merge = (old: any, left: any, right: any, field: string): any => {
+  const disputed = (left: any, right: any, field: string, path: ConflictPath) => {
+    conflicts.push(field);
+    recovery.push({ field, path, local: left, remote: right });
+    return recover ? right : left;
+  };
+  const merge = (old: any, left: any, right: any, field: string, path: ConflictPath): any => {
     if (sameValue(left, right)) return right;
     if (base && sameValue(left, old)) return right;
     if (base && sameValue(right, old)) return left;
-    if (!base && left === undefined) return right;
-    if (!base && right === undefined) return left;
+    const last = path.at(-1);
+    if (!base && left === undefined && !(recover && typeof last === 'object' && localDeleted.has(last.id))) return right;
+    if (!base && right === undefined && !recover) return left;
     // A concurrent edit and deletion must be reviewed, rather than silently losing the edit.
-    if (left === undefined || right === undefined) { conflicts.push(field); return left; }
+    if (left === undefined || right === undefined) return disputed(left, right, field, path);
     if (isObject(left) && isObject(right) && (old === undefined || isObject(old))) {
       const result: Record<string, any> = {};
       for (const key of new Set([...Object.keys(old || {}), ...Object.keys(left), ...Object.keys(right)])) {
         if (key === 'updatedAt') { result[key] = [left[key], right[key]].filter(Boolean).sort().at(-1); continue; }
-        const value = merge(old?.[key], left[key], right[key], `${field}.${key}`);
+        const value = merge(old?.[key], left[key], right[key], `${field}.${key}`, [...path, key]);
         if (value !== undefined) result[key] = value;
       }
       return result;
@@ -72,18 +83,26 @@ export function mergeConcurrentStates(local: AppState, remote: AppState, base?: 
         const ids = new Set([...maps[2].keys(), ...maps[1].keys(), ...maps[0].keys()]);
         const result: any[] = [];
         for (const id of ids) {
-          const value = merge(maps[0].get(id), localDeleted.has(String(id)) ? undefined : maps[1].get(id), remoteDeleted.has(String(id)) ? undefined : maps[2].get(id), `${field}[${id}]`);
+          const leftRow = localDeleted.has(String(id)) ? undefined : maps[1].get(id);
+          const rightRow = remoteDeleted.has(String(id)) ? undefined : maps[2].get(id);
+          const start = recovery.length;
+          let value = merge(maps[0].get(id), leftRow, rightRow, `${field}[${id}]`, [...path, { id: String(id) }]);
+          if (recover && recovery.length > start) {
+            // Financial fields in one record are related (gross/net/total): quarantine
+            // the whole record instead of constructing a hybrid of disputed amounts.
+            recovery.splice(start, recovery.length - start, { field: `${field}[${id}]`, path: [...path, { id: String(id) }], local: leftRow, remote: rightRow });
+            value = rightRow;
+          }
           if (value !== undefined) result.push(value);
         }
         return result;
       }
-      if (all.every(value => value === null || ['string', 'number', 'boolean'].includes(typeof value))) {
+      if ((!recover || base) && all.every(value => value === null || ['string', 'number', 'boolean'].includes(typeof value))) {
         const oldSet = new Set(old || []), leftSet = new Set(left), rightSet = new Set(right);
         return [...new Set([...right, ...left])].filter(value => !oldSet.has(value) || (leftSet.has(value) && rightSet.has(value)));
       }
     }
-    conflicts.push(field);
-    return left;
+    return disputed(left, right, field, path);
   };
   const result: any = { ...remote };
   for (const key of new Set([...Object.keys(base || {}), ...Object.keys(local), ...Object.keys(remote)])) {
@@ -91,11 +110,30 @@ export function mergeConcurrentStates(local: AppState, remote: AppState, base?: 
     const left = (local as any)[key], right = (remote as any)[key];
     const withoutDeleted = (rows: any, deleted: Set<string>) => Array.isArray(rows) && rows.every(row => isObject(row) && typeof row.id === 'string')
       ? rows.filter(row => !deleted.has(row.id)) : rows;
-    const value = merge((base as any)?.[key], withoutDeleted(left, localDeleted), withoutDeleted(right, remoteDeleted), key);
+    const value = merge((base as any)?.[key], withoutDeleted(left, localDeleted), withoutDeleted(right, remoteDeleted), key, [key]);
     if (value === undefined) delete result[key]; else result[key] = value;
   }
   result.deletedIds = [...new Set([...localDeleted, ...remoteDeleted])];
-  return { state: preserveLocalFields(result, local), conflicts };
+  if (recover) {
+    // Deferred local deletions must not suppress the cloud record in later merges.
+    for (const item of recovery) for (const part of item.path) {
+      if (typeof part === 'object' && !remoteDeleted.has(part.id)) result.deletedIds = result.deletedIds.filter((id: string) => id !== part.id);
+    }
+  }
+  return { state: preserveLocalFields(result, local), conflicts, recovery };
+}
+
+export const cloudFingerprint = (timestamp: string | null, revision?: string) => JSON.stringify([timestamp, revision || null]);
+
+export async function readCloudTimestamp(url: string, key: string, signal?: AbortSignal): Promise<string> {
+  const endpoint = new URL('/rest/v1/app_storage', url);
+  endpoint.search = new URLSearchParams({ id: 'eq.main', select: 'id,updated_at,revision:state->>syncRevision' }).toString();
+  const response = await cloudFetch(endpoint, { signal: requestSignal(12000, signal) });
+  if (!response.ok) throw new Error('Cloud status unavailable');
+  const rows = await response.json();
+  if (!Array.isArray(rows) || rows.length !== 1 || rows[0].id !== 'main' || !(rows[0].updated_at === null || typeof rows[0].updated_at === 'string')) throw new Error('Invalid cloud status');
+  if (!(rows[0].revision == null || typeof rows[0].revision === 'string')) throw new Error('Invalid cloud revision');
+  return cloudFingerprint(rows[0].updated_at, rows[0].revision);
 }
 
 export function validCloudState(state: any): state is AppState {

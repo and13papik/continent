@@ -19,7 +19,7 @@ export function fakeDatabase(initial: AppState, firstReaders = 0, fixedTimestamp
     requests.push({ method, url });
     if (method === 'GET') {
       if (failures > 0) { failures--; return new Response('', { status: 503 }); }
-      const snapshot = { state: structuredClone(state), updated_at: timestamp };
+      const snapshot = url.searchParams.get('select') === 'id,updated_at,revision:state->>syncRevision' ? { id: 'main', updated_at: timestamp, revision: state.syncRevision || null } : { state: structuredClone(state), updated_at: timestamp };
       reads++;
       if (firstReaders && reads <= firstReaders) {
         if (reads === firstReaders) release!();
@@ -36,5 +36,5 @@ export function fakeDatabase(initial: AppState, firstReaders = 0, fixedTimestamp
     if (!fixedTimestamp) timestamp = body.updated_at;
     return new Response(JSON.stringify([{ state, updated_at: timestamp }]), { status: 200 });
   });
-  return { fetch, requests, current: () => state, failReads: (count: number) => { failures = count; }, replace: (next: AppState) => { state = structuredClone(next); } };
+  return { fetch, requests, current: () => state, failReads: (count: number) => { failures = count; }, replace: (next: AppState) => { state = structuredClone(next); if (!fixedTimestamp) timestamp = new Date(Date.parse(timestamp) + 1).toISOString(); } };
 }
