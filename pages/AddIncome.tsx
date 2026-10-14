@@ -8,7 +8,7 @@ import PeriodBadge from '../components/PeriodBadge';
 
 interface AddIncomeProps {
   state: AppState;
-  updateState: (updater: (prev: AppState) => AppState) => void;
+  updateState: (updater: (prev: AppState) => AppState) => boolean | void;
 }
 
 interface ModelEntry {
@@ -116,7 +116,7 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
         const existingPeriod = state.accountingPeriods.find(p => p.id === existingPeriodId);
         if (existingPeriod && existingPeriod.id !== state.selectedPeriodId) {
           if (confirm(`ВНИМАНИЕ: Выбранная дата (${date}) относится к периоду "${existingPeriod.label}", но сейчас выбран "${activePeriod.label}". Переключиться на "${existingPeriod.label}" перед сохранением?`)) {
-            updateState(prev => ({ ...prev, selectedPeriodId: existingPeriod.id }));
+            if (updateState(prev => ({ ...prev, selectedPeriodId: existingPeriod.id })) === false) return;
             return;
           }
         }
@@ -166,10 +166,10 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
       return;
     }
 
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       incomeData: [...prev.incomeData, ...newRecords]
-    }));
+    })) === false) return;
 
     setSelectedModels([]);
     setModelData({});
@@ -195,7 +195,7 @@ const AddIncome: React.FC<AddIncomeProps> = ({ state, updateState }) => {
         {activePeriod.status === 'closed' && (
            <div className="bg-amber-500/10 border border-amber-500/20 px-5 py-2.5 rounded-2xl flex items-center gap-3 text-amber-500 animate-pulse">
               <ICONS.Lock size={18} />
-              <span className="text-[10px] font-black uppercase tracking-widest">Adjustment Mode</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">Месяц закрыт · изменения запрещены</span>
            </div>
         )}
       </header>

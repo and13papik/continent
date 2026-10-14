@@ -110,7 +110,7 @@ function StatCard({
 interface DashboardProps {
   state: AppState;
   userRole: 'user' | 'owner' | null;
-  updateState: (updater: (prev: AppState) => AppState) => void;
+  updateState: (updater: (prev: AppState) => AppState) => boolean | void;
   syncStatus?: string;
   needsReview?: boolean;
 }
@@ -171,7 +171,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState, syn
     const confirmRepair = confirm(`Обнаружено ${homelessBreakdown.total} записей без привязки к периоду. Создать для них новый период "Восстановленные данные"?`);
     if (!confirmRepair) return;
 
-    updateState(prev => {
+    if (updateState(prev => {
       const newPeriod: AccountingPeriod = {
         id: `recovered-${Date.now()}`,
         label: `Восстановлено ${new Date().toLocaleDateString()}`,
@@ -192,7 +192,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState, syn
         operationsData: prev.operationsData.map(o => periodIds.has(o.periodId) ? o : { ...o, periodId: newPeriod.id }),
         ownerManualIncomes: (prev.ownerManualIncomes || []).map(m => periodIds.has(m.periodId) ? m : { ...m, periodId: newPeriod.id })
       };
-    });
+    }) === false) return;
     alert('Данные успешно возвращены в систему!');
   };
 
@@ -328,11 +328,11 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState, syn
     if (existingStatus) {
       if (!confirm(`Отменить статус "Выплачено" для ${op}? ВНИМАНИЕ: Автоматически созданная операция выплаты НЕ будет удалена. Если вы хотите аннулировать платеж, удалите его вручную в разделе "Операции".`)) return;
       
-      updateState(prev => ({ 
+      if (updateState(prev => ({
         ...prev, 
         deletedIds: [...(prev.deletedIds || []), existingStatus.id],
         paidStatuses: prev.paidStatuses.filter(s => s.id !== existingStatus.id) 
-      }));
+      })) === false) return;
     } else {
       if (currentRemainder <= 0) {
         if (!confirm(`У оператора ${op} нулевой или отрицательный остаток. Все равно отметить как выплачено?`)) return;
@@ -340,7 +340,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState, syn
         if (!confirm(`Создать операцию выплаты для ${op} на сумму $${currentRemainder.toFixed(1)} и отметить как выплачено?`)) return;
       }
 
-      updateState(prev => {
+      if (updateState(prev => {
         let newOperations = [...prev.operationsData];
         if (currentRemainder > 0) {
           const autoPayment: OperationRecord = {
@@ -371,18 +371,18 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState, syn
           operationsData: newOperations,
           paidStatuses: [...prev.paidStatuses, newStatus] 
         };
-      });
+      }) === false) return;
     }
   };
 
   const handleCloseMonth = () => {
     if (!activePeriod || activePeriod.status === 'closed') return;
-    if (!window.confirm(`Закрыть период "${activePeriod.label}"? Это переключит вас на следующий месяц.`)) return;
-    updateState(prev => startNextPeriod(prev, activePeriodId, true));
+    if (!window.confirm(`Закрыть период "${activePeriod.label}"? Его записи будут защищены от изменений. Вы перейдёте на следующий месяц. Овнер сможет открыть период для исправлений в Настройках.`)) return;
+    if (updateState(prev => startNextPeriod(prev, activePeriodId, true)) === false) return;
   };
 
   const handleStartNextMonth = () => {
-    updateState(prev => startNextPeriod(prev, activePeriodId));
+    if (updateState(prev => startNextPeriod(prev, activePeriodId)) === false) return;
   };
   const sortedPeriodsForCheck = [...state.accountingPeriods].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
   const isLatestPeriod = sortedPeriodsForCheck[sortedPeriodsForCheck.length - 1]?.id === activePeriodId;

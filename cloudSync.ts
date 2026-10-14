@@ -1,6 +1,7 @@
 import { cloudFetch } from './cloudTransport.js';
 import type { AppState } from './types';
 import { adminView, PRIVATE_OWNER_FIELDS, isAdminTask } from './stateAccess.js';
+import { closedPeriodChanges } from './closedPeriods.js';
 
 const LOCAL_FIELDS = new Set(['syncUrl', 'syncKey', 'dbUrl', 'selectedPeriodId']);
 const SYNC_FIELDS = new Set(['version', 'lastUpdated', 'lastSyncedAt', 'remoteVersion', 'syncRevision', 'accessScope', 'manualIncomeTotals']);
@@ -143,6 +144,22 @@ export function mergeConcurrentStates(local: AppState, remote: AppState, base?: 
     if (value === undefined) delete result[key]; else result[key] = value;
   }
   result.deletedIds = [...new Set([...localDeleted, ...remoteDeleted])];
+  const protectedChanges = closedPeriodChanges(remote, result, remote.accessScope === 'admin' ? 'admin' : 'owner');
+  for (const item of protectedChanges) {
+    conflicts.push(item.field);
+    // Keep the original proposed record, not a hybrid produced by the merge.
+    const key = String(item.path[0]), part = item.path[1];
+    const proposed = typeof part === 'object' ? (localDeleted.has(part.id) ? undefined : (local as any)[key]?.find((row: any) => row.id === part.id)) : (local as any)[key];
+    const existing = recovery.findIndex(entry => entry.field === item.field);
+    const notice = { ...item, local: proposed };
+    if (existing >= 0) recovery[existing] = notice; else recovery.push(notice);
+    if (recover) {
+      if (typeof part === 'object') {
+        result[key] = (result[key] || []).filter((row: any) => row.id !== part.id);
+        if (item.remote !== undefined) result[key].push(item.remote);
+      } else if (item.remote === undefined) delete result[key]; else result[key] = item.remote;
+    }
+  }
   if (recover) {
     // Deferred local deletions must not suppress the cloud record in later merges.
     for (const item of recovery) for (const part of item.path) {

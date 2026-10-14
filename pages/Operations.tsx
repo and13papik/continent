@@ -7,7 +7,7 @@ import PeriodBadge from '../components/PeriodBadge';
 
 interface OperationsProps {
   state: AppState;
-  updateState: (updater: (prev: AppState) => AppState) => void;
+  updateState: (updater: (prev: AppState) => AppState) => boolean | void;
 }
 
 const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
@@ -73,10 +73,10 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
       platform: platform === 'all' ? undefined : platform
     };
 
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       operationsData: [newOp, ...prev.operationsData]
-    }));
+    })) === false) return;
 
     setAmount('');
     setComment('');
@@ -97,31 +97,31 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
       return;
     }
 
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       operationsData: prev.operationsData.map(o => 
         o.id === editingOp.id ? { ...o, amount: updAmount, comment: editingComment, updatedAt: new Date().toISOString() } : o
       )
-    }));
+    })) === false) return;
     setEditingOp(null);
   };
 
   const deleteOp = (id: string) => {
     if (!confirm('Удалить операцию?')) return;
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       deletedIds: [...prev.deletedIds, id],
       operationsData: prev.operationsData.filter(o => o.id !== id)
-    }));
+    })) === false) return;
   };
 
   const deleteIncome = (id: string) => {
     if (!confirm('Удалить запись о доходе?')) return;
-    updateState(prev => ({
+    if (updateState(prev => ({
       ...prev,
       deletedIds: [...prev.deletedIds, id],
       incomeData: prev.incomeData.filter(i => i.id !== id)
-    }));
+    })) === false) return;
   };
 
   const unifiedHistory = useMemo(() => {

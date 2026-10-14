@@ -7,7 +7,7 @@ import PeriodBadge from '../components/PeriodBadge';
 
 interface OwnerProps {
   state: AppState;
-  updateState: (updater: (prev: AppState) => AppState) => void;
+  updateState: (updater: (prev: AppState) => AppState) => boolean | void;
 }
 
 const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
@@ -78,7 +78,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       periodId: activePeriodId
     };
 
-    updateState(prev => ({ ...prev, operationsData: [newOp, ...prev.operationsData] }));
+    if (updateState(prev => ({ ...prev, operationsData: [newOp, ...prev.operationsData] })) === false) return;
     setAdminPaidInputs(prev => ({ ...prev, [adminName]: '' }));
     setExpandedAdminInputs(prev => ({ ...prev, [adminName]: false }));
 
@@ -102,7 +102,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    updateState(prev => ({ ...prev, ownerExpenses: [expense, ...(prev.ownerExpenses || [])] }));
+    if (updateState(prev => ({ ...prev, ownerExpenses: [expense, ...(prev.ownerExpenses || [])] })) === false) return;
     setExpenseAmount('');
     setExpenseComment('');
   };
@@ -120,7 +120,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    updateState(prev => ({ ...prev, ownerManualIncomes: [income, ...(prev.ownerManualIncomes || [])] }));
+    if (updateState(prev => ({ ...prev, ownerManualIncomes: [income, ...(prev.ownerManualIncomes || [])] })) === false) return;
     setIncomeAmount('');
     setIncomeComment('');
     setIsIncomeModalOpen(false);
@@ -140,7 +140,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    updateState(prev => ({ ...prev, ownerAdvances: [advance, ...(prev.ownerAdvances || [])] }));
+    if (updateState(prev => ({ ...prev, ownerAdvances: [advance, ...(prev.ownerAdvances || [])] })) === false) return;
     setAdvanceAmount('');
     setAdvanceComment('');
     setIsAdvanceModalOpen(false);
@@ -1000,7 +1000,7 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
                                                 -${item.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                              </span>
                                              <button 
-                                                onClick={() => { if(confirm('Вы действительно хотите удалить эту запись?')) updateState(p => ({...p, deletedIds: [...p.deletedIds, item.id], ownerExpenses: p.ownerExpenses.filter(e => e.id !== item.id)})); }} 
+                                                onClick={() => { if(confirm('Вы действительно хотите удалить эту запись?')) if (updateState(p => ({...p, deletedIds: [...p.deletedIds, item.id], ownerExpenses: p.ownerExpenses.filter(e => e.id !== item.id)})) === false) return; }}
                                                 className="p-1.5 text-slate-500 hover:text-rose-400 bg-white/5 hover:bg-rose-500/10 rounded-lg transition-colors"
                                                 title="Удалить"
                                              >

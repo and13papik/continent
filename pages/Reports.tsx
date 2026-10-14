@@ -148,7 +148,7 @@ const RateField = ({ label, val, onChange, color }: { label: string, val: number
 
 interface ReportsProps {
   state: AppState;
-  updateState: (updater: (prev: AppState) => AppState) => void;
+  updateState: (updater: (prev: AppState) => AppState) => boolean | void;
 }
 
 const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
@@ -180,7 +180,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
 
   const addOperatorToPeriod = (opName: string) => {
     if (!opName) return;
-    updateState(prev => {
+    if (updateState(prev => {
       const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
       if (!activeP) return prev;
       
@@ -201,14 +201,14 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
             : p
         )
       };
-    });
+    }) === false) return;
     setNewOperatorName('');
   };
 
   const removeOperatorFromPeriod = (opName: string) => {
     if (!confirm(`Скрыть оператора "${opName}" из состава на этот период?`)) return;
     
-    updateState(prev => {
+    if (updateState(prev => {
       const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
       if (!activeP) return prev;
       
@@ -221,7 +221,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
             : p
         )
       };
-    });
+    }) === false) return;
     if (selectedOperator === opName) {
       setSelectedOperator('');
     }
@@ -356,7 +356,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
   }, [report?.dailyHistory, selectedOperator, selectedDate]);
 
   const updateWallet = (address: string, method: 'usdt_trc20' | 'card') => {
-    updateState(prev => {
+    if (updateState(prev => {
       const wallets = [...(prev.operatorWallets || [])];
       const idx = wallets.findIndex(w => w.operator === selectedOperator);
       const newWallet: OperatorWallet = {
@@ -371,7 +371,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
       else wallets.push(newWallet);
       
       return { ...prev, operatorWallets: wallets };
-    });
+    }) === false) return;
   };
 
   const addQuickOp = () => {
@@ -383,7 +383,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
       periodId: state.selectedPeriodId,
       platform: qPlatform === 'all' ? undefined : qPlatform
     };
-    updateState(prev => ({ ...prev, operationsData: [op, ...prev.operationsData] }));
+    if (updateState(prev => ({ ...prev, operationsData: [op, ...prev.operationsData] })) === false) return;
     setQAmount(''); setQComment(''); setShowQuickOp(false);
   };
 
@@ -398,25 +398,25 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
       nettoCrypto: i.crypto * (i.percentCrypto / 100),
       updatedAt: new Date().toISOString()
     };
-    updateState(prev => ({ ...prev, incomeData: prev.incomeData.map(x => x.id === i.id ? updated : x) }));
+    if (updateState(prev => ({ ...prev, incomeData: prev.incomeData.map(x => x.id === i.id ? updated : x) })) === false) return;
     setEditingIncome(null);
   };
 
   const updateOp = () => {
     if (!editingOperation) return;
     const updated = { ...editingOperation, updatedAt: new Date().toISOString() };
-    updateState(prev => ({ ...prev, operationsData: prev.operationsData.map(x => x.id === editingOperation.id ? updated : x) }));
+    if (updateState(prev => ({ ...prev, operationsData: prev.operationsData.map(x => x.id === editingOperation.id ? updated : x) })) === false) return;
     setEditingOperation(null);
   };
 
   const deleteRecord = (item: { type: string; id: string }) => {
      if(!confirm('Удалить запись безвозвратно?')) return;
-     updateState(prev => ({
+     if (updateState(prev => ({
        ...prev, 
        deletedIds: [...prev.deletedIds, item.id],
        incomeData: item.type === 'income' ? prev.incomeData.filter(x => x.id !== item.id) : prev.incomeData, 
        operationsData: item.type === 'op' ? prev.operationsData.filter(x => x.id !== item.id) : prev.operationsData
-     }));
+     })) === false) return;
   }
 
   return (

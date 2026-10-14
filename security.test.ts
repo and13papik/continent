@@ -7,6 +7,7 @@ import { dashboardUser, loginIdentity, requireSession } from './api/_lib/auth';
 import { cloudFetch } from './cloudTransport';
 import { fixture, income } from './syncTestFixtures';
 import { adminView } from './stateAccess';
+import { reopenPeriod } from './closedPeriods';
 
 const mocks = vi.hoisted(() => ({ getUser: vi.fn(), signInWithPassword: vi.fn(), refreshSession: vi.fn(), signOut: vi.fn(), getCreds: vi.fn(), getOmToken: vi.fn(), setOmToken: vi.fn() }));
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ auth: { getUser: mocks.getUser, signInWithPassword: mocks.signInWithPassword, refreshSession: mocks.refreshSession, admin: { signOut: mocks.signOut } } }) }));
@@ -152,6 +153,22 @@ describe('authenticated cloud data', () => {
   const privateState = () => ({...fixture(), ownerDocument:'OWNER SECRET', ownerExpenses:[{id:'expense',amount:100}],
     ownerManualIncomes:[{id:'manual',periodId:'period',amount:50,comment:'OWNER SECRET'}],
     ownerTasks:[{id:'hidden',assignedTo:'Andrey',title:'OWNER SECRET'},{id:'shared',assignedTo:'Admins',title:'Shared'}],futurePrivate:'OWNER SECRET'} as any);
+  it.each(['owner', 'admin'] as const)('blocks a direct %s financial write into a closed month before database PATCH', async role => {
+    mocks.getUser.mockResolvedValue({data:{user:actor(role)},error:null});
+    const before=fixture(); before.accountingPeriods[0].status='closed';
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify([{state:before,updated_at:timestamp}])));
+    const req=writeRequest(role==='admin'?adminView(before):before);
+    const res=response(); await cloudHandler(req,res);
+    expect(res.statusCode).toBe(423); expect(res.body.code).toBe('PERIOD_CLOSED'); expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it.each(['owner','admin'] as const)('checks verified %s role on reopening a month',async role=>{
+    mocks.getUser.mockResolvedValue({data:{user:actor(role)},error:null});
+    const before=fixture(); before.accountingPeriods[0].status='closed';
+    vi.mocked(fetch).mockImplementation(async (_input,options)=>new Response(JSON.stringify(options?.method==='PATCH'?[JSON.parse(options.body as string)]:[{state:before,updated_at:timestamp}])));
+    const req=writeRequest(reopenPeriod(before,'period')); req.body.state.incomeData=[];
+    const res=response(); await cloudHandler(req,res);
+    expect(res.statusCode).toBe(role==='owner'?200:403); expect(fetch).toHaveBeenCalledTimes(role==='owner'?2:1);
+  });
   it('supplies the verified saver identity instead of client audit claims', async () => {
     const before = fixture();
     vi.mocked(fetch).mockImplementation(async (_input, options) => new Response(JSON.stringify(options?.method === 'PATCH' ? [{ ...JSON.parse(options.body as string) }] : [{ state: before, updated_at: timestamp }])));
