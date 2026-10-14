@@ -1,3 +1,4 @@
+import { calculateModelEarnings } from '../financialCalculations';
 import React, { useMemo, useState } from 'react';
 import { AppState, ModelBonus, PaidStatus, OperationRecord } from '../types';
 import { ICONS } from '../constants';
@@ -56,34 +57,13 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       const bonuses = (state.modelBonuses || []).filter(b => b.model === model && b.periodId === activePeriodId);
       const modelOps = state.operationsData.filter(o => o.model === model && o.periodId === activePeriodId);
       
-      const refunds = modelOps.filter(o => o.type === 'refund');
-      const totalRefunds = refunds.reduce((sum, o) => sum + o.amount, 0);
-      
-      // Авансы
       const advances = modelOps.filter(o => o.type === 'advance');
       const totalAdvances = advances.reduce((sum, o) => sum + o.amount, 0);
-
-      // Выплаты (ЗП)
       const salaryPayments = modelOps.filter(o => o.type === 'salary_payment');
       const totalSalaries = salaryPayments.reduce((sum, o) => sum + o.amount, 0);
-
-      const grossOF = records.reduce((sum, r) => sum + r.onlyFans, 0);
-      const grossPP = records.reduce((sum, r) => sum + r.paypal, 0);
-      const grossCR = records.reduce((sum, r) => sum + r.crypto, 0);
-      
-      const totalGrossRaw = grossOF + grossPP + grossCR;
-      const totalGross = totalGrossRaw - totalRefunds;
-
-      const earnOF = Math.max(0, grossOF - refunds.filter(r => r.platform === 'onlyFans').reduce((s,o) => s+o.amount, 0)) * (currentRates.of / 100);
-      const earnPP = Math.max(0, grossPP - refunds.filter(r => r.platform === 'paypal').reduce((s,o) => s+o.amount, 0)) * (currentRates.pp / 100);
-      const earnCR = Math.max(0, grossCR - refunds.filter(r => r.platform === 'crypto').reduce((s,o) => s+o.amount, 0)) * (currentRates.cr / 100);
-      
-      const genericRefunds = refunds.filter(r => !r.platform).reduce((s,o) => s+o.amount, 0);
-      const avgModelRate = totalGrossRaw > 0 ? (earnOF + earnPP + earnCR) / totalGrossRaw : (currentRates.of / 100);
-      
       const bonusTotal = bonuses.reduce((sum, b) => sum + b.amount, 0);
-      const accruedSalary = (earnOF + earnPP + earnCR + bonusTotal) - (genericRefunds * avgModelRate);
-      
+      const { grossOF, grossPP, grossCR, totalGross, totalRefunds, earnOF, earnPP, earnCR, accruedSalary } = calculateModelEarnings(records, modelOps, currentRates, bonusTotal);
+
       // ИСПРАВЛЕНИЕ: Теперь вычитаем и авансы, и уже проведенные выплаты
       const totalEarn = accruedSalary - totalAdvances - totalSalaries;
       

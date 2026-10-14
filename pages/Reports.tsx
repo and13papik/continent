@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { calculateOperatorEarnings, periodOperatorNames } from '../financialCalculations';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -233,18 +234,18 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
   }, [location.state]);
 
   const currentOperators = useMemo(() => {
-    const operators = activePeriod?.operators || state.operators;
+    const operators = periodOperatorNames(state, state.selectedPeriodId);
     return [...operators].sort((a, b) => {
       const incomeA = state.incomeData.filter(r => r.operator === a && r.periodId === state.selectedPeriodId).reduce((s, r) => s + r.total, 0);
       const incomeB = state.incomeData.filter(r => r.operator === b && r.periodId === state.selectedPeriodId).reduce((s, r) => s + r.total, 0);
       return incomeB - incomeA;
     });
-  }, [activePeriod, state.operators, state.incomeData, state.selectedPeriodId]);
+  }, [state, activePeriod]);
 
   const report = useMemo(() => {
     if (!selectedOperator) return null;
     const incomes = state.incomeData.filter(r => r.operator === selectedOperator && r.periodId === state.selectedPeriodId);
-    const ops = state.operationsData.filter(o => o.operator === selectedOperator && o.periodId === state.selectedPeriodId);
+    const ops = state.operationsData.filter(o => o.operator === selectedOperator && o.periodId === state.selectedPeriodId && (!o.model || o.type === 'refund'));
 
     const platformStats = {
       of: { gross: 0, net: 0 },
@@ -261,15 +262,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
       platformStats.cr.net += r.nettoCrypto;
     });
 
-    const rawBrutto = platformStats.of.gross + platformStats.pp.gross + platformStats.cr.gross;
-    const rawNetto = platformStats.of.net + platformStats.pp.net + platformStats.cr.net;
-    
-    const totalRefundAmount = ops.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
-    const avgRate = rawBrutto > 0 ? rawNetto / rawBrutto : 0.20;
-    const lostCommission = totalRefundAmount * avgRate;
-
-    const totalBrutto = rawBrutto - totalRefundAmount;
-    const totalNetto = rawNetto - lostCommission;
+    const { refunds: totalRefundAmount, lostCommission, gross: totalBrutto, net: totalNetto } = calculateOperatorEarnings(incomes, ops);
 
     const adjustmentGroups = {
       advance: ops.filter(o => o.type === 'advance').reduce((s,o) => s + o.amount, 0),
@@ -713,12 +706,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                    const incomes = state.incomeData.filter(r => r.operator === op && r.periodId === state.selectedPeriodId);
                    const ops = state.operationsData.filter(o => o.operator === op && o.periodId === state.selectedPeriodId);
                    
-                   const gross = incomes.reduce((s, r) => s + r.total, 0);
-                   const net = incomes.reduce((s, r) => s + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
-                   const refunds = ops.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
-                   const avgRate = gross > 0 ? net / gross : 0.20;
-                   const totalGross = gross - refunds;
-                   const totalNet = net - (refunds * avgRate);
+                   const { gross: totalGross, net: totalNet } = calculateOperatorEarnings(incomes, ops);
 
                    const performance = Math.min((totalGross / 1000) * 100, 100);
                    const isElite = totalGross >= 1000;

@@ -1,3 +1,4 @@
+import { calculateOwnerFinancials } from '../financialCalculations';
 
 import React, { useState, useMemo } from 'react';
 import { AppState, OwnerManualExpense, OwnerManualIncome, OwnerAdvance, Platform, OperationRecord } from '../types';
@@ -57,134 +58,9 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
   };
 
   const activePeriodId = state.selectedPeriodId;
-  const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId)!;
-  const currentModels = activePeriod.models || state.models;
-  const currentAdmins = activePeriod.admins || state.admins;
-  const currentRates = activePeriod.modelRates || state.modelRates;
 
-  const stats = useMemo(() => {
-    const incomes = state.incomeData.filter(r => r.periodId === activePeriodId);
-    const manualIncomes = (state.ownerManualIncomes || []).filter(i => i.periodId === activePeriodId);
-    const ops = state.operationsData.filter(o => o.periodId === activePeriodId);
-    const modelBonuses = (state.modelBonuses || []).filter(b => b.periodId === activePeriodId);
-    
-    const rawPlatformGross = incomes.reduce((sum, r) => sum + r.total, 0);
-    const manualGross = manualIncomes.reduce((sum, i) => sum + i.amount, 0);
-    const totalRefundAmount = ops.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
+  const stats = useMemo(() => calculateOwnerFinancials(state, activePeriodId), [state, activePeriodId]);
 
-    const grossTotal = (rawPlatformGross + manualGross) - totalRefundAmount;
-
-    // 1. ОПЕРАТОРЫ (STAFF)
-    const currentOperators = activePeriod.operators || state.operators;
-    const allPeriodOperators = Array.from(new Set([
-      ...currentOperators,
-      ...incomes.map(i => i.operator).filter(Boolean),
-      ...ops.map(o => o.operator).filter(Boolean)
-    ])).filter(name => name !== 'SYSTEM' && !currentAdmins.some(a => a.name === name) && !currentModels.includes(name));
-
-    let staffAccrued = 0;
-    let staffPaid = 0;
-    let staffRemainder = 0;
-
-    allPeriodOperators.forEach(op => {
-      const opIncomes = incomes.filter(r => r.operator === op);
-      const opOps = ops.filter(o => o.operator === op && o.operator !== 'SYSTEM' && !o.model);
-
-      const rawG = opIncomes.reduce((sum, r) => sum + r.total, 0);
-      const rawN = opIncomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
-      const opRefunds = ops.filter(o => o.type === 'refund' && o.operator === op).reduce((sum, o) => sum + o.amount, 0);
-
-      const avgRate = rawG > 0 ? rawN / rawG : 0.20;
-      const totalNet = rawN - (opRefunds * avgRate);
-
-      const bns = opOps.filter(o => o.type === 'bonus').reduce((sum, o) => sum + o.amount, 0);
-      const pnl = opOps.filter(o => o.type === 'penalty' || o.type === 'internship').reduce((sum, o) => sum + o.amount, 0);
-      const adv = opOps.filter(o => o.type === 'advance').reduce((sum, o) => sum + o.amount, 0);
-      const pay = opOps.filter(o => o.type === 'salary_payment').reduce((sum, o) => sum + o.amount, 0);
-
-      const accrued = totalNet + bns - pnl;
-      const paid = adv + pay;
-      const remainder = accrued - paid;
-      const isPaid = state.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
-
-      staffAccrued += accrued;
-      staffPaid += paid;
-      if (!isPaid && remainder > 0) {
-        staffRemainder += remainder;
-      }
-    });
-
-    // 2. МОДЕЛИ
-    const modelSummary = currentModels.reduce((acc, model) => {
-      const records = incomes.filter(r => r.model === model);
-      const mOF = records.reduce((s, r) => s + r.onlyFans, 0) * (currentRates.of / 100);
-      const mPP = records.reduce((s, r) => s + r.paypal, 0) * (currentRates.pp / 100);
-      const mCR = records.reduce((s, r) => s + r.crypto, 0) * (currentRates.cr / 100);
-      const mRefunds = ops.filter(o => o.type === 'refund' && o.model === model).reduce((s,o) => s + o.amount, 0);
-      const mAdvances = ops.filter(o => o.type === 'advance' && o.model === model).reduce((s,o) => s + o.amount, 0);
-      const mSalaries = ops.filter(o => o.type === 'salary_payment' && o.model === model).reduce((s,o) => s + o.amount, 0);
-      const mBonuses = modelBonuses.filter(b => b.model === model).reduce((s,b) => s+b.amount, 0);
-      const mAvgRate = records.length > 0 ? (mOF + mPP + mCR) / records.reduce((s,r) => s+r.total, 1) : (currentRates.of / 100);
-      
-      const accrued = (mOF + mPP + mCR + mBonuses) - (mRefunds * mAvgRate);
-      const paid = mAdvances + mSalaries;
-      const remainder = accrued - paid;
-      const isPaid = state.paidStatuses.some(s => s.entityName === model && s.entityType === 'model' && s.periodId === activePeriodId);
-
-      acc.accrued += accrued;
-      acc.paid += paid;
-      if (!isPaid && remainder > 0) {
-        acc.remainder += remainder;
-      }
-      return acc;
-    }, { accrued: 0, paid: 0, remainder: 0 });
-
-    // 3. АДМИНЫ
-    const adminDetails = currentAdmins.map(admin => {
-      const accrued = grossTotal * (admin.rate / 100);
-      const paid = ops.filter(o => o.operator === admin.name && ['salary_payment', 'advance'].includes(o.type)).reduce((s, o) => s + o.amount, 0);
-      const remainder = accrued - paid;
-      const isPaid = state.paidStatuses.some(s => s.entityName === admin.name && s.entityType === 'admin' && s.periodId === activePeriodId);
-      return { ...admin, accrued, paid, remainder: isPaid ? 0 : Math.max(0, remainder) };
-    });
-
-    const totalAdminAccrued = adminDetails.reduce((s, a) => s + a.accrued, 0);
-    const totalAdminPaid = adminDetails.reduce((s, a) => s + a.paid, 0);
-    const adminRemainder = adminDetails.reduce((s, a) => s + a.remainder, 0);
-
-    const currentExpenses = state.ownerExpenses.filter(e => e.periodId === activePeriodId);
-    const bizExpenses = currentExpenses.reduce((s,e) => s + e.amount, 0);
-    
-    const trafficTotal = currentExpenses.filter(e => e.category === 'traffic').reduce((s, e) => s + e.amount, 0);
-    const commissionTotal = currentExpenses.filter(e => e.category === 'commission').reduce((s, e) => s + e.amount, 0);
-    
-    // Чистая прибыль
-    const netProfitTotal = grossTotal - (staffAccrued + modelSummary.accrued + totalAdminAccrued + bizExpenses);
-    const sharePerOwner = netProfitTotal / 2;
-
-    const modelRemainder = modelSummary.remainder;
-
-    const totalPaidGlobal = staffPaid + modelSummary.paid + totalAdminPaid;
-    const totalRemainderGlobal = staffRemainder + modelRemainder + adminRemainder;
-
-    return { 
-      grossTotal, rawPlatformGross, manualGross, totalRefundAmount,
-      netProfitTotal, sharePerOwner,
-      staffAccrued, staffPaid, staffRemainder,
-      modelAccrued: modelSummary.accrued, modelPaid: modelSummary.paid, modelRemainder,
-      adminAccrued: totalAdminAccrued, adminPaid: totalAdminPaid, adminRemainder,
-      adminDetails,
-      totalPaidGlobal, totalRemainderGlobal,
-      bizExpenses,
-      trafficTotal,
-      commissionTotal,
-      currentExpenses,
-      currentManualIncomes: (state.ownerManualIncomes || []).filter(i => i.periodId === activePeriodId),
-      currentOwnerAdvances: (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId),
-      andrey: { totalShare: sharePerOwner, advances: (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId && a.ownerName === 'Andrey').reduce((s, a) => s + a.amount, 0) },
-      anton: { totalShare: sharePerOwner, advances: (state.ownerAdvances || []).filter(a => a.periodId === activePeriodId && a.ownerName === 'Anton').reduce((s, a) => s + a.amount, 0) },
-    };
-  }, [state, activePeriodId, currentModels, currentAdmins, currentRates]);
 
   const addAdminPayment = (adminName: string) => {
     const val = parseFloat(adminPaidInputs[adminName]) || 0;
@@ -293,54 +169,10 @@ const Owner: React.FC<OwnerProps> = ({ state, updateState }) => {
     if (idx <= 0) return null;
     const prevPeriodId = sorted[idx - 1].id;
     
-    const incomes = state.incomeData.filter(r => r.periodId === prevPeriodId);
-    if (incomes.length === 0) return null;
-    const manualIncomes = (state.ownerManualIncomes || []).filter(i => i.periodId === prevPeriodId);
-    const ops = state.operationsData.filter(o => o.periodId === prevPeriodId);
-    const rawPlatformGross = incomes.reduce((sum, r) => sum + r.total, 0);
-    const manualGross = manualIncomes.reduce((sum, i) => sum + i.amount, 0);
-    const totalRefundAmount = ops.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
-    const grossTotal = (rawPlatformGross + manualGross) - totalRefundAmount;
-
-    const rawStaffNet = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
-    const avgOpRate = rawPlatformGross > 0 ? rawStaffNet / rawPlatformGross : 0.20;
-    const staffAccrued = (rawStaffNet - (totalRefundAmount * avgOpRate)) + ops.reduce((sum, o) => {
-      if (o.operator) {
-        if (o.type === 'bonus') return sum + o.amount;
-        if (['penalty', 'internship'].includes(o.type)) return sum - o.amount;
-      }
-      return sum;
-    }, 0);
-
-    const prevPeriodObj = sorted[idx - 1];
-    const prevModels = prevPeriodObj.models || state.models;
-    const prevRates = prevPeriodObj.modelRates || state.modelRates;
-    const prevAdmins = prevPeriodObj.admins || state.admins;
-    const prevBonuses = (state.modelBonuses || []).filter(b => b.periodId === prevPeriodId);
-
-    const modelSummary = prevModels.reduce((acc, model) => {
-      const records = incomes.filter(r => r.model === model);
-      const mOF = records.reduce((s, r) => s + r.onlyFans, 0) * (prevRates.of / 100);
-      const mPP = records.reduce((s, r) => s + r.paypal, 0) * (prevRates.pp / 100);
-      const mCR = records.reduce((s, r) => s + r.crypto, 0) * (prevRates.cr / 100);
-      const mRefunds = ops.filter(o => o.type === 'refund' && o.model === model).reduce((s,o) => s + o.amount, 0);
-      const mBonuses = prevBonuses.filter(b => b.model === model).reduce((s,b) => s+b.amount, 0);
-      const mAvgRate = records.length > 0 ? (mOF + mPP + mCR) / records.reduce((s,r) => s+r.total, 1) : (prevRates.of / 100);
-      const accrued = (mOF + mPP + mCR + mBonuses) - (mRefunds * mAvgRate);
-      acc.accrued += accrued;
-      return acc;
-    }, { accrued: 0 });
-
-    const totalAdminAccrued = prevAdmins.reduce((s, a) => s + grossTotal * (a.rate / 100), 0);
-    const bizExpenses = state.ownerExpenses.filter(e => e.periodId === prevPeriodId).reduce((s,e) => s + e.amount, 0);
-    const netProfitTotal = grossTotal - (staffAccrued + modelSummary.accrued + totalAdminAccrued + bizExpenses);
-    const sharePerOwner = netProfitTotal / 2;
-    const andreyAdv = (state.ownerAdvances || []).filter(a => a.periodId === prevPeriodId && a.ownerName === 'Andrey').reduce((s, a) => s + a.amount, 0);
-    const antonAdv = (state.ownerAdvances || []).filter(a => a.periodId === prevPeriodId && a.ownerName === 'Anton').reduce((s, a) => s + a.amount, 0);
-
+    const previous = calculateOwnerFinancials(state, prevPeriodId);
     return {
-      andreyAvailable: sharePerOwner - andreyAdv,
-      antonAvailable: sharePerOwner - antonAdv,
+      andreyAvailable: previous.sharePerOwner - previous.andrey.advances,
+      antonAvailable: previous.sharePerOwner - previous.anton.advances,
     };
   }, [state, activePeriodId]);
 

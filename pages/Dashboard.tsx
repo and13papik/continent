@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { calculateOperatorEarnings, periodOperatorNames } from '../financialCalculations';
 import { useNavigate } from 'react-router-dom';
 import { AppState, AccountingPeriod, PaidStatus, OperationRecord, IncomeRecord } from '../types';
 import { ICONS } from '../constants';
@@ -117,7 +118,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState, syn
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
 
-  const currentOperators = (activePeriod?.operators && activePeriod.operators.length > 0) ? activePeriod.operators : state.operators;
+  const currentOperators = useMemo(() => periodOperatorNames(state, activePeriodId), [state, activePeriodId]);
   const currentModels = (activePeriod?.models && activePeriod.models.length > 0) ? activePeriod.models : state.models;
 
   // Проверка на наличие "бездомных" записей (из-за которых данные могли "пропасть" или остаться после удаления месяцев)
@@ -205,8 +206,9 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState, syn
     const totalRefunds = periodOps.filter(o => o.type === 'refund').reduce((s, o) => s + o.amount, 0);
     
     const totalGross = (rawPlatformGross + rawManualGross) - totalRefunds;
-    const totalRawNet = periodIncomes.reduce((s, r) => s + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
-    const avgOpRate = rawPlatformGross > 0 ? totalRawNet / rawPlatformGross : 0.20;
+    const netEarned = currentOperators.reduce((sum, operator) => sum + calculateOperatorEarnings(
+      periodIncomes.filter(row => row.operator === operator), periodOps.filter(row => row.operator === operator)
+    ).net, 0);
 
     // --- Калькуляция прогноза ---
     const getAccountingDateUTC = () => {
@@ -251,7 +253,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState, syn
 
     const totals = { 
       totalGross, platformGross: rawPlatformGross, manualGross: rawManualGross,
-      netEarned: totalRawNet - (totalRefunds * avgOpRate),
+      netEarned,
       bonuses: 0, penalties: 0, refunds: totalRefunds, advances: 0, paidOut: 0, remainder: 0,
       forecast, totalTarget, 
       adminDetails: [] as { name: string, amount: number, rate: number }[],
@@ -284,13 +286,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState, syn
       const incomes = state.incomeData.filter(r => r.operator === op && r.periodId === activePeriodId);
       const ops = state.operationsData.filter(o => o.operator === op && o.operator !== 'SYSTEM' && !o.model && o.periodId === activePeriodId);
       
-      const rawG = incomes.reduce((sum, r) => sum + r.total, 0);
-      const rawN = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
-      const opRefunds = state.operationsData.filter(o => o.type === 'refund' && o.operator === op && o.periodId === activePeriodId).reduce((sum, o) => sum + o.amount, 0);
-      
-      const avgRate = rawG > 0 ? rawN / rawG : 0.20;
-      const totalGross = rawG - opRefunds;
-      const totalNet = rawN - (opRefunds * avgRate);
+      const { refunds: opRefunds, gross: totalGross, net: totalNet } = calculateOperatorEarnings(incomes,
+        state.operationsData.filter(o => o.operator === op && o.periodId === activePeriodId));
       
       const bns = ops.filter(o => o.type === 'bonus').reduce((sum, o) => sum + o.amount, 0);
       const pnl = ops.filter(o => o.type === 'penalty' || o.type === 'internship').reduce((sum, o) => sum + o.amount, 0);
