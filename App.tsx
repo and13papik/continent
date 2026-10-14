@@ -22,10 +22,10 @@ const Metrics = lazy(() => import('./pages/Metrics'));
 const AdvanceRequest = lazy(() => import('./pages/AdvanceRequest'));
 import SyncRecovery from './components/SyncRecovery';
 
-const App: React.FC = () => <AuthGate>{user => <DashboardApp user={user} />}</AuthGate>;
+const App: React.FC = () => <AuthGate>{user => <DashboardApp key={`${user.id}:${user.role}`} user={user} />}</AuthGate>;
 
 const DashboardApp: React.FC<{ user: SignedInUser }> = ({ user }) => {
-  const { state, updateState, isSyncing, cloudStatus, lastSyncTime, refreshCloudStatus, recoveries, resolveRecovery } = useCloudState({ syncUrl: user.cloudUrl, syncKey: 'server-session' });
+  const { state, updateState, isSyncing, cloudStatus, lastSyncTime, refreshCloudStatus, recoveries, resolveRecovery } = useCloudState({ syncUrl: user.cloudUrl, syncKey: 'server-session' }, user.role);
   const userRole = user.role === 'owner' ? 'owner' : 'user';
 
   return (

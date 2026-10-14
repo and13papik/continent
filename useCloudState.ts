@@ -4,10 +4,11 @@ import { cloudFingerprint, hasSharedChanges, mergeConcurrentStates, preserveLoca
 import { archiveRecovery, dismissRecoveryItem, loadRecoveries, loadSyncBase, markPendingSync, readPendingSync, saveSyncBase, type RecoveryNotice } from './syncStorage';
 import { applyRecoveryChoice } from './syncRecovery';
 import type { AppState } from './types';
+import { adminView, adminRecoveryItem } from './stateAccess';
 
 type CloudStatus = 'idle' | 'loading' | 'success' | 'error' | 'conflict';
 
-export function useCloudState(connection?: Pick<AppState, 'syncUrl' | 'syncKey'>) {
+export function useCloudState(connection?: Pick<AppState, 'syncUrl' | 'syncKey'>, role?: 'admin' | 'owner') {
   const [state, setState] = useState<AppState>(() => {
     const initial = createInitialState();
     return connection ? { ...initial, ...connection, dbUrl: undefined } : initial;
@@ -188,9 +189,12 @@ export function useCloudState(connection?: Pick<AppState, 'syncUrl' | 'syncKey'>
 
   const refreshCloudStatus = useCallback(() => refresh.current(), []);
   const resolveRecovery = useCallback(async (notice: RecoveryNotice, item: RecoveryItem, useLocal: boolean, expected: any) => {
+    if (role === 'admin' && !adminRecoveryItem(item)) throw new Error('Доступно только овнеру');
     if (useLocal && !updateState(previous => applyRecoveryChoice(previous, item, expected))) throw new Error('Не удалось сохранить выбор на устройстве. Освободите место и повторите.');
     const notices = await dismissRecoveryItem(current.current.syncUrl!, notice.id, item.field);
     setRecoveries(notices);
-  }, [updateState]);
-  return { state, updateState, isSyncing, cloudStatus, lastSyncTime, refreshCloudStatus, recoveries, resolveRecovery };
+  }, [updateState, role]);
+  const visibleState = role === 'admin' ? { ...adminView(state), syncKey: connection?.syncKey } : state;
+  const visibleRecoveries = role === 'admin' ? recoveries.map(notice => ({ ...notice, items: notice.items.filter(adminRecoveryItem) })).filter(notice => notice.items.length) : recoveries;
+  return { state: visibleState, updateState, isSyncing, cloudStatus, lastSyncTime, refreshCloudStatus, recoveries: visibleRecoveries, resolveRecovery };
 }

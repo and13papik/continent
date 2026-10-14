@@ -6,6 +6,7 @@ import configHandler from './api/onlymonster/config';
 import { dashboardUser, loginIdentity, requireSession } from './api/_lib/auth';
 import { cloudFetch } from './cloudTransport';
 import { fixture, income } from './syncTestFixtures';
+import { adminView } from './stateAccess';
 
 const mocks = vi.hoisted(() => ({ getUser: vi.fn(), signInWithPassword: vi.fn(), refreshSession: vi.fn(), signOut: vi.fn(), getCreds: vi.fn(), getOmToken: vi.fn(), setOmToken: vi.fn() }));
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ auth: { getUser: mocks.getUser, signInWithPassword: mocks.signInWithPassword, refreshSession: mocks.refreshSession, admin: { signOut: mocks.signOut } } }) }));
@@ -148,6 +149,59 @@ describe('authenticated cloud data', () => {
     req.url += '&updated_at=eq.' + timestamp + '&state-%3E%3EsyncRevision=is.null';
     return req;
   }
+  const privateState = () => ({...fixture(), ownerDocument:'OWNER SECRET', ownerExpenses:[{id:'expense',amount:100}],
+    ownerManualIncomes:[{id:'manual',periodId:'period',amount:50,comment:'OWNER SECRET'}],
+    ownerTasks:[{id:'hidden',assignedTo:'Andrey',title:'OWNER SECRET'},{id:'shared',assignedTo:'Admins',title:'Shared'}],futurePrivate:'OWNER SECRET'} as any);
+  it.each(['state','state,updated_at','id,state,updated_at'])('redacts admin reads for projection %s', async select => {
+    mocks.getUser.mockResolvedValue({data:{user:actor('admin')},error:null});
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify([{state:privateState(),updated_at:timestamp}])));
+    const req=request();req.url+='&select='+select;const res=response();await cloudHandler(req,res);
+    expect(res.statusCode).toBe(200);expect(JSON.stringify(res.body)).not.toContain('OWNER SECRET');
+    expect(res.body[0].state.manualIncomeTotals.period).toBe(50);expect(res.body[0].state.ownerExpenses).toEqual([]);
+  });
+  it('retains complete owner reads',async()=>{
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify([{state:privateState(),updated_at:timestamp}])));
+    const res=response();await cloudHandler(request(),res);expect(res.body[0].state.ownerDocument).toBe('OWNER SECRET');
+  });
+  it('keeps private records intact during an admin save and redacts the PATCH response',async()=>{
+    mocks.getUser.mockResolvedValue({data:{user:actor('admin')},error:null});const before=privateState();
+    vi.mocked(fetch).mockImplementation(async (_input, options) => new Response(JSON.stringify(options?.method === 'PATCH' ? [{ ...JSON.parse(options.body as string) }] : [{ state: before, updated_at: timestamp }])));
+    const req=writeRequest(adminView(before));req.body.state.ownerTasks[0].title='Admin progress';req.body.state.manualIncomeTotals.period=999;
+    const res=response();await cloudHandler(req,res);expect(res.statusCode).toBe(200);
+    const saved=JSON.parse(vi.mocked(fetch).mock.calls[1][1]!.body as string).state;
+    expect(saved.ownerExpenses).toEqual(before.ownerExpenses);expect(saved.ownerDocument).toEqual(before.ownerDocument);
+    expect(saved.ownerTasks.find((task:any)=>task.id==='hidden')).toEqual(before.ownerTasks[0]);
+    expect(saved.ownerTasks.map((task:any)=>task.id)).toEqual(before.ownerTasks.map((task:any)=>task.id));
+    expect(saved.ownerTasks.find((task:any)=>task.id==='shared').title).toBe('Admin progress');
+    expect(saved.futurePrivate).toBe('OWNER SECRET');expect(saved.accessScope).toBeUndefined();expect(saved.manualIncomeTotals).toBeUndefined();
+    expect(res.body[0].state.manualIncomeTotals.period).toBe(50);expect(JSON.stringify(res.body)).not.toContain('OWNER SECRET');
+  });
+  it.each(['task','tombstone','unknown','period'])('blocks admin modification of hidden data through %s',async(kind)=>{
+    mocks.getUser.mockResolvedValue({data:{user:actor('admin')},error:null});const before=privateState();
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify([{state:before,updated_at:timestamp}])));
+    const req=writeRequest(adminView(before));
+    if(kind==='task')req.body.state.ownerTasks.push({id:'hidden',assignedTo:'Admins',title:'Forged'});
+    if(kind==='tombstone')req.body.state.deletedIds.push('hidden');
+    if(kind==='unknown')req.body.state.futurePrivate='Forged';
+    if(kind==='period')req.body.state.accountingPeriods[0].status='closed';
+    const res=response();await cloudHandler(req,res);expect(res.statusCode).toBe(403);expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it('prevents an old admin projection being saved as a full owner state after an account switch',async()=>{
+    const res=response();await cloudHandler(writeRequest(adminView(privateState())),res);
+    expect(res.statusCode).toBe(409);expect(fetch).not.toHaveBeenCalled();
+  });
+  it('rejects creating the same calendar month with a different ID on the server',async()=>{
+    const before=fixture();vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify([{state:before,updated_at:timestamp}])));
+    const req=writeRequest();req.body.state.accountingPeriods.push({...before.accountingPeriods[0],id:'duplicate',label:'Another name'});
+    const res=response();await cloudHandler(req,res);expect(res.statusCode).toBe(400);expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it('does not expose snapshots or extra projection fields to admins',async()=>{
+    mocks.getUser.mockResolvedValue({data:{user:actor('admin')},error:null});
+    for(const url of ['/api/cloud','/api/cloud?id=eq.backup','/api/cloud?id=eq.main&select=*']){
+      const req=request();req.url=url;const res=response();await cloudHandler(req,res);expect([400,403]).toContain(res.statusCode);
+    }
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it('strips database secrets from reads', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify([{ state: { ...fixture(), syncKey: 'private-key', dbUrl: 'private-url' }, updated_at: timestamp }])));
     const res = response(); await cloudHandler(request(), res);

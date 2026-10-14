@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useCloudState } from './useCloudState';
 import { fixture, income, fakeDatabase } from './syncTestFixtures';
 import type { AppState } from './types';
+import { adminView } from './stateAccess';
 
 const journal = vi.hoisted(() => ({ base: undefined as any, pending: null as boolean | null, notices: [] as any[], archives: [] as any[], failArchive: false, holdArchive: undefined as Promise<void> | undefined }));
 vi.mock('./syncStorage', () => ({
@@ -29,7 +30,8 @@ vi.mock('./syncStorage', () => ({
 let hook: ReturnType<typeof useCloudState>;
 let renderer: TestRenderer.ReactTestRenderer | undefined;
 let storage: Map<string, string>;
-function Harness() { hook = useCloudState(); return null; }
+let testRole: 'admin' | 'owner' | undefined;
+function Harness() { hook = useCloudState(undefined, testRole); return null; }
 async function mount() {
   await act(async () => { renderer = TestRenderer.create(<Harness />); });
 }
@@ -44,6 +46,7 @@ beforeEach(() => {
   vi.stubGlobal('window', new EventTarget());
   journal.base = fixture(); journal.pending = false;
   journal.notices = []; journal.archives = []; journal.failArchive = false; journal.holdArchive = undefined;
+  testRole = undefined;
 });
 afterEach(async () => {
   await act(async () => { renderer?.unmount(); });
@@ -53,6 +56,16 @@ afterEach(async () => {
 });
 
 describe('browser sync lifecycle', () => {
+  it('upgrades an admin cache without leaking private fields or losing offline income and owner edits', async () => {
+    const base = {...fixture(), ownerDocument:'PRIVATE BASE'};
+    const local = {...base, ownerDocument:'PRIVATE OFFLINE', incomeData:[income('offline-admin')]};
+    storage.set('continental_dashboard_v3',JSON.stringify(local));journal.base=base;journal.pending=true;testRole='admin';
+    const db=fakeDatabase(adminView(base));vi.stubGlobal('fetch',db.fetch);
+    await mount();await tick(6000);
+    expect(hook.state.ownerDocument).toBe('');expect(hook.state.incomeData.map(row=>row.id)).toContain('offline-admin');
+    expect(hook.recoveries).toEqual([]);expect(journal.archives.some(archive=>archive.local.ownerDocument==='PRIVATE OFFLINE')).toBe(true);
+    expect(db.current().incomeData.map(row=>row.id)).toContain('offline-admin');expect(hook.cloudStatus).toBe('success');
+  });
   it('persists an edit before a network save and keeps it pending after failure', async () => {
     const db = fakeDatabase(fixture()); vi.stubGlobal('fetch', db.fetch);
     await mount(); db.failReads(1);

@@ -1,14 +1,16 @@
 import { json, readBody, requireSession } from './_lib/auth.js';
 import { getSupabaseCredentials } from './_lib/supabase.js';
 import { sameValue, validCloudState } from '../cloudSync.js';
+import { adminView, ADMIN_FIELDS, PRIVATE_OWNER_FIELDS, emptyOwnerField, isAdminTask } from '../stateAccess.js';
+import { periodValidationError } from '../accountingPeriods.js';
 
-const OWNER_FIELDS = ['ownerExpenses', 'ownerManualIncomes', 'ownerAdvances', 'ownerTasks', 'ownerNotes', 'ownerDocument', 'completedDocument'];
 const LOCAL_FIELDS = ['syncUrl', 'syncKey', 'dbUrl', 'selectedPeriodId'];
 
-function clientRow(row: any) {
+function clientRow(row: any, role: string) {
   if (!row?.state) return row;
   const { syncKey, dbUrl, ...state } = row.state;
-  return { ...row, state };
+  delete state.accessScope; delete state.manualIncomeTotals;
+  return { ...row, state: role === 'owner' ? state : adminView(state) };
 }
 
 export default async function handler(req: any, res: any) {
@@ -36,7 +38,7 @@ export default async function handler(req: any, res: any) {
       const response = await fetch(endpoint, { headers, signal: AbortSignal.timeout(12000), redirect: 'error' });
       if (!response.ok) return json(res, 502, { error: 'Не удалось прочитать облако' });
       const rows = await response.json();
-      return json(res, 200, rows.map(clientRow));
+      return json(res, 200, rows.map((row: any) => clientRow(row, user.role)));
     }
 
     if (query.get('id') !== 'eq.main') return json(res, 400, { error: 'Only main can be updated' });
@@ -44,6 +46,7 @@ export default async function handler(req: any, res: any) {
     if (!timestamp || !revision || !/^(is\.null|eq\..{1,80})$/.test(timestamp) || !/^(is\.null|eq\.[A-Za-z0-9-]{1,80})$/.test(revision)) return json(res, 400, { error: 'Conditional save required' });
     const body = readBody(req);
     if (!validCloudState(body.state) || typeof body.updated_at !== 'string' || !Number.isFinite(Date.parse(body.updated_at)) || !body.state.syncRevision) return json(res, 400, { error: 'Invalid state' });
+    if (user.role === 'owner' && body.state.accessScope === 'admin') return json(res, 409, { error: 'Обновите страницу после смены аккаунта' });
 
     const readUrl = new URL(endpoint);
     readUrl.search = new URLSearchParams({ id: 'eq.main', select: 'state,updated_at' }).toString();
@@ -54,14 +57,36 @@ export default async function handler(req: any, res: any) {
     const old = rows[0];
     if (timestamp !== (old.updated_at === null ? 'is.null' : `eq.${old.updated_at}`) || revision !== (old.state.syncRevision ? `eq.${old.state.syncRevision}` : 'is.null')) return json(res, 200, []);
     if (body.state.syncRevision === old.state.syncRevision || body.state.version <= old.state.version) return json(res, 400, { error: 'Нужна новая версия сохранения' });
+    const periodError = periodValidationError(old.state.accountingPeriods, body.state.accountingPeriods);
+    if (periodError) return json(res, 400, { error: periodError });
+    // Preserve all unknown stored fields; admins can write only explicitly shared fields.
+    const next = { ...old.state, ...body.state };
     if (user.role !== 'owner') {
-      const protectedIds = new Set(OWNER_FIELDS.flatMap(key => Array.isArray(old.state[key]) ? old.state[key].map((row: any) => row.id) : []));
+      const hiddenTasks = (old.state.ownerTasks || []).filter((task: any) => !isAdminTask(task));
+      const privateCollections = Object.keys(old.state).filter(key => !(ADMIN_FIELDS as readonly string[]).includes(key) && key !== 'ownerTasks');
+      const protectedIds = new Set([...privateCollections.flatMap(key => Array.isArray(old.state[key]) ? old.state[key].map((row: any) => row.id) : []), ...hiddenTasks.map((task: any) => task.id), ...old.state.accountingPeriods.map((period: any) => period.id)]);
       const oldDeleted = new Set(old.state.deletedIds), newDeleted = new Set(body.state.deletedIds);
       const deletedOwnerRecord = [...protectedIds].some(id => oldDeleted.has(id) !== newDeleted.has(id));
-      if (deletedOwnerRecord || OWNER_FIELDS.some(key => !sameValue((body.state as any)[key] ?? (key.endsWith('Document') ? '' : []), old.state[key] ?? (key.endsWith('Document') ? '' : [])))) return json(res, 403, { error: 'Изменение данных овнеров запрещено' });
+      // Empty placeholders mean "not visible", never "delete the owner's records".
+      if (deletedOwnerRecord || PRIVATE_OWNER_FIELDS.some(key => !sameValue((body.state as any)[key] ?? emptyOwnerField(key), emptyOwnerField(key)) && !sameValue((body.state as any)[key], old.state[key]))) return json(res, 403, { error: 'Изменение данных овнеров запрещено' });
+      const structure = (periods: any[]) => periods.map(({ id, label, startAt, endAt, status }) => ({ id, label, startAt, endAt, status })).sort((a, b) => a.id.localeCompare(b.id));
+      if (!sameValue(structure(old.state.accountingPeriods), structure(body.state.accountingPeriods))) return json(res, 403, { error: 'Изменять периоды может только овнер' });
+      const tasks = body.state.ownerTasks || [];
+      if (!Array.isArray(tasks) || new Set(tasks.map((task: any) => task.id)).size !== tasks.length || tasks.some((task: any) => {
+        const hidden = hiddenTasks.find((oldTask: any) => oldTask.id === task.id);
+        return hidden ? !sameValue(task, hidden) : !isAdminTask(task);
+      })) return json(res, 403, { error: 'Изменение личных задач овнеров запрещено' });
+      const allowed = new Set<string>([...ADMIN_FIELDS, ...PRIVATE_OWNER_FIELDS, 'ownerTasks', 'accessScope', 'manualIncomeTotals', ...LOCAL_FIELDS]);
+      if (Object.keys(body.state).some(key => !allowed.has(key) && !sameValue((body.state as any)[key], old.state[key]))) return json(res, 403, { error: 'Изменение поля запрещено' });
+      for (const key of PRIVATE_OWNER_FIELDS) {
+        if (Object.hasOwn(old.state, key)) next[key] = old.state[key]; else delete next[key];
+      }
+      const visibleTasks = new Map<string, any>(tasks.filter(isAdminTask).map((task: any) => [task.id, task]));
+      const previousTasks = old.state.ownerTasks || [];
+      next.ownerTasks = previousTasks.flatMap((task: any) => !isAdminTask(task) ? [task] : visibleTasks.has(task.id) ? [visibleTasks.get(task.id)] : []);
+      next.ownerTasks.push(...tasks.filter((task: any) => isAdminTask(task) && !previousTasks.some((previous: any) => previous.id === task.id)));
     }
-    // Preserve all unknown stored fields and connection metadata; a UI save cannot drop them.
-    const next = { ...old.state, ...body.state };
+    delete next.accessScope; delete next.manualIncomeTotals;
     for (const key of LOCAL_FIELDS) {
       if (Object.hasOwn(old.state, key)) next[key] = old.state[key];
       else delete next[key];
@@ -69,6 +94,6 @@ export default async function handler(req: any, res: any) {
     endpoint.search = new URLSearchParams({ id: 'eq.main', select: 'state,updated_at', updated_at: timestamp, 'state->>syncRevision': revision }).toString();
     const response = await fetch(endpoint, { method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify({ state: next, updated_at: body.updated_at }), signal: AbortSignal.timeout(15000), redirect: 'error' });
     if (!response.ok) return json(res, 502, { error: 'Облако не подтвердило сохранение' });
-    return json(res, 200, (await response.json()).map(clientRow));
+    return json(res, 200, (await response.json()).map((row: any) => clientRow(row, user.role)));
   } catch { return json(res, 502, { error: 'Нет подтверждённого ответа базы данных' }); }
 }

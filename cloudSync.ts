@@ -1,8 +1,9 @@
 import { cloudFetch } from './cloudTransport.js';
 import type { AppState } from './types';
+import { adminView, PRIVATE_OWNER_FIELDS, isAdminTask } from './stateAccess.js';
 
 const LOCAL_FIELDS = new Set(['syncUrl', 'syncKey', 'dbUrl', 'selectedPeriodId']);
-const SYNC_FIELDS = new Set(['version', 'lastUpdated', 'lastSyncedAt', 'remoteVersion', 'syncRevision']);
+const SYNC_FIELDS = new Set(['version', 'lastUpdated', 'lastSyncedAt', 'remoteVersion', 'syncRevision', 'accessScope', 'manualIncomeTotals']);
 const ignored = (key: string) => LOCAL_FIELDS.has(key) || SYNC_FIELDS.has(key);
 const isObject = (value: unknown): value is Record<string, any> => !!value && typeof value === 'object' && !Array.isArray(value);
 
@@ -17,6 +18,7 @@ export function sameValue(a: any, b: any): boolean {
 }
 
 export function hasSharedChanges(a: AppState, b: AppState): boolean {
+  if (a.accessScope === 'admin' || b.accessScope === 'admin') { a = adminView(a); b = adminView(b); }
   const emptyDefault = (value: any) => value === '' || (Array.isArray(value) && value.length === 0) || (isObject(value) && Object.keys(value).length === 0);
   return [...new Set([...Object.keys(a), ...Object.keys(b)])].some(key => {
     if (ignored(key)) return false;
@@ -44,6 +46,31 @@ export type RecoveryItem = { field: string; path: ConflictPath; local: any; remo
 export function mergeConcurrentStates(local: AppState, remote: AppState, base?: AppState, recover = false): { state: AppState; conflicts: string[]; recovery: RecoveryItem[] } {
   const conflicts: string[] = [];
   const recovery: RecoveryItem[] = [];
+  const originalLocal = local;
+  if (remote.accessScope === 'admin') {
+    // Old browsers may still have owner data cached. Preserve unconfirmed private
+    // edits in the durable recovery archive, but never upload them as admin edits.
+    if (recover && local.accessScope !== 'admin') for (const key of PRIVATE_OWNER_FIELDS) {
+      if (!sameValue(local[key], base?.[key]) && !sameValue(local[key], remote[key])) {
+        conflicts.push(key); recovery.push({ field: key, path: [key], local: local[key], remote: remote[key] });
+      }
+    }
+    if (recover && local.accessScope !== 'admin') {
+      const hiddenLocal = (local.ownerTasks || []).filter(task => !isAdminTask(task));
+      const hiddenBase = (base?.ownerTasks || []).filter(task => !isAdminTask(task));
+      if (!sameValue(hiddenLocal, hiddenBase)) {
+        conflicts.push('ownerTasks'); recovery.push({ field: 'ownerTasks', path: ['ownerTasks'], local: local.ownerTasks, remote: remote.ownerTasks });
+      }
+    }
+    local = adminView(local); if (base) base = adminView(base);
+  } else if (local.accessScope === 'admin') {
+    // Signing in as an owner after an admin must not turn redaction into deletion.
+    local = { ...local }; base = base ? { ...base } : undefined;
+    for (const key of PRIVATE_OWNER_FIELDS) { (local as any)[key] = remote[key]; if (base) (base as any)[key] = remote[key]; }
+    const hidden = (remote.ownerTasks || []).filter(task => !isAdminTask(task));
+    local.ownerTasks = [...(local.ownerTasks || []).filter(isAdminTask), ...hidden];
+    if (base) base.ownerTasks = [...(base.ownerTasks || []).filter(isAdminTask), ...hidden];
+  }
   // A tab with the old unconditional writer can remove or reuse the revision.
   // Never treat that overwrite as a legitimate deletion of already saved records.
   if (base?.syncRevision && (!remote.syncRevision || (base.syncRevision === remote.syncRevision && hasSharedChanges(base, remote)))) {
@@ -70,6 +97,8 @@ export function mergeConcurrentStates(local: AppState, remote: AppState, base?: 
       const result: Record<string, any> = {};
       for (const key of new Set([...Object.keys(old || {}), ...Object.keys(left), ...Object.keys(right)])) {
         if (key === 'updatedAt') { result[key] = [left[key], right[key]].filter(Boolean).sort().at(-1); continue; }
+        if (key === 'createdAt' && path[0] === 'accountingPeriods') { result[key] = [left[key], right[key]].filter(Boolean).sort()[0]; continue; }
+        if (key === 'endAt' && path[0] === 'accountingPeriods' && left.status === 'closed' && right.status === 'closed') { result[key] = [left[key], right[key]].filter(Boolean).sort()[0] || null; continue; }
         const value = merge(old?.[key], left[key], right[key], `${field}.${key}`, [...path, key]);
         if (value !== undefined) result[key] = value;
       }
@@ -120,7 +149,7 @@ export function mergeConcurrentStates(local: AppState, remote: AppState, base?: 
       if (typeof part === 'object' && !remoteDeleted.has(part.id)) result.deletedIds = result.deletedIds.filter((id: string) => id !== part.id);
     }
   }
-  return { state: preserveLocalFields(result, local), conflicts, recovery };
+  return { state: preserveLocalFields(result, originalLocal), conflicts, recovery };
 }
 
 export const cloudFingerprint = (timestamp: string | null, revision?: string) => JSON.stringify([timestamp, revision || null]);
