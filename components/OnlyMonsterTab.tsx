@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { OnlyMonsterOperators, omMoney } from './OnlyMonsterOperators';
 import { LiveTrackModal } from './LiveTrackModal';
 import { OperatorDeepStatsModal } from './OperatorDeepStatsModal';
 import { 
@@ -1663,7 +1664,7 @@ export const RealtimeEventFeed: React.FC<{
 
   return (
     <>
-      <div className="glass-card p-4 sm:p-5 rounded-3xl border border-white/10 bg-slate-800/85 shadow-lg space-y-3 font-mono">
+      <div className="om-feed space-y-3">
         {/* Header Bar */}
         <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2.5">
           <div className="flex items-center gap-2.5">
@@ -1695,6 +1696,7 @@ export const RealtimeEventFeed: React.FC<{
             <button
               key={tab.id}
               onClick={() => setFilter(tab.id as LiveEventCategory)}
+              aria-pressed={filter === tab.id}
               className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 ${
                 filter === tab.id
                   ? 'bg-violet-600 text-white shadow-md shadow-violet-950/40 border border-violet-400/30'
@@ -1720,7 +1722,7 @@ export const RealtimeEventFeed: React.FC<{
           ) : visibleList.length === 0 ? (
             <div className="text-center py-6 text-xs text-slate-500 italic bg-slate-900/20 rounded-2xl border border-white/5 p-4">
               {liveEventsMap.size === 0
-                ? 'Нет критических событий за смену — все показатели в норме'
+                ? 'Событий за смену пока нет'
                 : 'Нет событий в выбранной категории'}
             </div>
           ) : (
@@ -1743,7 +1745,8 @@ export const RealtimeEventFeed: React.FC<{
                 <div
                   key={event.id}
                   onClick={() => handleRowClick(event)}
-                  className={`p-2.5 sm:p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 cursor-pointer group ${itemBgClass}`}
+                  className={`om-feed-row flex items-center justify-between gap-3 group ${itemBgClass}`}
+                  role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRowClick(event); } }}
                   title="Нажмите для просмотра подробностей и метрик"
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -1877,6 +1880,14 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
 
   // Race Mode toggle state
   const [raceMode, setRaceMode] = useState(false);
+  const [operatorView, setOperatorView] = useState<'list' | 'cards'>(() => {
+    try { return localStorage.getItem('ct-om-view') === 'cards' ? 'cards' : 'list'; } catch { return 'list'; }
+  });
+  const [operatorSearch, setOperatorSearch] = useState('');
+  const changeOperatorView = (view: 'list' | 'cards') => {
+    setOperatorView(view); setRaceMode(false);
+    try { localStorage.setItem('ct-om-view', view); } catch { /* View preference is optional. */ }
+  };
 
   // Sorting state
   const [sortBy, setSortBy] = useState<'messages' | 'reply_time' | 'ppv_sent' | 'ppv_sold' | 'earnings'>('messages');
@@ -1884,12 +1895,13 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
 
   // Shift Comparison state
   const [shiftCompMode, setShiftCompMode] = useState<'today' | 'yesterday' | 'week'>('today');
-  const [shiftCompData, setShiftCompData] = useState<{
-    shifts: any[];
-    strongestIndex: number | null;
-    weakestIndex: number | null;
-    partial?: boolean;
-  } | null>(null);
+  const [comparisonByPeriod, setComparisonByPeriod] = useState<Record<string, { shifts: any[]; partial?: boolean; updatedAt: number }>>({});
+  const shiftCompData = comparisonByPeriod[shiftCompMode] || null;
+  const comparisonRequest = useRef<Record<string, number>>({});
+  const operatorRequest = useRef(0);
+  const comparisonModeRef = useRef(shiftCompMode);
+  comparisonModeRef.current = shiftCompMode;
+  const [operatorsUpdatedAt, setOperatorsUpdatedAt] = useState<number | null>(null);
   const [isShiftCompLoading, setIsShiftCompLoading] = useState(false);
   const [shiftCompError, setShiftCompError] = useState<string | null>(null);
 
@@ -2270,89 +2282,13 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
     return null;
   };
 
-  /**
-   * UNIFIED SINGLE SOURCE OF TRUTH FOR SHIFT REVENUE (NET):
-   * Shared by both the "ТЕКУЩАЯ СМЕНА" card and the "СРАВНЕНИЕ СМЕН" block.
-   * Calculates the authoritative NET revenue for any shift index (1..4).
-   *
-   * Logic:
-   * 1. Sum up loaded accounts' breakdown for this shift.
-   *    If models have real non-zero breakdown (sum > 0), this is the most granular account-level revenue.
-   * 2. Otherwise, check shift comparison data (shiftCompData) from the API.
-   *    If shift comparison has accountEarnings > 0, use it.
-   *    Otherwise, if it has totalEarnings > 0 (or operatorEarnings > 0), use that authoritative figure (e.g. $436.74).
-   * 3. If current shift, include any live webhooks that arrived in real-time.
-   * 4. If neither source has loaded yet, return null (indicating loading state).
-   */
-  const getAuthoritativeShiftRevenue = useCallback((shiftIdx: 1 | 2 | 3 | 4): number | null => {
-    // 1. Live account breakdown sum
-    const accountsShiftSum = (accounts || []).reduce((sum, acc) => {
-      const b = acc.earnings_breakdown;
-      return sum + (b && typeof b[shiftIdx] === 'number' ? Number(b[shiftIdx]) : 0);
-    }, 0);
-    const roundedAccountsSum = Math.round(accountsShiftSum * 100) / 100;
-
-    // 2. Shift data from shiftCompData
-    const shiftObj = shiftCompData?.shifts?.find((s: any) => s.index === shiftIdx);
-    const serverShiftIncome = shiftObj 
-      ? (typeof shiftObj.accountEarnings === 'number' && shiftObj.accountEarnings > 0
-          ? shiftObj.accountEarnings
-          : (typeof shiftObj.totalEarnings === 'number' && shiftObj.totalEarnings > 0
-              ? shiftObj.totalEarnings
-              : (typeof shiftObj.operatorEarnings === 'number' && shiftObj.operatorEarnings > 0
-                  ? shiftObj.operatorEarnings
-                  : 0)))
-      : 0;
-
-    // Pick whichever is non-zero (prefer granular account sum if > 0, otherwise serverShiftIncome)
-    const baseRevenue = roundedAccountsSum > 0 ? roundedAccountsSum : serverShiftIncome;
-
-    // If baseRevenue > 0, we have the authoritative number
-    if (baseRevenue > 0) {
-      return baseRevenue;
-    }
-
-    // If still loading either shift comparison or account earnings, return null to show loading state
-    if (isShiftCompLoading || isEarningsLoading || (!shiftCompData && isLoading)) {
-      return null;
-    }
-
-    // Both finished loading and genuinely $0.00
-    return 0;
-  }, [accounts, shiftCompData, isShiftCompLoading, isEarningsLoading, isLoading, currentKyivShiftIndex]);
-
-  const currentShiftRevenue = getAuthoritativeShiftRevenue(currentKyivShiftIndex);
-  const totalShiftRevenue = currentShiftRevenue !== null ? currentShiftRevenue : 0;
-
-  const totalTodaySum = useMemo(() => {
-    // 1. Calculate from models
-    const accountsTodaySum = filteredAccounts.reduce((sum, acc) => {
-      const modelNet = calculateModelNet(acc, 'today');
-      return sum + (modelNet !== null ? modelNet : 0);
-    }, 0);
-    const roundedModelSum = Math.round(accountsTodaySum * 100) / 100;
-
-    if (roundedModelSum > 0) {
-      return roundedModelSum;
-    }
-
-    // 2. If models sum is 0 (e.g. accounts not individually broken down), sum shift revenues 1..currentKyivShiftIndex
-    let shiftsSum = 0;
-    let hasShiftsData = false;
-    for (let s = 1; s <= currentKyivShiftIndex; s++) {
-      const sRev = getAuthoritativeShiftRevenue(s as 1 | 2 | 3 | 4);
-      if (typeof sRev === 'number') {
-        shiftsSum += sRev;
-        if (sRev > 0) hasShiftsData = true;
-      }
-    }
-
-    if (hasShiftsData) {
-      return Math.round(shiftsSum * 100) / 100;
-    }
-
-    return roundedModelSum;
-  }, [filteredAccounts, currentKyivShiftIndex, getAuthoritativeShiftRevenue]);
+  // Current-shift totals always use today's snapshot, independent of archive filters.
+  const todaySnapshot = comparisonByPeriod.today;
+  const currentShiftSnapshot = todaySnapshot?.shifts.find(s => s.index === currentKyivShiftIndex);
+  const currentShiftRevenue = currentShiftSnapshot?.accountEarnings ?? null;
+  const totalTodaySum = todaySnapshot && todaySnapshot.shifts.filter(s => !s.isFuture).every(s => typeof s.accountEarnings === 'number')
+    ? todaySnapshot.shifts.reduce((sum, s) => sum + (s.accountEarnings ?? 0), 0) : null;
+  const visibleOperators = useMemo(() => operators.filter(op => op.name.toLocaleLowerCase().includes(operatorSearch.toLocaleLowerCase())), [operators, operatorSearch]);
 
   const currentShiftTimeRange = useMemo(() => {
     switch (currentKyivShiftIndex) {
@@ -2471,6 +2407,7 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
     sb: 'messages' | 'reply_time' | 'ppv_sent' | 'ppv_sold' | 'earnings' = sortBy,
     sd: 'asc' | 'desc' = sortDir
   ) => {
+    const requestId = ++operatorRequest.current;
     setIsOperatorsLoading(true);
     setOperatorsError(null);
     try {
@@ -2491,12 +2428,15 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
 
       const url = `/api/onlymonster/analytics?${params.toString()}`;
       const res = await fetch(url);
+      if (requestId !== operatorRequest.current) return;
       if (res.ok) {
         const data = await res.json();
+        if (requestId !== operatorRequest.current) return;
         if (data.success) {
           setShiftInfo(data.shift || null);
           setOperators(data.operators || []);
           setHasLoadedOperators(true);
+          setOperatorsUpdatedAt(Date.now());
         } else {
           setOperatorsError(data.error || 'Не удалось загрузить метрики операторов');
         }
@@ -2504,9 +2444,9 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
         setOperatorsError(`Ошибка сервера (${res.status})`);
       }
     } catch (e: any) {
-      setOperatorsError('Ошибка сети при загрузке метрик операторов');
+      if (requestId === operatorRequest.current) setOperatorsError('Ошибка сети при загрузке метрик операторов');
     } finally {
-      setIsOperatorsLoading(false);
+      if (requestId === operatorRequest.current) setIsOperatorsLoading(false);
     }
   };
 
@@ -2537,8 +2477,10 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
     mode: 'today' | 'yesterday' | 'week' = shiftCompMode,
     accountsList: OnlyMonsterAccount[] = accounts
   ) => {
-    setIsShiftCompLoading(true);
-    setShiftCompError(null);
+    const requestId = (comparisonRequest.current[mode] || 0) + 1;
+    comparisonRequest.current[mode] = requestId;
+    const isSelected = () => comparisonModeRef.current === mode && comparisonRequest.current[mode] === requestId;
+    if (isSelected()) { setIsShiftCompLoading(true); setShiftCompError(null); }
     try {
       const params = new URLSearchParams();
       if (mode === 'week') {
@@ -2555,28 +2497,29 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
       params.set('resource', 'shift-comparison');
 
       const res = await fetch(`/api/onlymonster/analytics?${params.toString()}`);
+      if (comparisonRequest.current[mode] !== requestId) return;
       if (res.ok) {
         const data = await res.json();
+        if (comparisonRequest.current[mode] !== requestId) return;
         if (data.success) {
-          setShiftCompData(data);
+          setComparisonByPeriod(prev => ({ ...prev, [mode]: { ...data, updatedAt: Date.now() } }));
         } else {
-          setShiftCompError(data.error || 'Не удалось загрузить сравнение смен');
+          if (isSelected()) setShiftCompError(data.error || 'Не удалось загрузить сравнение смен');
         }
       } else {
-        setShiftCompError(`Ошибка сервера (${res.status})`);
+        if (isSelected()) setShiftCompError(`Ошибка сервера (${res.status})`);
       }
     } catch (e: any) {
-      setShiftCompError('Ошибка соединения при запросе сравнения смен');
+      if (isSelected()) setShiftCompError('Ошибка соединения при запросе сравнения смен');
     } finally {
-      setIsShiftCompLoading(false);
+      if (isSelected()) setIsShiftCompLoading(false);
     }
   };
 
   const handleShiftCompModeChange = (mode: 'today' | 'yesterday' | 'week') => {
     setShiftCompMode(mode);
-    if (mode === 'today' || mode === 'yesterday') {
-      fetchEarnings(accounts, mode, true);
-    }
+    comparisonModeRef.current = mode;
+    setShiftCompError(null);
     fetchShiftComparison(mode, accounts);
   };
 
@@ -2756,9 +2699,6 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
               };
             });
           });
-          if (shiftCompMode === dayMode) {
-            fetchShiftComparison(shiftCompMode, accountsList);
-          }
         } else {
           setAccounts(prev => prev.map(acc => ({ ...acc, today_earnings: null, earnings_breakdown: null })));
         }
@@ -2854,7 +2794,6 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
           setConnStatus('live');
           setStatusMessage(`Успешно подключено! Синхронизировано моделей из OnlyMonster: ${parsedAccounts.length}`);
           fetchEarnings(parsedAccounts);
-          fetchShiftComparison(shiftCompMode, parsedAccounts);
         } else {
           setAccounts([]);
           setConnStatus('live');
@@ -2883,145 +2822,55 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
     }
   }, []);
 
+  const refreshRef = useRef<() => void>(() => {});
+  refreshRef.current = () => {
+    if (!isOperatorsLoading) fetchShiftOperators(periodMode, selectedShiftIndex, sortBy, sortDir);
+    if (!isShiftCompLoading) {
+      fetchShiftComparison('today', accounts);
+      if (shiftCompMode !== 'today') fetchShiftComparison(shiftCompMode, accounts);
+    }
+  };
+  useEffect(() => {
+    const refresh = () => { if (!document.hidden) refreshRef.current(); };
+    const timer = setInterval(refresh, 60000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      clearInterval(timer); document.removeEventListener('visibilitychange', refresh);
+      operatorRequest.current++;
+      Object.keys(comparisonRequest.current).forEach(key => comparisonRequest.current[key]++);
+    };
+  }, []);
+  const previousShift = useRef(currentKyivShiftIndex);
+  useEffect(() => {
+    if (previousShift.current !== currentKyivShiftIndex) {
+      if (periodMode === 'today' && selectedShiftIndex === previousShift.current) {
+        setSelectedShiftIndex(currentKyivShiftIndex);
+        fetchShiftOperators('today', currentKyivShiftIndex, sortBy, sortDir);
+      }
+      fetchShiftComparison('today', accounts);
+      previousShift.current = currentKyivShiftIndex;
+    }
+  }, [currentKyivShiftIndex]);
+
   return (
-    <div className="space-y-6">
-      {/* HEADER BAR & SUB-TABS NAVIGATION (Hidden when controlled externally by main menu) */}
-      {!hideHeaderAndTabs && (
-        <>
-          <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/10">
-            <h2 className="text-base sm:text-lg font-black uppercase text-white tracking-wider font-mono flex items-center gap-2.5">
-              <RefreshCw size={20} className="text-violet-400" />
-              ONLYMONSTER
-            </h2>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-3">
-            <button
-              onClick={() => handleSubTabChange('live')}
-              className={`px-4 py-2.5 rounded-xl font-mono text-xs font-bold uppercase transition-all flex items-center gap-2 ${
-                effectiveSubTab === 'live'
-                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-950/50 border border-emerald-400/30'
-                  : 'bg-slate-900/60 text-slate-400 border border-white/5 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-              </span>
-              <Activity size={15} />
-              LIVE
-            </button>
-
-            <button
-              onClick={() => handleSubTabChange('models')}
-              className={`px-4 py-2.5 rounded-xl font-mono text-xs font-bold uppercase transition-all flex items-center gap-2 ${
-                effectiveSubTab === 'models'
-                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-950/50 border border-violet-400/30'
-                  : 'bg-slate-900/60 text-slate-400 border border-white/5 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <Users size={15} />
-              Модели
-              {filteredAccounts.length > 0 && (
-                <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-slate-300">
-                  {filteredAccounts.length}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => handleSubTabChange('operator_metrics')}
-              className={`px-4 py-2.5 rounded-xl font-mono text-xs font-bold uppercase transition-all flex items-center gap-2 ${
-                effectiveSubTab === 'operator_metrics'
-                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-950/50 border border-violet-400/30'
-                  : 'bg-slate-900/60 text-slate-400 border border-white/5 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <UserCheck size={15} />
-              Операторы
-              {operators.length > 0 && (
-                <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-slate-300">
-                  {operators.length}
-                </span>
-              )}
-            </button>
-          </div>
-        </>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 1. TAB "LIVE" (DEFAULT): REALTIME EVENT FEED + PULSE */}
-      {/* ========================================================================= */}
-      {effectiveSubTab === 'live' && (
-        <div className="space-y-6">
-          {/* 1) "ЛЕНТА СОБЫТИЙ В РЕАЛЬНОМ ВРЕМЕНИ" (RealtimeEventFeed) */}
-          <RealtimeEventFeed
-            accounts={accounts}
-            onAccountClick={(acc) => handleAccountClick(acc)}
-            onNavigateToAccountsTab={() => handleSubTabChange('models')}
-          />
-
-          {/* 2) ТЕКУЩАЯ СМЕНА (Оперативная сводка) */}
-          <div className="glass-card p-4 sm:p-5 rounded-3xl border border-white/10 bg-slate-800/85 space-y-3 font-mono">
-            <div className="flex items-center justify-between gap-3 border-b border-white/5 pb-2.5">
-              <h3 className="text-xs font-black uppercase text-white tracking-wider flex items-center gap-2">
-                <Zap size={15} className="text-amber-400" />
-                ТЕКУЩАЯ СМЕНА
-              </h3>
-              <span className="text-[10px] text-slate-400 font-mono">
-                {currentShiftTimeRange.replace(' — ', '–')}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
-              <div className="p-3.5 bg-slate-900/70 rounded-2xl border border-white/5 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
-                  <Clock size={12} className="text-violet-400" />
-                  Активная смена
-                </span>
-                <p className="text-sm sm:text-base font-black text-white">
-                  {currentShiftTimeRange}
-                </p>
-                <span className="text-[9px] text-emerald-400 block font-bold">● В процессе</span>
-              </div>
-
-              <div className="p-3.5 bg-slate-900/70 rounded-2xl border border-white/5 space-y-1">
-                <span 
-                  className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1.5 cursor-help"
-                  title={NET_ESTIMATE_TOOLTIP}
-                >
-                  <DollarSign size={12} className="text-emerald-400" />
-                  ДОХОД СМЕНЫ · NET
-                  <Info size={11} className="text-slate-500 hover:text-slate-300 transition-colors" />
-                </span>
-                <div className="text-sm sm:text-base font-black text-emerald-400 flex items-center gap-1.5 min-h-[24px]">
-                  {currentShiftRevenue === null ? (
-                    <span className="flex items-center gap-1.5 text-slate-400 text-xs font-normal">
-                      <RefreshCw size={13} className="animate-spin text-emerald-400 shrink-0" />
-                      <span>Загрузка...</span>
-                    </span>
-                  ) : (
-                    <span>+${currentShiftRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  )}
-                </div>
-                <div 
-                  className="text-[10px] text-slate-400 block font-mono cursor-help"
-                  title={NET_ESTIMATE_TOOLTIP}
-                >
-                  {(isEarningsLoading || isShiftCompLoading) && totalTodaySum === 0 ? (
-                    <span className="flex items-center gap-1 text-slate-400 text-[10px]">
-                      <RefreshCw size={10} className="animate-spin text-slate-400 shrink-0" />
-                      <span>Сегодня · NET: расчёт...</span>
-                    </span>
-                  ) : (
-                    <span>Сегодня · NET: ${totalTodaySum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+    <div className="om-workspace ct-legacy">
+      {!hideHeaderAndTabs && <div className="om-subnav">
+        <div className="om-segment">
+          <button aria-pressed={effectiveSubTab === 'live'} onClick={() => handleSubTabChange('live')}><Activity size={15} />LIVE · смены и операторы</button>
+          <button aria-pressed={effectiveSubTab === 'models'} onClick={() => handleSubTabChange('models')}><Users size={15} />Аккаунты OnlyMonster</button>
         </div>
-      )}
+        <span className="om-muted">Время Киева · NET после комиссии платформы</span>
+      </div>}
+      {effectiveSubTab === 'live' && <section className="om-hero">
+        <header><h2><Zap size={17} />Текущая смена <span className="om-live-label">LIVE</span></h2><span>{currentShiftTimeRange} · Киев</span></header>
+        <div className="om-kpis">
+          <div><span title={NET_ESTIMATE_TOOLTIP}>Доход аккаунтов · NET</span><strong className="om-income">{omMoney(currentShiftRevenue)}</strong><small>Сегодня: {omMoney(totalTodaySum)}</small></div>
+          <div><span>Продажи в чатах · NET</span><strong>{omMoney(currentShiftSnapshot?.operatorEarnings)}</strong><small>По данным OnlyMonster</small></div>
+          <div><span>Сообщения</span><strong>{currentShiftSnapshot?.totalMessages ?? '—'}</strong><small>За текущую смену</small></div>
+          <div><span>Операторы</span><strong>{currentShiftSnapshot?.operatorCount ?? '—'}</strong><small>В отчёте смены</small></div>
+        </div>
+        <footer>{todaySnapshot ? `Снимок на ${new Date(todaySnapshot.updatedAt).toLocaleTimeString('ru-RU', {timeZone: 'Europe/Kyiv', hour:'2-digit', minute:'2-digit'})}${nowTime - todaySnapshot.updatedAt > 120000 ? ' · данные устарели' : ' · автообновление раз в минуту'}` : 'Загрузка сводки OnlyMonster…'}{todaySnapshot?.partial && ' · часть данных недоступна'}</footer>
+      </section>}
 
       {/* ========================================================================= */}
       {/* 2. TAB "МОДЕЛИ": CONNECTED MODEL ACCOUNTS */}
@@ -3308,333 +3157,34 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
         </div>
       )}
 
-      {/* SUB-TAB 2: OPERATOR METRICS */}
-      {effectiveSubTab === 'operator_metrics' && (
-        <div
-          className={`glass-card p-6 rounded-3xl transition-all duration-500 space-y-5 ${
-            raceMode
-              ? 'border border-cyan-500/30 bg-gradient-to-b from-slate-950 via-blue-950/40 to-slate-950 shadow-[0_0_30px_rgba(15,23,42,0.8),inset_0_0_60px_rgba(56,189,248,0.06)]'
-              : 'border border-white/15 bg-slate-900/60'
-          }`}
-        >
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <h3 className="text-base font-black uppercase text-white tracking-wider font-mono flex items-center gap-2.5">
-                  <UserCheck size={18} className="text-violet-400" />
-                  Метрики Операторов
-                </h3>
-                {shiftInfo && (
-                  <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 flex items-center gap-1.5">
-                    <Clock size={11} className="text-violet-400" />
-                    {shiftInfo.label.includes('неделя') || shiftInfo.label.includes('месяц') ? shiftInfo.label : `Смена: ${shiftInfo.label}`} (Kyiv)
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-300 font-mono mt-1">
-                {periodMode === 'today' || periodMode === 'yesterday'
-                  ? `Активность и объём отправленных сообщений операторов за ${periodMode === 'today' ? 'текущую' : 'выбранную'} смену`
-                  : `Активность и объём отправленных сообщений операторов за ${shiftInfo?.label.toLowerCase() || 'выбранный период'}`
-                }
-              </p>
+      {/* Shared shift control room; legacy race gauges remain available. */}
+      {(effectiveSubTab === 'operator_metrics' || effectiveSubTab === 'live') && (
+        <div className="om-control-room">
+          <section className="om-shift-section">
+            <header className="om-section-heading"><h2>Сравнение смен</h2><div className="om-segment">
+              {(['today', 'yesterday', 'week'] as const).map((mode, i) => <button key={mode} aria-pressed={shiftCompMode === mode} onClick={() => handleShiftCompModeChange(mode)}>{['Сегодня', 'Вчера', 'Неделя'][i]}</button>)}
+            </div></header>
+            {shiftCompError && <p className="om-error" role="alert">{shiftCompError} {shiftCompData && 'Показан последний полученный снимок.'}</p>}
+            {shiftCompData?.partial && <p className="om-notice">Часть данных недоступна. Итоги могут быть неполными.</p>}
+            <div className="om-shift-grid" aria-busy={isShiftCompLoading}>
+              {(shiftCompData?.shifts || [1,2,3,4].map(index => ({index, label: ['02:00–08:00','08:00–14:00','14:00–20:00','20:00–02:00'][index-1]}))).map((s: any) => <button key={s.index} className="om-shift-card" disabled={!shiftCompData || s.isFuture || shiftCompMode === 'week'} aria-pressed={shiftCompMode === periodMode && selectedShiftIndex === s.index} onClick={() => { setPeriodMode(shiftCompMode as 'today' | 'yesterday'); setSelectedShiftIndex(s.index); fetchShiftOperators(shiftCompMode, s.index, sortBy, sortDir); }}>
+                <span className="om-shift-name">{['Ночь','Утро','День','Вечер'][s.index-1]}<span>{shiftCompMode === 'today' && s.index === currentKyivShiftIndex ? 'В процессе' : s.isFuture ? 'Не началась' : shiftCompData ? (shiftCompMode === 'week' ? 'Среднее за день' : 'Завершена') : 'Загрузка'}</span></span>
+                <b>{s.label}</b><strong>{s.isFuture ? '—' : omMoney(shiftCompMode === 'week' ? s.avgEarningsPerDay : s.accountEarnings)}</strong>
+                <small>{shiftCompMode === 'week' ? 'Продажи в чатах · NET / день' : 'Доход аккаунтов · NET'}</small>
+                <footer><span>Сообщения</span><b>{s.isFuture ? '—' : (shiftCompMode === 'week' ? s.avgMessagesPerDay : s.totalMessages) ?? '—'}</b></footer>
+                {shiftCompMode !== 'week' && !s.isFuture && <><div className="om-shift-sales"><span>В чатах</span><b>{omMoney(s.operatorEarnings)}</b></div><div className="om-shift-sales" title="Разница дохода аккаунтов и продаж операторов в чатах. Не является отдельным начислением."><span>Разница</span><b>{omMoney(typeof s.accountEarnings === 'number' && typeof s.operatorEarnings === 'number' ? s.accountEarnings - s.operatorEarnings : null)}</b></div></>}
+              </button>)}
             </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => setRaceMode(!raceMode)}
-                className={`px-3.5 py-2 text-xs font-mono font-bold uppercase rounded-xl transition-all duration-300 flex items-center gap-2 shadow-md ${
-                  raceMode
-                    ? 'bg-gradient-to-r from-blue-900 via-cyan-900 to-blue-900 text-cyan-300 border-2 border-cyan-400 shadow-[0_0_15px_rgba(56,189,248,0.5)] animate-pulse'
-                    : 'bg-slate-900 border border-white/15 hover:border-violet-500/40 hover:bg-slate-800 text-slate-200'
-                }`}
-                title="Переключить визуальный режим гоночной приборной панели"
-              >
-                <span className="text-sm">🏁</span>
-                <span>ГОНКА</span>
-              </button>
-
-              <button
-                onClick={() => setIsTrackModalOpen(true)}
-                className="px-3.5 py-2 text-xs font-mono font-bold uppercase rounded-xl transition-all duration-300 flex items-center gap-2 shadow-md bg-gradient-to-r from-cyan-900 via-blue-900 to-cyan-900 text-cyan-300 border border-cyan-400/60 hover:border-cyan-300 hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]"
-                title="Открыть интерактивный живой трек гонки операторов"
-              >
-                <span className="text-sm">🏁</span>
-                <span>ТРЭК</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  fetchShiftOperators(periodMode, selectedShiftIndex, sortBy, sortDir);
-                  fetchShiftComparison(shiftCompMode);
-                }}
-                disabled={isOperatorsLoading || isShiftCompLoading}
-                className="px-3.5 py-2 bg-slate-900 border border-white/15 hover:border-violet-500/40 hover:bg-slate-800 text-xs font-mono font-bold uppercase text-slate-200 rounded-xl transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-md shrink-0"
-                title="Обновить метрики операторов и сравнение смен"
-              >
-                <RefreshCw size={14} className={(isOperatorsLoading || isShiftCompLoading) ? "animate-spin text-violet-400" : ""} />
-                {(isOperatorsLoading || isShiftCompLoading) ? 'Загрузка...' : 'Обновить'}
-              </button>
+          </section>
+          <section className="om-operators-panel">
+            <header className="om-section-heading"><div><h2>Операторы <span className="om-muted">{operators.length || ''}</span></h2><p>{shiftInfo?.label || 'Загрузка периода…'} · Киев{isOperatorsLoading ? ' · обновление…' : operatorsUpdatedAt ? ` · снимок ${new Date(operatorsUpdatedAt).toLocaleTimeString('ru-RU', {timeZone:'Europe/Kyiv',hour:'2-digit',minute:'2-digit'})}` : ''}</p></div>
+              <div className="om-actions"><button className="ct-button" aria-pressed={raceMode} onClick={() => setRaceMode(!raceMode)}>Гонка</button><button className="ct-button" onClick={() => setIsTrackModalOpen(true)}>Трэк</button><button className="ct-button" aria-label="Обновить метрики" disabled={isOperatorsLoading || isShiftCompLoading} onClick={() => refreshRef.current()}><RefreshCw size={15} className={isOperatorsLoading || isShiftCompLoading ? 'animate-spin' : ''} /></button><div className="om-segment"><button aria-pressed={!raceMode && operatorView === 'list'} onClick={() => changeOperatorView('list')}>Список</button><button aria-pressed={!raceMode && operatorView === 'cards'} onClick={() => changeOperatorView('cards')}>Карточки</button></div></div>
+            </header>
+            <div className="om-operator-filters">
+              <div className="om-segment">{(['today','yesterday','week','month'] as const).map((mode,i) => <button key={mode} aria-pressed={periodMode === mode} onClick={() => handlePeriodChange(mode)}>{['Сегодня','Вчера','Неделя','Месяц'][i]}</button>)}</div>
+              <div className="om-actions"><input type="search" placeholder="Найти оператора…" aria-label="Найти оператора" value={operatorSearch} onChange={e => setOperatorSearch(e.target.value)} /><select aria-label="Сортировка операторов" value={sortBy} onChange={e => handleSortChange(e.target.value as typeof sortBy)}><option value="messages">Сообщения</option><option value="reply_time">Время ответа</option><option value="ppv_sent">PPV отправлено</option><option value="ppv_sold">PPV продано</option><option value="earnings">Доход</option></select><button className="ct-button" aria-label="Изменить направление сортировки" onClick={() => handleSortChange(sortBy)}>{sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}</button></div>
             </div>
-          </div>
-
-          {/* SUB-BLOCK: SHIFT COMPARISON */}
-          <div className="p-4 bg-slate-800/85 rounded-2xl border border-white/10 space-y-3 font-mono">
-            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/5">
-              <div className="flex items-center gap-2">
-                <Clock size={15} className="text-violet-400" />
-                <h4 className="text-xs font-black uppercase text-slate-200 tracking-wider">
-                  Сравнение Смен
-                </h4>
-              </div>
-
-              <div className="flex items-center p-0.5 bg-slate-900 border border-white/10 rounded-xl text-[10px]">
-                {[
-                  { id: 'today', label: 'Сегодня' },
-                  { id: 'yesterday', label: 'Вчера' },
-                  { id: 'week', label: 'За неделю' },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleShiftCompModeChange(item.id as any)}
-                    className={`px-2.5 py-1 rounded-lg font-bold uppercase transition-all ${
-                      shiftCompMode === item.id
-                        ? 'bg-violet-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {isShiftCompLoading ? (
-              <div className="p-4 text-center">
-                <RefreshCw size={16} className="animate-spin text-violet-400 mx-auto" />
-                <span className="text-[10px] text-slate-400 mt-1 block">Расчёт данных по сменам...</span>
-              </div>
-            ) : shiftCompError ? (
-              <div className="p-3 bg-rose-950/30 border border-rose-500/20 text-rose-300 text-[11px] rounded-xl">
-                {shiftCompError}
-              </div>
-            ) : shiftCompData?.shifts ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-                {shiftCompData.shifts.map((s: any) => {
-                  const isStrongest = shiftCompData.strongestIndex === s.index;
-                  const isWeakest = shiftCompData.weakestIndex === s.index && !isStrongest;
-
-                  // UNIFIED Authoritative shift revenue from single shared helper
-                  const authoritativeIncome = shiftCompMode === 'week' 
-                    ? s.totalEarnings 
-                    : getAuthoritativeShiftRevenue(s.index as 1 | 2 | 3 | 4);
-                  const operatorChatSales = typeof s.operatorEarnings === 'number' ? s.operatorEarnings : 0;
-                  const diff = typeof authoritativeIncome === 'number' ? Math.round((authoritativeIncome - operatorChatSales) * 100) / 100 : 0;
-
-                  return (
-                    <div
-                      key={s.index}
-                      className={`p-3 rounded-xl border transition-all relative overflow-hidden ${
-                        s.isFuture
-                          ? 'bg-slate-800/80 border-white/5 opacity-50'
-                          : isStrongest
-                          ? 'bg-emerald-950/30 border-emerald-500/50 shadow-md shadow-emerald-950/40'
-                          : isWeakest
-                          ? 'bg-rose-950/30 border-rose-500/40'
-                          : 'bg-slate-900/70 border-white/10'
-                      }`}
-                    >
-                      {isStrongest && (
-                        <div className="absolute top-1 right-2 flex items-center gap-0.5 text-[8px] font-black uppercase text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded-full border border-emerald-500/30">
-                          <Flame size={10} className="text-emerald-400 fill-emerald-400" />
-                          <span>Сильнее всех</span>
-                        </div>
-                      )}
-                      {isWeakest && (
-                        <div className="absolute top-1 right-2 flex items-center gap-0.5 text-[8px] font-black uppercase text-rose-400 bg-rose-500/20 px-1.5 py-0.5 rounded-full border border-rose-500/30">
-                          <span>Слабее всех</span>
-                        </div>
-                      )}
-
-                      <div className="text-[10px] font-bold text-slate-400 uppercase">
-                        {s.label}
-                      </div>
-
-                      <div className="mt-1.5 flex items-baseline justify-between">
-                        <div>
-                          <span 
-                            className="text-[9px] uppercase text-emerald-400/90 flex items-center gap-1 font-bold cursor-help"
-                            title={NET_ESTIMATE_TOOLTIP}
-                          >
-                            <span>Доход OnlyMonster (NET)</span>
-                            <Info size={10} className="text-emerald-500/70 shrink-0" />
-                          </span>
-                          <span className={`text-sm font-black font-mono ${s.isFuture ? 'text-slate-600' : isStrongest ? 'text-emerald-300' : 'text-emerald-400'}`}>
-                            {s.isFuture
-                              ? '—'
-                              : shiftCompMode === 'week'
-                              ? `$${Number(s.avgEarningsPerDay || 0).toFixed(2)}/д`
-                              : authoritativeIncome === null
-                              ? (
-                                <span className="inline-flex items-center gap-1 text-xs text-slate-400">
-                                  <RefreshCw size={11} className="animate-spin text-emerald-400" />
-                                  <span>...</span>
-                                </span>
-                              )
-                              : `$${Number(authoritativeIncome || 0).toFixed(2)}`}
-                          </span>
-                        </div>
-
-                        <div className="text-right">
-                          <span className="text-[9px] uppercase text-slate-500 block font-bold">Сообщения</span>
-                          <span className="text-xs font-bold font-mono text-slate-200">
-                            {s.isFuture ? '—' : s.totalMessages ?? 0}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Detailed comparison line for Today / Yesterday */}
-                      {(shiftCompMode === 'today' || shiftCompMode === 'yesterday') && !s.isFuture && (
-                        <div className="mt-2 pt-2 border-t border-white/10 text-[9px] text-slate-400 leading-tight space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span 
-                              className="text-slate-400 cursor-help flex items-center gap-1"
-                              title={NET_ESTIMATE_TOOLTIP}
-                            >
-                              <span>Доход аккаунтов (NET):</span>
-                              <Info size={9} className="text-slate-500 shrink-0" />
-                            </span>
-                            <span className="text-emerald-400 font-bold font-mono">
-                              {authoritativeIncome === null ? '—' : `$${Number(authoritativeIncome || 0).toFixed(2)}`}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span 
-                              className="text-slate-400 cursor-help flex items-center gap-1"
-                              title={NET_ESTIMATE_TOOLTIP}
-                            >
-                              <span>Продажи в чатах (NET):</span>
-                              <Info size={9} className="text-slate-500 shrink-0" />
-                            </span>
-                            <span className="text-violet-300 font-bold font-mono">
-                              ${Number(operatorChatSales || 0).toFixed(2)}
-                            </span>
-                          </div>
-                          {authoritativeIncome > 0 && (
-                            <div className="flex items-center justify-between pt-0.5 border-t border-white/5">
-                              <span className="text-slate-500">Разница (органика/подписки):</span>
-                              <span className={`font-black font-mono ${diff >= 0 ? 'text-amber-400' : 'text-rose-400'}`}>
-                                {diff >= 0 ? `+$${diff.toFixed(2)}` : `-$${Math.abs(diff).toFixed(2)}`}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
-
-          {/* PERIOD & SHIFT SELECTORS */}
-          <div className="space-y-3 pb-2 border-b border-white/10 font-mono">
-            {/* ROW 1: PERIOD BUTTONS */}
-            <div className="flex flex-wrap items-center gap-2">
-              {[
-                { id: 'today', label: 'Сегодня' },
-                { id: 'yesterday', label: 'Вчера' },
-                { id: 'week', label: 'Неделя' },
-                { id: 'month', label: 'Месяц' },
-              ].map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => handlePeriodChange(p.id as any)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
-                    periodMode === p.id
-                      ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-950/50 border border-violet-400/30'
-                      : 'bg-slate-900/80 text-slate-400 border border-white/10 hover:bg-slate-800 hover:text-slate-200'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-
-            {/* ROW 2: SHIFT BUTTONS (ONLY IF TODAY OR YESTERDAY) */}
-            {(periodMode === 'today' || periodMode === 'yesterday') && (
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                {[
-                  { index: 1, label: '02:00–08:00' },
-                  { index: 2, label: '08:00–14:00' },
-                  { index: 3, label: '14:00–20:00' },
-                  { index: 4, label: '20:00–02:00' },
-                ].map((s) => {
-                  const isCurrentActive = periodMode === 'today' && currentKyivShiftIndex === s.index;
-                  const isDisabled = periodMode === 'today' && s.index > currentKyivShiftIndex;
-
-                  return (
-                    <button
-                      key={s.index}
-                      onClick={() => !isDisabled && handleShiftChange(s.index as any)}
-                      disabled={isDisabled}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                        isDisabled
-                          ? 'bg-slate-800/80 text-slate-600 border border-white/5 cursor-not-allowed opacity-50'
-                          : selectedShiftIndex === s.index
-                          ? 'bg-violet-500/20 text-violet-300 border border-violet-500/50 shadow-md'
-                          : 'bg-slate-900/70 text-slate-400 border border-white/10 hover:bg-slate-800 hover:text-slate-200'
-                      }`}
-                    >
-                      {isCurrentActive && (
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                        </span>
-                      )}
-                      <span>{s.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* SORTING CONTROLS */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-white/10">
-              <span className="text-[10px] uppercase font-bold text-slate-400">
-                Сортировка по:
-              </span>
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                {[
-                  { id: 'messages', label: 'Сообщения' },
-                  { id: 'reply_time', label: 'Время ответа' },
-                  { id: 'ppv_sent', label: 'PPV отправлено' },
-                  { id: 'ppv_sold', label: 'PPV продано' },
-                  { id: 'earnings', label: 'Доход' },
-                ].map((sortItem) => {
-                  const isActive = sortBy === sortItem.id;
-                  return (
-                    <button
-                      key={sortItem.id}
-                      onClick={() => handleSortChange(sortItem.id as any)}
-                      className={`px-3 py-1.5 rounded-xl font-bold uppercase transition-all flex items-center gap-1 ${
-                        isActive
-                          ? 'bg-violet-600 text-white shadow-md border border-violet-400/40'
-                          : 'bg-slate-900 border border-white/10 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                      }`}
-                    >
-                      <span>{sortItem.label}</span>
-                      {isActive && (
-                        <span className="text-[10px]">
-                          {sortDir === 'asc' ? '▲' : '▼'}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
+            {(periodMode === 'today' || periodMode === 'yesterday') && <div className="om-shift-picker">{(['02:00–08:00','08:00–14:00','14:00–20:00','20:00–02:00']).map((label,i) => <button key={label} disabled={periodMode === 'today' && i+1 > currentKyivShiftIndex} aria-pressed={selectedShiftIndex === i+1} onClick={() => handleShiftChange((i+1) as 1|2|3|4)}>{label}</button>)}</div>}
           {/* CONTENT */}
           {isOperatorsLoading && operators.length === 0 ? (
             <div className="p-10 text-center space-y-3">
@@ -3662,10 +3212,14 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
                 }
               </p>
             </div>
+          ) : !raceMode ? (
+            <OnlyMonsterOperators operators={visibleOperators} view={operatorView} formatDuration={formatDuration} onDetail={setSelectedOperatorForDeepStats}
+              isHandover={op => isHandoverTailOperator(op, shiftInfo?.start, lastOutgoingAtByAccount)}
+              renderModels={op => (op.creator_ids || []).map(id => accounts.find(a => String(a.id) === String(id))).filter((acc): acc is OnlyMonsterAccount => !!acc && !isAccountHidden(acc.name)).map(acc => <button key={acc.id} onClick={e => handleModelAvatarClick(e, op.user_id, op.name, acc.id, acc.name, acc.avatar_url)}>{acc.name}</button>)} />
           ) : (
-            <div className="space-y-3">
+            <div className="om-race-view space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {operators.map((op, index) => {
+                {visibleOperators.map((op, index) => {
                   const rank = index + 1;
                   const ppvConversion = op.paid_messages_count > 0 
                     ? Math.round((op.sold_messages_count / op.paid_messages_count) * 100)
@@ -3994,6 +3548,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
             </div>
           )}
 
+          </section>
+
           {/* MODEL BREAKDOWN POPOVER MODAL */}
           {activeBreakdown && (
             <div
@@ -4089,6 +3645,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
           )}
         </div>
       )}
+
+      {effectiveSubTab === 'live' && <RealtimeEventFeed accounts={accounts} onAccountClick={handleAccountClick} onNavigateToAccountsTab={() => handleSubTabChange('models')} />}
 
       {/* LIVE TRACK MODAL */}
       <LiveTrackModal
