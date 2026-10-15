@@ -155,13 +155,15 @@ html[data-ct-theme] ::-webkit-scrollbar-thumb {background:var(--ct-line)}
 @media(pointer:coarse){.ct-nav-link{min-height:44px}.ct-info summary{min-height:44px;min-width:44px}}
 
 .ct-account>span:nth-child(2){overflow:hidden}.ct-account strong{white-space:nowrap;text-overflow:ellipsis;overflow:hidden;overflow-wrap:normal}.ct-account>button{flex-shrink:0}
-.ct-sync-status{color:var(--ct-muted);min-width:0}
-.ct-sync-status.is-saved{color:var(--ct-green)}
-.ct-sync-status.has-problem{color:var(--ct-gold);background:var(--ct-gold-bg);border:1px solid var(--ct-gold-line);border-radius:12px;padding:4px}
-.ct-sync-trigger{display:flex;align-items:center;gap:6px;width:100%;min-height:34px;padding:6px 0;text-align:left;font-size:11px;font-weight:500;border:0;background:transparent;color:inherit;border-radius:7px}
-.ct-sync-trigger>svg{flex-shrink:0}.ct-sync-trigger>svg:last-child{margin-left:auto;width:12px}.ct-sync-trigger>span{min-width:0;flex:1}
-.ct-sync-trigger:hover{background:var(--ct-soft)}
-.ct-sync-details{font-size:11px;color:var(--ct-muted);padding:5px 2px 8px;display:grid;gap:9px}
+.ct-sync-status{--ct-status-fill:#f4cf7a;--ct-status-ink:#543b08;min-width:0;border:1px solid var(--ct-status-fill);border-radius:12px;background:var(--ct-panel)}
+.ct-sync-status.is-saved{--ct-status-fill:#14765c;--ct-status-ink:#fff}
+.ct-sync-status.has-problem{--ct-status-fill:#b33848;--ct-status-ink:#fff}
+.ct-sync-trigger{display:flex;align-items:center;gap:8px;width:100%;min-height:62px;padding:10px;text-align:left;border:0;background:var(--ct-status-fill);color:var(--ct-status-ink);border-radius:10px;transition:filter .15s}
+.ct-sync-trigger>svg{flex-shrink:0}.ct-sync-trigger>svg:last-child{margin-left:auto;width:12px}
+.ct-sync-trigger .ct-sync-icon{display:grid;place-items:center;width:30px;height:30px;flex-shrink:0;border-radius:9px;background:rgb(255 255 255 / 16%)}
+.ct-sync-copy{min-width:0;flex:1;display:grid;gap:3px}.ct-sync-copy small{font-size:10px;font-weight:400;line-height:1.25}.ct-sync-copy strong{font-size:11px;font-weight:750;line-height:1.35;letter-spacing:.3px;text-transform:uppercase;overflow-wrap:anywhere}
+.ct-sync-trigger:hover{filter:brightness(1.06)}
+.ct-sync-details{font-size:11px;color:var(--ct-muted);padding:12px 10px;display:grid;gap:9px}
 .ct-sync-details strong{font-weight:500;color:var(--ct-text)}.ct-sync-details .ct-button{font-size:11px;padding:7px 8px;white-space:normal}
 @media(max-width:1150px){.ct-dashboard .ct-metric{padding:11px 13px}}
 @media(max-width:920px){.ct-dashboard .ct-overview-side>section:last-child{margin-top:0}}
