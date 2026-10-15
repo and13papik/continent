@@ -1,13 +1,15 @@
-
-import React, { lazy, Suspense, useEffect, useState } from 'react';
-import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
-import { ICONS } from './constants';
+import React, { lazy, Suspense, useState } from 'react';
+import { HashRouter, Routes, Route, Link, NavLink, Navigate, useLocation } from 'react-router-dom';
+import { LayoutDashboard, ChartNoAxesCombined, ArrowLeftRight, Headphones, UserRound, UsersRound, Table2, CalendarDays, Landmark, Settings2, Wallet, Banknote, Plus, LogOut, Check, RefreshCw, AlertTriangle, Menu, X, Sun, Moon } from 'lucide-react';
 import { useCloudState } from './useCloudState';
-import { AppState } from './types';
 import AuthGate, { signOut, SignedInUser } from './AuthGate';
 import PeriodSelector from './components/PeriodSelector';
+import SyncRecovery from './components/SyncRecovery';
+import { useTheme, Theme } from './useTheme';
+import './refined.css';
+import './legacy-theme.css';
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const OperatorPayroll = lazy(() => import('./pages/OperatorPayroll'));
 const AddIncome = lazy(() => import('./pages/AddIncome'));
 const Operations = lazy(() => import('./pages/Operations'));
 const Reports = lazy(() => import('./pages/Reports'));
@@ -20,176 +22,53 @@ const TotalTable = lazy(() => import('./pages/TotalTable'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Metrics = lazy(() => import('./pages/Metrics'));
 const AdvanceRequest = lazy(() => import('./pages/AdvanceRequest'));
-import SyncRecovery from './components/SyncRecovery';
 
-const App: React.FC = () => <AuthGate>{user => <DashboardApp key={`${user.id}:${user.role}`} user={user} />}</AuthGate>;
+export default function App() {
+  const appearance = useTheme();
+  return <AuthGate>{user => <HashRouter><DashboardApp key={`${user.id}:${user.role}`} user={user} {...appearance} /></HashRouter>}</AuthGate>;
+}
 
-const DashboardApp: React.FC<{ user: SignedInUser }> = ({ user }) => {
+function DashboardApp({ user, theme, setTheme }: { user: SignedInUser; theme: Theme; setTheme: (theme: Theme) => void }) {
   const { state, updateState, isSyncing, cloudStatus, lastSyncTime, refreshCloudStatus, recoveries, resolveRecovery, mutationError } = useCloudState({ syncUrl: user.cloudUrl, syncKey: 'server-session' }, user.role);
   const userRole = user.role === 'owner' ? 'owner' : 'user';
-
-  return (
-    <HashRouter>
-      <div className="flex flex-col md:flex-row min-h-screen bg-[#0d111d] text-slate-100">
-        <nav className="w-full md:w-64 bg-[#111726]/95 backdrop-blur-3xl border-r border-slate-700/60 shadow-2xl flex flex-col sticky top-0 h-auto md:h-screen z-50 overflow-hidden">
-          {/* Header Section */}
-          <div className="p-4 pb-3 shrink-0 flex flex-col gap-2.5 border-b border-slate-700/60 bg-[#151c2e]/90 backdrop-blur-xl">
-            {/* Logo Continental - Laconic and Simple */}
-            <div className="flex items-center gap-2.5 px-0.5 pt-0.5">
-              <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md shadow-indigo-600/40 shrink-0 border border-indigo-400/40">
-                <span className="text-white font-outfit text-sm font-black tracking-tight">C</span>
-              </div>
-              <span className="font-outfit text-lg font-bold tracking-tight text-white leading-none">
-                Continental
-              </span>
-            </div>
-
-            {/* Active Period */}
-            <PeriodSelector state={state} updateState={updateState} />
-
-            {/* Quick Actions: Доход & Аванс */}
-            <div className="grid grid-cols-2 gap-2">
-              <QuickActionButton 
-                to="/add-income" 
-                icon={<ICONS.Plus size={13} />} 
-                label="Доход" 
-                variant="indigo"
-              />
-              <QuickActionButton 
-                to="/advance-request" 
-                icon={<ICONS.HandCoins size={13} />} 
-                label="Аванс" 
-                variant="amber"
-              />
-            </div>
-
-            {cloudStatus === 'conflict' && (
-              <motion.div 
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                onClick={refreshCloudStatus}
-                className="p-3 bg-rose-500/15 border border-rose-500/40 rounded-xl cursor-pointer group transition-all hover:bg-rose-500/25"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
-                  <p className="text-[9px] font-black text-rose-400 uppercase tracking-widest leading-none">Sync Conflict</p>
-                </div>
-                <p className="text-[10px] font-bold text-slate-300 group-hover:text-white transition-colors">Не удалось сохранить резервную копию спорных правок. Данные оставлены на устройстве. Проверьте свободное место и нажмите для повтора.</p>
-              </motion.div>
-            )}
-            <SyncRecovery state={state} notices={recoveries} owner={user.role === 'owner'} resolve={resolveRecovery} />
-          </div>
-
-          {/* Scrollable Navigation Section */}
-          <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-3 space-y-6">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 mb-2 px-1">
-                 <span className="text-[8px] font-black uppercase tracking-[0.25em] text-slate-400 whitespace-nowrap">Main Navigation</span>
-                 <div className="h-[1px] flex-1 bg-slate-700/60" />
-              </div>
-              <NavLink to="/" icon={<ICONS.Dashboard size={14} />} label="Dashboard" primary />
-              <NavLink to="/metrics" icon={<ICONS.Reports size={14} />} label="Метрика" />
-              <NavLink to="/operations" icon={<ICONS.Operations size={14} />} label="Операции" />
-              <NavLink to="/reports" icon={<ICONS.Reports size={14} />} label="Операторская" />
-              <NavLink to="/models" icon={<ICONS.Models size={14} />} label="Модели" />
-              <NavLink to="/roster" icon={<ICONS.Reports size={14} />} label="Состав" />
-            </div>
-            
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 mb-3 px-1">
-                 <span className="text-[8px] font-bold uppercase tracking-[0.25em] text-slate-400 whitespace-nowrap">Admin Area</span>
-                 <div className="h-[1px] flex-1 bg-slate-700/60" />
-              </div>
-              <NavLink to="/total-table" icon={<ICONS.Transfer size={14} />} label="Total Table" admin />
-              <NavLink to="/admin-table" icon={<ICONS.Internship size={14} />} label="Admin Table" admin />
-              {userRole === 'owner' && (
-                <>
-                  <NavLink to="/owner-table" icon={<ICONS.Calendar size={14} />} label="Core Table" premium />
-                  <NavLink to="/owner" icon={<ICONS.Owner size={14} />} label="Core Finance" premium />
-                </>
-              )}
-            </div>
-
-            <div className="pb-6">
-              <NavLink to="/settings" icon={<ICONS.Settings size={14} />} label="Настройки" />
-            </div>
-          </div>
-
-          {/* Fixed Status Footer Area */}
-          <div className="p-4 shrink-0 bg-[#151c2e]/95 backdrop-blur-xl border-t border-slate-700/60 space-y-3">
-            <div 
-              onClick={refreshCloudStatus}
-              title={cloudStatus === 'error' ? 'Нажмите для повторного подключения' : lastSyncTime ? `Последняя синхронизация: ${lastSyncTime} (нажмите для проверки)` : 'Нажмите для проверки связи'}
-              className={`relative p-3 rounded-2xl border transition-all duration-700 overflow-hidden cursor-pointer select-none ${
-                cloudStatus === 'success' && !isSyncing ? 'bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_20px_-10px_rgba(16,185,129,0.3)]' : 
-                isSyncing || cloudStatus === 'loading' ? 'bg-amber-500/10 border-amber-500/30' :
-                cloudStatus === 'conflict' || cloudStatus === 'error' ? 'bg-rose-500/10 border-rose-500/30' : 
-                'bg-slate-800/80 border-slate-700/70 shadow-sm'
-              }`}
-            >
-              <div className="relative flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-500 ${
-                  cloudStatus === 'success' && !isSyncing ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300 shadow-inner' :
-                  isSyncing || cloudStatus === 'loading' ? 'bg-amber-500/20 border-amber-500/30 text-amber-300' :
-                  cloudStatus === 'conflict' || cloudStatus === 'error' ? 'bg-rose-500/20 border-rose-500/30 text-rose-300' :
-                  'bg-slate-700/70 border-slate-600/70 text-slate-300'
-                }`}>
-                  {isSyncing || cloudStatus === 'loading' ? (
-                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}>
-                      <ICONS.RotateCcw size={14} />
-                    </motion.div>
-                  ) : cloudStatus === 'success' ? (
-                    <ICONS.Check size={16} />
-                  ) : cloudStatus === 'conflict' || cloudStatus === 'error' ? (
-                    <ICONS.AlertTriangle size={16} />
-                  ) : (
-                    <ICONS.Unlock size={14} />
-                  )}
-                </div>
-                
-                <div className="flex flex-col min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[8px] text-slate-400 uppercase font-black tracking-widest">Database Hub</span>
-                    <div className={`w-1.5 h-1.5 rounded-full ${
-                      cloudStatus === 'success' && !isSyncing ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]' : 
-                      isSyncing || cloudStatus === 'loading' ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]' : 
-                      cloudStatus === 'conflict' || cloudStatus === 'error' ? 'bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.8)]' : 
-                      'bg-slate-500'
-                    }`} />
-                  </div>
-                  <span className={`text-[9.5px] font-black tracking-wider transition-colors duration-500 truncate uppercase ${
-                    cloudStatus === 'success' && !isSyncing ? 'text-emerald-300' :
-                    isSyncing || cloudStatus === 'loading' ? 'text-amber-300' :
-                    cloudStatus === 'conflict' || cloudStatus === 'error' ? 'text-rose-300 font-bold' :
-                    'text-slate-300'
-                  }`}>
-                    {cloudStatus === 'conflict' ? 'SYNC CONFLICT' : 
-                     cloudStatus === 'error' ? 'OFFLINE / RETRY' :
-                     !state.syncUrl ? 'CLOUD OFFLINE' : 
-                     isSyncing ? 'SAVING...' :
-                     cloudStatus === 'loading' ? 'CONNECTING...' :
-                     cloudStatus === 'success' ? 'SYSTEM ONLINE' :
-                     'HUB STANDBY'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <button 
-              onClick={() => { void signOut().catch(error => alert(error.message)); }}
-              className="w-full flex items-center justify-center gap-3 px-3 py-3 text-slate-400 hover:text-white hover:bg-rose-500/15 border border-slate-700/60 hover:border-rose-500/30 rounded-2xl transition-all text-[9.5px] font-black uppercase tracking-[0.2em] group"
-            >
-              <ICONS.Unlock size={14} className="group-hover:rotate-12 transition-transform text-slate-400 group-hover:text-rose-300" /> 
-              <span>Выйти из HUB</span>
-            </button>
-          </div>
-        </nav>
-
-        <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-gradient-to-br from-[#101524] via-[#0d111d] to-[#0a0d17]">
-          {mutationError && <p role="alert" className="sticky top-2 z-40 mb-4 p-4 rounded-xl bg-amber-950 border border-amber-500/50 text-amber-100 text-sm">{mutationError}</p>}
-          <div className="max-w-7xl mx-auto">
-            <Suspense fallback={<p role="status" className="p-8 text-slate-400">Загрузка раздела…</p>}><Routes>
+  const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
+  const refinedPage = ['/', '/operator-payroll'].includes(location.pathname);
+  const status = cloudStatus === 'conflict' ? 'SYNC CONFLICT' : cloudStatus === 'error' ? 'OFFLINE / RETRY' : !state.syncUrl ? 'CLOUD OFFLINE' : isSyncing ? 'SAVING...' : cloudStatus === 'loading' ? 'CONNECTING...' : cloudStatus === 'success' ? 'SYSTEM ONLINE' : 'HUB STANDBY';
+  const online = cloudStatus === 'success' && !isSyncing;
+  return <div className="ct-shell">
+    <nav className="ct-sidebar" aria-label="Основное меню">
+      <div className="ct-sidebar-top"><Link to="/" className="ct-brand" onClick={() => setMenuOpen(false)}><span className="ct-logo">C</span>Continental</Link><button className="ct-menu-toggle ct-button" aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'} aria-expanded={menuOpen} aria-controls="ct-navigation" onClick={() => setMenuOpen(value => !value)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button></div>
+      <div className="ct-sidebar-period"><PeriodSelector state={state} updateState={updateState} /></div>
+      <div className={`ct-sidebar-body ${menuOpen ? 'is-open' : ''}`} id="ct-navigation">
+        <div className="ct-sidebar-quick"><Link className="ct-button ct-button-primary" to="/add-income" onClick={() => setMenuOpen(false)}><Plus size={15} />Доход</Link><Link className="ct-button" to="/advance-request" onClick={() => setMenuOpen(false)}><Wallet size={15} />Аванс</Link></div>
+        {cloudStatus === 'conflict' && <button className="ct-notice" onClick={refreshCloudStatus}><AlertTriangle size={18} /><span>Спорные правки сохранены на устройстве. Проверить синхронизацию.</span></button>}
+        <SyncRecovery state={state} notices={recoveries} owner={user.role === 'owner'} resolve={resolveRecovery} />
+        <div className="ct-nav-group"><p>Рабочее пространство</p>
+          <MenuLink to="/" icon={<LayoutDashboard />} label="Dashboard" close={() => setMenuOpen(false)} />
+          <MenuLink to="/metrics" icon={<ChartNoAxesCombined />} label="Метрика" close={() => setMenuOpen(false)} />
+          <MenuLink to="/operations" icon={<ArrowLeftRight />} label="Операции" close={() => setMenuOpen(false)} />
+          <MenuLink to="/reports" icon={<Headphones />} label="Операторская" close={() => setMenuOpen(false)} />
+          <MenuLink to="/operator-payroll" icon={<Banknote />} label="ЗП операторов" close={() => setMenuOpen(false)} />
+          <MenuLink to="/models" icon={<UserRound />} label="Модели" close={() => setMenuOpen(false)} />
+          <MenuLink to="/roster" icon={<UsersRound />} label="Состав" close={() => setMenuOpen(false)} />
+        </div>
+        <div className="ct-nav-group"><p>Управление</p>
+          <MenuLink to="/total-table" icon={<Table2 />} label="Total Table" close={() => setMenuOpen(false)} />
+          <MenuLink to="/admin-table" icon={<Table2 />} label="Admin Table" close={() => setMenuOpen(false)} />
+          {userRole === 'owner' && <><MenuLink to="/owner-table" icon={<CalendarDays />} label="Core Table" close={() => setMenuOpen(false)} /><MenuLink to="/owner" icon={<Landmark />} label="Owners" close={() => setMenuOpen(false)} /></>}
+          <MenuLink to="/settings" icon={<Settings2 />} label="Настройки" close={() => setMenuOpen(false)} />
+        </div>
+        <div className="ct-sidebar-footer"><button onClick={refreshCloudStatus} className={`ct-connection ${online ? 'is-online' : ''}`} title={lastSyncTime ? `Последняя синхронизация: ${lastSyncTime}. Проверить связь` : 'Проверить связь'}>{isSyncing || cloudStatus === 'loading' ? <RefreshCw size={17} className="ct-spin" /> : online ? <Check size={17} /> : <AlertTriangle size={17} />}<span><small>Синхронизация</small><strong>{status}</strong></span></button><div className="ct-account"><span className="ct-avatar">{user.role === 'owner' ? 'CA' : 'A'}</span><span><strong>{user.username}</strong><small>{user.role === 'owner' ? 'Владелец' : 'Администратор'}</small></span><button aria-label="Выйти из аккаунта" onClick={() => { void signOut().catch(error => alert(error.message)); }}><LogOut size={18} /></button></div></div>
+      </div>
+    </nav>
+    <main className="ct-main"><div className="ct-toolbar"><div className="ct-theme-toggle" role="group" aria-label="Цветовая тема"><button aria-pressed={theme === 'light'} onClick={() => setTheme('light')}><Sun size={15} />Светлая</button><button aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}><Moon size={15} />Тёмная</button></div></div>
+      {mutationError && <p role="alert" className="ct-notice">{mutationError}</p>}
+      <div className={refinedPage ? 'ct-content' : 'ct-content ct-legacy'}>
+        <Suspense fallback={<p role="status" className="ct-loading">Загрузка раздела…</p>}>
+        <Routes>
               <Route path="/" element={<Dashboard state={state} updateState={updateState} userRole={userRole} syncStatus={cloudStatus} needsReview={recoveries.length > 0} />} />
+              <Route path="/operator-payroll" element={<OperatorPayroll state={state} updateState={updateState} />} />
               <Route path="/metrics" element={<Metrics state={state} updateState={updateState} userRole={userRole} />} />
               <Route path="/add-income" element={<AddIncome state={state} updateState={updateState} />} />
               <Route path="/advance-request" element={<AdvanceRequest state={state} updateState={updateState} />} />
@@ -202,208 +81,13 @@ const DashboardApp: React.FC<{ user: SignedInUser }> = ({ user }) => {
               <Route path="/admin-table" element={<AdminTable state={state} updateState={updateState} />} />
               <Route path="/total-table" element={<TotalTable state={state} updateState={updateState} />} />
               <Route path="/settings" element={<Settings state={state} updateState={updateState} userRole={userRole} />} />
-            </Routes></Suspense>
-          </div>
-        </main>
+            </Routes>
+        </Suspense>
       </div>
-    </HashRouter>
-  );
-};
+    </main>
+  </div>;
+}
 
-const QuickActionButton: React.FC<{
-  to: string;
-  icon: React.ReactNode;
-  label: string;
-  variant: 'indigo' | 'amber';
-}> = ({ to, icon, label, variant }) => {
-  const location = useLocation();
-  const isActive = location.pathname === to;
-  const isAmber = variant === 'amber';
-
-  return (
-    <Link to={to} className="block group flex-1">
-      <motion.div
-        whileHover={{ y: -1, scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl border transition-all duration-300 shadow-sm ${
-          isActive
-            ? isAmber
-              ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-[0_4px_14px_-2px_rgba(245,158,11,0.6)] font-black'
-              : 'bg-indigo-600 text-white border-indigo-400 shadow-[0_4px_14px_-2px_rgba(79,70,229,0.6)] font-black'
-            : isAmber
-              ? 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25 hover:border-amber-400 hover:text-white font-bold'
-              : 'bg-indigo-500/15 text-indigo-200 border-indigo-500/30 hover:bg-indigo-500/25 hover:border-indigo-400 hover:text-white font-bold'
-        }`}
-      >
-        <span className={`${isActive ? (isAmber ? 'text-slate-950' : 'text-white') : isAmber ? 'text-amber-400 group-hover:text-white' : 'text-indigo-400 group-hover:text-white'} transition-colors`}>
-          {icon}
-        </span>
-        <span className="text-[11px] font-black tracking-wider uppercase leading-none">{label}</span>
-      </motion.div>
-    </Link>
-  );
-};
-
-const NavLink: React.FC<{ 
-  to: string; 
-  icon: React.ReactNode; 
-  label: string; 
-  premium?: boolean; 
-  admin?: boolean;
-  action?: boolean;
-  variant?: 'indigo' | 'amber' | 'emerald';
-  subLabel?: string;
-  primary?: boolean;
-}> = ({ to, icon, label, premium, admin, action, variant = 'indigo', subLabel, primary }) => {
-  const location = useLocation();
-  const isActive = location.pathname === to;
-
-  if (action) {
-    const isAmber = variant === 'amber';
-    
-    // Sophisticated color palette
-    const shadowColor = isAmber ? 'rgba(217, 119, 6, 0.4)' : 'rgba(79, 70, 229, 0.4)';
-    const accentColor = isAmber ? 'from-amber-400 via-amber-500 to-orange-600' : 'from-indigo-400 via-indigo-500 to-blue-700';
-    const borderActive = isAmber ? 'border-amber-400/40' : 'border-indigo-400/40';
-    const borderHover = isAmber ? 'border-amber-500/20' : 'border-indigo-500/20';
-    const lightText = isAmber ? 'text-amber-500' : 'text-indigo-400';
-
-    return (
-      <Link
-        to={to}
-        className="relative group block"
-      >
-        <motion.div
-          whileHover={{ y: -2, scale: 1.01 }}
-          whileTap={{ scale: 0.98 }}
-          className={`relative flex flex-col items-center justify-center py-4 px-2 rounded-[1.75rem] border transition-all duration-500 backdrop-blur-2xl overflow-hidden
-            ${isActive 
-              ? `bg-gradient-to-br ${accentColor} ${borderActive} shadow-[0_15px_30px_-8px_${shadowColor}]` 
-              : `bg-slate-800/80 border-slate-700/60 ${borderHover} hover:bg-slate-800`
-            }`}
-        >
-          {/* Internal Glow */}
-          {isActive && (
-            <div className="absolute inset-0 opacity-30">
-              <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_0%,white,transparent_70%)]" />
-            </div>
-          )}
-
-          {/* Luxury Shine Effect */}
-          <motion.div 
-            animate={isActive ? { x: ['-100%', '250%'] } : {}}
-            transition={{ duration: 3, repeat: Infinity, ease: 'linear', repeatDelay: 1 }}
-            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -rotate-45 pointer-events-none"
-          />
-
-          {/* Refined Icon Stage */}
-          <div className={`relative z-10 w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-700 shadow-xl mb-2
-            ${isActive 
-              ? 'bg-white/10 text-white backdrop-blur-md border border-white/20' 
-              : `bg-slate-900 ${lightText} border border-slate-700/60 group-hover:scale-110`
-            }`}
-          >
-            {React.cloneElement(icon as React.ReactElement, { size: 18 })}
-          </div>
-
-          {/* Typography */}
-          <div className="relative z-10 flex flex-col items-center -space-y-0.5">
-            <span className={`font-black text-[9px] uppercase tracking-[0.15em] transition-colors duration-500
-              ${isActive ? 'text-white' : 'text-slate-200 group-hover:text-white'}`}
-            >
-              {label}
-            </span>
-            <span className={`text-[6px] font-black uppercase tracking-[0.2em] opacity-40 transition-all duration-500
-              ${isActive ? 'text-white translate-y-0' : 'text-slate-400 translate-y-0.5 group-hover:translate-y-0 group-hover:opacity-80'}`}
-            >
-              {subLabel || 'SELECT'}
-            </span>
-          </div>
-
-          {/* Small Indicator */}
-          {isActive && (
-             <div className="absolute top-1.5 right-1.5 w-1 h-1 rounded-full bg-white shadow-[0_0_8px_white] animate-pulse" />
-          )}
-        </motion.div>
-      </Link>
-    );
-  }
-
-  let activeBg = 'bg-indigo-600 border border-indigo-400/50 shadow-[0_4px_16px_rgba(99,102,241,0.5)]';
-  let activeText = 'text-white font-black';
-  let inactiveText = 'text-slate-300 hover:text-white hover:bg-slate-800/80 border border-transparent hover:border-slate-700/60';
-  let iconActiveColor = 'text-white';
-  let iconInactiveColor = 'text-slate-400 group-hover:text-indigo-300';
-  let indicatorColor = 'bg-indigo-400';
-
-  if (primary) {
-    activeBg = 'bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-600 border border-indigo-400/60 shadow-[0_10px_30px_-5px_rgba(79,70,229,0.5)] backdrop-blur-2xl px-4 py-3 mb-4 rounded-2xl';
-    activeText = 'text-white font-black';
-    inactiveText = 'text-slate-100 hover:text-white border border-slate-700/80 mb-4 py-3 px-4 bg-slate-800/90 hover:bg-slate-800 shadow-md rounded-2xl transition-all';
-    iconActiveColor = 'text-white';
-    iconInactiveColor = 'text-indigo-400 group-hover:text-indigo-300 group-hover:scale-110';
-    indicatorColor = 'bg-indigo-400';
-  }
-
-  if (premium) {
-    activeBg = 'bg-amber-500 text-slate-950 border border-amber-300 shadow-[0_4px_16px_rgba(245,158,11,0.5)]';
-    activeText = 'text-slate-950 font-black';
-    inactiveText = 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/15 border border-transparent hover:border-amber-500/30';
-    iconInactiveColor = 'text-amber-400 group-hover:text-amber-300';
-    indicatorColor = 'bg-amber-400';
-  }
-
-  if (admin) {
-    activeBg = 'bg-sky-500 text-slate-950 border border-sky-300 shadow-[0_4px_16px_rgba(14,165,233,0.5)]';
-    activeText = 'text-slate-950 font-black';
-    inactiveText = 'text-sky-300 hover:text-white hover:bg-sky-500/15 border border-transparent hover:border-sky-500/30';
-    iconInactiveColor = 'text-sky-400 group-hover:text-sky-300';
-    indicatorColor = 'bg-sky-400';
-  }
-
-  return (
-    <Link
-      to={to}
-      className={`relative flex items-center gap-3 transition-all duration-500 group overflow-hidden ${
-        primary ? '' : 'px-3 py-1.5 rounded-xl '
-      }${isActive ? activeBg + ' ' + activeText : inactiveText}`}
-    >
-      {/* Active Indicator Bar */}
-      {isActive && !primary && (
-        <motion.div 
-          layoutId="active-nav-indicator"
-          className={`absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full ${indicatorColor}`}
-        />
-      )}
-
-      {/* Hover Background Glow */}
-      {!isActive && !primary && (
-        <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-      )}
-
-      <span className={`transition-all duration-500 shrink-0 relative z-10 ${isActive ? iconActiveColor + ' scale-110' : iconInactiveColor}`}>
-        {React.cloneElement(icon as React.ReactElement, { size: primary ? 18 : 14 })}
-      </span>
-      
-      <span className={`font-black uppercase tracking-[0.1em] truncate relative z-10 ${primary ? 'text-[11px]' : 'text-[9.5px]'} ${isActive ? activeText : ''}`}>
-        {label}
-      </span>
-
-      {/* Primary Badge */}
-      {primary && !isActive && (
-        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
-      )}
-
-      {/* Shine Effect Animation */}
-      {isActive && (
-        <motion.div 
-          animate={{ x: ['-100%', '200%'] }} 
-          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear', repeatDelay: 3 }}
-          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -rotate-45 pointer-events-none"
-        />
-      )}
-    </Link>
-  );
-};
-
-export default App;
+function MenuLink({ to, label, icon, close }: { to: string; label: string; icon: React.ReactNode; close: () => void }) {
+  return <NavLink to={to} end={to === '/'} onClick={close} className={({ isActive }) => `ct-nav-link ${isActive ? 'is-active' : ''}`}>{icon}<span>{label}</span></NavLink>;
+}

@@ -54,7 +54,7 @@ export default function AuthGate({ children }: { children: (user: SignedInUser) 
   };
 
   if (user) return <>{children(user)}</>;
-  return <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+  return <div className="ct-login min-h-screen flex items-center justify-center p-4">
     <div className="w-full max-w-md glass-card p-8 border border-slate-800/50 rounded-3xl shadow-2xl">
       <div className="flex flex-col items-center gap-6">
         <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20"><ICONS.Lock className="text-white" size={32} /></div>

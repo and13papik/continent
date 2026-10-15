@@ -48,7 +48,7 @@ export default function SyncRecovery({ state, notices, owner, resolve }: {
       <strong>Данные обновлены · проверить {items.length}</strong>
       <span className="block mt-1 text-slate-300">Спорные правки сохранены отдельно на этом устройстве. Открыть сравнение.</span>
     </button>
-    {open && createPortal(<div ref={dialog} className="fixed inset-0 z-[100] bg-black/80 p-4 overflow-y-auto" role="dialog" aria-modal="true" aria-label="Проверка сохранённых правок">
+    {open && createPortal(<div ref={dialog} className="ct-legacy fixed inset-0 z-[100] bg-black/80 p-4 overflow-y-auto" role="dialog" aria-modal="true" aria-label="Проверка сохранённых правок">
       <div className="max-w-4xl mx-auto rounded-2xl border border-slate-600 bg-[#151c2e] p-6 space-y-5">
         <div className="flex justify-between gap-4"><h2 className="text-xl font-bold">Сохранённые правки ({items.length})</h2><button onClick={() => setOpen(false)} className="text-indigo-300">Закрыть</button></div>
         <p className="text-sm text-slate-300">Сайт продолжает обновляться. Эти варианты отличаются от общих данных и требуют проверки. Выбор «Применить правку» изменит общие данные. Резервная копия останется на этом устройстве после выбора.</p>
