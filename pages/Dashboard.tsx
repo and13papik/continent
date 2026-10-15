@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Landmark, AlertTriangle, LockKeyhole, Plus, Gift, Undo2, Wallet, ArrowUpRight, X, RotateCcw, CircleDollarSign, ArrowLeftRight, Bitcoin, Calculator } from 'lucide-react';
+import { Landmark, AlertTriangle, LockKeyhole, Plus, Gift, Undo2, Wallet, ArrowUpRight, X, RotateCcw, CircleDollarSign, ArrowLeftRight, Bitcoin, Info } from 'lucide-react';
 import { startNextPeriod } from '../accountingPeriods';
 import type { AppState, AccountingPeriod } from '../types';
 import { dashboardSummary } from '../dashboardSummary';
@@ -13,9 +13,10 @@ interface DashboardProps {
   updateState: (updater: (prev: AppState) => AppState) => boolean | void;
   syncStatus?: string;
   needsReview?: boolean;
+  headerControls?: React.ReactNode;
 }
 
-export default function Dashboard({ state, userRole, updateState, syncStatus, needsReview }: DashboardProps) {
+export default function Dashboard({ state, userRole, updateState, syncStatus, needsReview, headerControls }: DashboardProps) {
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
   // Проверка на наличие "бездомных" записей (из-за которых данные могли "пропасть" или остаться после удаления месяцев)
@@ -100,15 +101,14 @@ export default function Dashboard({ state, userRole, updateState, syncStatus, ne
   return <div className="ct-page ct-dashboard">
     <header className="ct-page-heading">
       <div><h1>Dashboard</h1><div className="ct-heading-meta"><PeriodLabel state={state} /><span className={`ct-sync-inline ${synced ? 'is-online' : ''}`} role="status"><span aria-hidden="true" />{syncLabel}</span></div></div>
-      <div className="ct-actions"><Link className="ct-button" to="/advance-request"><Wallet size={16} />Аванс</Link><Link className="ct-button ct-button-primary" to="/add-income"><Plus size={16} />Доход</Link></div>
+      {headerControls}
     </header>
     {homelessBreakdown.total > 0 && !isBannerDismissed && <section className="ct-notice" role="status">
       <AlertTriangle size={22} /><div><h2>Архивные записи удалённых периодов · {homelessBreakdown.total}</h2><p>Доходов: {homelessBreakdown.incomeCount}, операций: {homelessBreakdown.operationsCount}, ручных доходов: {homelessBreakdown.manualIncomesCount}, расходов: {homelessBreakdown.expensesCount}. Записи сохранены без изменений.</p><div className="ct-actions"><button className="ct-button" onClick={handleDismissBanner}><X size={15} />Скрыть уведомление</button><button className="ct-button" onClick={repairHomeless}><RotateCcw size={15} />Восстановить в период</button></div></div>
     </section>}
     <div className="ct-overview-grid">
       <section className="ct-card ct-total" aria-label="Тотал общий">
-        <div className="ct-total-heading"><div><h2 className="ct-eyebrow">Тотал общий</h2><p className="ct-muted">Доход за {activePeriod?.label.toLocaleLowerCase('ru-RU')}</p></div><span className="ct-bank" aria-hidden="true"><Landmark size={29} /></span></div>
-        <div><p className="ct-total-value" data-testid="dashboard-total"><MoneyAmount value={stats.totalGross} /></p><p className="ct-muted">Все источники · USD</p></div>
+        <div className="ct-total-heading"><div><h2 className="ct-eyebrow">Тотал общий</h2><p className="ct-total-value" data-testid="dashboard-total"><MoneyAmount value={stats.totalGross} /></p></div><span className="ct-bank" aria-hidden="true"><Landmark size={29} /></span></div>
         <div className="ct-platforms">
           {[{ label: 'OnlyFans', value: stats.of.gross, Icon: CircleDollarSign }, { label: 'PayPal', value: stats.pp.gross, Icon: ArrowLeftRight }, { label: 'Crypto', value: stats.cr.gross, Icon: Bitcoin }].map(({ label, value, Icon }) => <div key={label}><span><Icon size={14} aria-hidden="true" />{label}</span><strong>{money(value)}</strong></div>)}
         </div>
@@ -120,16 +120,16 @@ export default function Dashboard({ state, userRole, updateState, syncStatus, ne
         </div>
       </section>
       <aside className="ct-overview-side">
-        <section className="ct-card ct-admins" aria-label="Админ-состав"><h2>Админ-состав</h2><p className="ct-muted">Начислено за период</p>{stats.adminDetails.map((admin, index) => <div className="ct-admin-row" key={admin.name}><div className="ct-admin-label"><span className="ct-avatar">А{index + 1}</span><span className="ct-muted">{admin.name}</span><span className="ct-rate">{admin.rate}%</span></div><strong><MoneyAmount value={admin.amount} /></strong></div>)}{stats.adminDetails.length === 0 && <p className="ct-muted">Админы для периода не указаны</p>}<p className="ct-admin-foot"><Calculator size={14} aria-hidden="true" />От общего дохода месяца</p></section>
+        <section className="ct-card ct-admins" aria-label="Админ-состав"><div className="ct-admin-title"><h2>Админ-состав</h2><details className="ct-info"><summary aria-label="Как рассчитаны начисления админов"><Info size={16} /></summary><p>Начисления за выбранный период рассчитываются от общего дохода месяца по ставке каждого админа.</p></details></div>{stats.adminDetails.map((admin, index) => <div className="ct-admin-row" key={admin.name}><div className="ct-admin-label"><span className="ct-avatar">А{index + 1}</span><span className="ct-muted">{admin.name}</span><span className="ct-rate">{admin.rate}%</span></div><strong><MoneyAmount value={admin.amount} /></strong></div>)}{stats.adminDetails.length === 0 && <p className="ct-muted">Админы для периода не указаны</p>}</section>
         {!synced && <div className="ct-sync-note" role="status"><AlertTriangle size={19} /><div><strong>Синхронизация</strong><span>{syncLabel}</span></div></div>}
-      </aside>
-    </div>
     <section aria-label="Бонусы и правки"><div className="ct-section-heading"><h2>Бонусы и правки</h2><Link to="/operations">Все операции <ArrowUpRight size={15} /></Link></div><div className="ct-adjustment-grid">
       <MetricCard label="Штрафы" value={stats.penalties} icon={<AlertTriangle size={17} />} tone="rose" />
       <MetricCard label="Бонусы" value={stats.bonuses} icon={<Gift size={17} />} tone="green" />
       <MetricCard label="Возвраты" value={stats.refunds} icon={<Undo2 size={17} />} />
       <MetricCard label="Авансы персонала" value={stats.advances} icon={<Wallet size={17} />} tone="gold" />
     </div></section>
+      </aside>
+    </div>
     {userRole === 'owner' && <footer className="ct-period-actions"><span className="ct-muted">Управление расчётным периодом</span><div className="ct-actions">{activePeriod?.status === 'open' ? <button className="ct-button" onClick={handleCloseMonth}><LockKeyhole size={15} />Закрыть месяц</button> : <span className="ct-period-label"><LockKeyhole size={15} />Месяц закрыт</span>}{isLatestPeriod && <button className="ct-button" onClick={handleStartNextMonth}><Plus size={15} />Новый период</button>}</div></footer>}
   </div>;
 }

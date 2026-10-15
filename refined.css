@@ -18,29 +18,29 @@ html[data-ct-theme] body {background:var(--ct-bg);color:var(--ct-text);font-fami
 html[data-ct-theme] body::before {display:none}
 html[data-ct-theme] ::-webkit-scrollbar-track {background:var(--ct-bg)}
 html[data-ct-theme] ::-webkit-scrollbar-thumb {background:var(--ct-line)}
-.ct-shell {display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh;color:var(--ct-text);background:var(--ct-bg);font-size:14px;line-height:1.5}
+.ct-shell {display:grid;grid-template-columns:216px minmax(0,1fr);min-height:100vh;color:var(--ct-text);background:var(--ct-bg);font-size:14px;line-height:1.5}
 .ct-shell button,.ct-shell a,.ct-shell input,.ct-shell select { -webkit-tap-highlight-color:transparent }
 .ct-shell :is(button,a,input,select,[tabindex]):focus-visible {outline:3px solid var(--ct-accent);outline-offset:3px}
 .ct-sidebar {background:var(--ct-sidebar);border-right:1px solid var(--ct-line);position:sticky;top:0;height:100dvh;display:flex;flex-direction:column;min-width:0;z-index:40}
-.ct-sidebar-top {padding:25px 20px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ct-sidebar-top {padding:18px 16px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .ct-brand {display:flex;align-items:center;gap:10px;font-weight:750;font-size:21px;letter-spacing:-.8px;color:var(--ct-text)}
 .ct-logo {display:grid;place-items:center;width:34px;height:36px;border-radius:11px;background:#6e61df;color:white;font-weight:800;box-shadow:0 4px 12px #6e61df20}
-.ct-sidebar-period {padding:0 16px 18px}
+.ct-sidebar-period {padding:0 14px 12px}
 .ct-period-selector {padding:11px 13px;border:1px solid var(--ct-line);background:var(--ct-panel);border-radius:13px}
 .ct-period-selector label {display:flex;align-items:center;justify-content:space-between;gap:5px;font-size:10px;font-weight:650;letter-spacing:1px;text-transform:uppercase;color:var(--ct-muted);margin-bottom:4px}
 .ct-period-selector select {width:100%;color:var(--ct-text);font-size:13px;font-weight:650;background:var(--ct-panel);border:0;padding:4px 0;outline-offset:1px;cursor:pointer}
 .ct-period-selector option {background:var(--ct-panel);color:var(--ct-text)}
-.ct-sidebar-body {display:flex;flex-direction:column;gap:22px;padding:0 16px 18px;overflow-y:auto;flex:1;min-height:0}
+.ct-sidebar-body {display:flex;flex-direction:column;gap:14px;padding:0 14px 14px;overflow-y:auto;flex:1;min-height:0}
 .ct-sidebar-quick {display:grid;grid-template-columns:1fr 1fr;gap:7px}
 .ct-sidebar-quick .ct-button {padding:9px 8px;font-size:12px}
-.ct-nav-group {display:grid;gap:3px}
+.ct-nav-group {display:grid;gap:2px}
 .ct-nav-group>p {font-size:10px;letter-spacing:1px;font-weight:650;text-transform:uppercase;color:var(--ct-muted);padding:0 10px;margin:0 0 9px}
-.ct-nav-link {display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;font-weight:550;color:var(--ct-muted);font-size:13px;transition:background-color .15s,color .15s}
+.ct-nav-link {display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:10px;font-weight:550;color:var(--ct-muted);font-size:13px;transition:background-color .15s,color .15s}
 .ct-nav-link svg {width:17px;height:17px;flex-shrink:0}
 .ct-nav-link:hover {background:var(--ct-soft);color:var(--ct-text)}
 .ct-nav-link.is-active {background:var(--ct-accent-soft);color:var(--ct-accent)}
 .ct-nav-link.is-active::after{content:'';width:5px;height:5px;flex-shrink:0;border-radius:50%;background:currentColor;margin-left:auto}
-.ct-sidebar-footer {margin-top:auto;display:grid;gap:16px}
+.ct-sidebar-footer {margin-top:auto;display:grid;gap:10px}
 .ct-connection {border:1px solid var(--ct-line);border-radius:12px;padding:12px;display:flex;align-items:center;gap:10px;text-align:left;background:var(--ct-panel);color:var(--ct-gold)}
 .ct-connection.is-online {color:var(--ct-green);background:var(--ct-green-bg);border-color:color-mix(in srgb,var(--ct-green) 20%,var(--ct-line))}
 .ct-connection span {display:grid;gap:2px}.ct-connection small {font-size:10px;color:var(--ct-muted)}.ct-connection strong {font-size:11px;font-weight:650}
@@ -117,3 +117,38 @@ html[data-ct-theme] ::-webkit-scrollbar-thumb {background:var(--ct-line)}
 @media(max-width:920px){.ct-overview-side{display:flex;align-items:stretch}.ct-admins{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:24px}.ct-admins>h2,.ct-admins>p{grid-column:1/-1}.ct-admin-row{border:0}.ct-admin-foot{display:none}}
 @media(max-width:600px){.ct-toolbar{flex-wrap:wrap;gap:10px;padding-bottom:14px}.ct-breadcrumb{font-size:10px}.ct-heading-meta{gap:8px 12px}.ct-platforms span svg{display:none}.ct-admins{column-gap:16px}.ct-admin-row .ct-avatar{display:none}.ct-admin-row strong{font-size:23px}.ct-admin-label{gap:5px}.ct-admin-label .ct-muted{font-size:11px}.ct-total-value{font-size:42px}.ct-total .ct-bank{width:44px;height:44px;border-radius:14px}}
 @media(prefers-reduced-motion:reduce){.ct-shell *{animation:none!important;transition:none!important}.ct-total:hover .ct-bank{transform:none}}
+
+/* Compact overview: keep totals and adjustments together without duplicate controls. */
+.ct-dashboard{gap:20px}
+.ct-dashboard>.ct-page-heading{padding-bottom:18px;border-bottom:1px solid var(--ct-line)}
+.ct-dashboard .ct-overview-grid{grid-template-columns:minmax(0,1.55fr) minmax(310px,1fr);align-items:start;gap:18px}
+.ct-dashboard .ct-total{padding:24px;gap:20px}
+.ct-dashboard .ct-total-value{margin:14px 0 0}
+.ct-dashboard .ct-goal{padding-top:18px}
+.ct-dashboard .ct-goal-remaining{margin-bottom:12px}
+.ct-dashboard .ct-overview-side{gap:18px}
+.ct-dashboard .ct-admins{display:block;flex:none;padding:18px 20px}
+.ct-admin-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:5px}
+.ct-dashboard .ct-admin-title h2{margin:0}
+.ct-dashboard .ct-admin-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 0}
+.ct-dashboard .ct-admin-row:last-child{border-bottom:0;padding-bottom:0}
+.ct-dashboard .ct-admin-label{flex:1;gap:9px}
+.ct-dashboard .ct-admin-row strong{font-size:23px;white-space:nowrap;margin:0}
+.ct-dashboard .ct-admin-label .ct-avatar{width:28px;height:28px;border-radius:9px}
+.ct-dashboard .ct-rate{font-size:11px}
+.ct-info{position:relative;color:var(--ct-muted);font-size:12px}
+.ct-info summary{display:grid;place-items:center;list-style:none;padding:6px;cursor:pointer;border-radius:8px}
+.ct-info summary::-webkit-details-marker{display:none}
+.ct-info summary:focus-visible{outline:3px solid var(--ct-accent);outline-offset:2px}
+.ct-info p{position:absolute;z-index:5;right:0;top:100%;width:min(250px,70vw);padding:13px;border:1px solid var(--ct-line);border-radius:12px;background:var(--ct-panel);color:var(--ct-text);box-shadow:var(--ct-shadow)}
+.ct-dashboard .ct-section-heading{margin-bottom:10px}
+.ct-dashboard .ct-adjustment-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ct-dashboard .ct-metric{padding:15px 17px}
+.ct-dashboard .ct-metric h2{flex-direction:row;align-items:center;gap:7px;margin-bottom:8px;font-size:11px}
+.ct-dashboard .ct-metric>strong{font-size:24px}
+.ct-dashboard .ct-period-actions{padding-top:14px}
+@media(min-width:1600px){.ct-dashboard .ct-total{padding:28px;gap:24px}.ct-dashboard .ct-total-value{font-size:64px}}
+@media(max-width:1150px){.ct-dashboard .ct-overview-grid{grid-template-columns:minmax(0,1.3fr) minmax(285px,1fr);gap:16px}.ct-dashboard .ct-total{padding:22px}.ct-dashboard .ct-admins{padding:16px}.ct-dashboard .ct-admin-row strong{font-size:20px}.ct-dashboard .ct-admin-label .ct-avatar{display:none}.ct-dashboard .ct-metric{padding:14px}.ct-dashboard .ct-metric>strong{font-size:22px}}
+@media(max-width:920px){.ct-dashboard .ct-overview-grid{grid-template-columns:1fr}.ct-dashboard .ct-admin-label .ct-avatar{display:grid}.ct-dashboard .ct-overview-side{display:grid;grid-template-columns:1fr}.ct-dashboard .ct-total-value{font-size:48px}}
+@media(max-width:600px){.ct-dashboard>.ct-page-heading{gap:12px}.ct-dashboard .ct-total{padding:20px;gap:18px}.ct-dashboard .ct-total-value{font-size:40px}.ct-dashboard .ct-admin-row strong{font-size:23px}.ct-dashboard .ct-admin-label .ct-avatar{display:grid}.ct-dashboard .ct-metric h2{align-items:flex-start}.ct-dashboard .ct-metric h2 svg{flex-shrink:0}.ct-info summary{min-height:36px;min-width:36px}}
+@media(pointer:coarse){.ct-nav-link{min-height:44px}.ct-info summary{min-height:44px;min-width:44px}}

@@ -37,6 +37,7 @@ function DashboardApp({ user, theme, setTheme }: { user: SignedInUser; theme: Th
   const sectionTitle: Record<string, string> = { '/': 'Обзор', '/operator-payroll': 'ЗП операторов', '/metrics': 'Метрика', '/operations': 'Операции', '/reports': 'Операторская', '/models': 'Модели', '/roster': 'Состав', '/owner': 'Owners', '/owner-table': 'Core Table', '/total-table': 'Total Table', '/admin-table': 'Admin Table', '/settings': 'Настройки', '/add-income': 'Доход', '/advance-request': 'Аванс' };
   const status = cloudStatus === 'conflict' ? 'SYNC CONFLICT' : cloudStatus === 'error' ? 'OFFLINE / RETRY' : !state.syncUrl ? 'CLOUD OFFLINE' : isSyncing ? 'SAVING...' : cloudStatus === 'loading' ? 'CONNECTING...' : cloudStatus === 'success' ? 'SYSTEM ONLINE' : 'HUB STANDBY';
   const online = cloudStatus === 'success' && !isSyncing;
+  const themeToggle = <div className="ct-theme-toggle" role="group" aria-label="Цветовая тема"><button aria-pressed={theme === 'light'} onClick={() => setTheme('light')}><Sun size={15} />Светлая</button><button aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}><Moon size={15} />Тёмная</button></div>;
   return <div className="ct-shell">
     <nav className="ct-sidebar" aria-label="Основное меню">
       <div className="ct-sidebar-top"><Link to="/" className="ct-brand" onClick={() => setMenuOpen(false)}><span className="ct-logo">C</span>Continental</Link><button className="ct-menu-toggle ct-button" aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'} aria-expanded={menuOpen} aria-controls="ct-navigation" onClick={() => setMenuOpen(value => !value)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button></div>
@@ -63,12 +64,12 @@ function DashboardApp({ user, theme, setTheme }: { user: SignedInUser; theme: Th
         <div className="ct-sidebar-footer"><button onClick={refreshCloudStatus} className={`ct-connection ${online ? 'is-online' : ''}`} title={lastSyncTime ? `Последняя синхронизация: ${lastSyncTime}. Проверить связь` : 'Проверить связь'}>{isSyncing || cloudStatus === 'loading' ? <RefreshCw size={17} className="ct-spin" /> : online ? <Check size={17} /> : <AlertTriangle size={17} />}<span><small>Синхронизация</small><strong>{status}</strong></span></button><div className="ct-account"><span className="ct-avatar">{user.role === 'owner' ? 'CA' : 'A'}</span><span><strong>{user.username}</strong><small>{user.role === 'owner' ? 'Владелец' : 'Администратор'}</small></span><button aria-label="Выйти из аккаунта" onClick={() => { void signOut().catch(error => alert(error.message)); }}><LogOut size={18} /></button></div></div>
       </div>
     </nav>
-    <main className="ct-main"><div className="ct-toolbar"><p className="ct-breadcrumb">Рабочее пространство <span>/</span> <strong>{sectionTitle[location.pathname] || 'Обзор'}</strong></p><div className="ct-theme-toggle" role="group" aria-label="Цветовая тема"><button aria-pressed={theme === 'light'} onClick={() => setTheme('light')}><Sun size={15} />Светлая</button><button aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}><Moon size={15} />Тёмная</button></div></div>
+    <main className="ct-main">{location.pathname !== '/' && <div className="ct-toolbar"><p className="ct-breadcrumb">Рабочее пространство <span>/</span> <strong>{sectionTitle[location.pathname] || 'Обзор'}</strong></p>{themeToggle}</div>}
       {mutationError && <p role="alert" className="ct-notice">{mutationError}</p>}
       <div className={refinedPage ? 'ct-content' : 'ct-content ct-legacy'}>
         <Suspense fallback={<p role="status" className="ct-loading">Загрузка раздела…</p>}>
         <Routes>
-              <Route path="/" element={<Dashboard state={state} updateState={updateState} userRole={userRole} syncStatus={isSyncing ? 'loading' : cloudStatus} needsReview={recoveries.length > 0} />} />
+              <Route path="/" element={<Dashboard state={state} updateState={updateState} userRole={userRole} syncStatus={isSyncing ? 'loading' : cloudStatus} needsReview={recoveries.length > 0} headerControls={themeToggle} />} />
               <Route path="/operator-payroll" element={<OperatorPayroll state={state} updateState={updateState} />} />
               <Route path="/metrics" element={<Metrics state={state} updateState={updateState} userRole={userRole} />} />
               <Route path="/add-income" element={<AddIncome state={state} updateState={updateState} />} />
