@@ -20,7 +20,8 @@ export function operatorPayrollRows(state: AppState, activePeriodId: string) {
       const isPaid = state.paidStatuses.some(s => s.entityName === op && s.entityType === 'operator' && s.periodId === activePeriodId);
       
       return { 
-        op, totalGross, refunds: opRefunds, remainder, isPaid,
+        op, totalGross, totalNet, accrued: totalNet + bns - pnl,
+        paidOut: adv + pay, salaryPayments: pay, refunds: opRefunds, remainder, isPaid,
         bonuses: bns, penalties: pnl, advances: adv,
         ofG: incomes.reduce((sum, r) => sum + r.onlyFans, 0), ofN: incomes.reduce((sum, r) => sum + r.nettoOF, 0),
         ppG: incomes.reduce((sum, r) => sum + r.paypal, 0), ppN: incomes.reduce((sum, r) => sum + r.nettoPP, 0),
