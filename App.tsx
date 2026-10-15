@@ -50,7 +50,7 @@ function DashboardApp({ user, theme, setTheme }: { user: SignedInUser; theme: Th
           <MenuLink to="/metrics" icon={<ChartNoAxesCombined />} label="Метрика" close={() => setMenuOpen(false)} />
           <MenuLink to="/operations" icon={<ArrowLeftRight />} label="Операции" close={() => setMenuOpen(false)} />
           <MenuLink to="/operator-payroll" icon={<Banknote />} label="ЗП операторов" close={() => setMenuOpen(false)} />
-          <MenuLink to="/models" icon={<UserRound />} label="Модели" close={() => setMenuOpen(false)} />
+          {userRole === 'owner' && <MenuLink to="/models" icon={<UserRound />} label="Модели" close={() => setMenuOpen(false)} />}
           <MenuLink to="/roster" icon={<UsersRound />} label="Состав" close={() => setMenuOpen(false)} />
         </div>
         <div className="ct-nav-group"><p>Управление</p>
@@ -74,7 +74,7 @@ function DashboardApp({ user, theme, setTheme }: { user: SignedInUser; theme: Th
               <Route path="/advance-request" element={<AdvanceRequest state={state} updateState={updateState} />} />
               <Route path="/operations" element={<Operations state={state} updateState={updateState} />} />
               <Route path="/reports" element={<LegacyOperatorReport />} />
-              <Route path="/models" element={<Models state={state} updateState={updateState} />} />
+              <Route path="/models" element={userRole === 'owner' ? <Models state={state} updateState={updateState} /> : <Navigate to="/" replace />} />
               <Route path="/roster" element={<Roster state={state} updateState={updateState} />} />
               <Route path="/owner" element={userRole === 'owner' ? <Owner state={state} updateState={updateState} /> : <Navigate to="/" replace />} />
               <Route path="/owner-table" element={userRole === 'owner' ? <OwnerTable state={state} updateState={updateState} /> : <Navigate to="/" replace />} />
