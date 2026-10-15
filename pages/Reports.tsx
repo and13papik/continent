@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect, useId } from 'react';
 import { calculateOperatorEarnings, periodOperatorNames, operatorPayrollOperations } from '../financialCalculations';
-import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   AreaChart, 
@@ -67,14 +66,16 @@ const RateField = ({ label, val, onChange, color }: { label: string, val: number
 // --- MAIN COMPONENT ---
 
 interface ReportsProps {
+  selectedOperator: string;
+  setSelectedOperator: (operator: string) => void;
+  onBack: () => void;
+  onPay: () => void;
+  payDisabled: boolean;
   state: AppState;
   updateState: (updater: (prev: AppState) => AppState) => boolean | void;
 }
 
-const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [selectedOperator, setSelectedOperator] = useState('');
+const Reports: React.FC<ReportsProps> = ({ state, updateState, selectedOperator, setSelectedOperator, onBack, onPay, payDisabled }) => {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   
   // Quick Operations
@@ -88,70 +89,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
   const [editingIncome, setEditingIncome] = useState<IncomeRecord | null>(null);
   const [editingOperation, setEditingOperation] = useState<OperationRecord | null>(null);
 
-  const [isManagingOperators, setIsManagingOperators] = useState(false);
-  const [newOperatorName, setNewOperatorName] = useState('');
-
   const activePeriod = state.accountingPeriods.find(p => p.id === state.selectedPeriodId);
-
-  const availableOperators = useMemo(() => {
-    const currentOps = activePeriod?.operators || state.operators;
-    return state.operators.filter(o => !currentOps.includes(o));
-  }, [state.operators, activePeriod?.operators]);
-
-  const addOperatorToPeriod = (opName: string) => {
-    if (!opName) return;
-    if (updateState(prev => {
-      const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
-      if (!activeP) return prev;
-      
-      const currentOps = activeP.operators || prev.operators;
-      if (currentOps.includes(opName)) return prev;
-
-      let newGlobalOps = prev.operators;
-      if (!newGlobalOps.includes(opName)) {
-        newGlobalOps = [...newGlobalOps, opName];
-      }
-
-      return {
-        ...prev,
-        operators: newGlobalOps,
-        accountingPeriods: prev.accountingPeriods.map(p => 
-          p.id === prev.selectedPeriodId 
-            ? { ...p, operators: [...currentOps, opName], updatedAt: new Date().toISOString() } 
-            : p
-        )
-      };
-    }) === false) return;
-    setNewOperatorName('');
-  };
-
-  const removeOperatorFromPeriod = (opName: string) => {
-    if (!confirm(`Скрыть оператора "${opName}" из состава на этот период?`)) return;
-    
-    if (updateState(prev => {
-      const activeP = prev.accountingPeriods.find(p => p.id === prev.selectedPeriodId);
-      if (!activeP) return prev;
-      
-      const currentOps = activeP.operators || prev.operators;
-      return {
-        ...prev,
-        accountingPeriods: prev.accountingPeriods.map(p => 
-          p.id === prev.selectedPeriodId 
-            ? { ...p, operators: currentOps.filter(o => o !== opName), updatedAt: new Date().toISOString() } 
-            : p
-        )
-      };
-    }) === false) return;
-    if (selectedOperator === opName) {
-      setSelectedOperator('');
-    }
-  };
-
-  useEffect(() => {
-    if (location.state && (location.state as any).operator) {
-      setSelectedOperator((location.state as any).operator);
-    }
-  }, [location.state]);
 
   const currentOperators = useMemo(() => {
     const operators = periodOperatorNames(state, state.selectedPeriodId);
@@ -341,106 +279,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
 
   return (
     <div className={`ct-reports ${selectedOperator ? 'has-operator' : 'is-directory'}`}>
-      <AnimatePresence>
-        {isManagingOperators && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-3xl">
-             <motion.div 
-               initial={{ scale: 0.9, opacity: 0, y: 30 }}
-               animate={{ scale: 1, opacity: 1, y: 0 }}
-               exit={{ scale: 0.9, opacity: 0, y: 30 }}
-               className="ct-report-manage w-full max-w-2xl rounded-[3rem] p-10 border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627] shadow-2xl relative overflow-hidden"
-             >
-                <button aria-label="Закрыть управление операторами" onClick={() => setIsManagingOperators(false)} className="absolute top-8 right-8 text-slate-400 hover:text-white transition-all group cursor-pointer">
-                   <ICONS.Close className="group-hover:scale-110 transition-all text-slate-400 hover:text-white" size={24} />
-                </button>
-                <div className="mb-8 font-outfit">
-                   <h2 className="text-2xl font-black text-white uppercase tracking-tight">Управление операторами</h2>
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Текущий период: {activePeriod?.label}</p>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Создать нового оператора</label>
-                    <div className="flex gap-3">
-                      <input 
-                        type="text" 
-                        value={newOperatorName}
-                        onChange={e => setNewOperatorName(e.target.value)}
-                        placeholder="Имя оператора (напр. Anna, Vi...)"
-                        className="flex-1 bg-slate-900 border border-slate-700 rounded-2xl px-6 py-4 text-white focus:border-emerald-400 outline-none transition-all text-sm font-bold"
-                        onKeyDown={e => e.key === 'Enter' && newOperatorName && addOperatorToPeriod(newOperatorName)}
-                      />
-                      <button 
-                        onClick={() => newOperatorName && addOperatorToPeriod(newOperatorName)}
-                        className="px-8 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-emerald-600/30 active:scale-95 transition-all text-center flex items-center justify-center min-h-[50px] shrink-0 cursor-pointer"
-                      >
-                        Добавить
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between px-1">
-                      <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Добавить из общего списка</label>
-                      <span className="text-[10px] font-bold text-slate-400">{availableOperators.length} доступно</span>
-                    </div>
-                    {availableOperators.length === 0 ? (
-                      <div className="p-6 rounded-3xl border border-dashed border-slate-700/80 text-center bg-slate-900/30">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Все зарегистрированные операторы уже в списке</p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
-                        {availableOperators.map(op => (
-                          <button
-                            key={op}
-                            onClick={() => addOperatorToPeriod(op)}
-                            className="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700 hover:border-emerald-400/50 hover:bg-emerald-500/10 text-slate-200 hover:text-white transition-all text-center flex flex-col items-center gap-1.5 cursor-pointer"
-                          >
-                            <ICONS.User size={14} className="text-slate-400 shrink-0" />
-                            <span className="font-black text-[10px] uppercase tracking-tighter truncate w-full">{op}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-3 border-t border-slate-700/60 pt-5">
-                    <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Операторы в текущем составе ({currentOperators.filter(op => op !== 'ДЫРКА').length})</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
-                      {currentOperators.filter(op => op !== 'ДЫРКА').map(op => (
-                        <div
-                          key={op}
-                          className="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700 text-slate-200 flex items-center justify-between gap-2"
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            <ICONS.User size={12} className="text-slate-400 shrink-0" />
-                            <span className="font-black text-[10px] uppercase tracking-tighter truncate">{op}</span>
-                          </div>
-                          <button
-                            onClick={() => removeOperatorFromPeriod(op)}
-                            className="text-slate-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
-                            title="Исключить из периода"
-                          >
-                            <ICONS.Close size={12} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-4 pt-6 mt-4 border-t border-slate-700/60">
-                   <button 
-                     onClick={() => setIsManagingOperators(false)} 
-                     className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-black py-4 rounded-2xl transition-all uppercase tracking-widest text-[11px] border border-slate-700 cursor-pointer"
-                   >
-                     Завершить
-                   </button>
-                </div>
-             </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
       {selectedOperator && <aside className="ct-report-diary" aria-label="Дневник оператора">
         <header><h2>Дневник</h2><span>{report?.dailyHistory.length || 0} дней</span></header>
         <p>Доход за день · начислено</p>
@@ -464,9 +302,9 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
                  <div className="flex items-center gap-2 mb-1">
                     {selectedOperator && (
                       <button 
-                        onClick={() => setSelectedOperator('')}
+                        onClick={onBack}
                         className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white transition-all mr-1 cursor-pointer border border-slate-700"
-                        title="Назад к списку" aria-label="Назад к списку операторов"
+                        title="К списку операторов" aria-label="К списку операторов"
                       >
                         <ICONS.ArrowLeft size={14} />
                       </button>
@@ -479,12 +317,13 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
            </div>
 
            <div className="flex items-center gap-4">
+              <button type="button" className="ct-button" onClick={onPay} disabled={payDisabled}>PAY</button>
               <div className="relative">
                 <select 
                   className="appearance-none bg-slate-900 border border-slate-700 rounded-xl px-6 py-3 pr-12 font-black text-[11px] text-white focus:border-indigo-400 transition-all cursor-pointer uppercase tracking-widest min-w-[240px] shadow-md" 
                   aria-label="Выбрать оператора"
                   value={selectedOperator} 
-                  onChange={(e) => setSelectedOperator(e.target.value)}
+                  onChange={(e) => e.target.value ? setSelectedOperator(e.target.value) : onBack()}
                 >
                   <option value="">Выберите сотрудника</option>
                   {currentOperators.map(op => <option key={op} value={op}>{op}</option>)}
@@ -506,40 +345,6 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
 
         {/* SCROLLABLE WORKSPACE */}
         <div className="ct-report-body">
-          {!selectedOperator && (
-             <div className="space-y-8">
-               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-2xl font-black font-outfit uppercase tracking-tighter text-white">Операторы</h2>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Выберите сотрудника для просмотра подробной аналитики</p>
-                  </div>
-                  <button 
-                    onClick={() => setIsManagingOperators(true)}
-                    className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-xl shadow-emerald-600/30 active:scale-95 transition-all w-fit cursor-pointer"
-                  >
-                    <ICONS.Plus size={18} />
-                    <span className="font-black text-[10px] uppercase tracking-widest">Добавить оператора</span>
-                  </button>
-               </div>
-
-               <div className="ct-report-directory">
-                 {currentOperators.map(op => {
-                   // Calculate simplified stats for this operator
-                   const incomes = state.incomeData.filter(r => r.operator === op && r.periodId === state.selectedPeriodId);
-                   const ops = state.operationsData.filter(o => o.operator === op && o.periodId === state.selectedPeriodId);
-                   
-                   const { gross: totalGross, net: totalNet } = calculateOperatorEarnings(incomes, ops);
-
-                   return <button key={op} type="button" onClick={() => setSelectedOperator(op)} className="ct-report-person" aria-label={`Открыть отчёт ${op}`}>
-                     <div className="ct-report-person-title"><span>{op.replace(/^@/, '').slice(0, 2).toUpperCase()}</span><h3>{op}</h3><ICONS.ArrowRight size={15} /></div>
-                     <div className="ct-report-person-values"><div><small>Доход</small><strong>{money(totalGross)}</strong></div><div><small>Начислено</small><strong>{money(totalNet)}</strong></div></div>
-                     <div className="ct-report-person-platforms">{incomes.some(i => i.onlyFans > 0) && <span><OnlyFansLogo />OnlyFans</span>}{incomes.some(i => i.paypal > 0) && <span><PayPalLogo />PayPal</span>}{incomes.some(i => i.crypto > 0) && <span><ICONS.Income size={14} />Crypto</span>}{incomes.length === 0 && <span>Нет доходов за период</span>}</div>
-                   </button>;
-                 })}
-               </div>
-             </div>
-          )}
-
           {report && (
             <motion.div 
               key={selectedOperator}

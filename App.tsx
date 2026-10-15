@@ -14,7 +14,6 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const OperatorPayroll = lazy(() => import('./pages/OperatorPayroll'));
 const AddIncome = lazy(() => import('./pages/AddIncome'));
 const Operations = lazy(() => import('./pages/Operations'));
-const Reports = lazy(() => import('./pages/Reports'));
 const Models = lazy(() => import('./pages/Models'));
 const Roster = lazy(() => import('./pages/Roster'));
 const Owner = lazy(() => import('./pages/Owner'));
@@ -36,7 +35,7 @@ function DashboardApp({ user, theme, setTheme }: { user: SignedInUser; theme: Th
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
   const refinedPage = ['/', '/operator-payroll'].includes(location.pathname);
-  const sectionTitle: Record<string, string> = { '/': 'Обзор', '/operator-payroll': 'ЗП операторов', '/metrics': 'Метрика', '/operations': 'Операции', '/reports': 'Операторская', '/models': 'Модели', '/roster': 'Состав', '/owner': 'Owners', '/owner-table': 'Core Table', '/total-table': 'Total Table', '/admin-table': 'Admin Table', '/settings': 'Настройки', '/add-income': 'Доход', '/advance-request': 'Аванс' };
+  const sectionTitle: Record<string, string> = { '/': 'Обзор', '/operator-payroll': 'ЗП операторов', '/metrics': 'Метрика', '/operations': 'Операции', '/reports': 'ЗП операторов', '/models': 'Модели', '/roster': 'Состав', '/owner': 'Owners', '/owner-table': 'Core Table', '/total-table': 'Total Table', '/admin-table': 'Admin Table', '/settings': 'Настройки', '/add-income': 'Доход', '/advance-request': 'Аванс' };
   const themeToggle = <div className="ct-theme-toggle" role="group" aria-label="Цветовая тема"><button aria-pressed={theme === 'light'} onClick={() => setTheme('light')}><Sun size={15} />Светлая</button><button aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}><Moon size={15} />Тёмная</button></div>;
   const headerControls = <div className="ct-header-controls">{themeToggle}<AccountMenu user={user} /></div>;
   return <div className="ct-shell">
@@ -50,7 +49,6 @@ function DashboardApp({ user, theme, setTheme }: { user: SignedInUser; theme: Th
           <MenuLink to="/" icon={<LayoutDashboard />} label="Dashboard" close={() => setMenuOpen(false)} />
           <MenuLink to="/metrics" icon={<ChartNoAxesCombined />} label="Метрика" close={() => setMenuOpen(false)} />
           <MenuLink to="/operations" icon={<ArrowLeftRight />} label="Операции" close={() => setMenuOpen(false)} />
-          <MenuLink to="/reports" icon={<Headphones />} label="Операторская" close={() => setMenuOpen(false)} />
           <MenuLink to="/operator-payroll" icon={<Banknote />} label="ЗП операторов" close={() => setMenuOpen(false)} />
           <MenuLink to="/models" icon={<UserRound />} label="Модели" close={() => setMenuOpen(false)} />
           <MenuLink to="/roster" icon={<UsersRound />} label="Состав" close={() => setMenuOpen(false)} />
@@ -75,7 +73,7 @@ function DashboardApp({ user, theme, setTheme }: { user: SignedInUser; theme: Th
               <Route path="/add-income" element={<AddIncome state={state} updateState={updateState} />} />
               <Route path="/advance-request" element={<AdvanceRequest state={state} updateState={updateState} />} />
               <Route path="/operations" element={<Operations state={state} updateState={updateState} />} />
-              <Route path="/reports" element={<Reports state={state} updateState={updateState} />} />
+              <Route path="/reports" element={<LegacyOperatorReport />} />
               <Route path="/models" element={<Models state={state} updateState={updateState} />} />
               <Route path="/roster" element={<Roster state={state} updateState={updateState} />} />
               <Route path="/owner" element={userRole === 'owner' ? <Owner state={state} updateState={updateState} /> : <Navigate to="/" replace />} />
@@ -92,4 +90,10 @@ function DashboardApp({ user, theme, setTheme }: { user: SignedInUser; theme: Th
 
 function MenuLink({ to, label, icon, close }: { to: string; label: string; icon: React.ReactNode; close: () => void }) {
   return <NavLink to={to} end={to === '/'} onClick={close} className={({ isActive }) => `ct-nav-link ${isActive ? 'is-active' : ''}`}>{icon}<span>{label}</span></NavLink>;
+}
+
+function LegacyOperatorReport() {
+  const location = useLocation();
+  const operator = (location.state as { operator?: string } | null)?.operator || new URLSearchParams(location.search).get('operator');
+  return <Navigate replace to={operator ? '/operator-payroll?operator=' + encodeURIComponent(operator) : '/operator-payroll'} />;
 }
