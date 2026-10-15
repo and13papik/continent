@@ -68,7 +68,7 @@ function DashboardApp({ user, theme, setTheme }: { user: SignedInUser; theme: Th
       <div className={refinedPage ? 'ct-content' : 'ct-content ct-legacy'}>
         <Suspense fallback={<p role="status" className="ct-loading">Загрузка раздела…</p>}>
         <Routes>
-              <Route path="/" element={<Dashboard state={state} updateState={updateState} userRole={userRole} headerControls={themeToggle} />} />
+              <Route path="/" element={<Dashboard state={state} updateState={updateState} headerControls={themeToggle} />} />
               <Route path="/operator-payroll" element={<OperatorPayroll state={state} updateState={updateState} />} />
               <Route path="/metrics" element={<Metrics state={state} updateState={updateState} userRole={userRole} />} />
               <Route path="/add-income" element={<AddIncome state={state} updateState={updateState} />} />

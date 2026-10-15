@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Landmark, AlertTriangle, LockKeyhole, Plus, Gift, Undo2, Wallet, ArrowUpRight, X, RotateCcw, CircleDollarSign, ArrowLeftRight, Bitcoin, Info } from 'lucide-react';
-import { startNextPeriod } from '../accountingPeriods';
+import { Landmark, AlertTriangle, Gift, Undo2, Wallet, ArrowUpRight, X, RotateCcw, CircleDollarSign, ArrowLeftRight, Bitcoin, Info } from 'lucide-react';
 import type { AppState, AccountingPeriod } from '../types';
 import { dashboardSummary } from '../dashboardSummary';
 import { getOrphanedRecordsBreakdown, getOrphanedRecordsSignature, isOrphanedBannerDismissed, dismissOrphanedBanner } from '../store';
@@ -9,14 +8,12 @@ import { MetricCard, PeriodLabel, MoneyAmount, money } from '../components/Refin
 
 interface DashboardProps {
   state: AppState;
-  userRole: 'user' | 'owner' | null;
   updateState: (updater: (prev: AppState) => AppState) => boolean | void;
   headerControls?: React.ReactNode;
 }
 
-export default function Dashboard({ state, userRole, updateState, headerControls }: DashboardProps) {
+export default function Dashboard({ state, updateState, headerControls }: DashboardProps) {
   const activePeriodId = state.selectedPeriodId;
-  const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
   // Проверка на наличие "бездомных" записей (из-за которых данные могли "пропасть" или остаться после удаления месяцев)
   const homelessBreakdown = useMemo(() => {
     return getOrphanedRecordsBreakdown(state);
@@ -81,17 +78,6 @@ export default function Dashboard({ state, userRole, updateState, headerControls
     }) === false) return;
     alert('Данные успешно возвращены в систему!');
   };
-  const handleCloseMonth = () => {
-    if (!activePeriod || activePeriod.status === 'closed') return;
-    if (!window.confirm(`Закрыть период "${activePeriod.label}"? Его записи будут защищены от изменений. Вы перейдёте на следующий месяц. Овнер сможет открыть период для исправлений в Настройках.`)) return;
-    if (updateState(prev => startNextPeriod(prev, activePeriodId, true)) === false) return;
-  };
-
-  const handleStartNextMonth = () => {
-    if (updateState(prev => startNextPeriod(prev, activePeriodId)) === false) return;
-  };
-  const sortedPeriodsForCheck = [...state.accountingPeriods].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
-  const isLatestPeriod = sortedPeriodsForCheck[sortedPeriodsForCheck.length - 1]?.id === activePeriodId;
   const stats = useMemo(() => dashboardSummary(state, activePeriodId), [state, activePeriodId]);
   const progress = stats.totalTarget > 0 ? Math.max(0, Math.min(100, stats.totalGross / stats.totalTarget * 100)) : 0;
   return <div className="ct-page ct-dashboard">
@@ -125,6 +111,5 @@ export default function Dashboard({ state, userRole, updateState, headerControls
     </div></section>
       </aside>
     </div>
-    {userRole === 'owner' && <footer className="ct-period-actions"><span className="ct-muted">Управление расчётным периодом</span><div className="ct-actions">{activePeriod?.status === 'open' ? <button className="ct-button" onClick={handleCloseMonth}><LockKeyhole size={15} />Закрыть месяц</button> : <span className="ct-period-label"><LockKeyhole size={15} />Месяц закрыт</span>}{isLatestPeriod && <button className="ct-button" onClick={handleStartNextMonth}><Plus size={15} />Новый период</button>}</div></footer>}
   </div>;
 }
