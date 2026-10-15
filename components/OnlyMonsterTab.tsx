@@ -3214,8 +3214,16 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
             </div>
           ) : !raceMode ? (
             <OnlyMonsterOperators operators={visibleOperators} view={operatorView} formatDuration={formatDuration} onDetail={setSelectedOperatorForDeepStats}
+              getRank={op => operators.findIndex(item => item.user_id === op.user_id) + 1}
+              highlightRanks={sortBy === 'reply_time' ? sortDir === 'asc' : sortDir === 'desc'}
               isHandover={op => isHandoverTailOperator(op, shiftInfo?.start, lastOutgoingAtByAccount)}
-              renderModels={op => (op.creator_ids || []).map(id => accounts.find(a => String(a.id) === String(id))).filter((acc): acc is OnlyMonsterAccount => !!acc && !isAccountHidden(acc.name)).map(acc => <button key={acc.id} onClick={e => handleModelAvatarClick(e, op.user_id, op.name, acc.id, acc.name, acc.avatar_url)}>{acc.name}</button>)} />
+              renderModels={(op, avatars) => {
+                const models = (op.creator_ids || []).map(id => accounts.find(a => String(a.id) === String(id))).filter((acc): acc is OnlyMonsterAccount => !!acc && !isAccountHidden(acc.name));
+                if (avatars && !models.length) return <span className="om-model-avatar om-model-avatar-empty" title="Нет привязанных моделей"><User size={15} /></span>;
+                return models.map(acc => <button key={acc.id} className={avatars ? 'om-model-avatar' : undefined} title={`Метрики модели: ${acc.name}`} aria-label={`Метрики модели: ${acc.name}`} onClick={e => handleModelAvatarClick(e, op.user_id, op.name, acc.id, acc.name, acc.avatar_url)}>
+                  {avatars ? <><span aria-hidden="true">{acc.name.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 1).toUpperCase() || 'M'}</span>{acc.avatar_url && <img key={acc.avatar_url} src={acc.avatar_url} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none'; }} />}</> : acc.name}
+                </button>);
+              }} />
           ) : (
             <div className="om-race-view space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
