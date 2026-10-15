@@ -1,8 +1,12 @@
 import { calculateModelEarnings } from '../financialCalculations';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AppState, ModelBonus, PaidStatus, OperationRecord } from '../types';
 import { ICONS } from '../constants';
-import PeriodBadge from '../components/PeriodBadge';
+import { OnlyFansLogo, PayPalLogo } from '../components/ServiceLogos';
+import './Models.css';
+
+const money = (value: number) => '$' + value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 interface ModelsProps {
   state: AppState;
@@ -10,6 +14,9 @@ interface ModelsProps {
 }
 
 const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
+  const [search, setSearch] = useState('');
+  const [showRates, setShowRates] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId)!;
   
@@ -339,6 +346,9 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
         version: (prev.version || 0) + 1
       };
     }) === false) return;
+    setEditingGroupId(null);
+    setNewGroupName('');
+    setSelectedGroupMembers([]);
   };
 
   const handleDeleteGroup = (id: string) => {
@@ -349,6 +359,11 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
       lastUpdated: Date.now(),
       version: (prev.version || 0) + 1
     })) === false) return;
+    if (editingGroupId === id) {
+      setEditingGroupId(null);
+      setNewGroupName('');
+      setSelectedGroupMembers([]);
+    }
   };
 
   const toggleGroupExpand = (groupId: string) => {
@@ -373,479 +388,93 @@ const Models: React.FC<ModelsProps> = ({ state, updateState }) => {
 
   const isUniform = currentRates.of === currentRates.pp && currentRates.pp === currentRates.cr;
 
-  return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <h1 className="text-3xl font-bold font-outfit text-white">Модели</h1>
-          <div className="flex items-center gap-3 mt-1">
-            <PeriodBadge state={state} />
-            <p className="text-slate-400">Ведомость анкет и начислений</p>
-          </div>
-        </div>
-        <div className="bg-slate-800/80 p-5 rounded-3xl border border-slate-700/80 shadow-md flex flex-wrap items-center gap-6">
-          <div className="space-y-1">
-            <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Общая выплата (%)</label>
-            <div className="relative">
-              <input type="number" className="w-24 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-indigo-300 font-black focus:ring-2 focus:ring-indigo-400 outline-none" value={isUniform ? currentRates.of : ''} placeholder="MIX" onChange={(e) => updateGlobalRate(e.target.value)} />
-              <span className="absolute right-3 top-2.5 text-slate-500 text-xs font-bold">%</span>
-            </div>
-          </div>
-          <div className="h-10 w-px bg-slate-700/70 hidden md:block" />
-          <div className="flex gap-4">
-            <RateInput label="OF Rate" value={currentRates.of} color="blue" onChange={(v) => updateSpecificRate('of', v)} />
-            <RateInput label="PP Rate" value={currentRates.pp} color="sky" onChange={(v) => updateSpecificRate('pp', v)} />
-            <RateInput label="CR Rate" value={currentRates.cr} color="emerald" onChange={(v) => updateSpecificRate('cr', v)} />
-          </div>
-        </div>
-      </header>
+  const locked = activePeriod.status !== 'open';
+  useEffect(() => { setSelectedModel(null); setBonusInputs({}); setAdvanceInputs({}); }, [activePeriodId]);
+  const selected = modelStats.find(row => row.model === selectedModel);
+  const query = search.trim().toLocaleLowerCase();
+  const visibleRecords = displayRecords.filter(row => [row.model, ...row.members].some(name => name.toLocaleLowerCase().includes(query)));
+  const summary = modelStats.reduce((sum, row) => ({ accrued: sum.accrued + row.accruedSalary, paid: sum.paid + row.totalAdvances + row.totalSalaries, remainder: sum.remainder + Math.max(0, row.totalEarn) }), { accrued: 0, paid: 0, remainder: 0 });
+  const resetGroupForm = () => { setEditingGroupId(null); setNewGroupName(''); setSelectedGroupMembers([]); };
+  const closeGroups = () => { setShowManageGroups(false); resetGroupForm(); };
 
-      {/* Model Group Linker Interface */}
-      {showManageGroups && (
-        <div className="p-8 rounded-[2.5rem] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-6 animate-in slide-in-from-top duration-300">
-          <div className="flex justify-between items-center border-b border-slate-700/70 pb-4">
-            <div>
-              <h3 className="text-lg font-black font-outfit uppercase tracking-tight text-white flex items-center gap-2">
-                <ICONS.Users size={18} className="text-indigo-400" />
-                Связанные анкеты (Группы моделей)
-              </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">Свяжите несколько анкет одного человека, чтобы следить за общим доходом в одну строку.</p>
-            </div>
-            <button 
-              onClick={() => {
-                setShowManageGroups(false);
-                setEditingGroupId(null);
-                setNewGroupName('');
-                setSelectedGroupMembers([]);
-              }}
-              className="p-2 bg-slate-800 hover:bg-slate-700 hover:text-white rounded-full text-slate-400 transition-colors border border-slate-700"
-            >
-              <ICONS.Close size={14} />
-            </button>
-          </div>
+  const adjustments = (row: typeof modelStats[number] | typeof displayRecords[number]) => <div className="ct-model-adjustments">
+    {row.bonusTotal !== 0 && <span className="is-bonus">Бонус +{money(row.bonusTotal)}</span>}
+    {row.totalAdvances !== 0 && <span className="is-advance">Аванс {money(row.totalAdvances)}</span>}
+    {row.totalSalaries !== 0 && <span className="is-salary">ЗП {money(row.totalSalaries)}</span>}
+    {row.totalRefunds !== 0 && <span className="is-refund">Возврат {money(row.totalRefunds)}</span>}
+    {![row.bonusTotal, row.totalAdvances, row.totalSalaries, row.totalRefunds].some(Boolean) && <span className="ct-model-no-adjustments">—</span>}
+  </div>;
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left Column: Existing groups */}
-            <div className="space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Текущие связи анкет</h4>
-              {(!state.modelGroups || state.modelGroups.length === 0) ? (
-                <div className="text-center py-8 bg-slate-900/40 rounded-2xl border border-dashed border-slate-800 space-y-1">
-                  <p className="text-xs text-slate-500 font-medium">Нет настроенных связей</p>
-                  <p className="text-[10px] text-slate-600">Создайте группу справа, выделив связанные анкеты</p>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-                  {state.modelGroups.map(group => (
-                    <div key={group.id} className="p-4 bg-slate-900/50 rounded-2xl border border-slate-800 flex items-center justify-between gap-4 group hover:border-indigo-500/30 transition-all">
-                      <div className="space-y-1">
-                        <div className="font-bold text-white text-sm flex items-center gap-2">
-                          <span className="text-indigo-400 font-outfit">{group.name}</span>
-                          <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[8px] font-black uppercase px-2 py-0.5 rounded">
-                            {group.members.length} анкет(ы)
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {group.members.map(m => (
-                            <span key={m} className="bg-slate-950 text-slate-400 text-[9px] px-2 py-0.5 rounded-lg border border-slate-850">
-                              {m}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => {
-                            setEditingGroupId(group.id);
-                            setNewGroupName(group.name);
-                            setSelectedGroupMembers(group.members);
-                          }}
-                          className="p-1.5 bg-slate-800 hover:bg-indigo-600/20 text-slate-400 hover:text-indigo-400 rounded-lg transition-all"
-                        >
-                          <ICONS.Edit size={12} />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteGroup(group.id)}
-                          className="p-1.5 bg-slate-800 hover:bg-rose-600/20 text-slate-400 hover:text-rose-400 rounded-lg transition-all"
-                        >
-                          <ICONS.Trash size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+  const renderRow = (row: typeof displayRecords[number] | typeof modelStats[number], child = false) => {
+    const group = 'isGroup' in row && row.isGroup ? row : null;
+    const expanded = group ? !!expandedGroups[group.groupId!] : false;
+    const partial = !!group?.isPartiallyPaid;
+    const status = row.isPaid ? 'Выплачено' : partial ? 'Частично' : 'Ожидает';
+    return <tr key={group ? `group:${group.groupId}` : `model:${row.model}`} className={`ct-model-row${group ? ' is-group' : ''}${child ? ' is-child' : ''}`} data-model={row.model} data-group={!!group}>
+      <td><div className="ct-model-identity">
+        <span className="ct-model-avatar">{group ? <ICONS.Users size={17} /> : row.model.slice(0,2).toUpperCase()}</span>
+        <button className="ct-model-name" aria-label={group ? `Связка ${row.model}` : `Расчёт ${row.model}`} aria-expanded={group ? expanded : undefined} onClick={() => group ? toggleGroupExpand(group.groupId!) : setSelectedModel(row.model)}><strong>{row.model}</strong><small>{group ? `${group.members.length} анкет · связка` : 'Открыть расчёт'}</small></button>
+        {group && <ICONS.ChevronDown size={16} className={expanded ? 'ct-model-chevron is-open' : 'ct-model-chevron'} />}
+      </div></td>
+      <td><div className="ct-model-platforms"><span title="OnlyFans"><OnlyFansLogo /><strong>{money(row.grossOF)}</strong></span><span title="PayPal"><PayPalLogo /><strong>{money(row.grossPP)}</strong></span><span title="Crypto"><ICONS.Income size={14} /><strong>{money(row.grossCR)}</strong></span></div></td>
+      <td>{adjustments(row)}{!group && <button className="ct-model-detail-link" onClick={() => setSelectedModel(row.model)} aria-label={`Корректировки ${row.model}`}>Подробнее<ICONS.ChevronRight size={12} /></button>}</td>
+      <td className="ct-model-balance"><strong>{money(Math.max(0, row.totalEarn))}</strong><small>Начислено {money(row.accruedSalary)}</small></td>
+      <td><div className="ct-model-status-actions"><span className={`ct-model-status${row.isPaid ? ' is-paid' : partial ? ' is-partial' : ''}`}>{status}</span><button className="ct-model-pay" disabled={locked || !!group && !group.membersStats.length} aria-label={`${row.isPaid ? 'Снять отметку' : 'Выплатить'}: ${row.model}`} title={row.isPaid ? 'Снять отметку; записи выплат сохранятся' : 'Записать выплату остатка'} onClick={() => group ? toggleGroupPaid(group.model, group.membersStats) : toggleModelPaid(row.model, row.totalEarn)}>{row.isPaid ? 'Снять отметку' : 'Выплатить'}{!row.isPaid && <ICONS.ArrowRight size={13} />}</button></div></td>
+    </tr>;
+  };
 
-            {/* Right Column: Manage creation or edit */}
-            <div className="p-5 bg-slate-900/30 rounded-2xl border border-slate-800 space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                {editingGroupId ? 'Редактировать связь' : 'Создать новую связь'}
-              </h4>
-              <div className="space-y-2">
-                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Имя модели (Основное название)</label>
-                <input 
-                  type="text" 
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none" 
-                  value={newGroupName} 
-                  placeholder="Пример: Stacy (3 анкеты)" 
-                  onChange={(e) => setNewGroupName(e.target.value)}
-                />
-              </div>
+  return <div className="ct-page ct-models">
+    <header className="ct-page-heading"><div><h1>Модели</h1><p className="ct-muted">Анкеты, связки и расчёты за месяц</p></div><div className="ct-actions"><button className="ct-button" aria-expanded={showRates} onClick={() => setShowRates(!showRates)}><ICONS.Settings size={16} />Проценты</button><button className="ct-button ct-button-primary" onClick={() => setShowManageGroups(true)}><ICONS.Users size={16} />Связки анкет</button></div></header>
+    <section className="ct-model-summary" aria-label="Итоги моделей за месяц">
+      <div role="region" aria-label="Начислено моделям"><span><ICONS.Models size={17} />Начислено моделям</span><strong>{money(summary.accrued)}</strong><small>{modelStats.length} анкет · {activePeriod.label}</small></div>
+      <div role="region" aria-label="Выплачено моделям"><span><ICONS.Check size={17} />Выплачено</span><strong>{money(summary.paid)}</strong><small>Зарплата и выданные авансы</small></div>
+      <div role="region" aria-label="Осталось выплатить моделям"><span><ICONS.Wallet size={17} />Осталось выплатить</span><strong>{money(summary.remainder)}</strong><small>Сумма положительных остатков анкет</small></div>
+    </section>
+    {showRates && <section className="ct-model-rates" aria-label="Проценты моделей"><div><h2>Проценты начисления</h2><p>Для {activePeriod.label.toLocaleLowerCase()}. Изменения сохраняются сразу.</p></div><div className="ct-model-rate-fields">
+      <label>Общий процент<input aria-label="Общий процент" disabled={locked} type="number" value={isUniform ? currentRates.of : ''} placeholder="Разные" onChange={e => updateGlobalRate(e.target.value)} /></label>
+      <label><span><OnlyFansLogo />OnlyFans, %</span><input aria-label="Процент OnlyFans" disabled={locked} type="number" value={currentRates.of} onChange={e => updateSpecificRate('of', e.target.value)} /></label>
+      <label><span><PayPalLogo />PayPal, %</span><input aria-label="Процент PayPal" disabled={locked} type="number" value={currentRates.pp} onChange={e => updateSpecificRate('pp', e.target.value)} /></label>
+      <label><span><ICONS.Income size={14} />Crypto, %</span><input aria-label="Процент Crypto" disabled={locked} type="number" value={currentRates.cr} onChange={e => updateSpecificRate('cr', e.target.value)} /></label>
+    </div></section>}
+    <section className="ct-model-ledger" aria-labelledby="models-ledger-title">
+      <header><div><h2 id="models-ledger-title">Ведомость моделей</h2><p>Итоги сверху — за весь месяц. Связки раскрываются по нажатию на название.</p></div><label className="ct-model-search"><ICONS.Search size={17} /><input aria-label="Найти модель или связку" placeholder="Найти модель или связку" value={search} onChange={e => setSearch(e.target.value)} /></label></header>
+      <div className="ct-model-ledger-tools"><div role="group" aria-label="Отображение анкет"><button aria-pressed={isGrouped} onClick={() => setIsGrouped(true)}><ICONS.Users size={14} />По связкам</button><button aria-pressed={!isGrouped} onClick={() => setIsGrouped(false)}><ICONS.List size={14} />Все анкеты</button></div><span>{locked ? <><ICONS.Lock size={13} />Период закрыт · только просмотр</> : `${visibleRecords.length} ${isGrouped ? 'строк' : 'анкет'}`}</span></div>
+      <div className="ct-model-table-wrap"><table className="ct-model-table"><caption className="sr-only">Начисления и выплаты моделей</caption><thead><tr><th scope="col">Анкета</th><th scope="col">Доход по платформам</th><th scope="col">Выплаты и правки</th><th scope="col" className="ct-model-balance">К выплате</th><th scope="col">Статус</th></tr></thead><tbody>{visibleRecords.map(row => <React.Fragment key={row.isGroup ? `group:${row.groupId}` : `model:${row.model}`}>{renderRow(row)}{row.isGroup && expandedGroups[row.groupId!] && row.membersStats.map(member => renderRow(member, true))}</React.Fragment>)}</tbody></table></div>
+      {!visibleRecords.length && <div className="ct-model-empty"><ICONS.Search size={25} /><h3>Анкеты не найдены</h3><p>Попробуйте другое имя.</p><button className="ct-button" onClick={() => setSearch('')}>Сбросить поиск</button></div>}
+    </section>
 
-              <div className="space-y-2">
-                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Выберите анкеты для объединения</label>
-                <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 h-[150px] overflow-y-auto space-y-1.5 label-scroller">
-                  {allAvailableModels.length === 0 ? (
-                    <p className="text-[10px] text-slate-600 italic text-center py-4">В системе нет анкет</p>
-                  ) : (
-                    allAvailableModels.map(modelName => {
-                      // Check if already in another group
-                      const otherGroup = (state.modelGroups || []).find(g => g.id !== editingGroupId && g.members.includes(modelName));
-                      
-                      return (
-                        <label key={modelName} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${otherGroup ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-900/50'}`}>
-                          <input 
-                            type="checkbox"
-                            disabled={!!otherGroup}
-                            checked={selectedGroupMembers.includes(modelName)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedGroupMembers(p => [...p, modelName]);
-                              } else {
-                                setSelectedGroupMembers(p => p.filter(m => m !== modelName));
-                              }
-                            }}
-                            className="rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500 w-4.5 h-4.5"
-                          />
-                          <div className="text-xs flex justify-between items-center w-full select-none">
-                            <span className="font-medium text-slate-200">{modelName}</span>
-                            {otherGroup && (
-                              <span className="text-[8px] text-slate-500 font-bold uppercase">В группе Name: {otherGroup.name}</span>
-                            )}
-                          </div>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
+    {selected && <ModelDialog title={selected.model} close={() => setSelectedModel(null)}>
+      <p className="ct-model-dialog-subtitle">Расчёт анкеты · {activePeriod.label}</p>
+      <div className="ct-model-calculation"><div><span>Начислено</span><strong>{money(selected.accruedSalary)}</strong></div><div><span>Выплачено с авансами</span><strong>{money(selected.totalAdvances + selected.totalSalaries)}</strong></div><div><span>К выплате</span><strong>{money(Math.max(0, selected.totalEarn))}</strong></div></div>
+      {selected.totalEarn < 0 && <p className="ct-model-note">Выплачено сверх начисленного: {money(-selected.totalEarn)}</p>}
+      <div className="ct-model-platform-breakdown">{[{name:'OnlyFans',icon:<OnlyFansLogo />,gross:selected.grossOF,earn:selected.earnOF},{name:'PayPal',icon:<PayPalLogo />,gross:selected.grossPP,earn:selected.earnPP},{name:'Crypto',icon:<ICONS.Income size={15} />,gross:selected.grossCR,earn:selected.earnCR}].map(p => <div key={p.name}><span>{p.icon}{p.name}</span><small>Доход {money(p.gross)}</small><strong>{money(p.earn)}<small>начислено</small></strong></div>)}</div>
+      {selected.totalRefunds !== 0 && <p className="ct-model-note">Возвраты: {money(selected.totalRefunds)}. Их влияние учтено в начислении.</p>}
+      <section className="ct-model-adjustment-editor"><h3>Добавить корректировку</h3><div>
+        <form onSubmit={e => { e.preventDefault(); addBonus(selected.model); }}><label>Бонус, USD<input aria-label="Бонус, USD" required type="number" step="any" min="0.000001" disabled={locked} placeholder="0,00" value={bonusInputs[selected.model] || ''} onChange={e => setBonusInputs(p => ({ ...p, [selected.model]: e.target.value }))} /></label><button disabled={locked} type="submit" className="ct-button" aria-label="Добавить бонус"><ICONS.Plus size={15} /></button></form>
+        <form onSubmit={e => { e.preventDefault(); addAdvance(selected.model); }}><label>Аванс, USD<input aria-label="Аванс, USD" required type="number" step="any" min="0.000001" disabled={locked} placeholder="0,00" value={advanceInputs[selected.model] || ''} onChange={e => setAdvanceInputs(p => ({ ...p, [selected.model]: e.target.value }))} /></label><button disabled={locked} type="submit" className="ct-button" aria-label="Добавить аванс"><ICONS.Plus size={15} /></button></form>
+      </div></section>
+      <section className="ct-model-history"><h3>История выплат и бонусов</h3>{[
+        ...selected.bonuses.map(record => ({record,label:'Бонус',positive:true,remove:()=>removeBonus(record.id)})),
+        ...selected.advances.map(record => ({record,label:'Аванс',positive:false,remove:()=>removeOperation(record.id)})),
+        ...selected.salaryPayments.map(record => ({record,label:'Выплата ЗП',positive:false,remove:()=>removeOperation(record.id)})),
+      ].sort((a,b)=>b.record.date.localeCompare(a.record.date)||b.record.createdAt.localeCompare(a.record.createdAt)).map(({record,label,positive,remove}) => <div key={`${label}:${record.id}`} className="ct-model-history-row"><span><b>{label}</b><small>{record.date.split('-').reverse().join('.')} · {record.comment || 'Без комментария'}</small></span><strong className={positive ? 'is-positive' : ''}>{positive ? '+' : '−'}{money(record.amount)}</strong><button disabled={locked} aria-label={`Удалить ${label.toLocaleLowerCase()} ${record.id}`} title="Удалить запись" onClick={remove}><ICONS.Trash size={15} /></button></div>)}{!selected.bonuses.length && !selected.advances.length && !selected.salaryPayments.length && <p>Бонусов и выплат пока нет.</p>}</section>
+      {locked && <p className="ct-model-note">Период закрыт. Изменения недоступны.</p>}
+      <footer><button className="ct-button" onClick={() => setSelectedModel(null)}>Закрыть</button><button className="ct-button ct-button-primary" disabled={locked} onClick={() => toggleModelPaid(selected.model, selected.totalEarn)}>{selected.isPaid ? 'Снять отметку выплаты' : `Выплатить ${money(Math.max(0,selected.totalEarn))}`}</button></footer>
+    </ModelDialog>}
 
-              <div className="flex gap-3 justify-end pt-2">
-                {(editingGroupId || newGroupName || selectedGroupMembers.length > 0) && (
-                  <button 
-                    onClick={() => {
-                      setEditingGroupId(null);
-                      setNewGroupName('');
-                      setSelectedGroupMembers([]);
-                    }}
-                    className="px-4 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl font-bold uppercase tracking-wider transition-colors"
-                  >
-                    Сбросить
-                  </button>
-                )}
-                <button 
-                  onClick={() => {
-                    handleSaveGroup(newGroupName, selectedGroupMembers, editingGroupId);
-                    setEditingGroupId(null);
-                    setNewGroupName('');
-                    setSelectedGroupMembers([]);
-                  }}
-                  className="px-5 py-2 text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase tracking-wider transition-colors"
-                >
-                  {editingGroupId ? 'Сохранить изменения' : 'Связать анкеты'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main Stats and Table Card */}
-      <div className="rounded-[2.5rem] overflow-hidden shadow-xl border border-slate-700/80 bg-gradient-to-br from-[#192138] to-[#121627]">
-        <div className="p-8 border-b border-slate-700/80 bg-slate-800/60 flex flex-col md:flex-row justify-between items-center gap-6">
-           <div>
-             <h2 className="text-xl font-bold font-outfit text-white">Выплаты анкет</h2>
-             <div className="flex items-center gap-3 mt-2">
-               <button 
-                 onClick={() => setIsGrouped(!isGrouped)}
-                 className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${isGrouped ? 'bg-indigo-600/30 text-indigo-200 border-indigo-400/50 shadow-sm' : 'bg-slate-800/90 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'}`}
-               >
-                 <ICONS.Users size={12} />
-                 {isGrouped ? 'Отображение: Объединять связи' : 'Отображение: По раздельности'}
-               </button>
-               <button 
-                 onClick={() => setShowManageGroups(!showManageGroups)}
-                 className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 border hover:bg-slate-700 border-slate-700 ${showManageGroups ? 'bg-indigo-600 text-white border-indigo-400' : 'bg-slate-800/90 text-slate-200'}`}
-               >
-                 <ICONS.Edit size={10} />
-                 Настройка связей
-               </button>
-             </div>
-           </div>
-           
-           <div className="flex gap-6">
-              <div className="text-center">
-                 <p className="text-[10px] text-slate-300 font-black uppercase mb-1">Общий Brutto (Clean)</p>
-                 <p className="text-xl font-black text-white font-mono">${modelStats.reduce((s,m) => s + m.totalGross, 0).toLocaleString()}</p>
-              </div>
-              <div className="text-center">
-                 <p className="text-[10px] text-amber-300 font-black uppercase mb-1">Выдано авансов/ЗП</p>
-                 <p className="text-xl font-black text-amber-300 font-mono">-${modelStats.reduce((s,m) => s + m.totalAdvances + m.totalSalaries, 0).toLocaleString()}</p>
-              </div>
-              <div className="text-center">
-                 <p className="text-[10px] text-indigo-300 font-black uppercase mb-1">Остаток к выплате</p>
-                 <p className="text-xl font-black text-indigo-300 font-mono">${Math.max(0, modelStats.reduce((s,m) => s + m.totalEarn, 0)).toLocaleString()}</p>
-              </div>
-           </div>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead>
-              <tr className="bg-slate-800/80 text-slate-200 font-black text-[10px] uppercase tracking-widest border-b border-slate-700/80">
-                <th className="px-8 py-6">Анкета</th>
-                <th className="px-6 py-6 text-center">Платформы (Gross)</th>
-                <th className="px-6 py-6 text-center">Корректировки (Бонус / Аванс / ЗП)</th>
-                <th className="px-6 py-6 text-right">Начислено / Остаток</th>
-                <th className="px-8 py-6 text-right">Статус</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700/60">
-              {displayRecords.map((r) => {
-                if (r.isGroup) {
-                  const isExpanded = !!expandedGroups[r.groupId!];
-                  return (
-                    <React.Fragment key={r.groupId}>
-                      {/* Master Group Row */}
-                      <tr className="bg-indigo-950/30 hover:bg-indigo-900/20 border-indigo-500/20 transition-all select-none group border-b border-slate-700/60">
-                        {/* Name Column with Accordion Expansion Trigger */}
-                        <td className="px-8 py-5">
-                          <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => toggleGroupExpand(r.groupId!)}
-                              className="p-1 hover:bg-slate-700 rounded transition-colors text-slate-300 hover:text-white"
-                            >
-                              {isExpanded ? (
-                                <ICONS.ChevronDown size={14} />
-                              ) : (
-                                <ICONS.ChevronRight size={14} />
-                              )}
-                            </button>
-                            <div className="flex items-center gap-2">
-                              <div className="font-bold text-white text-base font-outfit">{r.model}</div>
-                              <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[8px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1">
-                                <ICONS.Users size={10} />
-                                Связка ({r.members.length} анкет)
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Combined Platform Profits */}
-                        <td className="px-6 py-5 text-center">
-                          <div className="flex justify-center gap-4 text-[10px] font-mono">
-                             <span className="text-blue-300 font-bold">OF: ${r.grossOF.toFixed(0)}</span>
-                             <span className="text-sky-300 font-bold">PP: ${r.grossPP.toFixed(0)}</span>
-                             <span className="text-emerald-300 font-bold">CR: ${r.grossCR.toFixed(0)}</span>
-                          </div>
-                        </td>
-
-                        {/* Aggregated Corrections List */}
-                        <td className="px-6 py-5 text-center">
-                          <div className="flex flex-col items-center gap-1 text-[8px] font-mono">
-                            {(() => {
-                              const allBonuses = r.membersStats.flatMap(ms => ms.bonuses.map(b => ({ ...b, model: ms.model })));
-                              const allAdvances = r.membersStats.flatMap(ms => ms.advances.map(a => ({ ...a, model: ms.model })));
-                              const allSalaries = r.membersStats.flatMap(ms => ms.salaryPayments.map(s => ({ ...s, model: ms.model })));
-                              
-                              if (allBonuses.length === 0 && allAdvances.length === 0 && allSalaries.length === 0) {
-                                return <span className="text-[10px] text-slate-400 italic">Нет корректировок</span>;
-                              }
-                              
-                              return (
-                                <div className="flex flex-wrap justify-center gap-1 max-w-[320px]">
-                                  {allBonuses.map(b => (
-                                    <span key={b.id} className="bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30 flex items-center gap-0.5">
-                                      {b.model}: +{b.amount}
-                                    </span>
-                                  ))}
-                                  {allAdvances.map(a => (
-                                    <span key={a.id} className="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-0.5">
-                                      {a.model}: -{a.amount}
-                                    </span>
-                                  ))}
-                                  {allSalaries.map(s => (
-                                    <span key={s.id} className="bg-indigo-500/25 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30 flex items-center gap-0.5">
-                                      {s.model}: -{s.amount.toFixed(0)}
-                                    </span>
-                                  ))}
-                                </div>
-                              );
-                            })()}
-                            <div className="text-[8px] text-slate-400 italic font-sans mt-1">Раскройте связку, чтобы детализировать балансы</div>
-                          </div>
-                        </td>
-
-                        {/* Accumulated Remainder */}
-                        <td className="px-6 py-5 text-right">
-                          <div className={`font-black font-mono text-xl ${r.totalEarn > 0.01 ? 'text-indigo-300' : 'text-slate-400'}`}>${Math.max(0, r.totalEarn).toFixed(2)}</div>
-                          <div className="text-[8px] text-slate-400 font-black uppercase">Весь оклад: ${r.accruedSalary.toFixed(1)}</div>
-                        </td>
-
-                        {/* Combined payment button */}
-                        <td className="px-8 py-5 text-right">
-                          <button 
-                            onClick={() => toggleGroupPaid(r.model, r.membersStats)} 
-                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${r.isPaid ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : r.isPartiallyPaid ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'}`}
-                          >
-                            {r.isPaid ? 'Выплачено все' : r.isPartiallyPaid ? 'Частично' : 'Ожидает'}
-                          </button>
-                        </td>
-                      </tr>
-
-                      {/* Render Expanded members individually */}
-                      {isExpanded && r.membersStats.map((ms) => (
-                        <tr key={ms.model} className="bg-slate-800/60 hover:bg-slate-800/90 transition-all group/sub select-none">
-                          {/* Indented Sub account model name */}
-                          <td className="px-8 py-4 pl-14">
-                            <div className="flex items-center gap-2">
-                              <span className="text-slate-400 font-mono text-xs">└─</span>
-                              <div className="font-bold text-slate-200 text-sm">{ms.model}</div>
-                            </div>
-                          </td>
-
-                          {/* Member specific platforms */}
-                          <td className="px-6 py-4 text-center">
-                            <div className="flex justify-center gap-4 text-[9px] font-mono">
-                               <span className="text-blue-300 font-medium">OF: ${ms.grossOF.toFixed(0)}</span>
-                               <span className="text-sky-300 font-medium">PP: ${ms.grossPP.toFixed(0)}</span>
-                               <span className="text-emerald-300 font-medium">CR: ${ms.grossCR.toFixed(0)}</span>
-                            </div>
-                          </td>
-
-                          {/* Individual corrections manager in expanded view */}
-                          <td className="px-6 py-4 text-center">
-                            <div className="flex flex-col items-center gap-2">
-                               <div className="flex flex-wrap justify-center gap-1">
-                                  {ms.bonuses.map(b => (
-                                    <div key={b.id} className="flex items-center gap-1 bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[8px] font-black border border-emerald-500/30">
-                                       B: +{b.amount} <button onClick={() => removeBonus(b.id)} className="hover:text-rose-400 ml-1"><ICONS.Trash size={10}/></button>
-                                    </div>
-                                  ))}
-                                  {ms.advances.map(a => (
-                                    <div key={a.id} className="flex items-center gap-1 bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded text-[8px] font-black border border-amber-500/30">
-                                       A: -{a.amount} <button onClick={() => removeOperation(a.id)} className="hover:text-rose-400 ml-1"><ICONS.Trash size={10}/></button>
-                                    </div>
-                                  ))}
-                                  {ms.salaryPayments.map(s => (
-                                    <div key={s.id} className="flex items-center gap-1 bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-[8px] font-black border border-indigo-500/30">
-                                       S: -{s.amount.toFixed(0)} <button onClick={() => removeOperation(s.id)} className="hover:text-rose-400 ml-1"><ICONS.Trash size={10}/></button>
-                                    </div>
-                                  ))}
-                               </div>
-                               <div className="flex items-center gap-2 opacity-0 group-hover/sub:opacity-100 transition-opacity">
-                                  <div className="flex items-center gap-1">
-                                    <input type="number" className="w-12 bg-slate-900/90 border border-slate-700 rounded px-1.5 py-0.5 text-[8px] text-emerald-300 outline-none" placeholder="Бонус" value={bonusInputs[ms.model] || ''} onChange={(e) => setBonusInputs(p => ({ ...p, [ms.model]: e.target.value }))} />
-                                    <button onClick={() => addBonus(ms.model)} className="text-emerald-400 hover:text-white transition-colors"><ICONS.Plus size={10}/></button>
-                                  </div>
-                                  <div className="w-px h-3 bg-slate-700"></div>
-                                  <div className="flex items-center gap-1">
-                                    <input type="number" className="w-12 bg-slate-900/90 border border-slate-700 rounded px-1.5 py-0.5 text-[8px] text-amber-300 outline-none" placeholder="Аванс" value={advanceInputs[ms.model] || ''} onChange={(e) => setAdvanceInputs(p => ({ ...p, [ms.model]: e.target.value }))} />
-                                    <button onClick={() => addAdvance(ms.model)} className="text-amber-400 hover:text-white transition-colors"><ICONS.Plus size={10}/></button>
-                                  </div>
-                               </div>
-                            </div>
-                          </td>
-
-                          {/* Member specific amount */}
-                          <td className="px-6 py-4 text-right">
-                            <div className={`font-black font-mono text-sm ${ms.totalEarn > 0.01 ? 'text-indigo-300' : 'text-slate-400'}`}>${Math.max(0, ms.totalEarn).toFixed(2)}</div>
-                            <div className="text-[7px] text-slate-400 font-black uppercase font-mono">Начислено: ${ms.accruedSalary.toFixed(1)}</div>
-                          </td>
-
-                          {/* Member specific paid check */}
-                          <td className="px-8 py-4 text-right">
-                            <button onClick={() => toggleModelPaid(ms.model, ms.totalEarn)} className={`px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all ${ms.isPaid ? 'bg-emerald-500/80 text-white' : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
-                              {ms.isPaid ? 'Выплачено' : 'Ожидает'}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </React.Fragment>
-                  );
-                } else {
-                  // Individual Model Row (Unlinked)
-                  return (
-                    <tr key={r.model} className="hover:bg-indigo-500/10 transition-all group">
-                      <td className="px-8 py-5"><div className="font-bold text-white text-base font-outfit">{r.model}</div></td>
-                      <td className="px-6 py-5 text-center">
-                        <div className="flex justify-center gap-4 text-[10px] font-mono">
-                           <span className="text-blue-300 font-medium">OF: ${r.grossOF.toFixed(0)}</span>
-                           <span className="text-sky-300 font-medium">PP: ${r.grossPP.toFixed(0)}</span>
-                           <span className="text-emerald-300 font-medium">CR: ${r.grossCR.toFixed(0)}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5 text-center">
-                        <div className="flex flex-col items-center gap-2">
-                           <div className="flex flex-wrap justify-center gap-1">
-                              {r.bonuses.map(b => (
-                                <div key={b.id} className="flex items-center gap-1 bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[9px] font-black border border-emerald-500/30">
-                                   B: +{b.amount} <button onClick={() => removeBonus(b.id)} className="hover:text-rose-400 ml-1"><ICONS.Trash size={10}/></button>
-                                </div>
-                              ))}
-                              {r.advances.map(a => (
-                                <div key={a.id} className="flex items-center gap-1 bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded text-[9px] font-black border border-amber-500/30">
-                                   A: -{a.amount} <button onClick={() => removeOperation(a.id)} className="hover:text-rose-400 ml-1"><ICONS.Trash size={10}/></button>
-                                </div>
-                              ))}
-                              {r.salaryPayments.map(s => (
-                                <div key={s.id} className="flex items-center gap-1 bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-[9px] font-black border border-indigo-500/30">
-                                   S: -{s.amount.toFixed(0)} <button onClick={() => removeOperation(s.id)} className="hover:text-rose-400 ml-1"><ICONS.Trash size={10}/></button>
-                                </div>
-                              ))}
-                           </div>
-                           <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="flex items-center gap-1">
-                                <input type="number" className="w-14 bg-slate-800/90 border border-slate-700 rounded px-2 py-1 text-[9px] text-emerald-300 outline-none" placeholder="Бонус" value={bonusInputs[r.model] || ''} onChange={(e) => setBonusInputs(p => ({ ...p, [r.model]: e.target.value }))} />
-                                <button onClick={() => addBonus(r.model)} className="text-emerald-400 hover:text-white transition-colors"><ICONS.Plus size={12}/></button>
-                              </div>
-                              <div className="w-px h-4 bg-slate-700"></div>
-                              <div className="flex items-center gap-1">
-                                <input type="number" className="w-14 bg-slate-800/90 border border-slate-700 rounded px-2 py-1 text-[9px] text-amber-300 outline-none" placeholder="Аванс" value={advanceInputs[r.model] || ''} onChange={(e) => setAdvanceInputs(p => ({ ...p, [r.model]: e.target.value }))} />
-                                <button onClick={() => addAdvance(r.model)} className="text-amber-400 hover:text-white transition-colors"><ICONS.Plus size={12}/></button>
-                              </div>
-                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5 text-right">
-                        <div className={`font-black font-mono text-xl group-hover:scale-105 transition-transform origin-right ${r.totalEarn > 0.01 ? 'text-indigo-300' : 'text-slate-400'}`}>${Math.max(0, r.totalEarn).toFixed(2)}</div>
-                        <div className="text-[8px] text-slate-400 font-black uppercase">Начислено: ${r.accruedSalary.toFixed(1)}</div>
-                      </td>
-                      <td className="px-8 py-5 text-right">
-                        <button onClick={() => toggleModelPaid(r.model, r.totalEarn)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${r.isPaid ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
-                          {r.isPaid ? 'Выплачено' : 'Ожидает'}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                }
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+    {showManageGroups && <ModelDialog title="Связки анкет" close={closeGroups} wide>
+      <p className="ct-model-dialog-subtitle">Объединяйте анкеты одной модели для просмотра общего расчёта.</p>
+      <div className="ct-model-group-manager"><section><h3>Текущие связки</h3>{!(state.modelGroups || []).length && <p className="ct-muted">Связок пока нет.</p>}{(state.modelGroups || []).map(group => <div key={group.id} className="ct-model-group-item"><div><strong>{group.name}</strong><small>{group.members.join(' · ')}</small></div><button aria-label={`Редактировать связку ${group.name}`} onClick={() => {setEditingGroupId(group.id);setNewGroupName(group.name);setSelectedGroupMembers(group.members);}}><ICONS.Edit size={15} /></button><button aria-label={`Удалить связку ${group.name}`} onClick={() => handleDeleteGroup(group.id)}><ICONS.Trash size={15} /></button></div>)}</section>
+      <form onSubmit={e => { e.preventDefault(); handleSaveGroup(newGroupName, selectedGroupMembers, editingGroupId); }}><h3>{editingGroupId ? 'Редактирование связки' : 'Новая связка'}</h3><label className="ct-model-group-name">Название связки<input required value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="Имя модели" /></label><fieldset><legend>Анкеты · выбрано {selectedGroupMembers.length}</legend><div className="ct-model-member-list">{allAvailableModels.map(name => {const otherGroup=(state.modelGroups||[]).find(group => group.id!==editingGroupId && group.members.includes(name));return <label key={name}><input type="checkbox" aria-label={name} disabled={!!otherGroup} checked={selectedGroupMembers.includes(name)} onChange={e => setSelectedGroupMembers(p => e.target.checked ? [...p,name] : p.filter(item=>item!==name))} /><span>{name}{otherGroup && <small>В связке {otherGroup.name}</small>}</span></label>;})}</div></fieldset><div className="ct-actions"><button type="button" className="ct-button" onClick={resetGroupForm}>Новая связка</button><button type="submit" disabled={!newGroupName.trim() || !selectedGroupMembers.length} className="ct-button ct-button-primary">{editingGroupId ? 'Сохранить связку' : 'Связать анкеты'}</button></div></form></div>
+      <footer><button className="ct-button" onClick={closeGroups}>Готово</button></footer>
+    </ModelDialog>}
+  </div>;
 };
 
-const RateInput: React.FC<{ label: string; value: number; color: string; onChange: (v: string) => void }> = ({ label, value, color, onChange }) => (
-  <div className="space-y-1">
-    <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{label}</label>
-    <div className="relative">
-      <input type="number" className={`w-20 bg-slate-900 border rounded-xl px-3 py-1.5 text-xs font-mono font-bold outline-none focus:ring-1 focus:ring-indigo-400 ${color === 'blue' ? 'text-blue-300 border-blue-500/40' : color === 'sky' ? 'text-sky-300 border-sky-500/40' : 'text-emerald-300 border-emerald-500/40'}`} value={value} onChange={(e) => onChange(e.target.value)} />
-      <span className="absolute right-2 top-1.5 text-slate-400 text-[10px] font-bold">%</span>
-    </div>
-  </div>
-);
+function ModelDialog({title, close, children, wide = false}: {title:string;close:()=>void;children:React.ReactNode;wide?:boolean}) {
+  const ref=useRef<HTMLDialogElement>(null);
+  useEffect(()=>{const dialog=ref.current!,previous=document.activeElement as HTMLElement|null;dialog.showModal();return()=>{dialog.close();previous?.focus();};},[]);
+  return createPortal(<dialog ref={ref} className={`ct-model-dialog${wide ? ' is-wide' : ''}`} aria-labelledby="model-dialog-title" onCancel={close}><header><h2 id="model-dialog-title">{title}</h2><button aria-label="Закрыть окно" onClick={close}><ICONS.Close size={20} /></button></header>{children}</dialog>,document.body);
+}
 
 export default Models;
