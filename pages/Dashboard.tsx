@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Landmark, AlertTriangle, Gift, Undo2, Wallet, ArrowUpRight, X, RotateCcw, CircleDollarSign, ArrowLeftRight, Bitcoin, Info } from 'lucide-react';
+import { Landmark, AlertTriangle, Gift, Undo2, Wallet, ArrowUpRight, X, RotateCcw, Bitcoin, Info } from 'lucide-react';
+import { OnlyFansLogo, PayPalLogo } from '../components/ServiceLogos';
 import type { AppState, AccountingPeriod } from '../types';
 import { dashboardSummary } from '../dashboardSummary';
 import { getOrphanedRecordsBreakdown, getOrphanedRecordsSignature, isOrphanedBannerDismissed, dismissOrphanedBanner } from '../store';
@@ -92,7 +93,7 @@ export default function Dashboard({ state, updateState, headerControls }: Dashbo
       <section className="ct-card ct-total" aria-label="Тотал общий">
         <div className="ct-total-heading"><div><h2 className="ct-eyebrow">Тотал общий</h2><p className="ct-total-value" data-testid="dashboard-total"><MoneyAmount value={stats.totalGross} /></p></div><span className="ct-bank" aria-hidden="true"><Landmark size={29} /></span></div>
         <div className="ct-platforms">
-          {[{ label: 'OnlyFans', value: stats.of.gross, Icon: CircleDollarSign }, { label: 'PayPal', value: stats.pp.gross, Icon: ArrowLeftRight }, { label: 'Crypto', value: stats.cr.gross, Icon: Bitcoin }].map(({ label, value, Icon }) => <div key={label}><span><Icon size={14} aria-hidden="true" />{label}</span><strong>{money(value)}</strong></div>)}
+          {[{ label: 'OnlyFans', value: stats.of.gross, icon: <OnlyFansLogo /> }, { label: 'PayPal', value: stats.pp.gross, icon: <PayPalLogo /> }, { label: 'Crypto', value: stats.cr.gross, icon: <Bitcoin className="ct-service-logo" aria-hidden="true" /> }].map(({ label, value, icon }) => <div key={label}><span>{icon}{label}</span><strong>{money(value)}</strong></div>)}
         </div>
         {(stats.manualGross !== 0 || stats.refunds !== 0) && <div className="ct-income-notes">{stats.manualGross !== 0 && <span>Прочий доход: {money(stats.manualGross)}</span>}{stats.refunds !== 0 && <span>Возвраты: −{money(stats.refunds)}</span>}</div>}
         <div className="ct-goal"><div className="ct-goal-caption"><span>Цель месяца <strong>{money(stats.totalTarget)}</strong></span><strong>{stats.totalTarget > 0 ? `${(stats.totalGross / stats.totalTarget * 100).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%` : 'Не задана'}</strong></div>
