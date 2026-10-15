@@ -11,12 +11,10 @@ interface DashboardProps {
   state: AppState;
   userRole: 'user' | 'owner' | null;
   updateState: (updater: (prev: AppState) => AppState) => boolean | void;
-  syncStatus?: string;
-  needsReview?: boolean;
   headerControls?: React.ReactNode;
 }
 
-export default function Dashboard({ state, userRole, updateState, syncStatus, needsReview, headerControls }: DashboardProps) {
+export default function Dashboard({ state, userRole, updateState, headerControls }: DashboardProps) {
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
   // Проверка на наличие "бездомных" записей (из-за которых данные могли "пропасть" или остаться после удаления месяцев)
@@ -96,11 +94,9 @@ export default function Dashboard({ state, userRole, updateState, syncStatus, ne
   const isLatestPeriod = sortedPeriodsForCheck[sortedPeriodsForCheck.length - 1]?.id === activePeriodId;
   const stats = useMemo(() => dashboardSummary(state, activePeriodId), [state, activePeriodId]);
   const progress = stats.totalTarget > 0 ? Math.max(0, Math.min(100, stats.totalGross / stats.totalTarget * 100)) : 0;
-  const synced = syncStatus === 'success' && !needsReview;
-  const syncLabel = needsReview ? 'Есть спорные правки' : synced ? 'Данные обновлены' : syncStatus === 'error' || syncStatus === 'conflict' ? 'Ожидает синхронизации' : 'Проверяем изменения…';
   return <div className="ct-page ct-dashboard">
     <header className="ct-page-heading">
-      <div><h1>Dashboard</h1><div className="ct-heading-meta"><PeriodLabel state={state} /><span className={`ct-sync-inline ${synced ? 'is-online' : ''}`} role="status"><span aria-hidden="true" />{syncLabel}</span></div></div>
+      <div><h1>Dashboard</h1><PeriodLabel state={state} /></div>
       {headerControls}
     </header>
     {homelessBreakdown.total > 0 && !isBannerDismissed && <section className="ct-notice" role="status">
@@ -121,7 +117,6 @@ export default function Dashboard({ state, userRole, updateState, syncStatus, ne
       </section>
       <aside className="ct-overview-side">
         <section className="ct-card ct-admins" aria-label="Админ-состав"><div className="ct-admin-title"><h2>Админ-состав</h2><details className="ct-info"><summary aria-label="Как рассчитаны начисления админов"><Info size={16} /></summary><p>Начисления за выбранный период рассчитываются от общего дохода месяца по ставке каждого админа.</p></details></div>{stats.adminDetails.map((admin, index) => <div className="ct-admin-row" key={admin.name}><div className="ct-admin-label"><span className="ct-avatar">А{index + 1}</span><span className="ct-muted">{admin.name}</span><span className="ct-rate">{admin.rate}%</span></div><strong><MoneyAmount value={admin.amount} /></strong></div>)}{stats.adminDetails.length === 0 && <p className="ct-muted">Админы для периода не указаны</p>}</section>
-        {!synced && <div className="ct-sync-note" role="status"><AlertTriangle size={19} /><div><strong>Синхронизация</strong><span>{syncLabel}</span></div></div>}
     <section aria-label="Бонусы и правки"><div className="ct-section-heading"><h2>Бонусы и правки</h2><Link to="/operations">Все операции <ArrowUpRight size={15} /></Link></div><div className="ct-adjustment-grid">
       <MetricCard label="Штрафы" value={stats.penalties} icon={<AlertTriangle size={17} />} tone="rose" />
       <MetricCard label="Бонусы" value={stats.bonuses} icon={<Gift size={17} />} tone="green" />
