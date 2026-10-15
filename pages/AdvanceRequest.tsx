@@ -1,5 +1,6 @@
 import { telegramFetch } from '../telegramClient';
 import { CLOSED_PERIOD_MESSAGE } from '../closedPeriods';
+import { calculateOperatorEarnings, operatorPayrollOperations } from '../financialCalculations';
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -33,14 +34,8 @@ const AdvanceRequest: React.FC<AdvanceRequestProps> = ({ state, updateState }) =
     if (!selectedOperator) return null;
     
     const incomes = state.incomeData.filter(r => r.operator === selectedOperator && r.periodId === activePeriodId);
-    const ops = state.operationsData.filter(o => o.operator === selectedOperator && o.periodId === activePeriodId);
-    
-    const rawG = incomes.reduce((sum, r) => sum + r.total, 0);
-    const rawN = incomes.reduce((sum, r) => sum + (r.nettoOF + r.nettoPP + r.nettoCrypto), 0);
-    const opRefunds = state.operationsData.filter(o => o.type === 'refund' && o.operator === selectedOperator && o.periodId === activePeriodId).reduce((sum, o) => sum + o.amount, 0);
-    const avgRate = rawG > 0 ? rawN / rawG : 0.20;
-    
-    const totalNet = rawN - (opRefunds * avgRate);
+    const ops = operatorPayrollOperations(state.operationsData.filter(o => o.periodId === activePeriodId), selectedOperator);
+    const { net: totalNet } = calculateOperatorEarnings(incomes, ops);
     const adjPlus = ops.filter(o => o.type === 'bonus').reduce((sum, o) => sum + o.amount, 0);
     const adjMinus = ops.filter(o => ['penalty', 'advance', 'salary_payment', 'internship'].includes(o.type)).reduce((sum, o) => sum + o.amount, 0);
     

@@ -1,7 +1,7 @@
 import { startNextPeriod } from '../accountingPeriods';
 import { manualIncomeTotal } from '../stateAccess';
 import React, { useMemo, useState, useEffect } from 'react';
-import { calculateOperatorEarnings, periodOperatorNames } from '../financialCalculations';
+import { calculateOperatorEarnings, periodOperatorNames, operatorPayrollOperations, isOperatorPayrollOperation } from '../financialCalculations';
 import { useNavigate } from 'react-router-dom';
 import { AppState, AccountingPeriod, PaidStatus, OperationRecord, IncomeRecord } from '../types';
 import { ICONS } from '../constants';
@@ -268,7 +268,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState, syn
     });
 
     periodOps.forEach(op => {
-      const isOperator = op.operator && op.operator !== 'SYSTEM' && !op.model && currentOperators.includes(op.operator) && !adminNames.includes(op.operator);
+      const isOperator = currentOperators.includes(op.operator) && !adminNames.includes(op.operator) && isOperatorPayrollOperation(op, op.operator);
       if (isOperator) {
         if (op.type === 'bonus') totals.bonuses += op.amount;
         else if (op.type === 'penalty' || op.type === 'internship') totals.penalties += op.amount;
@@ -285,7 +285,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, userRole, updateState, syn
   const operatorRows = useMemo(() => {
     const raw = currentOperators.map(op => {
       const incomes = state.incomeData.filter(r => r.operator === op && r.periodId === activePeriodId);
-      const ops = state.operationsData.filter(o => o.operator === op && o.operator !== 'SYSTEM' && !o.model && o.periodId === activePeriodId);
+      const ops = operatorPayrollOperations(state.operationsData.filter(o => o.periodId === activePeriodId), op);
       
       const { refunds: opRefunds, gross: totalGross, net: totalNet } = calculateOperatorEarnings(incomes,
         state.operationsData.filter(o => o.operator === op && o.periodId === activePeriodId));

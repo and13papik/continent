@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { calculateOperatorEarnings, periodOperatorNames } from '../financialCalculations';
+import { calculateOperatorEarnings, periodOperatorNames, operatorPayrollOperations } from '../financialCalculations';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -245,7 +245,7 @@ const Reports: React.FC<ReportsProps> = ({ state, updateState }) => {
   const report = useMemo(() => {
     if (!selectedOperator) return null;
     const incomes = state.incomeData.filter(r => r.operator === selectedOperator && r.periodId === state.selectedPeriodId);
-    const ops = state.operationsData.filter(o => o.operator === selectedOperator && o.periodId === state.selectedPeriodId && (!o.model || o.type === 'refund'));
+    const ops = operatorPayrollOperations(state.operationsData.filter(o => o.periodId === state.selectedPeriodId), selectedOperator);
 
     const platformStats = {
       of: { gross: 0, net: 0 },
