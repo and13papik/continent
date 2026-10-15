@@ -1,0 +1,27 @@
+/* Palette bridge for existing screens. Their components, layout and data flows stay intact. */
+.ct-legacy {color:var(--ct-text)}
+.ct-legacy :is([class*="bg-[#0"],[class*="bg-[#1"],[class*="bg-[#2"],[class*="bg-[#3"],[class*="from-[#0"],[class*="from-[#1"],[class*="from-[#2"],[class*="from-[#3"]) {background-color:var(--ct-panel);background-image:none}
+.ct-legacy :is([class*="bg-slate-7"],[class*="bg-slate-8"],[class*="bg-slate-9"],[class*="bg-gray-8"],[class*="bg-gray-9"]) {background-color:var(--ct-soft)}
+.ct-legacy :is([class*="from-slate-8"],[class*="from-slate-9"],[class*="from-gray-8"]) {background:var(--ct-panel)}
+.ct-legacy :is([class*="border-slate-"],[class*="border-white/"]) {border-color:var(--ct-line)}
+.ct-legacy :is(.text-white,.text-slate-100,.text-slate-200) {color:var(--ct-text)}
+.ct-legacy :is(.text-slate-300,.text-slate-400,.text-slate-500) {color:var(--ct-muted)}
+.ct-legacy :is(.text-indigo-200,.text-indigo-300,.text-indigo-400,.text-purple-300) {color:var(--ct-accent)}
+.ct-legacy :is(.text-amber-200,.text-amber-300,.text-amber-400,.text-yellow-400) {color:var(--ct-gold)}
+.ct-legacy :is(.text-emerald-200,.text-emerald-300,.text-emerald-400,.text-green-400) {color:var(--ct-green)}
+.ct-legacy :is(.text-rose-200,.text-rose-300,.text-rose-400,.text-red-400) {color:var(--ct-rose)}
+:root[data-ct-theme="light"] .ct-legacy :is(.text-sky-200,.text-sky-300,.text-sky-400,.text-cyan-300,.text-blue-300,.text-blue-400) {color:#256a9b}
+.ct-legacy :is(.bg-indigo-600,.bg-indigo-500,.bg-emerald-600,.bg-rose-600,.bg-rose-500,.bg-blue-600,[class~="from-indigo-600"],[class~="from-indigo-500"],[class~="from-purple-600"]) {color:#fff}
+.ct-legacy :is(.bg-indigo-600,.bg-indigo-500,.bg-emerald-600,.bg-rose-600,.bg-rose-500,.bg-blue-600,[class~="from-indigo-600"],[class~="from-indigo-500"],[class~="from-purple-600"]) .text-white {color:#fff}
+.ct-legacy :is(.shadow-2xl,.shadow-xl) {box-shadow:var(--ct-shadow)}
+.ct-legacy input,.ct-legacy select,.ct-legacy textarea {color:var(--ct-text)}
+.ct-legacy option {color:var(--ct-text);background:var(--ct-panel)}
+.ct-legacy :is(input,textarea)::placeholder {color:var(--ct-muted)}
+.ct-legacy [class*="bg-black/"]:not(.fixed) {background-color:var(--ct-soft)}
+.ct-legacy :is([class*="from-amber-500/"],[class*="from-sky-500/"],[class*="from-emerald-500/"],[class*="from-indigo-500/"]) {background:var(--ct-panel)}
+.ct-login {background:var(--ct-bg);color:var(--ct-text)}
+.ct-login .glass-card {background:var(--ct-panel);border-color:var(--ct-line);box-shadow:var(--ct-shadow);backdrop-filter:none}
+.ct-login :is(h1,label){color:var(--ct-text)}.ct-login :is(p,.text-slate-400){color:var(--ct-muted)}
+.ct-login input {background:var(--ct-soft);color:var(--ct-text);border-color:var(--ct-line)}
+.ct-login p[role="alert"] {color:var(--ct-rose)}
+@media(prefers-reduced-motion:reduce){.ct-legacy *{animation:none!important;transition:none!important}}
