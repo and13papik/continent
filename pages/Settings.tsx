@@ -1,5 +1,5 @@
 import { cloudFetch } from '../cloudTransport';
-import { periodValidationError } from '../accountingPeriods';
+import { periodValidationError, startNextPeriod } from '../accountingPeriods';
 import { reopenPeriod } from '../closedPeriods';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -24,7 +24,7 @@ import {
   isOrphanedBannerDismissed,
   resetOrphanedBannerDismissal
 } from '../store';
-import { Eraser, AlertTriangle, CheckCircle2, ShieldAlert, Sparkles, RefreshCw, X, Trash2 } from 'lucide-react';
+import { Eraser, AlertTriangle, CheckCircle2, ShieldAlert, Sparkles, RefreshCw, X, Trash2, LockKeyhole, Plus } from 'lucide-react';
 import PeriodBadge from '../components/PeriodBadge';
 import AuditHistory from '../components/AuditHistory';
 import { runMigrationDryRun, MigrationDryRunResult } from '../scripts/dry_run_migration';
@@ -47,6 +47,19 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
 
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
+  const sortedPeriods = [...state.accountingPeriods].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+  const isLatestPeriod = sortedPeriods[sortedPeriods.length - 1]?.id === activePeriodId;
+
+  const handleCloseMonth = () => {
+    if (userRole !== 'owner' || !activePeriod || activePeriod.status === 'closed') return;
+    if (!window.confirm(`Закрыть период "${activePeriod.label}"? Его записи будут защищены от изменений. Вы перейдёте на следующий месяц. Овнер сможет открыть период для исправлений в Настройках.`)) return;
+    if (updateState(prev => startNextPeriod(prev, activePeriodId, true)) === false) return;
+  };
+
+  const handleStartNextMonth = () => {
+    if (userRole !== 'owner' || !activePeriod || !isLatestPeriod) return;
+    if (updateState(prev => startNextPeriod(prev, activePeriodId)) === false) return;
+  };
   const currentOperators = (activePeriod?.operators && activePeriod.operators.length > 0) ? activePeriod.operators : state.operators;
   const currentModels = (activePeriod?.models && activePeriod.models.length > 0) ? activePeriod.models : state.models;
   const currentAdmins = activePeriod?.admins || state.admins;
@@ -548,6 +561,15 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
         </div>
       </header>
 
+      {userRole === 'owner' && <section className="ct-card ct-settings-period" aria-labelledby="period-actions-title">
+        <div><h2 id="period-actions-title">Расчётный период</h2><p className="ct-muted">{activePeriod?.label || 'Период не выбран'}</p></div>
+        <div className="ct-actions">
+          {activePeriod?.status === 'open' && <button type="button" className="ct-button" onClick={handleCloseMonth}><LockKeyhole size={15} />Закрыть месяц</button>}
+          {activePeriod?.status === 'closed' && <span className="ct-period-label"><LockKeyhole size={15} />Месяц закрыт</span>}
+          {activePeriod && isLatestPeriod && <button type="button" className="ct-button" onClick={handleStartNextMonth}><Plus size={15} />Новый период</button>}
+        </div>
+      </section>}
+
       {userRole === 'owner' && <AuditHistory />}
 
       {homelessCount > 0 && (
@@ -1030,7 +1052,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
                  </div>
                ))}
             </div>
-            <p className="text-[10px] text-slate-400">Закрытый месяц защищён от изменений. Для исправлений откройте его, дождитесь синхронизации, внесите правки и снова закройте на Dashboard. Действия сохраняются в истории.</p>
+            <p className="text-[10px] text-slate-400">Закрытый месяц защищён от изменений. Для исправлений откройте его, дождитесь синхронизации, внесите правки и снова закройте в блоке «Расчётный период» вверху Настроек. Действия сохраняются в истории.</p>
           </div>
         )}
 
