@@ -1,5 +1,18 @@
 import type { AppState, IncomeRecord, OperationRecord } from './types';
 
+/** A model on a staff adjustment identifies the account, not its recipient.
+ * Preserve the existing routing of model payments; refunds affect both commissions.
+ */
+export function isOperatorPayrollOperation(row: OperationRecord, operator: string) {
+  return !!operator && operator !== 'SYSTEM' && row.operator === operator && (
+    !row.model || ['bonus', 'penalty', 'internship', 'refund'].includes(row.type)
+  );
+}
+
+export function operatorPayrollOperations(operations: OperationRecord[], operator: string) {
+  return operations.filter(row => isOperatorPayrollOperation(row, operator));
+}
+
 /** The commission already saved on income records remains the source for staff pay. */
 export function calculateOperatorEarnings(incomes: IncomeRecord[], operations: OperationRecord[]) {
   const rawGross = incomes.reduce((sum, row) => sum + row.total, 0);
@@ -77,7 +90,7 @@ export function calculateOwnerFinancials(state: AppState, activePeriodId: string
 
     allPeriodOperators.forEach(op => {
       const opIncomes = incomes.filter(r => r.operator === op);
-      const opOps = ops.filter(o => o.operator === op && o.operator !== 'SYSTEM' && !o.model);
+      const opOps = operatorPayrollOperations(ops, op);
 
       const totalNet = calculateOperatorEarnings(opIncomes, ops.filter(o => o.operator === op)).net;
 
