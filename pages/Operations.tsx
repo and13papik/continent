@@ -1,9 +1,14 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AppState, OperationType, OperationRecord, Platform, IncomeRecord } from '../types';
 import { ICONS, OPERATION_META, PLATFORM_NAMES } from '../constants';
 import { findPeriodIdByDate } from '../store';
-import PeriodBadge from '../components/PeriodBadge';
+import { OnlyFansLogo, PayPalLogo } from '../components/ServiceLogos';
+import './Operations.css';
+
+const money = (value: number) => '$' + value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const dateLabel = (value: string) => value.split('-').reverse().join('.');
+const PAGE_SIZE = 30;
 
 interface OperationsProps {
   state: AppState;
@@ -11,6 +16,12 @@ interface OperationsProps {
 }
 
 const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
+  const journalHeading = useRef<HTMLHeadingElement>(null);
+  const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [formError, setFormError] = useState('');
   const [type, setType] = useState<OperationType>('advance');
   const activePeriodId = state.selectedPeriodId;
   const activePeriod = state.accountingPeriods.find(p => p.id === activePeriodId);
@@ -28,6 +39,8 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
   // Sync selected period
   useEffect(() => {
     setTargetPeriodId(state.selectedPeriodId);
+    setCreating(false);
+    setEditingOp(null);
   }, [state.selectedPeriodId]);
 
   const [editingOp, setEditingOp] = useState<OperationRecord | null>(null);
@@ -41,6 +54,7 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
   const [filterDate, setFilterDate] = useState('');
 
   const resetFilters = () => {
+    setSearch('');
     setActiveFilter('all');
     setFilterOperator('');
     setFilterModel('');
@@ -48,6 +62,8 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
   };
 
   const handleSubmit = () => {
+    setFormError('');
+    if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) { setFormError('Введите сумму больше нуля.'); return; }
     if (!operator || !amount || !eventDate) {
       alert('Заполните обязательные поля');
       return;
@@ -59,6 +75,8 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
     }
 
     const finalPeriodId = findPeriodIdByDate(eventDate, state.accountingPeriods) || targetPeriodId;
+
+    if (state.accountingPeriods.find(p => p.id === finalPeriodId)?.status !== 'open') { setFormError('Выбранная дата относится к закрытому периоду.'); return; }
 
     const newOp: OperationRecord = {
       id: String(Date.now()),
@@ -81,9 +99,11 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
     setAmount('');
     setComment('');
     setTargetModel('');
+    setCreating(false);
   };
 
   const handleStartEdit = (op: OperationRecord) => {
+    setFormError('');
     setEditingOp(op);
     setEditingAmount(String(op.amount));
     setEditingComment(op.comment || '');
@@ -92,7 +112,7 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
   const handleUpdate = () => {
     if (!editingOp) return;
     const updAmount = parseFloat(editingAmount);
-    if (isNaN(updAmount)) {
+    if (!Number.isFinite(updAmount)) {
       alert('Некорректная сумма');
       return;
     }
@@ -154,6 +174,12 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
       incsRaw = incsRaw.filter(i => i.date === filterDate);
     }
 
+    const query = search.trim().toLocaleLowerCase();
+    if (query) {
+      opsRaw = opsRaw.filter(o => [o.operator, o.model, o.comment, OPERATION_META[o.type].label].filter(Boolean).join(' ').toLocaleLowerCase().includes(query));
+      incsRaw = incsRaw.filter(i => [i.operator, i.model, 'Начисление'].join(' ').toLocaleLowerCase().includes(query));
+    }
+
     const ops = opsRaw.map(o => ({ ...o, entryType: 'operation' as const }));
     const incs = incsRaw.map(i => ({ ...i, entryType: 'income' as const }));
 
@@ -162,7 +188,7 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
       if (dateCompare !== 0) return dateCompare;
       return b.createdAt.localeCompare(a.createdAt);
     });
-  }, [state.operationsData, state.incomeData, state.selectedPeriodId, activeFilter, filterOperator, filterModel, filterDate]);
+  }, [state.operationsData, state.incomeData, state.selectedPeriodId, activeFilter, filterOperator, filterModel, filterDate, search]);
 
   const totals = useMemo(() => {
     return unifiedHistory.reduce((acc, item) => {
@@ -181,465 +207,123 @@ const Operations: React.FC<OperationsProps> = ({ state, updateState }) => {
     }, { plus: 0, minus: 0 });
   }, [unifiedHistory]);
 
-  return (
-    <div className="space-y-10 animate-in fade-in duration-700 pb-20 max-w-[1600px] mx-auto px-4 sm:px-0">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <h1 className="text-4xl font-black text-white font-outfit uppercase tracking-tighter">Финансовые потоки</h1>
-          <div className="flex items-center gap-3 mt-2">
-            <PeriodBadge state={state} />
-            <p className="text-slate-500 font-medium text-sm hidden sm:block">Полный контроль за движением средств и балансом персонала</p>
-          </div>
+  useEffect(() => { setPage(1); setExpanded(null); }, [activePeriodId, activeFilter, filterOperator, filterModel, filterDate, search]);
+  const pageCount = Math.max(1, Math.ceil(unifiedHistory.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const visibleHistory = unifiedHistory.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const filtered = !!(search || filterOperator || filterModel || filterDate || activeFilter !== 'all');
+  const locked = activePeriod?.status !== 'open';
+  const periodRecords = [...state.operationsData, ...state.incomeData].filter(item => item.periodId === activePeriodId);
+  const availableOperators = [...new Set([...currentOperators, ...periodRecords.map(item => item.operator)])];
+  const availableModels = [...new Set([...currentModels, ...periodRecords.map(item => item.model).filter((model): model is string => !!model)])];
+
+  const changePage = (next: number) => {
+    setPage(next);
+    setExpanded(null);
+    journalHeading.current?.scrollIntoView({ block: "start" });
+    journalHeading.current?.focus({ preventScroll: true });
+  };
+
+  return <div className="ct-page ct-operations">
+    <header className="ct-page-heading">
+      <div><h1>Операции</h1><p className="ct-muted">Начисления, выплаты и корректировки персонала</p></div>
+      <button className="ct-button ct-button-primary" disabled={locked} onClick={() => { setFormError(''); setCreating(true); }}><ICONS.Plus size={17} />Новая операция</button>
+    </header>
+
+    <section className="ct-ops-summary" aria-label="Итоги журнала">
+      <div className="ct-ops-stat" role="region" aria-label="Начисления"><span className="ct-ops-stat-icon is-plus"><ICONS.Income size={20} /></span><div><span>Начисления</span><strong className="is-plus">{money(totals.plus)}</strong><small>Доход в ЗП, бонусы и стажировочные</small></div></div>
+      <div className="ct-ops-stat" role="region" aria-label="Выплаты и удержания"><span className="ct-ops-stat-icon is-minus"><ICONS.Wallet size={20} /></span><div><span>Выплаты и удержания</span><strong>{money(totals.minus)}</strong><small>Авансы, ЗП, штрафы и возвраты</small></div></div>
+      <div className="ct-ops-stat" role="region" aria-label="Количество записей"><span className="ct-ops-stat-icon"><ICONS.History size={20} /></span><div><span>Записей {filtered ? 'по фильтрам' : 'за период'}</span><strong>{unifiedHistory.length.toLocaleString('ru-RU')}</strong><small>{activePeriod?.label}{locked ? ' · закрыт' : ''}</small></div></div>
+    </section>
+
+    <section className="ct-ops-journal" aria-labelledby="ops-journal-title">
+      <div className="ct-ops-journal-heading"><div><h2 ref={journalHeading} tabIndex={-1} id="ops-journal-title">Журнал операций</h2><p>Итоги сверху рассчитаны {filtered ? 'по текущим фильтрам' : 'за выбранный месяц'}.</p></div><label className="ct-ops-search"><ICONS.Search size={17} /><input aria-label="Поиск по журналу" placeholder="Имя, анкета или комментарий" value={search} onChange={e => setSearch(e.target.value)} /></label></div>
+      <div className="ct-ops-filters">
+        <div className="ct-ops-types" role="group" aria-label="Тип операции">
+          <button aria-pressed={activeFilter === 'all'} onClick={() => setActiveFilter('all')}>Все</button>
+          <button aria-pressed={activeFilter === 'income'} onClick={() => setActiveFilter('income')}><ICONS.Income size={14} />Начисления</button>
+          {Object.entries(OPERATION_META).map(([key, meta]) => <button key={key} aria-pressed={activeFilter === key} onClick={() => setActiveFilter(key as OperationType)}><meta.icon size={14} />{meta.label}</button>)}
         </div>
-
-        <div className="flex gap-4">
-          <div className="bg-slate-800/80 border border-slate-700/80 rounded-[2rem] p-5 flex items-center gap-4 backdrop-blur-md shadow-md">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-400/30">
-              <ICONS.Income size={24} />
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Приход (Общий)</p>
-              <p className="text-2xl font-mono font-black text-emerald-300 tracking-tight">${totals.plus.toFixed(1)}</p>
-            </div>
-          </div>
-          <div className="bg-slate-800/80 border border-slate-700/80 rounded-[2rem] p-5 flex items-center gap-4 backdrop-blur-md shadow-md">
-            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 flex items-center justify-center text-rose-400 border border-rose-400/30">
-              <ICONS.Penalty size={24} />
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Расход (Общий)</p>
-              <p className="text-2xl font-mono font-black text-rose-300 tracking-tight">${totals.minus.toFixed(1)}</p>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* ADD PANEL */}
-        <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-8">
-          <div className="p-8 rounded-[2.5rem] space-y-8 border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 blur-[80px] rounded-full -mr-16 -mt-16" />
-            
-            <div className="relative z-10">
-              <h2 className="text-xl font-black font-outfit flex items-center gap-3 text-white uppercase tracking-tight">
-                <div className="p-2 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-500/30">
-                  <ICONS.Plus size={18} className="text-white"/>
-                </div>
-                Новая запись
-              </h2>
-            </div>
-            
-            <div className="space-y-6 relative z-10">
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                   <div className="space-y-1.5">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Период</label>
-                      <select className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3.5 text-xs text-indigo-300 font-bold outline-none focus:border-indigo-400 appearance-none cursor-pointer" value={targetPeriodId} onChange={(e) => setTargetPeriodId(e.target.value)}>
-                        {state.accountingPeriods.slice().reverse().map(p => (
-                          <option key={p.id} value={p.id}>{p.label} {p.status === 'closed' ? '🔒' : ''}</option>
-                        ))}
-                      </select>
-                   </div>
-                   <div className="space-y-1.5">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Платформа</label>
-                      <select className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3.5 text-[9px] font-black uppercase text-slate-200 outline-none focus:border-indigo-400 appearance-none cursor-pointer" value={platform} onChange={(e) => setPlatform(e.target.value as any)}>
-                        <option value="all">Общий</option>
-                        <option value="onlyFans">OnlyFans</option>
-                        <option value="paypal">PayPal</option>
-                        <option value="crypto">Crypto</option>
-                      </select>
-                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Тип транзакции</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(OPERATION_META).map(([key, meta]) => (
-                      <button 
-                        key={key} 
-                        onClick={() => setType(key as any)} 
-                        className={`px-3 py-3 rounded-2xl text-[8px] font-black border uppercase tracking-widest transition-all text-left flex items-center gap-2 ${type === key ? 'bg-indigo-600 border-indigo-400 text-white shadow-xl shadow-indigo-600/30' : 'bg-slate-900/90 border-slate-700/80 text-slate-300 hover:border-slate-500 hover:text-white'}`}
-                      >
-                        <meta.icon size={12} className={type === key ? 'text-white' : 'text-slate-400'} />
-                        {meta.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Оператор</label>
-                    <select className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3.5 text-xs text-white font-bold outline-none focus:border-indigo-400 appearance-none" value={operator} onChange={(e) => setOperator(e.target.value)}>
-                      <option value="">Выберите...</option>
-                      {currentOperators.map(op => <option key={op} value={op}>{op}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Анкета</label>
-                    <select className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3.5 text-xs text-white font-bold outline-none focus:border-indigo-400 appearance-none" value={targetModel} onChange={(e) => setTargetModel(e.target.value)}>
-                      <option value="">Без модели</option>
-                      {currentModels.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 text-indigo-300">Сумма ($)</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xs">$</span>
-                      <input 
-                        type="number" 
-                        className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-8 pr-4 py-3.5 text-sm text-white font-mono font-black outline-none focus:border-indigo-400 transition-all shadow-inner" 
-                        placeholder="0.00" 
-                        value={amount} 
-                        onChange={(e) => setAmount(e.target.value)} 
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Дата</label>
-                    <input type="date" className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3.5 text-xs text-white outline-none focus:border-indigo-400 font-bold" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Комментарий</label>
-                  <textarea className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-4 text-xs min-h-[100px] text-white outline-none focus:border-indigo-400 resize-none font-medium placeholder-slate-500" placeholder="Опишите причину операции..." value={comment} onChange={(e) => setComment(e.target.value)} />
-                </div>
-              </div>
-
-              <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleSubmit} 
-                className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-black text-[11px] uppercase tracking-[0.2em] py-5 rounded-[2rem] shadow-xl shadow-indigo-600/30 transition-all flex items-center justify-center gap-3 overflow-hidden group/btn relative cursor-pointer"
-              >
-                <div className="absolute inset-0 bg-white opacity-0 group-hover/btn:opacity-10 transition-opacity" />
-                СОХРАНИТЬ В БАЗУ
-                <ICONS.ChevronRight size={16} className="group-hover/btn:translate-x-1 transition-transform" />
-              </motion.button>
-            </div>
-          </div>
-        </div>
-
-        {/* LIST PANEL */}
-        <div className="lg:col-span-8 space-y-8">
-          {/* SEARCH & FILTERS */}
-          <div className="p-8 rounded-[3rem] border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] shadow-xl space-y-8 backdrop-blur-xl">
-             <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-3">Фильтрация ленты:</span>
-                <FilterChip label="Все" active={activeFilter === 'all'} onClick={() => setActiveFilter('all')} icon={<ICONS.Transfer size={12}/>}  />
-                <FilterChip label="Доходы" active={activeFilter === 'income'} onClick={() => setActiveFilter('income')} icon={<ICONS.Income size={12}/>}  />
-                {Object.entries(OPERATION_META).map(([key, meta]) => (
-                  <FilterChip 
-                    key={key} 
-                    label={meta.label} 
-                    active={activeFilter === key} 
-                    onClick={() => setActiveFilter(key as any)} 
-                    icon={<meta.icon size={12}/>}
-                  />
-                ))}
-             </div>
-
-             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-8 border-t border-slate-700/60">
-                <div className="space-y-1.5">
-                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Поиск сотрудника</label>
-                   <select className={`w-full bg-slate-900 border rounded-2xl px-4 py-3 text-xs text-white font-bold outline-none transition-all ${filterOperator ? 'border-indigo-400 ring-4 ring-indigo-500/20' : 'border-slate-700 hover:border-slate-500'}`} value={filterOperator} onChange={e => setFilterOperator(e.target.value)}>
-                      <option value="">Все сотрудники</option>
-                      {currentOperators.map(op => <option key={op} value={op}>{op}</option>)}
-                   </select>
-                </div>
-                <div className="space-y-1.5">
-                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Поиск анкеты</label>
-                   <select className={`w-full bg-slate-900 border rounded-2xl px-4 py-3 text-xs text-white font-bold outline-none transition-all ${filterModel ? 'border-amber-400 ring-4 ring-amber-500/20' : 'border-slate-700 hover:border-slate-500'}`} value={filterModel} onChange={e => setFilterModel(e.target.value)}>
-                      <option value="">Все анкеты</option>
-                      {currentModels.map(m => <option key={m} value={m}>{m}</option>)}
-                   </select>
-                </div>
-                <div className="space-y-1.5">
-                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Точная дата</label>
-                   <div className="flex gap-3">
-                     <input type="date" className={`flex-1 bg-slate-900 border rounded-2xl px-4 py-3 text-xs text-white outline-none transition-all ${filterDate ? 'border-sky-400 ring-4 ring-sky-500/20' : 'border-slate-700 hover:border-slate-500'}`} value={filterDate} onChange={e => setFilterDate(e.target.value)} />
-                     {(filterOperator || filterModel || filterDate || activeFilter !== 'all') && (
-                        <button onClick={resetFilters} className="bg-rose-500/20 hover:bg-rose-500 text-rose-400 hover:text-white w-12 h-12 flex items-center justify-center rounded-2xl border border-rose-400/40 transition-all shadow-xl active:scale-95 cursor-pointer">
-                           <ICONS.RotateCcw size={18} />
-                        </button>
-                     )}
-                   </div>
-                </div>
-             </div>
-          </div>
-
-          {/* HISTORY */}
-          <div className="rounded-[3.5rem] overflow-hidden border border-slate-700/70 bg-[#141a2e]/95 shadow-2xl relative">
-            <div className="p-8 border-b border-slate-700/70 bg-slate-800/80 flex justify-between items-center relative z-10">
-              <div>
-                <h2 className="text-xl font-black font-outfit text-white uppercase tracking-tight">Лог транзакций</h2>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Отображаются события за выбранный период</p>
-              </div>
-              <div className="bg-slate-900 px-5 py-2 rounded-2xl border border-slate-700 shadow-inner">
-                <span className="text-[11px] font-black uppercase text-indigo-300 font-mono tracking-tighter">Hits: {unifiedHistory.length}</span>
-              </div>
-            </div>
-
-            <div className="divide-y divide-slate-700/50 overflow-y-auto max-h-[1200px] scrollbar-hide relative z-10 min-h-[500px]">
-              <AnimatePresence mode="popLayout">
-                {unifiedHistory.length === 0 ? (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="p-40 text-center flex flex-col items-center gap-6"
-                  >
-                    <div className="w-24 h-24 rounded-full bg-slate-900/50 flex items-center justify-center border border-white/5 shadow-inner">
-                      <ICONS.History size={40} className="text-slate-700" />
-                    </div>
-                    <div className="space-y-2">
-                       <p className="text-xl font-black text-white font-outfit uppercase">Записей не найдено</p>
-                       <p className="text-sm text-slate-500 font-medium">Попробуйте изменить параметры поиска или <button onClick={resetFilters} className="text-indigo-400 hover:underline">сбросьте фильтры</button></p>
-                    </div>
-                  </motion.div>
-                ) : (
-                  unifiedHistory.map((item, idx) => {
-                    const isOp = item.entryType === 'operation';
-                    const key = isOp ? (item as OperationRecord).id : (item as IncomeRecord).id;
-                    
-                    if (isOp) {
-                      const op = item as OperationRecord;
-                      const meta = OPERATION_META[op.type];
-                      const isProfit = ['bonus', 'internship'].includes(op.type);
-
-                      return (
-                        <motion.div 
-                          key={key}
-                          layout
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: Math.min(idx * 0.02, 0.5) }}
-                          className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 group hover:bg-white/[0.015] transition-all border-l-[6px] border-transparent hover:border-indigo-500"
-                        >
-                          <div className="flex items-center gap-6">
-                            <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center bg-slate-900 border border-slate-700/80 text-2xl shadow-xl transition-transform group-hover:scale-105 ${meta.color}`}>
-                              <meta.icon size={28} />
-                            </div>
-                            <div>
-                              <div className="flex flex-wrap items-center gap-4">
-                                <span className="font-outfit font-black text-xl text-white uppercase tracking-tighter">{op.operator}</span>
-                                {op.platform && (
-                                  <div className="bg-indigo-500/20 text-indigo-300 text-[9px] font-black px-3 py-1 rounded-xl border border-indigo-400/30 uppercase tracking-[0.2em] shadow-md">
-                                    {PLATFORM_NAMES[op.platform]}
-                                  </div>
-                                )}
-                                <div className="flex items-center gap-1.5 bg-slate-800/80 px-3 py-1 rounded-xl border border-slate-700 text-slate-300">
-                                   <ICONS.Calendar size={12} />
-                                   <span className="text-[10px] font-mono font-black">{op.date}</span>
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-4 mt-3">
-                                 <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400 group-hover:text-slate-300 transition-colors">{meta.label}</span>
-                                 {op.model && (
-                                   <div className="flex items-center gap-1.5 text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-400/20">
-                                      <ICONS.Models size={12} />
-                                      <span className="text-[10px] font-black uppercase tracking-widest">{op.model}</span>
-                                   </div>
-                                 )}
-                                 {op.comment && (
-                                   <div className="flex items-center gap-2 group-hover:scale-105 transition-transform origin-left">
-                                      <div className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                                      <p className="text-xs text-slate-300 italic font-medium max-w-sm truncate whitespace-nowrap">{op.comment}</p>
-                                   </div>
-                                 )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between md:justify-end gap-10">
-                            <div className="text-right">
-                               <div className={`font-black font-mono text-3xl tracking-tighter ${isProfit ? 'text-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.15)]' : 'text-rose-400 shadow-[0_0_20px_rgba(251,113,133,0.15)]'}`}>
-                                  {isProfit ? '+' : '-'}${op.amount.toFixed(2)}
-                               </div>
-                               <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Корректировка</p>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                               <button onClick={() => handleStartEdit(op)} className="p-3 bg-slate-800 text-slate-300 hover:text-white hover:bg-indigo-600 rounded-2xl transition-all border border-slate-700 shadow-md active:scale-90 cursor-pointer">
-                                  <ICONS.Edit size={18} />
-                               </button>
-                               <button onClick={() => deleteOp(op.id)} className="p-3 bg-slate-800 text-slate-300 hover:text-white hover:bg-rose-600 rounded-2xl transition-all border border-slate-700 shadow-md active:scale-90 cursor-pointer">
-                                  <ICONS.Trash size={18} />
-                               </button>
-                            </div>
-                          </div>
-                        </motion.div>
-                      );
-                    } else {
-                      const inc = item as IncomeRecord;
-                      const net = inc.nettoOF + inc.nettoPP + inc.nettoCrypto;
-                      return (
-                        <motion.div 
-                          key={key}
-                          layout
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: Math.min(idx * 0.02, 0.5) }}
-                          className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 group hover:bg-emerald-500/[0.04] transition-all border-l-[6px] border-emerald-500/30 hover:border-emerald-500"
-                        >
-                          <div className="flex items-center gap-6">
-                            <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center bg-slate-900 border border-slate-700/80 text-2xl shadow-xl transition-transform group-hover:scale-105 text-emerald-400`}>
-                              <ICONS.Income size={28} />
-                            </div>
-                            <div>
-                               <div className="flex flex-wrap items-center gap-4">
-                                  <span className="font-outfit font-black text-xl text-white uppercase tracking-tighter">{inc.operator}</span>
-                                  <div className="bg-emerald-500/20 text-emerald-300 text-[10px] font-black px-4 py-1.5 rounded-2xl border border-emerald-400/30 uppercase tracking-[0.2em] shadow-md">
-                                    РАСЧЕТНЫЙ ДОХОД
-                                  </div>
-                                  <div className="flex items-center gap-1.5 bg-slate-800/80 px-3 py-1 rounded-xl border border-slate-700 text-slate-300">
-                                     <ICONS.Calendar size={12} />
-                                     <span className="text-[10px] font-mono font-black">{inc.date}</span>
-                                  </div>
-                               </div>
-                               <div className="flex items-center gap-3 mt-3">
-                                  <div className="flex items-center gap-1.5 text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-400/20">
-                                     <ICONS.Models size={12} />
-                                     <span className="text-[10px] font-black uppercase tracking-widest">{inc.model}</span>
-                                  </div>
-                               </div>
-                               <div className="flex gap-6 mt-4 p-4 bg-slate-900 rounded-[1.5rem] border border-slate-700/80 w-fit shadow-md">
-                                  <div>
-                                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Gross Platform</p>
-                                     <p className="text-xs font-mono font-black text-slate-200">${inc.total.toFixed(0)}</p>
-                                  </div>
-                                  <div className="w-px h-full bg-slate-700 self-stretch" />
-                                  <div>
-                                     <p className="text-[8px] font-black text-indigo-300 uppercase tracking-widest mb-1">Netto Earnings</p>
-                                     <p className="text-xs font-mono font-black text-indigo-300">${net.toFixed(1)}</p>
-                                  </div>
-                               </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between md:justify-end gap-10">
-                            <div className="text-right">
-                               <div className="font-black font-mono text-3xl tracking-tighter text-emerald-400">
-                                  +${net.toFixed(2)}
-                               </div>
-                               <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest mt-1">Начисление в ЗП</p>
-                            </div>
-                            <button onClick={() => deleteIncome(inc.id)} className="p-3 bg-slate-900/50 text-slate-500 hover:text-white hover:bg-rose-500 rounded-2xl transition-all border border-white/5 shadow-xl active:scale-90 opacity-0 group-hover:opacity-100">
-                               <ICONS.Trash size={18} />
-                            </button>
-                          </div>
-                        </motion.div>
-                      );
-                    }
-                  })
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
+        <div className="ct-ops-filter-fields">
+          <label>Сотрудник<select aria-label="Сотрудник" value={filterOperator} onChange={e => setFilterOperator(e.target.value)}><option value="">Все сотрудники</option>{availableOperators.map(op => <option key={op}>{op}</option>)}</select></label>
+          <label>Анкета<select aria-label="Анкета" value={filterModel} onChange={e => setFilterModel(e.target.value)}><option value="">Все анкеты</option>{availableModels.map(model => <option key={model}>{model}</option>)}</select></label>
+          <label>Дата<input aria-label="Дата" type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} /></label>
+          <button className="ct-button ct-ops-reset" disabled={!filtered} onClick={resetFilters}><ICONS.RotateCcw size={15} />Сбросить</button>
         </div>
       </div>
+      {locked && <p className="ct-ops-locked"><ICONS.Lock size={14} />Период закрыт. Журнал доступен для просмотра.</p>}
+      <div className="ct-ops-table-wrap">
+        <table className="ct-ops-table"><caption className="sr-only">Начисления и операции персонала</caption>
+          <thead><tr><th scope="col">Дата</th><th scope="col">Сотрудник / анкета</th><th scope="col">Операция</th><th scope="col" className="ct-ops-amount">Сумма</th><th scope="col"><span className="sr-only">Действия</span></th></tr></thead>
+          <tbody>{visibleHistory.map(item => {
+            const key = `${item.entryType}:${item.id}`;
+            const income = item.entryType === 'income' ? item : null;
+            const op = item.entryType === 'operation' ? item : null;
+            const positive = !!income || !!op && ['bonus', 'internship'].includes(op.type);
+            const value = income ? income.nettoOF + income.nettoPP + income.nettoCrypto : op!.amount;
+            const label = op ? OPERATION_META[op.type].label : 'Начисление';
+            const Icon = op ? OPERATION_META[op.type].icon : ICONS.Income;
+            const open = expanded === key;
+            const detailId = `ops-detail-${key}`;
+            return <React.Fragment key={key}>
+              <tr className={`ct-ops-row${open ? ' is-expanded' : ''}`}>
+                <td className="ct-ops-date"><time dateTime={item.date}>{dateLabel(item.date)}</time></td>
+                <td className="ct-ops-person"><strong>{item.operator}</strong><span>{item.model || 'Без анкеты'}</span></td>
+                <td><span className={`ct-ops-badge ct-ops-${op?.type || 'income'}`}><Icon size={13} />{label}</span><span className="ct-ops-row-note">{income ? `Доход ${money(income.total)}` : op?.comment || (op?.platform ? PLATFORM_NAMES[op.platform] : 'Все платформы')}</span></td>
+                <td className="ct-ops-amount"><strong className={positive ? 'is-plus' : 'is-minus'}>{positive ? '+' : '−'}{money(value)}</strong>{income && <small>в зарплату</small>}</td>
+                <td><div className="ct-ops-row-actions"><button aria-label={`Подробнее: ${item.operator}, ${label}, ${dateLabel(item.date)}`} aria-expanded={open} aria-controls={open ? detailId : undefined} title="Подробнее" onClick={() => setExpanded(open ? null : key)}><ICONS.ChevronDown size={17} className={open ? 'is-open' : ''} /></button>{op && <button disabled={locked} aria-label={`Редактировать операцию ${op.id}`} title="Редактировать" onClick={() => handleStartEdit(op)}><ICONS.Edit size={15} /></button>}<button disabled={locked} className="ct-ops-delete" aria-label={`Удалить ${income ? 'доход' : 'операцию'} ${item.id}`} title="Удалить" onClick={() => op ? deleteOp(op.id) : deleteIncome(item.id)}><ICONS.Trash size={15} /></button></div></td>
+              </tr>
+              {open && <tr className="ct-ops-detail-row"><td colSpan={5}><div id={detailId} className="ct-ops-detail">
+                {income ? <div className="ct-ops-platform-details">{[
+                  {label:'OnlyFans', icon:<OnlyFansLogo />, gross:income.onlyFans, net:income.nettoOF, rate:income.percentOF},
+                  {label:'PayPal', icon:<PayPalLogo />, gross:income.paypal, net:income.nettoPP, rate:income.percentPP},
+                  {label:'Crypto', icon:<ICONS.Income size={15} />, gross:income.crypto, net:income.nettoCrypto, rate:income.percentCrypto},
+                ].map(p => <div key={p.label}><span>{p.icon}{p.label}<small>{p.rate}%</small></span><dl><div><dt>Доход</dt><dd>{money(p.gross)}</dd></div><div><dt>В зарплату</dt><dd className="is-plus">{money(p.net)}</dd></div></dl></div>)}</div> : <><p><b>Платформа:</b> {op?.platform ? PLATFORM_NAMES[op.platform] : 'Все платформы'}</p><p className="ct-ops-comment"><b>Комментарий:</b> {op?.comment || 'Не указан'}</p></>}
+                <small className="ct-ops-record-id">ID записи: {item.id}</small>
+              </div></td></tr>}
+            </React.Fragment>;
+          })}</tbody>
+        </table>
+      </div>
+      {!unifiedHistory.length && <div className="ct-ops-empty"><ICONS.Search size={28} /><h3>Записей не найдено</h3><p>{filtered ? 'Измените условия поиска или сбросьте фильтры.' : 'В этом периоде пока нет операций.'}</p>{filtered && <button className="ct-button" onClick={resetFilters}>Сбросить фильтры</button>}</div>}
+      <footer className="ct-ops-pagination"><span role="status">{unifiedHistory.length ? `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, unifiedHistory.length)} из ${unifiedHistory.length}` : '0 записей'}</span><div><button className="ct-button" aria-label="Предыдущая страница" disabled={currentPage === 1} onClick={() => changePage(currentPage - 1)}><ICONS.ChevronLeft size={16} /></button><span>{currentPage} / {pageCount}</span><button className="ct-button" aria-label="Следующая страница" disabled={currentPage === pageCount} onClick={() => changePage(currentPage + 1)}><ICONS.ChevronRight size={16} /></button></div></footer>
+    </section>
 
-      {/* EDIT MODAL */}
-      <AnimatePresence>
-        {editingOp && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-2xl">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="w-full max-w-xl rounded-[3.5rem] p-12 border border-slate-700/80 bg-gradient-to-br from-[#1a233a] to-[#121628] shadow-[0_30px_100px_rgba(0,0,0,0.8)] relative overflow-hidden"
-            >
-              {/* Decorative Glow */}
-              <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-600/20 blur-[100px] rounded-full -mr-40 -mt-40" />
-              
-              <button 
-                onClick={() => setEditingOp(null)} 
-                className="absolute top-10 right-10 w-12 h-12 flex items-center justify-center rounded-2xl bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-all border border-slate-700 z-20 cursor-pointer"
-              >
-                <ICONS.Close size={24} />
-              </button>
-
-              <div className="relative z-10">
-                <div className="flex items-center gap-5 mb-10">
-                  <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
-                    <ICONS.Edit size={32} />
-                  </div>
-                  <div>
-                    <h2 className="text-3xl font-black text-white font-outfit uppercase tracking-tighter">Редактирование</h2>
-                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1">ID: {editingOp.id}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-8">
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                       <label className="text-[10px] text-slate-400 font-black uppercase tracking-widest ml-1">Оператор</label>
-                       <div className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white font-black uppercase tracking-tight opacity-75">
-                         {editingOp.operator}
-                       </div>
-                    </div>
-                    <div className="space-y-2">
-                       <label className="text-[10px] text-slate-400 font-black uppercase tracking-widest ml-1">Тип операции</label>
-                       <div className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white font-black uppercase tracking-tight opacity-75">
-                         {OPERATION_META[editingOp.type].label}
-                       </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] text-indigo-300 font-black uppercase tracking-widest ml-1 text-center block">Новая сумма ($)</label>
-                    <div className="relative">
-                      <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 font-black text-3xl">$</span>
-                      <input 
-                        type="number" 
-                        step="0.01"
-                        autoFocus
-                        className="w-full bg-slate-900 border-2 border-slate-700 rounded-[2.5rem] pl-12 pr-6 py-6 text-4xl text-white font-mono font-black outline-none focus:border-indigo-400 transition-all text-center tracking-tighter" 
-                        value={editingAmount} 
-                        onChange={e => setEditingAmount(e.target.value)} 
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] text-slate-400 font-black uppercase tracking-widest ml-1">Комментарий к правке</label>
-                    <textarea 
-                      className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-sm text-white outline-none focus:border-indigo-400 min-h-[120px] resize-none font-medium placeholder-slate-500" 
-                      value={editingComment} 
-                      onChange={e => setEditingComment(e.target.value)} 
-                    />
-                  </div>
-
-                  <div className="flex gap-4">
-                    <button onClick={() => setEditingOp(null)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-black py-5 rounded-[2rem] transition-all uppercase text-[10px] tracking-[0.2em] border border-slate-700 cursor-pointer">Отменить</button>
-                    <button onClick={handleUpdate} className="flex-[2] bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-indigo-600/30 transition-all uppercase text-[10px] tracking-[0.2em] hover:scale-[1.02] cursor-pointer">Применить изменения</button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
+    {creating && <OperationDialog title="Новая операция" close={() => setCreating(false)}>
+      <p className="ct-ops-form-intro">Выплата или корректировка зарплаты сотрудника</p>
+      <form onSubmit={e => { e.preventDefault(); handleSubmit(); }}>
+        <div className="ct-ops-form-grid">
+          <label>Тип операции<select aria-label="Тип операции" autoFocus value={type} onChange={e => setType(e.target.value as OperationType)}>{Object.entries(OPERATION_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}</select></label>
+          <label>Платформа<select aria-label="Платформа" value={platform} onChange={e => setPlatform(e.target.value as Platform | 'all')}><option value="all">Все платформы</option><option value="onlyFans">OnlyFans</option><option value="paypal">PayPal</option><option value="crypto">Crypto</option></select></label>
+          <label>Оператор<select aria-label="Оператор" required value={operator} onChange={e => setOperator(e.target.value)}><option value="">Выберите сотрудника</option>{currentOperators.map(op => <option key={op}>{op}</option>)}</select></label>
+          <label>Анкета{type === 'refund' ? ' · обязательно' : ''}<select aria-label="Анкета" required={type === 'refund'} value={targetModel} onChange={e => setTargetModel(e.target.value)}><option value="">Без анкеты</option>{currentModels.map(model => <option key={model}>{model}</option>)}</select></label>
+          <label>Сумма, USD<input required type="number" step="any" min="0.000001" placeholder="0,00" value={amount} onChange={e => setAmount(e.target.value)} /></label>
+          <label>Дата операции<input required type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} /></label>
+          <label className="ct-ops-form-wide">Период<select aria-label="Период" value={targetPeriodId} onChange={e => setTargetPeriodId(e.target.value)}>{state.accountingPeriods.slice().reverse().map(p => <option key={p.id} value={p.id} disabled={p.status === 'closed'}>{p.label}{p.status === 'closed' ? ' · закрыт' : ''}</option>)}</select><small>При совпадении даты с месяцем запись относится к этому месяцу.</small></label>
+          <label className="ct-ops-form-wide">Комментарий<textarea rows={3} value={comment} placeholder="Причина или примечание" onChange={e => setComment(e.target.value)} /></label>
+        </div>
+        {formError && <p className="ct-ops-error" role="alert">{formError}</p>}
+        <footer><button type="button" className="ct-button" onClick={() => setCreating(false)}>Отмена</button><button type="submit" className="ct-button ct-button-primary" disabled={locked}>Сохранить операцию</button></footer>
+      </form>
+    </OperationDialog>}
+    {editingOp && <OperationDialog title="Редактировать операцию" close={() => setEditingOp(null)}>
+      <p className="ct-ops-form-intro">{editingOp.operator} · {OPERATION_META[editingOp.type].label} · {dateLabel(editingOp.date)}</p>
+      <form onSubmit={e => { e.preventDefault(); handleUpdate(); }}><div className="ct-ops-form-grid">
+        <label className="ct-ops-form-wide">Сумма, USD<input autoFocus required type="number" step="any" value={editingAmount} onChange={e => setEditingAmount(e.target.value)} /></label>
+        <label className="ct-ops-form-wide">Комментарий<textarea rows={4} value={editingComment} onChange={e => setEditingComment(e.target.value)} /></label>
+      </div><footer><button type="button" className="ct-button" onClick={() => setEditingOp(null)}>Отмена</button><button type="submit" className="ct-button ct-button-primary" disabled={locked}>Сохранить изменения</button></footer></form>
+    </OperationDialog>}
+  </div>;
 };
 
-// HELPER COMPONENTS
-const FilterChip = ({ label, active, onClick, icon }: { label: string, active: boolean, onClick: () => void, icon?: React.ReactNode }) => (
-  <button 
-    onClick={onClick}
-    className={`flex items-center gap-2.5 px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border cursor-pointer ${
-      active 
-        ? 'bg-gradient-to-r from-indigo-500 to-indigo-600 text-white border-indigo-400 shadow-md' 
-        : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white'
-    }`}
-  >
-    {icon && <span className={active ? 'text-white' : 'text-slate-400'}>{icon}</span>}
-    {label}
-  </button>
-);
+function OperationDialog({ title, close, children }: { title: string; close: () => void; children: React.ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = ref.current!, previous = document.activeElement as HTMLElement | null;
+    dialog.showModal();
+    return () => { dialog.close(); previous?.focus(); };
+  }, []);
+  return createPortal(<dialog ref={ref} className="ct-ops-dialog" aria-labelledby="ops-dialog-title" onCancel={close}><header><h2 id="ops-dialog-title">{title}</h2><button type="button" aria-label="Закрыть окно" onClick={close}><ICONS.Close size={20} /></button></header>{children}</dialog>, document.body);
+}
 
 export default Operations;
