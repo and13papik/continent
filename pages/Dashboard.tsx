@@ -4,7 +4,7 @@ import { Landmark, AlertTriangle, Gift, Undo2, Wallet, ArrowUpRight, X, RotateCc
 import type { AppState, AccountingPeriod } from '../types';
 import { dashboardSummary } from '../dashboardSummary';
 import { getOrphanedRecordsBreakdown, getOrphanedRecordsSignature, isOrphanedBannerDismissed, dismissOrphanedBanner } from '../store';
-import { MetricCard, PeriodLabel, MoneyAmount, money } from '../components/RefinedUI';
+import { MetricCard, MoneyAmount, money } from '../components/RefinedUI';
 
 interface DashboardProps {
   state: AppState;
@@ -82,7 +82,7 @@ export default function Dashboard({ state, updateState, headerControls }: Dashbo
   const progress = stats.totalTarget > 0 ? Math.max(0, Math.min(100, stats.totalGross / stats.totalTarget * 100)) : 0;
   return <div className="ct-page ct-dashboard">
     <header className="ct-page-heading">
-      <div><h1>Dashboard</h1><PeriodLabel state={state} /></div>
+      <h1>Dashboard</h1>
       {headerControls}
     </header>
     {homelessBreakdown.total > 0 && !isBannerDismissed && <section className="ct-notice" role="status">

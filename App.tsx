@@ -2,7 +2,8 @@ import React, { lazy, Suspense, useState } from 'react';
 import { HashRouter, Routes, Route, Link, NavLink, Navigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, ChartNoAxesCombined, ArrowLeftRight, Headphones, UserRound, UsersRound, Table2, CalendarDays, Landmark, Settings2, Wallet, Banknote, Plus, LogOut, Check, RefreshCw, AlertTriangle, Menu, X, Sun, Moon } from 'lucide-react';
 import { useCloudState } from './useCloudState';
-import AuthGate, { signOut, SignedInUser } from './AuthGate';
+import AuthGate, { SignedInUser } from './AuthGate';
+import AccountMenu from './components/AccountMenu';
 import PeriodSelector from './components/PeriodSelector';
 import SyncRecovery from './components/SyncRecovery';
 import SyncStatus from './components/SyncStatus';
@@ -37,12 +38,12 @@ function DashboardApp({ user, theme, setTheme }: { user: SignedInUser; theme: Th
   const refinedPage = ['/', '/operator-payroll'].includes(location.pathname);
   const sectionTitle: Record<string, string> = { '/': 'Обзор', '/operator-payroll': 'ЗП операторов', '/metrics': 'Метрика', '/operations': 'Операции', '/reports': 'Операторская', '/models': 'Модели', '/roster': 'Состав', '/owner': 'Owners', '/owner-table': 'Core Table', '/total-table': 'Total Table', '/admin-table': 'Admin Table', '/settings': 'Настройки', '/add-income': 'Доход', '/advance-request': 'Аванс' };
   const themeToggle = <div className="ct-theme-toggle" role="group" aria-label="Цветовая тема"><button aria-pressed={theme === 'light'} onClick={() => setTheme('light')}><Sun size={15} />Светлая</button><button aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}><Moon size={15} />Тёмная</button></div>;
+  const headerControls = <div className="ct-header-controls">{themeToggle}<AccountMenu user={user} /></div>;
   return <div className="ct-shell">
     <nav className="ct-sidebar" aria-label="Основное меню">
-      <div className="ct-sidebar-top"><Link to="/" className="ct-brand" onClick={() => setMenuOpen(false)}><span className="ct-logo">C</span>Continental</Link><button className="ct-menu-toggle ct-button" aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'} aria-expanded={menuOpen} aria-controls="ct-navigation" onClick={() => setMenuOpen(value => !value)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button></div>
-      <div className="ct-sidebar-period"><PeriodSelector state={state} updateState={updateState} /></div>
+      <div className="ct-sidebar-top"><div className="ct-brand-block"><Link to="/" className="ct-brand" onClick={() => setMenuOpen(false)}><span className="ct-logo">C</span>Continental</Link><PeriodSelector state={state} updateState={updateState} compact /></div><button className="ct-menu-toggle ct-button" aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'} aria-expanded={menuOpen} aria-controls="ct-navigation" onClick={() => setMenuOpen(value => !value)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button></div>
       <div className={`ct-sidebar-body ${menuOpen ? 'is-open' : ''}`} id="ct-navigation">
-        <div className="ct-sidebar-quick"><Link className="ct-button ct-button-primary" to="/add-income" onClick={() => setMenuOpen(false)}><Plus size={15} />Доход</Link><Link className="ct-button" to="/advance-request" onClick={() => setMenuOpen(false)}><Wallet size={15} />Аванс</Link></div>
+        <div className="ct-sidebar-quick"><Link className="ct-quick-action ct-quick-income" to="/add-income" onClick={() => setMenuOpen(false)}><span aria-hidden="true"><Plus size={16} /></span>Доход</Link><Link className="ct-quick-action ct-quick-advance" to="/advance-request" onClick={() => setMenuOpen(false)}><span aria-hidden="true"><Wallet size={16} /></span>Аванс</Link></div>
         {cloudStatus === 'conflict' && <button className="ct-notice" onClick={refreshCloudStatus}><AlertTriangle size={18} /><span>Спорные правки сохранены на устройстве. Проверить синхронизацию.</span></button>}
         <SyncRecovery state={state} notices={recoveries} owner={user.role === 'owner'} resolve={resolveRecovery} />
         <div className="ct-nav-group"><p>Рабочее пространство</p>
@@ -61,14 +62,14 @@ function DashboardApp({ user, theme, setTheme }: { user: SignedInUser; theme: Th
           <MenuLink to="/settings" icon={<Settings2 />} label="Настройки" close={() => setMenuOpen(false)} />
         </div>
       </div>
-      <div className={`ct-sidebar-footer ${menuOpen ? 'is-open' : ''}`}><SyncStatus status={cloudStatus} syncing={isSyncing} connected={!!state.syncUrl} needsReview={recoveries.length > 0} lastCheck={lastSyncTime} refresh={refreshCloudStatus} /><div className="ct-account"><span className="ct-avatar">{user.role === 'owner' ? 'CA' : 'A'}</span><span><strong title={user.username}>{user.username}</strong><small>{user.role === 'owner' ? 'Владелец' : 'Администратор'}</small></span><button aria-label="Выйти из аккаунта" onClick={() => { void signOut().catch(error => alert(error.message)); }}><LogOut size={18} /></button></div></div>
+      <div className={`ct-sidebar-footer ${menuOpen ? 'is-open' : ''}`}><SyncStatus status={cloudStatus} syncing={isSyncing} connected={!!state.syncUrl} needsReview={recoveries.length > 0} lastCheck={lastSyncTime} refresh={refreshCloudStatus} /></div>
     </nav>
-    <main className="ct-main">{location.pathname !== '/' && <div className="ct-toolbar"><p className="ct-breadcrumb">Рабочее пространство <span>/</span> <strong>{sectionTitle[location.pathname] || 'Обзор'}</strong></p>{themeToggle}</div>}
+    <main className="ct-main">{location.pathname !== '/' && <div className="ct-toolbar"><p className="ct-breadcrumb">Рабочее пространство <span>/</span> <strong>{sectionTitle[location.pathname] || 'Обзор'}</strong></p>{headerControls}</div>}
       {mutationError && <p role="alert" className="ct-notice">{mutationError}</p>}
       <div className={refinedPage ? 'ct-content' : 'ct-content ct-legacy'}>
         <Suspense fallback={<p role="status" className="ct-loading">Загрузка раздела…</p>}>
         <Routes>
-              <Route path="/" element={<Dashboard state={state} updateState={updateState} headerControls={themeToggle} />} />
+              <Route path="/" element={<Dashboard state={state} updateState={updateState} headerControls={headerControls} />} />
               <Route path="/operator-payroll" element={<OperatorPayroll state={state} updateState={updateState} />} />
               <Route path="/metrics" element={<Metrics state={state} updateState={updateState} userRole={userRole} />} />
               <Route path="/add-income" element={<AddIncome state={state} updateState={updateState} />} />
