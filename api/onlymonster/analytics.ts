@@ -286,11 +286,11 @@ export async function getAllAccountsShiftEarnings(
   token: string,
   day: 'today' | 'yesterday',
   providedAccountIds?: string[]
-): Promise<{ 1: number; 2: number; 3: number; 4: number }> {
+): Promise<{ 1: number; 2: number; 3: number; 4: number } | null> {
   const shiftTotals = { 1: 0, 2: 0, 3: 0, 4: 0 };
   try {
     if (isTokenKnownInvalid(token)) {
-      return shiftTotals;
+      return null;
     }
 
     let platformAccountIds: string[] = providedAccountIds && providedAccountIds.length > 0
@@ -326,7 +326,7 @@ export async function getAllAccountsShiftEarnings(
         if (accRes && accRes.status === 401) {
           recordAuthFailure(token);
         }
-        return shiftTotals;
+        return null;
       }
 
       const body: any = await accRes.json();
@@ -341,7 +341,7 @@ export async function getAllAccountsShiftEarnings(
       }
 
       platformAccountIds = accountsList
-        .map((a: any) => a.id || a.platform_account_id || a.account_id || a.platformAccountId || a.user_id)
+        .map((a: any) => a.platform_account_id || a.platformAccountId || a.id || a.account_id || a.user_id)
         .filter(Boolean);
     }
 
@@ -367,6 +367,8 @@ export async function getAllAccountsShiftEarnings(
       }
     }
 
+    if (results.some(result => !result?.breakdown)) return null;
+
     for (const resData of results) {
       if (resData && resData.breakdown) {
         shiftTotals[1] += resData.breakdown[1] || 0;
@@ -383,7 +385,7 @@ export async function getAllAccountsShiftEarnings(
       4: Math.round(shiftTotals[4] * 100) / 100
     };
   } catch (e: any) {
-    return shiftTotals;
+    return null;
   }
 }
 
@@ -864,7 +866,7 @@ async function fetchShiftMetrics(
         recordAuthFailure(headers['x-om-auth-token'] || '');
         return { totalMessages: 0, totalEarnings: 0, operatorCount: 0, error: 'Unauthorized (401)' };
       }
-      break;
+      return { totalMessages: 0, totalEarnings: 0, operatorCount: 0, error: `OnlyMonster HTTP ${response.status}` };
     }
 
     const body: any = await response.json();
@@ -948,7 +950,8 @@ async function handleShiftComparison(req: any, res: any, queryParams: Record<str
       const currentShiftIdx = getCurrentKyivShiftIndex();
       const shiftsRes: any[] = [];
 
-      let accountShiftTotals: { 1: number; 2: number; 3: number; 4: number } = { 1: 0, 2: 0, 3: 0, 4: 0 };
+      let accountShiftTotals: { 1: number; 2: number; 3: number; 4: number } | null = null;
+      let isPartial = false;
       const providedAccIds = queryParams.accounts ? queryParams.accounts.split(',').map(s => s.trim()).filter(Boolean) : undefined;
       try {
         accountShiftTotals = await getAllAccountsShiftEarnings(token, day, providedAccIds);
@@ -994,21 +997,22 @@ async function handleShiftComparison(req: any, res: any, queryParams: Record<str
           });
         }
 
-        const accountEarnings = accountShiftTotals[s as 1 | 2 | 3 | 4] ?? 0;
-        const operatorEarnings = data.totalEarnings ?? 0;
+        const accountEarnings = accountShiftTotals?.[s as 1 | 2 | 3 | 4] ?? null;
+        const operatorEarnings = data.error ? null : data.totalEarnings;
+        if (accountEarnings === null || data.error) isPartial = true;
         // The authoritative income of the shift: prefer real account revenue from OnlyMonster API
-        const totalEarnings = accountEarnings > 0 ? accountEarnings : operatorEarnings;
-        const diff = accountEarnings > 0 ? Math.round((accountEarnings - operatorEarnings) * 100) / 100 : 0;
+        const totalEarnings = accountEarnings ?? operatorEarnings;
+        const diff = accountEarnings !== null && operatorEarnings !== null ? Math.round((accountEarnings - operatorEarnings) * 100) / 100 : null;
 
         shiftsRes.push({
           index: s,
           label: range.label,
-          totalMessages: data.totalMessages,
+          totalMessages: data.error ? null : data.totalMessages,
           totalEarnings,
           accountEarnings,
           operatorEarnings,
           diff,
-          operatorCount: data.operatorCount,
+          operatorCount: data.error ? null : data.operatorCount,
           isFuture: false
         });
 
@@ -1042,6 +1046,7 @@ async function handleShiftComparison(req: any, res: any, queryParams: Record<str
         success: true,
         scope: 'day',
         day,
+        partial: isPartial,
         shifts: shiftsRes,
         strongestIndex,
         weakestIndex
@@ -1089,7 +1094,7 @@ async function handleShiftComparison(req: any, res: any, queryParams: Record<str
           const range = getShiftRangeForDate(task.dateStr, task.shiftIndex);
           const url = `https://omapi.onlymonster.ai/api/v0/users/metrics?from=${encodeURIComponent(range.start)}&to=${encodeURIComponent(range.end)}`;
           const data = await fetchShiftMetrics(url, headers);
-
+          if (data.error) { isPartial = true; return; }
           const st = shiftStats[task.shiftIndex];
           st.totalMessages += data.totalMessages;
           st.totalEarnings += data.totalEarnings;

@@ -8,6 +8,7 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import PeriodBadge from '../components/PeriodBadge';
+import './Metrics.css';
 
 interface MetricsProps {
   state: AppState;
@@ -603,46 +604,25 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
     <motion.div 
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-6 pb-20"
+      className="ct-page ct-metrics"
     >
-      {/* HEADER WITH PERIOD AND DATABASE RECORDS METRICS */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900/90 via-[#151c2e] to-slate-900/90 p-4 sm:p-5 rounded-3xl border border-slate-700/60 shadow-xl backdrop-blur-xl">
-        <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0 shadow-inner">
-            <ICONS.Reports size={22} />
-          </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-black text-white font-outfit tracking-tight">Метрика & Аналитика</h1>
-              <PeriodBadge state={state} />
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Сводная аналитика, динамика доходности, модели, операторы и OnlyMonster
-            </p>
-          </div>
+      <header className="ct-page-heading">
+        <h1>Метрика</h1>
+        <div className="om-segment" aria-label="Источник аналитики">
+          <button aria-pressed={activeTab === 'onlymonster'} onClick={() => setActiveTab('onlymonster')}>OnlyMonster · LIVE</button>
+          <button aria-pressed={activeTab !== 'onlymonster'} onClick={() => setActiveTab('overview')}>По внесённым данным</button>
         </div>
-
-        {/* Database Records Indicator */}
-        <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto bg-slate-950/80 px-4 py-2.5 rounded-2xl border border-slate-800 text-xs font-mono shadow-inner">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-          <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">В базе данных:</span>
-          <span className="text-emerald-300 font-black text-sm">{incomeData.filter(r => r.periodId === state.selectedPeriodId).length}</span>
-          <span className="text-slate-400 text-[11px]">записей периода</span>
-          <span className="text-slate-600 font-bold">•</span>
-          <span className="text-indigo-300 font-bold text-[11px]">{incomeData.length}</span>
-          <span className="text-slate-400 text-[11px]">всего в облаке</span>
-        </div>
-      </div>
+      </header>
+      {activeTab !== 'onlymonster' && <div className="om-record-context"><PeriodBadge state={state} /><span>OnlyFans · PayPal · Crypto · {incomeData.filter(r => r.periodId === state.selectedPeriodId).length} записей</span></div>}
 
       {/* METRICS SUB-TABS */}
-      <div className="flex flex-wrap gap-1.5 bg-slate-800/80 p-1.5 rounded-2xl border border-slate-700/80 shadow-md">
+      {activeTab !== 'onlymonster' && <div className="om-segment om-manual-tabs">
         {[
           { id: 'overview', label: 'Обзор', icon: ICONS.Dashboard },
           { id: 'diagnostics', label: 'Анализ & Инсайты', icon: ICONS.Penalty, highlight: metrics.diagnostics.warnings.length > 0 },
           { id: 'models', label: 'Модели & Планы', icon: ICONS.Models },
           { id: 'operators', label: 'Операторы', icon: ICONS.Reports },
           { id: 'calendar', label: 'Дни и Тренды', icon: ICONS.Calendar },
-          { id: 'onlymonster', label: 'OnlyMonster', icon: ICONS.Clock }
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -650,11 +630,8 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs font-bold uppercase font-mono tracking-wider transition-all duration-300 flex items-center justify-center gap-2 border ${
-                isActive 
-                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white border-indigo-400/50 shadow-md shadow-indigo-600/30 font-black' 
-                  : 'text-slate-300 border-transparent hover:text-white hover:bg-slate-700/60'
-              }`}
+              aria-pressed={isActive}
+              className="om-manual-tab"
             >
               {Icon && <Icon size={14} />}
               <span>{tab.label}</span>
@@ -664,10 +641,10 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
             </button>
           );
         })}
-      </div>
+      </div>}
 
       {/* ACTIVE TAB CONTAINER */}
-      <div className="outline-none">
+      <div className={activeTab === 'onlymonster' ? '' : 'ct-legacy'}>
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
