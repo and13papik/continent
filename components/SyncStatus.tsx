@@ -22,7 +22,7 @@ export default function SyncStatus({ status, syncing, connected, needsReview, la
     : status === 'error' || checkFailed ? 'Синхронизация недоступна'
     : syncing ? 'Сохраняем…'
     : busy ? 'Проверяем…'
-    : saved ? 'Все изменения сохранены' : 'Ожидаем синхронизации…';
+    : saved ? 'Всё сохранено' : 'Ожидаем синхронизации…';
   const detail = !connected ? 'Подключение к облаку не настроено.'
     : status === 'conflict' || needsReview ? 'Есть правки, требующие проверки. Откройте сравнение в меню.'
     : status === 'error' || checkFailed ? 'Не удалось подтвердить сохранение в облаке. Проверка повторится автоматически.'
@@ -35,8 +35,8 @@ export default function SyncStatus({ status, syncing, connected, needsReview, la
   };
   return <div className={`ct-sync-status ${problem ? 'has-problem' : saved ? 'is-saved' : ''}`}>
     <button className="ct-sync-trigger" aria-label={label} aria-expanded={expanded || problem} aria-controls="ct-sync-details" onClick={() => setExpanded(value => !value)}>
-      {problem ? <AlertTriangle size={15} aria-hidden="true" /> : busy ? <RefreshCw size={15} className="ct-spin" aria-hidden="true" /> : saved ? <Check size={15} aria-hidden="true" /> : <Clock3 size={15} aria-hidden="true" />}
-      <span role="status">{label}</span><ChevronDown size={13} aria-hidden="true" />
+      <span className="ct-sync-icon">{problem ? <AlertTriangle size={20} aria-hidden="true" /> : busy ? <RefreshCw size={20} className="ct-spin" aria-hidden="true" /> : saved ? <Check size={20} aria-hidden="true" /> : <Clock3 size={20} aria-hidden="true" />}</span>
+      <span className="ct-sync-copy"><small>Синхронизация</small><strong role="status">{label}</strong></span><ChevronDown size={13} aria-hidden="true" />
     </button>
     {(expanded || problem) && <div id="ct-sync-details" className="ct-sync-details">
       <p>{detail}</p><p>Последняя успешная проверка: <strong>{lastCheck || 'ещё не выполнена'}</strong></p>
