@@ -377,7 +377,10 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         throw new Error("Модуль html2canvas недоступен");
       }
       
-      // Render canvas
+      // Capture the live table at its full rendered width, including on mobile.
+      // Styling comes from the same DOM/CSS as the screen, never a separate report layout.
+      await document.fonts.ready;
+      const captureWidth = Math.ceil(tableRef.current.querySelector('table')!.getBoundingClientRect().width);
       const canvas = await h2c(tableRef.current, {
         backgroundColor: getComputedStyle(tableRef.current).backgroundColor,
         scale: 2,
@@ -387,20 +390,16 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
         imageTimeout: 10000,
         scrollX: 0,
         scrollY: 0,
-        windowWidth: 1600,
+        windowWidth: Math.max(1600, captureWidth),
         onclone: (clonedDoc: Document) => {
-          const clonedContainer = (
-            clonedDoc.getElementById('total-table-card') ||
-            clonedDoc.querySelector('[data-report-table-container="true"]') ||
-            clonedDoc.querySelector('.total-table-card') ||
-            clonedDoc.querySelector('.glass-card') ||
-            clonedDoc.querySelector('table')?.closest('.overflow-x-auto')?.parentElement
-          ) as HTMLElement;
-          const clonedScrollable = (clonedContainer?.querySelector('.overflow-x-auto') || clonedDoc.querySelector('.overflow-x-auto')) as HTMLElement;
-          const clonedTable = (clonedContainer?.querySelector('table') || clonedDoc.querySelector('table')) as HTMLElement;
+          const clonedContainer = clonedDoc.getElementById('total-table-card')!;
+          const clonedScrollable = clonedContainer.querySelector<HTMLElement>('.ct-total-scroll');
+          const clonedTable = clonedContainer.querySelector('table');
 
           clonedDoc.body.style.overflow = 'visible';
           clonedContainer?.querySelectorAll('.ct-total-sticky').forEach(el => { (el as HTMLElement).style.position = 'static'; });
+          // Hide the sending controls without changing the header's height.
+          clonedContainer.querySelectorAll<HTMLElement>('[data-report-control]').forEach(el => { el.style.visibility = 'hidden'; });
 
           if (clonedScrollable) {
             clonedScrollable.style.overflow = 'visible';
@@ -409,18 +408,16 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
           }
           
           if (clonedContainer) {
-            clonedContainer.style.width = '1100px';
-            clonedContainer.style.minWidth = '1100px';
+            clonedContainer.style.width = `${captureWidth}px`;
+            clonedContainer.style.minWidth = `${captureWidth}px`;
             clonedContainer.style.maxWidth = 'none';
             clonedContainer.style.height = 'auto';
             clonedContainer.style.overflow = 'visible';
-            clonedContainer.style.borderRadius = '24px';
           }
 
           if (clonedTable) {
-            clonedTable.style.width = '1100px';
-            clonedTable.style.minWidth = '1100px';
-            clonedTable.style.borderCollapse = 'collapse';
+            clonedTable.style.width = `${captureWidth}px`;
+            clonedTable.style.minWidth = `${captureWidth}px`;
           }
 
           // Disable pulse animation in snapshot so zero-balance warning doesn't freeze in mid-pulse
@@ -432,7 +429,6 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
           const inputs = (clonedContainer || clonedDoc).querySelectorAll('input');
           inputs.forEach((input) => {
             const inputEl = input as HTMLInputElement;
-            const isText = inputEl.type === 'text';
             const val = inputEl.value;
             const hasVal = val !== '' && val !== undefined && val !== null;
             const placeholder = inputEl.placeholder || '';
@@ -441,29 +437,14 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
             const span = clonedDoc.createElement('span');
             span.textContent = textToDisplay;
             span.style.display = 'block';
-            span.style.width = '100%';
-            span.style.lineHeight = '1.3';
-            
-            const comp = window.getComputedStyle(inputEl);
-            span.style.fontSize = comp.fontSize || '14px';
-            span.style.fontFamily = comp.fontFamily || 'Inter, sans-serif';
-            span.style.backgroundColor = comp.backgroundColor;
-            span.style.borderRadius = comp.borderRadius;
-            
-            if (isText) {
-              span.style.textAlign = 'left';
-              span.style.padding = '6px 8px';
-              span.style.fontWeight = '700';
-              span.style.color = comp.color || '#252d3b';
-            } else {
-              span.style.textAlign = 'center';
-              span.style.padding = '8px 4px';
-              span.style.fontWeight = '900';
-              if (hasVal) {
-                span.style.color = comp.color || '#ffffff';
-              } else {
-                span.style.color = 'rgba(148, 163, 184, 0.45)';
-              }
+            const comp = clonedDoc.defaultView!.getComputedStyle(inputEl);
+            for (const property of ['box-sizing', 'width', 'height', 'font-family', 'font-size', 'font-weight', 'font-variant-numeric', 'line-height', 'letter-spacing', 'text-align', 'padding', 'border', 'border-radius', 'background-color', 'color', 'box-shadow']) {
+              span.style.setProperty(property, comp.getPropertyValue(property));
+            }
+            if (!hasVal) {
+              const placeholderStyle = clonedDoc.defaultView!.getComputedStyle(inputEl, '::placeholder');
+              span.style.color = placeholderStyle.color;
+              span.style.fontWeight = placeholderStyle.fontWeight;
             }
             
             if (inputEl.parentElement) {
@@ -581,8 +562,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       <div ref={tableRef} id="total-table-card" data-report-table-container="true" className="ct-total-capture">
         <div className="overflow-x-auto ct-total-scroll" tabIndex={0} aria-label="Таблица балансов с горизонтальной прокруткой">
           <table className="ct-total-table"><caption className="sr-only">Балансы смен за {selectedDate.split('-').reverse().join('.')}</caption><thead>
-            <tr><th className="ct-total-sticky ct-total-number" rowSpan={2} scope="col">№</th><th className="ct-total-sticky ct-total-name" rowSpan={2} scope="col">Анкета<small>{entriesForDate.length} в таблице</small></th>{SHIFTS.map(s=>{const ShiftIcon=shiftIcons[s.key];return <th key={s.key} colSpan={2} scope="colgroup" className={`ct-total-shift is-${s.key}`}><div><ShiftIcon size={17} /><span>{s.label}</span></div><div className="ct-total-report-slot" data-html2canvas-ignore="true">{isShiftComplete(s.key) ? <button aria-label={`Отчёт в TG: ${s.label}`} onClick={()=>sendTelegramReport(s.key)} disabled={isSending!==null}><ICONS.Send size={11} />{isSending===s.key?'Отправка…':'Отчёт в TG'}</button> : <span>Заполните балансы</span>}</div></th>;})}<th data-html2canvas-ignore="true" colSpan={4} scope="colgroup" className="ct-total-result-heading">Итоги дня и месяца</th><th data-html2canvas-ignore="true" rowSpan={2} className="ct-total-remove"><span className="sr-only">Действия</span></th></tr>
-            <tr className="ct-total-subheads">{SHIFTS.map(s=><React.Fragment key={s.key}><th scope="col" className={`ct-total-balance-head is-${s.key}`}>Баланс</th><th scope="col" className={`ct-total-goal-head is-${s.key}`}>Цель</th></React.Fragment>)}<th data-html2canvas-ignore="true" scope="col">План</th><th data-html2canvas-ignore="true" scope="col">Осталось</th><th data-html2canvas-ignore="true" scope="col" className="is-total">Итого</th><th data-html2canvas-ignore="true" scope="col" className="ct-total-month">Месяц</th></tr>
+            <tr><th className="ct-total-sticky ct-total-number" rowSpan={2} scope="col">№</th><th className="ct-total-sticky ct-total-name" rowSpan={2} scope="col">Анкета<small>{entriesForDate.length} в таблице</small></th>{SHIFTS.map(s=>{const ShiftIcon=shiftIcons[s.key];return <th key={s.key} colSpan={2} scope="colgroup" className={`ct-total-shift is-${s.key}`}><div><ShiftIcon size={17} /><span>{s.label}</span></div><div className="ct-total-report-slot" data-report-control="true">{isShiftComplete(s.key) ? <button aria-label={`Отчёт в TG: ${s.label}`} onClick={()=>sendTelegramReport(s.key)} disabled={isSending!==null}><ICONS.Send size={11} />{isSending===s.key?'Отправка…':'Отчёт в TG'}</button> : <span>Заполните балансы</span>}</div></th>;})}<th colSpan={4} scope="colgroup" className="ct-total-result-heading">Итоги дня и месяца</th><th rowSpan={2} className="ct-total-remove"><span className="sr-only">Действия</span></th></tr>
+            <tr className="ct-total-subheads">{SHIFTS.map(s=><React.Fragment key={s.key}><th scope="col" className={`ct-total-balance-head is-${s.key}`}>Баланс</th><th scope="col" className={`ct-total-goal-head is-${s.key}`}>Цель</th></React.Fragment>)}<th scope="col">План</th><th scope="col">Осталось</th><th scope="col" className="is-total">Итого</th><th scope="col" className="ct-total-month">Месяц</th></tr>
           </thead><tbody>{entriesForDate.map((entry,idx)=>{
             const rowPlan=(entry.night?.goal||0)+(entry.morning?.goal||0)+(entry.day?.goal||0)+(entry.evening?.goal||0);
             const rowBalance=(entry.night?.balance||0)+(entry.morning?.balance||0)+(entry.day?.balance||0)+(entry.evening?.balance||0);
@@ -592,10 +573,10 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
             const monthlyPercent=monthlyPlan>0?Math.round((earnedInPeriod/monthlyPlan)*100):0;
             return <tr key={entry.id||`fallback-idx-${idx}`} data-entry-id={entry.id}>
               <td className="ct-total-sticky ct-total-number">{idx+1}</td><th scope="row" className="ct-total-sticky ct-total-name"><input type="text" aria-label={`Название анкеты ${idx+1}`} value={entry.modelName||''} onChange={e=>handleRenameModel(entry.id,e.target.value)} /></th>
-              {SHIFTS.map(s=><React.Fragment key={s.key}><td className="ct-total-balance"><input type="number" step="any" inputMode="decimal" aria-label={`${entry.modelName}: ${s.label}, баланс`} className={getCellStatusClasses(entry[s.key]?.balance,entry[s.key]?.goal||0)} value={entry[s.key]?.balance??''} onChange={e=>handleUpdate(entry.id,s.key,'balance',e.target.value)} placeholder="—" /></td><td className={`ct-total-goal is-${s.key}`}><input type="number" step="any" inputMode="decimal" aria-label={`${entry.modelName}: ${s.label}, цель`} value={entry[s.key]?.goal??''} onChange={e=>handleUpdate(entry.id,s.key,'goal',e.target.value)} placeholder="—" /></td></React.Fragment>)}
-              <td data-html2canvas-ignore="true" className="ct-total-plan">{rowPlan.toFixed(0)}</td><td data-html2canvas-ignore="true" className={`ct-total-remaining ${rowRemaining===0?'is-complete':''}`}>{rowRemaining.toFixed(0)}</td><td data-html2canvas-ignore="true" className="ct-total-result">{rowBalance.toFixed(0)}</td><td data-html2canvas-ignore="true" className="ct-total-month"><strong>{monthlyPercent}%</strong><div className="ct-total-progress" role="progressbar" aria-label={`Месячный план: ${entry.modelName}`} aria-valuenow={Math.max(0,Math.min(100,monthlyPercent))} aria-valuemin={0} aria-valuemax={100} aria-valuetext={`${monthlyPercent}%`}><i style={{width:`${Math.max(0,Math.min(100,monthlyPercent))}%`}} /></div><small>{earnedInPeriod.toFixed(0)} / {monthlyPlan.toFixed(0)}</small></td><td data-html2canvas-ignore="true" className="ct-total-remove"><button title="Удалить анкету из таблицы" aria-label={`Удалить: ${entry.modelName}`} onClick={()=>handleRemoveModel(entry.id)}><ICONS.Trash size={14} /></button></td>
+              {SHIFTS.map(s=><React.Fragment key={s.key}><td className={`ct-total-balance ${getCellStatusClasses(entry[s.key]?.balance,entry[s.key]?.goal||0)}`}><input type="number" step="any" inputMode="decimal" aria-label={`${entry.modelName}: ${s.label}, баланс`} className={getCellStatusClasses(entry[s.key]?.balance,entry[s.key]?.goal||0)} value={entry[s.key]?.balance??''} onChange={e=>handleUpdate(entry.id,s.key,'balance',e.target.value)} placeholder="—" /></td><td className={`ct-total-goal is-${s.key}`}><input type="number" step="any" inputMode="decimal" aria-label={`${entry.modelName}: ${s.label}, цель`} value={entry[s.key]?.goal??''} onChange={e=>handleUpdate(entry.id,s.key,'goal',e.target.value)} placeholder="—" /></td></React.Fragment>)}
+              <td className="ct-total-plan">{rowPlan.toFixed(0)}</td><td className={`ct-total-remaining ${rowRemaining===0?'is-complete':''}`}>{rowRemaining.toFixed(0)}</td><td className="ct-total-result">{rowBalance.toFixed(0)}</td><td className="ct-total-month"><strong>{monthlyPercent}%</strong><div className="ct-total-progress" role="progressbar" aria-label={`Месячный план: ${entry.modelName}`} aria-valuenow={Math.max(0,Math.min(100,monthlyPercent))} aria-valuemin={0} aria-valuemax={100} aria-valuetext={`${monthlyPercent}%`}><i style={{width:`${Math.max(0,Math.min(100,monthlyPercent))}%`}} /></div><small>{earnedInPeriod.toFixed(0)} / {monthlyPlan.toFixed(0)}</small></td><td className="ct-total-remove"><button title="Удалить анкету из таблицы" aria-label={`Удалить: ${entry.modelName}`} onClick={()=>handleRemoveModel(entry.id)}><ICONS.Trash size={14} /></button></td>
             </tr>;
-          })}</tbody><tfoot><tr><th colSpan={2} className="ct-total-sticky" scope="row">Итого</th>{SHIFTS.map(s=><React.Fragment key={s.key}><td>{totals[s.key].balance.toFixed(0)}</td><td className="ct-total-goal">{totals[s.key].goal.toFixed(0)}</td></React.Fragment>)}<td data-html2canvas-ignore="true" className="ct-total-plan">{totals.overallPlan.toFixed(0)}</td><td data-html2canvas-ignore="true" className="ct-total-remaining">{totals.overallRemaining.toFixed(0)}</td><td data-html2canvas-ignore="true" className="ct-total-result">{totals.overallBalance.toFixed(0)}</td><td data-html2canvas-ignore="true" colSpan={2} /></tr></tfoot></table>
+          })}</tbody><tfoot><tr><th colSpan={2} className="ct-total-sticky" scope="row">Итого</th>{SHIFTS.map(s=><React.Fragment key={s.key}><td>{totals[s.key].balance.toFixed(0)}</td><td className={`ct-total-goal is-${s.key}`}>{totals[s.key].goal.toFixed(0)}</td></React.Fragment>)}<td className="ct-total-plan">{totals.overallPlan.toFixed(0)}</td><td className="ct-total-remaining">{totals.overallRemaining.toFixed(0)}</td><td className="ct-total-result">{totals.overallBalance.toFixed(0)}</td><td colSpan={2} /></tr></tfoot></table>
         </div>
       </div>
       {!entriesForDate.length && <div className="ct-total-empty"><ICONS.ClipboardList size={25} /><h2>За эту дату пока нет анкет</h2><p>Здесь отображаются анкеты с месячным планом, которые не скрыты из состава.</p></div>}
