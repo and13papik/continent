@@ -5,7 +5,8 @@ import html2canvas from 'html2canvas';
 import { AppState, DailyTotalEntry, ShiftData } from '../types';
 import { ICONS } from '../constants';
 import { findPeriodIdByDate } from '../store';
-import PeriodBadge from '../components/PeriodBadge';
+import { Moon, Sunrise, Sun, Sunset } from 'lucide-react';
+import './TotalTable.css';
 
 const DEFAULT_CHAT_ID = '-1003748692600';
 
@@ -17,20 +18,11 @@ const SHIFTS = [
 ];
 
 const getCellStatusClasses = (balance: any, goal: number) => {
-  if (balance === undefined || balance === null || balance === '') {
-    return 'bg-slate-900/20 border-slate-800 text-slate-700 opacity-40';
-  }
-
+  if (balance === undefined || balance === null || balance === '' || isNaN(parseFloat(balance))) return 'is-empty';
   const val = parseFloat(balance);
-  if (isNaN(val)) return 'bg-slate-900/20 border-slate-800 text-slate-700 opacity-40';
-  
-  if (val === 0) return 'bg-rose-600 border-rose-400 text-white ring-4 ring-rose-500/50 shadow-[0_0_25px_rgba(244,63,94,0.6)] font-black animate-pulse z-10';
-  
-  const safeGoal = goal || 1; 
-  const ratio = val / safeGoal;
-  if (ratio < 0.5) return 'bg-orange-600/30 border-orange-500/50 text-orange-200';
-  if (ratio < 1) return 'bg-amber-500/20 border-amber-500/40 text-amber-200';
-  return 'bg-emerald-600/50 border-emerald-400 text-emerald-100 font-black shadow-[0_0_15px_rgba(16,185,129,0.3)]';
+  if (val === 0) return 'is-zero';
+  const ratio = val / (goal || 1);
+  return ratio < 0.5 ? 'is-low' : ratio < 1 ? 'is-progress' : 'is-reached';
 };
 
 const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppState) => AppState) => boolean | void }> = ({ state, updateState }) => {
@@ -387,7 +379,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
       
       // Render canvas
       const canvas = await h2c(tableRef.current, {
-        backgroundColor: '#0d111d',
+        backgroundColor: getComputedStyle(tableRef.current).backgroundColor,
         scale: 2,
         logging: false,
         useCORS: true,
@@ -408,6 +400,7 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
           const clonedTable = (clonedContainer?.querySelector('table') || clonedDoc.querySelector('table')) as HTMLElement;
 
           clonedDoc.body.style.overflow = 'visible';
+          clonedContainer?.querySelectorAll('.ct-total-sticky').forEach(el => { (el as HTMLElement).style.position = 'static'; });
 
           if (clonedScrollable) {
             clonedScrollable.style.overflow = 'visible';
@@ -416,8 +409,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
           }
           
           if (clonedContainer) {
-            clonedContainer.style.width = 'max-content';
-            clonedContainer.style.minWidth = '950px';
+            clonedContainer.style.width = '1100px';
+            clonedContainer.style.minWidth = '1100px';
             clonedContainer.style.maxWidth = 'none';
             clonedContainer.style.height = 'auto';
             clonedContainer.style.overflow = 'visible';
@@ -425,8 +418,8 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
           }
 
           if (clonedTable) {
-            clonedTable.style.width = '100%';
-            clonedTable.style.minWidth = '950px';
+            clonedTable.style.width = '1100px';
+            clonedTable.style.minWidth = '1100px';
             clonedTable.style.borderCollapse = 'collapse';
           }
 
@@ -454,12 +447,14 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
             const comp = window.getComputedStyle(inputEl);
             span.style.fontSize = comp.fontSize || '14px';
             span.style.fontFamily = comp.fontFamily || 'Inter, sans-serif';
+            span.style.backgroundColor = comp.backgroundColor;
+            span.style.borderRadius = comp.borderRadius;
             
             if (isText) {
               span.style.textAlign = 'left';
               span.style.padding = '6px 8px';
               span.style.fontWeight = '700';
-              span.style.color = '#ffffff';
+              span.style.color = comp.color || '#252d3b';
             } else {
               span.style.textAlign = 'center';
               span.style.padding = '8px 4px';
@@ -576,234 +571,39 @@ const TotalTable: React.FC<{ state: AppState; updateState: (updater: (prev: AppS
     });
   };
 
-  return (
-    <div className="space-y-6 animate-in fade-in duration-700 pb-20 max-w-[1400px] mx-auto">
-      <header className="flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-800/80 p-5 rounded-2xl border border-slate-700/80 shadow-md">
-        <div className="flex items-center gap-4">
-           <div className="bg-indigo-600 p-2 rounded-xl text-white font-bold font-outfit text-sm shadow-md shadow-indigo-600/30">Continental Core</div>
-           <div className="h-6 w-px bg-slate-700/70 hidden md:block"></div>
-           
-           <PeriodBadge state={state} />
+  const shiftIcons = {night: Moon, morning: Sunrise, day: Sun, evening: Sunset};
+  const completion = totals.overallPlan > 0 ? Math.round((totals.overallBalance / totals.overallPlan) * 100) : 0;
 
-           <div className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-700 shadow-inner group transition-all hover:border-indigo-400">
-              <ICONS.Calendar size={14} className="text-slate-400 group-hover:text-indigo-400" />
-              <input 
-                type="date" 
-                className="bg-transparent text-[11px] font-black text-white outline-none uppercase tracking-widest cursor-pointer" 
-                value={selectedDate} 
-                onChange={(e) => setSelectedDate(e.target.value)} 
-              />
-           </div>
-
-           <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-tighter bg-emerald-500/15 px-3 py-1 rounded-lg border border-emerald-500/30 flex items-center gap-2">
-             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
-             TG: {DEFAULT_CHAT_ID}
-           </div>
-        </div>
-        
-        <div className="flex gap-3">
-           <button onClick={handleRecalculateDynamicGoals} className="bg-sky-600/20 hover:bg-sky-600 border border-sky-500/40 text-sky-300 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 shadow-md">
-              <ICONS.RotateCcw size={14} /> Пересчитать динамические цели
-           </button>
-           <button onClick={handleSyncGoalsToAll} className="bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 shadow-md">
-              <ICONS.RotateCcw size={14} /> Применить цели ко всем дням
-           </button>
-           <button onClick={handleAddModel} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 shadow-md shadow-indigo-600/20">
-              <ICONS.Plus size={14} /> Добавить анкету
-           </button>
-           <button onClick={handleReset} className="bg-slate-700/80 hover:bg-rose-600 text-slate-200 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 border border-slate-600">
-              <ICONS.Trash size={14} /> Очистить
-           </button>
-        </div>
-      </header>
-
-      <div 
-        ref={tableRef} 
-        id="total-table-card" 
-        data-report-table-container="true" 
-        className="glass-card total-table-card rounded-[2.5rem] border border-slate-700/80 shadow-xl overflow-hidden bg-gradient-to-br from-[#192138] to-[#121627]"
-      >
-        <div className="overflow-x-auto">
-           <table className="w-full border-collapse">
-              <thead>
-                 <tr className="border-b border-slate-700/70">
-                    <th className="bg-slate-800/90 p-4 w-12 border-r border-slate-700/70"></th>
-                    <th className="bg-slate-800/90 p-4 text-left border-r border-slate-700/70 text-slate-300 text-[10px] font-black uppercase tracking-widest min-w-[140px]">Анкета</th>
-                    {SHIFTS.map(s => (
-                       <th key={s.key} colSpan={2} className={`${s.color} p-3 text-center border-r border-slate-700/60`}>
-                          <div className="flex flex-col items-center justify-center gap-1">
-                             <div className="flex items-center gap-2">
-                                <span className="text-lg">{s.icon}</span>
-                                <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">{s.label}</span>
-                             </div>
-                             {isShiftComplete(s.key) && (
-                               <button 
-                                 data-html2canvas-ignore
-                                 onClick={(e) => { e.stopPropagation(); sendTelegramReport(s.key); }}
-                                 disabled={isSending === s.key}
-                                 className="mt-1 bg-white hover:bg-indigo-300 text-slate-950 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 shadow-lg"
-                               >
-                                 {isSending === s.key ? 'Отправка...' : '🚀 Отчет в TG'}
-                               </button>
-                             )}
-                          </div>
-                       </th>
-                    ))}
-                    <th data-html2canvas-ignore colSpan={4} className="bg-indigo-900/60 p-3 text-center text-[10px] font-black text-white uppercase tracking-[0.2em]">Итого</th>
-                    <th data-html2canvas-ignore className="bg-slate-800/90 p-4 w-12"></th>
-                 </tr>
-                 <tr className="bg-slate-800/80 text-[9px] font-black text-slate-300 uppercase tracking-widest border-b border-slate-700/70">
-                    <th className="p-2 border-r border-slate-700/60">№</th>
-                    <th className="p-2 text-left border-r border-slate-700/60">Name</th>
-                    {SHIFTS.map(s => (
-                       <React.Fragment key={s.key}>
-                          <th className="p-2 border-r border-slate-700/50">Баланс</th>
-                          <th className="p-2 border-r border-slate-700/70">Цель</th>
-                       </React.Fragment>
-                    ))}
-                    <th data-html2canvas-ignore className="p-2 border-r border-slate-700/60 text-indigo-400">План</th>
-                    <th data-html2canvas-ignore className="p-2 border-r border-slate-700/60 text-rose-400">Осталось</th>
-                    <th data-html2canvas-ignore className="p-2 border-r border-slate-700/70 text-emerald-400">Итого</th>
-                    <th data-html2canvas-ignore className="p-2 border-r border-slate-700/70 text-amber-400">Месяц</th>
-                    <th data-html2canvas-ignore className="p-2">Удалить</th>
-                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-700/60">
-                 {entriesForDate.map((entry, idx) => {
-                    if (!entry) return null; 
-
-                    const nightG = entry.night?.goal || 0;
-                    const mornG = entry.morning?.goal || 0;
-                    const dayG = entry.day?.goal || 0;
-                    const eveG = entry.evening?.goal || 0;
-                    const rowPlan = nightG + mornG + dayG + eveG;
-
-                    const nightB = entry.night?.balance || 0;
-                    const mornB = entry.morning?.balance || 0;
-                    const dayB = entry.day?.balance || 0;
-                    const eveB = entry.evening?.balance || 0;
-                    const rowBalance = nightB + mornB + dayB + eveB;
-                    
-                    const rowRemaining = Math.max(0, rowPlan - rowBalance);
-
-                    const monthlyPlan = currentPlans[entry.modelName] || 0;
-                    const earnedInPeriod = (state.incomeData || [])
-                      .filter(r => r.model.trim() === entry.modelName.trim() && r.periodId === activePeriodId)
-                      .reduce((sum, r) => sum + (r.onlyFans || 0), 0);
-                    const monthlyPercent = monthlyPlan > 0 ? Math.round((earnedInPeriod / monthlyPlan) * 100) : 0;
-
-                    return (
-                       <tr key={entry.id || `fallback-idx-${idx}`} className="hover:bg-slate-800/40 transition-colors group">
-                          <td className="p-3 text-center border-r border-slate-700/60 text-[10px] font-bold text-slate-400">{idx + 1}</td>
-                          <td className="p-3 border-r border-slate-700/60 font-bold text-white text-sm">
-                             <input 
-                                type="text" 
-                                className="bg-transparent w-full text-white font-bold outline-none focus:bg-white/10 px-2 py-1 rounded" 
-                                value={entry.modelName || ''} 
-                                onChange={e => handleRenameModel(entry.id, e.target.value)} 
-                             />
-                          </td>
-                          
-                          {SHIFTS.map(s => (
-                             <React.Fragment key={s.key}>
-                                <td className={`p-1 border-r border-slate-700/40 transition-all ${getCellStatusClasses(entry[s.key]?.balance, entry[s.key]?.goal || 0)}`}>
-                                   <input 
-                                      type="number" 
-                                      className="w-full bg-transparent text-center text-sm font-black outline-none transition-all py-2 placeholder:text-slate-600"
-                                      value={entry[s.key]?.balance ?? ''} 
-                                      onChange={e => handleUpdate(entry.id, s.key, 'balance', e.target.value)}
-                                      placeholder="0"
-                                   />
-                                </td>
-                                <td className={`p-1 border-r border-slate-700/60 ${s.cellColor}`}>
-                                   <input 
-                                      type="number" 
-                                      className="w-full bg-transparent text-center text-sm font-black text-slate-200 outline-none focus:bg-white/10 transition-all py-2 placeholder:text-slate-600"
-                                      value={entry[s.key]?.goal ?? ''} 
-                                      onChange={e => handleUpdate(entry.id, s.key, 'goal', e.target.value)}
-                                      placeholder="0"
-                                   />
-                                </td>
-                             </React.Fragment>
-                          ))}
-
-                          <td data-html2canvas-ignore className="p-3 text-center border-r border-slate-700/40 font-bold font-mono text-indigo-400 bg-indigo-500/10">{rowPlan.toFixed(0)}</td>
-                          <td data-html2canvas-ignore className={`p-3 text-center border-r border-slate-700/40 font-bold font-mono ${rowRemaining > 0 ? 'text-rose-400' : 'text-emerald-400'} bg-slate-900/40`}>{rowRemaining.toFixed(0)}</td>
-                          <td data-html2canvas-ignore className="p-3 text-center font-black font-mono text-emerald-400 bg-emerald-500/10 border-r border-slate-700/60">{rowBalance.toFixed(0)}</td>
-                          <td data-html2canvas-ignore className="p-3 text-center border-r border-slate-700/60 bg-slate-900/60">
-                             <div className="flex flex-col items-center">
-                                <span className="text-[10px] font-black text-amber-400">{monthlyPercent}%</span>
-                                <span className="text-[8px] text-slate-400 font-bold">{earnedInPeriod.toFixed(0)} / {monthlyPlan.toFixed(0)}</span>
-                             </div>
-                          </td>
-                          <td data-html2canvas-ignore className="p-3 text-center">
-                             <button onClick={() => handleRemoveModel(entry.id)} className="text-slate-500 hover:text-rose-400 transition-colors">
-                                <ICONS.Trash size={16} />
-                             </button>
-                          </td>
-                       </tr>
-                    );
-                 })}
-                 <tr className="bg-slate-800/80 font-black text-xs border-t border-slate-700/70">
-                    <td colSpan={2} className="p-4 text-center border-r border-slate-700/60 text-slate-300 uppercase tracking-widest">Итого</td>
-                    {SHIFTS.map(s => (
-                       <React.Fragment key={s.key}>
-                          <td className={`p-4 text-center border-r border-slate-700/40 text-white font-mono ${s.cellColor}`}>{totals[s.key].balance.toFixed(0)}</td>
-                          <td className={`p-4 text-center border-r border-slate-700/60 text-slate-200 font-mono font-black ${s.cellColor}`}>{totals[s.key].goal.toFixed(0)}</td>
-                       </React.Fragment>
-                    ))}
-                    <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-700/40 text-indigo-400 font-mono">{totals.overallPlan.toFixed(0)}</td>
-                    <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-700/40 text-rose-400 font-mono">{totals.overallRemaining.toFixed(0)}</td>
-                    <td data-html2canvas-ignore className="p-4 text-center text-emerald-400 font-mono border-r border-slate-700/60">{totals.overallBalance.toFixed(0)}</td>
-                    <td data-html2canvas-ignore className="p-4 text-center border-r border-slate-700/60"></td>
-                    <td data-html2canvas-ignore className="p-4"></td>
-                 </tr>
-              </tbody>
-           </table>
+  return <div className="ct-page ct-total-page">
+    <header className="ct-page-heading"><div><h1>Total Table</h1><p>Балансы и цели по сменам · USD</p></div><div className="ct-total-actions"><label className="ct-total-date"><ICONS.Calendar size={16} /><input aria-label="Дата таблицы" type="date" value={selectedDate} onChange={e => {if(e.target.value)setSelectedDate(e.target.value);}} /></label><button className="ct-button ct-button-primary" onClick={handleAddModel}><ICONS.Plus size={15} />Добавить анкету</button></div></header>
+    <div className="ct-total-toolbar"><div className="ct-total-actions"><button className="ct-button" onClick={handleRecalculateDynamicGoals}><ICONS.RotateCcw size={14} />Пересчитать цели</button><button className="ct-button" onClick={handleSyncGoalsToAll}><ICONS.Layers size={14} />Цели ко всем дням</button></div><button className="ct-button ct-total-clear" onClick={handleReset}><ICONS.Trash size={14} />Очистить балансы</button></div>
+    <section className="ct-total-board" aria-label="Балансы смен">
+      <div ref={tableRef} id="total-table-card" data-report-table-container="true" className="ct-total-capture">
+        <div className="overflow-x-auto ct-total-scroll" tabIndex={0} aria-label="Таблица балансов с горизонтальной прокруткой">
+          <table className="ct-total-table"><caption className="sr-only">Балансы смен за {selectedDate.split('-').reverse().join('.')}</caption><thead>
+            <tr><th className="ct-total-sticky ct-total-number" rowSpan={2} scope="col">№</th><th className="ct-total-sticky ct-total-name" rowSpan={2} scope="col">Анкета<small>{entriesForDate.length} в таблице</small></th>{SHIFTS.map(s=>{const ShiftIcon=shiftIcons[s.key];return <th key={s.key} colSpan={2} scope="colgroup" className={`ct-total-shift is-${s.key}`}><div><ShiftIcon size={17} /><span>{s.label}</span></div><div className="ct-total-report-slot" data-html2canvas-ignore="true">{isShiftComplete(s.key) ? <button aria-label={`Отчёт в TG: ${s.label}`} onClick={()=>sendTelegramReport(s.key)} disabled={isSending!==null}><ICONS.Send size={11} />{isSending===s.key?'Отправка…':'Отчёт в TG'}</button> : <span>Заполните балансы</span>}</div></th>;})}<th data-html2canvas-ignore="true" colSpan={4} scope="colgroup" className="ct-total-result-heading">Итоги дня и месяца</th><th data-html2canvas-ignore="true" rowSpan={2} className="ct-total-remove"><span className="sr-only">Действия</span></th></tr>
+            <tr className="ct-total-subheads">{SHIFTS.map(s=><React.Fragment key={s.key}><th scope="col" className={`ct-total-balance-head is-${s.key}`}>Баланс</th><th scope="col" className={`ct-total-goal-head is-${s.key}`}>Цель</th></React.Fragment>)}<th data-html2canvas-ignore="true" scope="col">План</th><th data-html2canvas-ignore="true" scope="col">Осталось</th><th data-html2canvas-ignore="true" scope="col" className="is-total">Итого</th><th data-html2canvas-ignore="true" scope="col" className="ct-total-month">Месяц</th></tr>
+          </thead><tbody>{entriesForDate.map((entry,idx)=>{
+            const rowPlan=(entry.night?.goal||0)+(entry.morning?.goal||0)+(entry.day?.goal||0)+(entry.evening?.goal||0);
+            const rowBalance=(entry.night?.balance||0)+(entry.morning?.balance||0)+(entry.day?.balance||0)+(entry.evening?.balance||0);
+            const rowRemaining=Math.max(0,rowPlan-rowBalance);
+            const monthlyPlan=currentPlans[entry.modelName]||0;
+            const earnedInPeriod=(state.incomeData||[]).filter(r=>r.model.trim()===entry.modelName.trim()&&r.periodId===activePeriodId).reduce((sum,r)=>sum+(r.onlyFans||0),0);
+            const monthlyPercent=monthlyPlan>0?Math.round((earnedInPeriod/monthlyPlan)*100):0;
+            return <tr key={entry.id||`fallback-idx-${idx}`} data-entry-id={entry.id}>
+              <td className="ct-total-sticky ct-total-number">{idx+1}</td><th scope="row" className="ct-total-sticky ct-total-name"><input type="text" aria-label={`Название анкеты ${idx+1}`} value={entry.modelName||''} onChange={e=>handleRenameModel(entry.id,e.target.value)} /></th>
+              {SHIFTS.map(s=><React.Fragment key={s.key}><td className="ct-total-balance"><input type="number" step="any" inputMode="decimal" aria-label={`${entry.modelName}: ${s.label}, баланс`} className={getCellStatusClasses(entry[s.key]?.balance,entry[s.key]?.goal||0)} value={entry[s.key]?.balance??''} onChange={e=>handleUpdate(entry.id,s.key,'balance',e.target.value)} placeholder="—" /></td><td className={`ct-total-goal is-${s.key}`}><input type="number" step="any" inputMode="decimal" aria-label={`${entry.modelName}: ${s.label}, цель`} value={entry[s.key]?.goal??''} onChange={e=>handleUpdate(entry.id,s.key,'goal',e.target.value)} placeholder="—" /></td></React.Fragment>)}
+              <td data-html2canvas-ignore="true" className="ct-total-plan">{rowPlan.toFixed(0)}</td><td data-html2canvas-ignore="true" className={`ct-total-remaining ${rowRemaining===0?'is-complete':''}`}>{rowRemaining.toFixed(0)}</td><td data-html2canvas-ignore="true" className="ct-total-result">{rowBalance.toFixed(0)}</td><td data-html2canvas-ignore="true" className="ct-total-month"><strong>{monthlyPercent}%</strong><div className="ct-total-progress" role="progressbar" aria-label={`Месячный план: ${entry.modelName}`} aria-valuenow={Math.max(0,Math.min(100,monthlyPercent))} aria-valuemin={0} aria-valuemax={100} aria-valuetext={`${monthlyPercent}%`}><i style={{width:`${Math.max(0,Math.min(100,monthlyPercent))}%`}} /></div><small>{earnedInPeriod.toFixed(0)} / {monthlyPlan.toFixed(0)}</small></td><td data-html2canvas-ignore="true" className="ct-total-remove"><button title="Удалить анкету из таблицы" aria-label={`Удалить: ${entry.modelName}`} onClick={()=>handleRemoveModel(entry.id)}><ICONS.Trash size={14} /></button></td>
+            </tr>;
+          })}</tbody><tfoot><tr><th colSpan={2} className="ct-total-sticky" scope="row">Итого</th>{SHIFTS.map(s=><React.Fragment key={s.key}><td>{totals[s.key].balance.toFixed(0)}</td><td className="ct-total-goal">{totals[s.key].goal.toFixed(0)}</td></React.Fragment>)}<td data-html2canvas-ignore="true" className="ct-total-plan">{totals.overallPlan.toFixed(0)}</td><td data-html2canvas-ignore="true" className="ct-total-remaining">{totals.overallRemaining.toFixed(0)}</td><td data-html2canvas-ignore="true" className="ct-total-result">{totals.overallBalance.toFixed(0)}</td><td data-html2canvas-ignore="true" colSpan={2} /></tr></tfoot></table>
         </div>
       </div>
-
-      <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
-         {SHIFTS.map(s => (
-            <div key={s.key} className="p-5 rounded-3xl border border-slate-700/70 bg-gradient-to-br from-[#192138] to-[#121627] flex items-center justify-between shadow-md">
-               <div className="flex items-center gap-3">
-                  <span className="text-2xl">{s.icon}</span>
-                  <p className={`text-[10px] font-black uppercase tracking-widest ${s.textColor}`}>{s.label}</p>
-               </div>
-               <p className="text-xl font-black text-white font-mono">{totals[s.key].balance.toFixed(0)}</p>
-            </div>
-         ))}
-      </section>
-
-      <div className="p-8 rounded-[2.5rem] bg-gradient-to-br from-[#1b2238] via-[#151c2e] to-[#121627] border border-slate-700/80 shadow-xl relative overflow-hidden">
-         <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500/50"></div>
-         <div className="flex items-center gap-4 mb-6">
-            <ICONS.Income className="text-indigo-400" />
-            <h2 className="text-xl font-black font-outfit text-white uppercase tracking-widest">Итоговая Сводка за {selectedDate.split('-').reverse().join('.')}</h2>
-         </div>
-         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <div className="text-center space-y-1">
-               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Общий План</p>
-               <p className="text-4xl font-black text-white font-outfit">{totals.overallPlan.toFixed(0)}</p>
-            </div>
-            <div className="text-center space-y-1">
-               <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Общий Баланс</p>
-               <p className="text-4xl font-black text-indigo-300 font-outfit">{totals.overallBalance.toFixed(0)}</p>
-            </div>
-            <div className="text-center space-y-1">
-               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Осталось</p>
-               <p className="text-4xl font-black text-white font-outfit">{totals.overallRemaining.toFixed(0)}</p>
-            </div>
-            <div className="text-center space-y-1">
-               <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Выполнено</p>
-               <p className="text-4xl font-black text-emerald-400 font-outfit">
-                  {totals.overallPlan > 0 ? Math.round((totals.overallBalance / totals.overallPlan) * 100) : 0}%
-               </p>
-            </div>
-         </div>
-      </div>
-    </div>
-  );
+      {!entriesForDate.length && <div className="ct-total-empty"><ICONS.ClipboardList size={25} /><h2>За эту дату пока нет анкет</h2><p>Здесь отображаются анкеты с месячным планом, которые не скрыты из состава.</p></div>}
+      <footer className="ct-total-legend"><span><i className="is-empty" />Не заполнено</span><span><i className="is-zero" />Нулевой баланс</span><span><i className="is-low" />Меньше 50%</span><span><i className="is-progress" />До цели</span><span><i className="is-reached" />Цель достигнута</span><small>Нажмите на число для ввода · Tab — следующая ячейка</small></footer>
+    </section>
+    <section className="ct-total-shift-totals" aria-label="Итоги смен">{SHIFTS.map(s=>{const ShiftIcon=shiftIcons[s.key];return <div key={s.key} className={`is-${s.key}`}><span><ShiftIcon size={17} />{s.label}</span><strong>{totals[s.key].balance.toFixed(0)}<small> / {totals[s.key].goal.toFixed(0)}</small></strong></div>;})}</section>
+    <section className="ct-total-summary" aria-label="Итоговая сводка"><header><ICONS.Chart size={17} /><h2>Итоги за {selectedDate.split('-').reverse().join('.')}</h2><span>USD</span></header><div><section aria-label="Общий план"><span>Общий план</span><strong>{totals.overallPlan.toFixed(0)}</strong></section><section aria-label="Общий баланс"><span>Общий баланс</span><strong>{totals.overallBalance.toFixed(0)}</strong></section><section aria-label="Осталось"><span>Осталось</span><strong>{totals.overallRemaining.toFixed(0)}</strong></section><section aria-label="Выполнено"><span>Выполнено</span><strong>{completion}%</strong></section></div></section>
+  </div>;
 };
 
 export default TotalTable;

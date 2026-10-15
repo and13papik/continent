@@ -34,7 +34,7 @@ function DashboardApp({ user, theme, setTheme }: { user: SignedInUser; theme: Th
   const userRole = user.role === 'owner' ? 'owner' : 'user';
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
-  const refinedPage = ['/', '/operator-payroll', '/operations', '/models', '/roster'].includes(location.pathname);
+  const refinedPage = ['/', '/operator-payroll', '/operations', '/models', '/roster', '/total-table'].includes(location.pathname);
   const sectionTitle: Record<string, string> = { '/': 'Обзор', '/operator-payroll': 'ЗП операторов', '/metrics': 'Метрика', '/operations': 'Операции', '/reports': 'ЗП операторов', '/models': 'Модели', '/roster': 'Состав', '/owner': 'Owners', '/owner-table': 'Core Table', '/total-table': 'Total Table', '/admin-table': 'Admin Table', '/settings': 'Настройки', '/add-income': 'Доход', '/advance-request': 'Аванс' };
   const themeToggle = <div className="ct-theme-toggle" role="group" aria-label="Цветовая тема"><button aria-pressed={theme === 'light'} onClick={() => setTheme('light')}><Sun size={15} />Светлая</button><button aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}><Moon size={15} />Тёмная</button></div>;
   const headerControls = <div className="ct-header-controls">{themeToggle}<AccountMenu user={user} /></div>;
