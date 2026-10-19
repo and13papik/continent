@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { OnlyMonsterOperators, omMoney } from './OnlyMonsterOperators';
+import { ShiftAnalysisPanel } from './ShiftAnalysisPanel';
 import { LiveTrackModal } from './LiveTrackModal';
 import { OperatorDeepStatsModal } from './OperatorDeepStatsModal';
 import { 
@@ -2871,6 +2872,8 @@ export const OnlyMonsterTab: React.FC<OnlyMonsterTabProps> = ({
         </div>
         <footer>{todaySnapshot ? `Снимок на ${new Date(todaySnapshot.updatedAt).toLocaleTimeString('ru-RU', {timeZone: 'Europe/Kyiv', hour:'2-digit', minute:'2-digit'})}${nowTime - todaySnapshot.updatedAt > 120000 ? ' · данные устарели' : ' · автообновление раз в минуту'}` : 'Загрузка сводки OnlyMonster…'}{todaySnapshot?.partial && ' · часть данных недоступна'}</footer>
       </section>}
+
+      {effectiveSubTab === 'live' && <ShiftAnalysisPanel operatorNames={Object.fromEntries(operators.map(o => [o.user_id, o.name]))} modelNames={Object.fromEntries(accounts.map(a => [String(a.id), a.name]))} />}
 
       {/* ========================================================================= */}
       {/* 2. TAB "МОДЕЛИ": CONNECTED MODEL ACCOUNTS */}

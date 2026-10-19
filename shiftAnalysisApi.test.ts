@@ -1,0 +1,30 @@
+import { beforeEach, afterEach, it, expect, vi } from 'vitest';
+import handler from './api/onlymonster/shift-analysis';
+const mock = vi.hoisted(() => ({ getUser: vi.fn(), db: vi.fn(), report: vi.fn(), ai: vi.fn() }));
+vi.mock('@supabase/supabase-js', () => ({createClient: () => ({auth: {getUser: mock.getUser}})}));
+vi.mock('./api/_lib/supabase', () => ({getSupabaseClient: async () => ({from: mock.db})}));
+vi.mock('./api/_lib/shift-analysis-service', () => ({loadShiftAnalysis: mock.report, generateAnalysisAdvice: mock.ai}));
+const stored = {id:'r',generatedAt:new Date().toISOString(),period:'current',partial:false,findings:[{id:'f'}],operators:[{id:'operator1'}],window:{start:'',end:''}};
+function response() {const r: any = {statusCode:200,headers:{},setHeader(k:string,v:unknown){this.headers[k]=v;},status(s:number){this.statusCode=s;return this;},json(b:unknown){this.body=b;return this;}};return r;}
+function request(action:string,method='GET',body?:unknown) {return {method,body,url:'/api/onlymonster/shift-analysis',query:{action},headers:{cookie:'__Host-continental-access=test',origin:'https://dashboard.invalid'}};}
+const queue: any[] = [], calls: any[] = [];
+beforeEach(() => {
+  vi.stubEnv('APP_ORIGIN','https://dashboard.invalid');vi.stubEnv('SUPABASE_URL','https://db.invalid');vi.stubEnv('SUPABASE_PUBLISHABLE_KEY','synthetic');vi.stubEnv('OPENAI_API_KEY','synthetic');
+  mock.getUser.mockResolvedValue({data:{user:{id:'test',email_confirmed_at:'2026-01-01',app_metadata:{continental_role:'admin'}}}});
+  mock.report.mockResolvedValue(stored);mock.ai.mockResolvedValue({summary:'grounded',actions:[]});queue.length=0;calls.length=0;
+  mock.db.mockImplementation((table:string) => {const chain:any={then(resolve:any){return Promise.resolve(queue.shift() || {data:null,error:null}).then(resolve);}}; for(const k of ['select','order','limit','eq','maybeSingle','single','insert','update','upsert']) chain[k]=(...args:any[])=>{calls.push({table,method:k,args});return chain;};return chain;});
+});
+afterEach(()=>{vi.unstubAllEnvs();vi.clearAllMocks();});
+it('denies anonymous requests before reading reports or data',async()=>{const req=request('report');req.headers.cookie='';const res=response();await handler(req,res);expect(res.statusCode).toBe(401);expect(mock.report).not.toHaveBeenCalled();expect(mock.db).not.toHaveBeenCalled();});
+it('denies users without the server-assigned role',async()=>{mock.getUser.mockResolvedValue({data:{user:{id:'test',email_confirmed_at:'2026-01-01',app_metadata:{},user_metadata:{continental_role:'owner'}}}});const res=response();await handler(request('report'),res);expect(res.statusCode).toBe(403);});
+it('rejects cross-origin AI charges',async()=>{const req=request('ai','POST',{reportId:'r'});req.headers.origin='https://attacker.invalid';const res=response();await handler(req,res);expect(res.statusCode).toBe(403);expect(mock.ai).not.toHaveBeenCalled();});
+it('serves reports to admins with no cacheable browser response',async()=>{const res=response();await handler(request('report'),res);expect(res.statusCode).toBe(200);expect(res.headers['Cache-Control']).toBe('no-store');expect(res.body.journalReady).toBe(true);});
+it('shows disabled journal when schema is unavailable',async()=>{queue.push({error:null},{error:{code:'42P01'}});const res=response();await handler(request('report'),res);expect(res.body.journalReady).toBe(false);});
+it('reuses saved AI advice without another paid request',async()=>{queue.push({data:{payload:stored}},{data:{payload:{summary:'cached',actions:[]}}});const res=response();await handler(request('ai','POST',{reportId:'r'}),res);expect(res.body.advice.summary).toBe('cached');expect(mock.ai).not.toHaveBeenCalled();});
+it('cannot run AI on incomplete snapshots',async()=>{queue.push({data:{payload:{...stored,partial:true}}});const res=response();await handler(request('ai','POST',{reportId:'r'}),res);expect(res.statusCode).toBe(422);expect(mock.ai).not.toHaveBeenCalled();});
+it('enforces the durable AI budget lock across requests',async()=>{queue.push({data:{payload:stored}},{data:null},{error:{code:'23505'}});const res=response();await handler(request('ai','POST',{reportId:'r'}),res);expect(res.statusCode).toBe(429);expect(mock.ai).not.toHaveBeenCalled();});
+it('rejects old AI snapshots',async()=>{queue.push({data:{payload:{...stored,generatedAt:'2020-01-01T00:00:00Z'}}});const res=response();await handler(request('ai','POST',{reportId:'r'}),res);expect(res.statusCode).toBe(409);});
+it('preserves another admin update with revision-based writes',async()=>{queue.push({data:{status:'active'}},{data:null});const res=response();await handler(request('experiments','PATCH',{id:'id',revision:3,status:'completed',outcome:'inconclusive',result:'Недостаточно выборки'}),res);expect(res.statusCode).toBe(409);expect(calls).toContainEqual({table:'om_shift_experiments',method:'eq',args:['revision',3]});});
+it('does not reopen completed experiments',async()=>{queue.push({data:{status:'completed'}});const res=response();await handler(request('experiments','PATCH',{id:'id',revision:3,status:'active'}),res);expect(res.statusCode).toBe(409);expect(calls.some(c=>c.method==='update')).toBe(false);});
+it('requires a result and assessment to complete a test',async()=>{const res=response();await handler(request('experiments','PATCH',{id:'id',revision:1,status:'completed',outcome:'pending',result:'test'}),res);expect(res.statusCode).toBe(400);expect(calls).toHaveLength(0);});
+it('rejects executable source links',async()=>{queue.push({data:{payload:stored}});const res=response();await handler(request('experiments','POST',{reportId:'r',operatorId:'operator1',sourceUrl:'javascript:alert(1)'}),res);expect(res.statusCode).toBe(400);expect(calls.some(c=>c.method==='insert')).toBe(false);});
