@@ -17,6 +17,7 @@ import onlyMonsterConfigHandler from "./api/onlymonster/config.js";
 import { isPlaceholderToken } from "./api/_lib/om-store.js";
 import onlyMonsterProxyHandler from "./api/onlymonster/proxy.js";
 import onlyMonsterAnalyticsHandler from "./api/onlymonster/analytics.js";
+import shiftAnalysisHandler from "./api/onlymonster/shift-analysis.js";
 import onlyMonsterAdminHandler, { purgeExpiredLiveEvents } from "./api/onlymonster/admin.js";
 import webhookHandler from "./api/webhook.js";
 import { runMigrationDryRun } from "./scripts/dry_run_migration";
@@ -656,6 +657,7 @@ async function startServer() {
   app.all("/api/onlymonster/config", (req, res) => onlyMonsterConfigHandler(req, res));
   app.all("/api/onlymonster/proxy", (req, res) => onlyMonsterProxyHandler(req, res));
   app.all("/api/onlymonster/analytics", (req, res) => onlyMonsterAnalyticsHandler(req, res));
+  app.all("/api/onlymonster/shift-analysis", (req, res) => shiftAnalysisHandler(req, res));
   app.all("/api/onlymonster/earnings", (req, res) => onlyMonsterAnalyticsHandler(req, res));
   app.all("/api/onlymonster/shift-operators", (req, res) => onlyMonsterAnalyticsHandler(req, res));
   app.all("/api/onlymonster/shift-comparison", (req, res) => onlyMonsterAnalyticsHandler(req, res));

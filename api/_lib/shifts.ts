@@ -27,13 +27,18 @@ export function kyivWallTimeToUTC(dateStr: string, hour: number): string {
     hour: "numeric",
     hour12: false
   });
-  const kyivHourAtNaive = parseInt(hourFmt.format(naiveUtc), 10) || 0;
-
-  let offsetHours = kyivHourAtNaive - hour;
-  if (offsetHours > 12) offsetHours -= 24;
-  if (offsetHours < -12) offsetHours += 24;
-
-  const targetMs = naiveUtc.getTime() - (offsetHours * 3600000);
+  // Resolve the offset at the target instant, not only at naive UTC. On DST
+  // transition days those can be on opposite sides of the clock change.
+  let targetMs = naiveUtc.getTime();
+  for (let i = 0; i < 3; i++) {
+    const candidate = new Date(targetMs);
+    let offsetHours = (parseInt(hourFmt.format(candidate), 10) % 24) - candidate.getUTCHours();
+    if (offsetHours > 12) offsetHours -= 24;
+    if (offsetHours < -12) offsetHours += 24;
+    const next = naiveUtc.getTime() - offsetHours * 3600000;
+    if (next === targetMs) break;
+    targetMs = next;
+  }
   return new Date(targetMs).toISOString();
 }
 
