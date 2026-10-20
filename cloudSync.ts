@@ -1,6 +1,6 @@
 import { cloudFetch } from './cloudTransport.js';
 import type { AppState } from './types';
-import { adminView, PRIVATE_OWNER_FIELDS, isAdminTask } from './stateAccess.js';
+import { adminView, ADMIN_READONLY_FIELDS, PRIVATE_OWNER_FIELDS, isAdminTask } from './stateAccess.js';
 import { closedPeriodChanges } from './closedPeriods.js';
 
 const LOCAL_FIELDS = new Set(['syncUrl', 'syncKey', 'dbUrl', 'selectedPeriodId']);
@@ -23,6 +23,7 @@ export function hasSharedChanges(a: AppState, b: AppState): boolean {
   const emptyDefault = (value: any) => value === '' || (Array.isArray(value) && value.length === 0) || (isObject(value) && Object.keys(value).length === 0);
   return [...new Set([...Object.keys(a), ...Object.keys(b)])].some(key => {
     if (ignored(key)) return false;
+    if (a.accessScope === 'admin' && (ADMIN_READONLY_FIELDS as readonly string[]).includes(key)) return false;
     const left = (a as any)[key], right = (b as any)[key];
     if (key === 'deletedIds' && Array.isArray(left) && Array.isArray(right)) {
       const leftSet = new Set(left.map(String)), rightSet = new Set(right.map(String));
@@ -137,6 +138,7 @@ export function mergeConcurrentStates(local: AppState, remote: AppState, base?: 
   const result: any = { ...remote };
   for (const key of new Set([...Object.keys(base || {}), ...Object.keys(local), ...Object.keys(remote)])) {
     if (ignored(key) || key === 'deletedIds') continue;
+    if (remote.accessScope === 'admin' && (ADMIN_READONLY_FIELDS as readonly string[]).includes(key)) continue;
     const left = (local as any)[key], right = (remote as any)[key];
     const withoutDeleted = (rows: any, deleted: Set<string>) => Array.isArray(rows) && rows.every(row => isObject(row) && typeof row.id === 'string')
       ? rows.filter(row => !deleted.has(row.id)) : rows;
@@ -186,7 +188,8 @@ export function validCloudState(state: any): state is AppState {
   return isObject(state) && Number.isFinite(state.version) && Number.isFinite(state.lastUpdated) &&
     ['accountingPeriods', 'incomeData', 'operationsData', 'ownerExpenses', 'deletedIds'].every(key => Array.isArray(state[key])) &&
     state.accountingPeriods.length > 0 && state.accountingPeriods.every((period: any) => isObject(period) && typeof period.id === 'string') &&
-    (state.syncRevision === undefined || typeof state.syncRevision === 'string');
+    (state.syncRevision === undefined || typeof state.syncRevision === 'string') &&
+    (state.shiftAnalysisEnabled === undefined || typeof state.shiftAnalysisEnabled === 'boolean');
 }
 
 function requestSignal(ms: number, signal?: AbortSignal): AbortSignal {

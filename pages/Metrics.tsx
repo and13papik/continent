@@ -1276,7 +1276,7 @@ const Metrics: React.FC<MetricsProps> = ({ state, userRole }) => {
             )}
 
             {activeTab === 'onlymonster' && (
-              <OnlyMonsterTab agencyModels={state.models || []} userRole={userRole} />
+              <OnlyMonsterTab agencyModels={state.models || []} userRole={userRole} shiftAnalysisEnabled={state.shiftAnalysisEnabled === true} />
             )}
           </motion.div>
         </AnimatePresence>

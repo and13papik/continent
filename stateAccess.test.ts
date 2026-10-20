@@ -10,6 +10,19 @@ export const privateFixture = () => ({...fixture(), ownerDocument:'PRIVATE DOCUM
   futurePrivateField:'PRIVATE FUTURE', syncKey:'PRIVATE KEY', dbUrl:'PRIVATE DB'} as any);
 
 describe('admin view and role changes', () => {
+  it('shares the visibility flag read-only and keeps the owner choice during admin sync', () => {
+    const base = adminView({...fixture(),shiftAnalysisEnabled:true});
+    expect(base.shiftAnalysisEnabled).toBe(true);
+    expect(adminRecoveryItem({path:['shiftAnalysisEnabled'],local:true,remote:false})).toBe(false);
+    const remote = {...base,shiftAnalysisEnabled:false};
+    const local = {...base,incomeData:[income('offline')]};
+    const merged = mergeConcurrentStates(local,remote,base,true);
+    expect(merged.state.shiftAnalysisEnabled).toBe(false);
+    expect(merged.state.incomeData).toHaveLength(1);
+    expect(merged.conflicts).toEqual([]);
+    expect(hasSharedChanges(base,remote)).toBe(false);
+    expect(hasSharedChanges({...fixture(),shiftAnalysisEnabled:true},{...fixture(),shiftAnalysisEnabled:false})).toBe(true);
+  });
   it('redacts owner records, unknown fields and secrets, retaining required totals and shared tasks', () => {
     const state=privateFixture(), before=JSON.stringify(state), view=adminView(state);
     expect(JSON.stringify(view)).not.toContain('PRIVATE');expect(view.ownerTasks?.map(task=>task.id)).toEqual(['shared-task']);

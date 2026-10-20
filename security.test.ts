@@ -150,6 +150,24 @@ describe('authenticated cloud data', () => {
     req.url += '&updated_at=eq.' + timestamp + '&state-%3E%3EsyncRevision=is.null';
     return req;
   }
+  it.each(['owner','admin'] as const)('allows only owner to change shift analysis visibility (%s)', async role => {
+    mocks.getUser.mockResolvedValue({data:{user:actor(role)},error:null});
+    const before = {...fixture(),shiftAnalysisEnabled:false};
+    vi.mocked(fetch).mockImplementation(async (_input,options) => new Response(JSON.stringify(options?.method === 'PATCH' ? [JSON.parse(options.body as string)] : [{state:before,updated_at:timestamp}])));
+    const req = writeRequest({...before,shiftAnalysisEnabled:true});
+    const res = response(); await cloudHandler(req,res);
+    expect(res.statusCode).toBe(role === 'owner' ? 200 : 403);
+    expect(fetch).toHaveBeenCalledTimes(role === 'owner' ? 2 : 1);
+  });
+  it('preserves the visibility flag when an older admin client omits it', async () => {
+    mocks.getUser.mockResolvedValue({data:{user:actor('admin')},error:null});
+    const before = {...fixture(),shiftAnalysisEnabled:true};
+    vi.mocked(fetch).mockImplementation(async (_input,options) => new Response(JSON.stringify(options?.method === 'PATCH' ? [JSON.parse(options.body as string)] : [{state:before,updated_at:timestamp}])));
+    const req = writeRequest(adminView(before)); delete req.body.state.shiftAnalysisEnabled;
+    const res = response(); await cloudHandler(req,res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body[0].state.shiftAnalysisEnabled).toBe(true);
+  });
   const privateState = () => ({...fixture(), ownerDocument:'OWNER SECRET', ownerExpenses:[{id:'expense',amount:100}],
     ownerManualIncomes:[{id:'manual',periodId:'period',amount:50,comment:'OWNER SECRET'}],
     ownerTasks:[{id:'hidden',assignedTo:'Andrey',title:'OWNER SECRET'},{id:'shared',assignedTo:'Admins',title:'Shared'}],futurePrivate:'OWNER SECRET'} as any);

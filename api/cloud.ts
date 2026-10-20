@@ -1,7 +1,7 @@
 import { json, readBody, requireSession } from './_lib/auth.js';
 import { getSupabaseCredentials } from './_lib/supabase.js';
 import { sameValue, validCloudState } from '../cloudSync.js';
-import { adminView, ADMIN_FIELDS, PRIVATE_OWNER_FIELDS, emptyOwnerField, isAdminTask } from '../stateAccess.js';
+import { adminView, ADMIN_FIELDS, ADMIN_READONLY_FIELDS, PRIVATE_OWNER_FIELDS, emptyOwnerField, isAdminTask } from '../stateAccess.js';
 import { periodValidationError } from '../accountingPeriods.js';
 import { readAuditHistory } from './_lib/audit.js';
 import { closedPeriodChanges, CLOSED_PERIOD_MESSAGE } from '../closedPeriods.js';
@@ -65,6 +65,7 @@ export default async function handler(req: any, res: any) {
     // Preserve all unknown stored fields; admins can write only explicitly shared fields.
     const next = { ...old.state, ...body.state };
     if (user.role !== 'owner') {
+      if (ADMIN_READONLY_FIELDS.some(key => Object.hasOwn(body.state, key) && !sameValue(body.state[key], old.state[key]))) return json(res, 403, { error: 'Настройки разделов может менять только Owner' });
       const hiddenTasks = (old.state.ownerTasks || []).filter((task: any) => !isAdminTask(task));
       const privateCollections = Object.keys(old.state).filter(key => !(ADMIN_FIELDS as readonly string[]).includes(key) && key !== 'ownerTasks');
       const protectedIds = new Set([...privateCollections.flatMap(key => Array.isArray(old.state[key]) ? old.state[key].map((row: any) => row.id) : []), ...hiddenTasks.map((task: any) => task.id), ...old.state.accountingPeriods.map((period: any) => period.id)]);
