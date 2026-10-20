@@ -69,4 +69,14 @@ describe('AI grounding', () => {
     vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({summary:'test',actions:[{findingId:'invented'}]})}]}]}))));
     await expect(generateAnalysisAdvice({...report,findings:[{id:'valid', models: []} as any]})).rejects.toThrow('неподтверждённый');
   });
+  it('derives summary counts from evidence even when AI miscounts the signal directions', async () => {
+    vi.stubEnv('OPENAI_API_KEY','synthetic');
+    const action = {findingId:'finding-0',interpretation:'Гипотеза',check:'Проверка',experiment:'Тест',successMetric:'Метрика',stopCondition:'Остановка'};
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({summary:'Пять отрицательных сигналов',actions:[action]})}]}]}))));
+    const findings = [{id:'a',operatorId:'1',models:[],kind:'attention'},{id:'b',operatorId:'2',models:[],kind:'positive'},{id:'c',operatorId:'3',models:[],kind:'positive'}] as any;
+    const advice = await generateAnalysisAdvice({...report,findings});
+    expect(advice.summary).toContain('требуют проверки — 1; положительные сигналы — 2');
+    expect(advice.summary).not.toContain('Пять');
+    expect(advice.actions[0]).toEqual({...action,findingId:'a'});
+  });
 });

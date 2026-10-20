@@ -17,6 +17,12 @@ export type Window = { start: string; end: string; label: string };
 export type Finding = { id: string; operatorId: string; models: string[]; kind: 'attention' | 'positive' | 'hypothesis'; title: string; metric: MetricKey; current: number; baseline: number; change: number; action: string; caveat: string };
 export type AnalysisOperator = { id: string; name: string; models: string[]; current: Metrics; baseline: Metrics | null; comparable: boolean; findings: Finding[] };
 export type ShiftAnalysis = { id: string; generatedAt: string; period: AnalysisPeriod; window: Window; baselineWindow: Window; partial: boolean; quality: string[]; totals: Metrics; operators: AnalysisOperator[]; findings: Finding[]; cases: { from: string; to: string; models: string[]; current: number; peer: number; action: string }[] };
+
+export function analysisSignalSummary(report: Pick<ShiftAnalysis, 'findings'>): string {
+  const attention = report.findings.filter(f => f.kind === 'attention').length;
+  const positive = report.findings.filter(f => f.kind === 'positive').length;
+  return `По расчётам: требуют проверки — ${attention}; положительные сигналы — ${positive}. Ниже — гипотезы и проверки по выбранным сигналам. Статистика не устанавливает причины изменений; предложения требуют проверки админом.`;
+}
 export type RawMetric = Record<string, unknown>;
 const rawKeys = Object.keys(analysisFields).slice(0, 12) as MetricKey[];
 const aliases: Partial<Record<MetricKey, string[]>> = { messages_count: ['messages', 'sent_messages'], paid_messages_count: ['paid_messages'], sold_messages_count: ['sold_messages'] };
