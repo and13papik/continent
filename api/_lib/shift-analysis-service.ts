@@ -27,18 +27,34 @@ export function analysisWindows(period: AnalysisPeriod, now = new Date()): { win
 }
 export async function fetchAnalysisMetrics(window: Window, token: string): Promise<{ rows: RawMetric[]; partial: boolean; error?: string }> {
   const rows: RawMetric[] = [];
-  const deadline = Date.now() + 18000;
+  const deadline = Date.now() + 30000;
   for (let page = 0; page < 20; page++) {
     if (Date.now() >= deadline) return { rows, partial: true, error: 'Не все страницы метрик успели загрузиться' };
     try {
       const query = new URLSearchParams({ from: window.start, to: window.end, offset: String(page * 100), limit: '100' });
-      const response = await fetch(`https://omapi.onlymonster.ai/api/v0/users/metrics?${query}`, { headers: { 'x-om-auth-token': token }, signal: AbortSignal.timeout(Math.min(8000, deadline - Date.now())), redirect: 'error' });
+      let response: Response | undefined;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) throw new DOMException('Provider deadline', 'TimeoutError');
+        try {
+          response = await fetch(`https://omapi.onlymonster.ai/api/v0/users/metrics?${query}`, { headers: { 'x-om-auth-token': token }, signal: AbortSignal.timeout(Math.min(12000, remaining)), redirect: 'error' });
+          if (attempt === 0 && [502, 503, 504].includes(response.status)) { await response.body?.cancel(); continue; }
+          break;
+        } catch (error) {
+          const retryable = error instanceof TypeError || (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name));
+          if (attempt === 1 || !retryable) throw error;
+        }
+      }
+      if (!response) throw new Error('No provider response');
       if (!response.ok) return { rows, partial: true, error: `OnlyMonster: HTTP ${response.status}` };
       const body = await response.json(); const items = Array.isArray(body) ? body : body?.items ?? body?.metrics ?? body?.data ?? body?.results;
       if (!Array.isArray(items) || items.some((r: unknown) => !r || typeof r !== 'object' || Array.isArray(r))) return { rows, partial: true, error: 'Неизвестный формат метрик OnlyMonster' };
       rows.push(...items);
       if (items.length < 100) return { rows, partial: false };
-    } catch { return { rows, partial: true, error: 'Не удалось получить все метрики OnlyMonster' }; }
+    } catch (error) {
+      const timeout = error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name);
+      return { rows, partial: true, error: timeout ? 'OnlyMonster не успел вернуть метрики. Повторите обновление позже' : 'Не удалось получить все метрики OnlyMonster' };
+    }
   }
   return { rows, partial: true, error: 'Достигнут лимит страниц; выводы приостановлены' };
 }
@@ -60,7 +76,9 @@ export async function loadShiftAnalysis(period: AnalysisPeriod): Promise<ShiftAn
     const partial = current.partial || baseline.partial || quality.some(s => s.includes('часового пояса'));
     const id = createHash('sha256').update(JSON.stringify({ windows, current: current.rows, baseline: baseline.rows, generatedAt, tokenId })).digest('hex');
     const report = buildShiftAnalysis(current.rows, baseline.rows, { id, generatedAt, period, ...windows, partial, quality });
-    cached = { key, report }; return report;
+    // A transient failure must not prevent the user's immediate manual retry.
+    if (!report.partial) cached = { key, report };
+    return report;
   })();
   flights.set(key, work); try { return await work; } finally { flights.delete(key); }
 }
