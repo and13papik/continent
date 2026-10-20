@@ -27,6 +27,23 @@ describe('analysis windows in Kyiv', () => {
 });
 describe('provider completeness', () => {
   const window = {start: '2026-10-19T11:00:00Z', end: '2026-10-19T12:00:00Z', label: 'test'};
+  it('retries a transient timeout once without duplicating rows', async () => {
+    const fetcher = vi.fn().mockRejectedValueOnce(new DOMException('late', 'TimeoutError')).mockResolvedValueOnce(new Response('{"items":[{"user_id":1}]}'));
+    vi.stubGlobal('fetch', fetcher);
+    expect(await fetchAnalysisMetrics(window, 'test')).toEqual({ rows: [{user_id:1}], partial: false });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it('reports repeated timeouts as unavailable, not an empty successful period', async () => {
+    const fetcher = vi.fn().mockRejectedValue(new DOMException('late', 'TimeoutError')); vi.stubGlobal('fetch', fetcher);
+    const result = await fetchAnalysisMetrics(window, 'test');
+    expect(result.partial).toBe(true); expect(result.error).toContain('не успел'); expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it('retries temporary gateway failures but never retries quota responses', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response('', {status:503})).mockResolvedValueOnce(new Response('{"items":[]}')); vi.stubGlobal('fetch', fetcher);
+    expect((await fetchAnalysisMetrics(window, 'test')).partial).toBe(false); expect(fetcher).toHaveBeenCalledTimes(2);
+    fetcher.mockReset().mockResolvedValue(new Response('', {status:429}));
+    expect((await fetchAnalysisMetrics(window, 'test')).partial).toBe(true); expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it('keeps partial rows but blocks conclusions after a later page fails', async () => {
     const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({items: Array.from({length:100}, (_,i)=>({user_id: i}))}))).mockResolvedValueOnce(new Response('', {status:429})); vi.stubGlobal('fetch', fetcher);
     const result = await fetchAnalysisMetrics(window, 'test'); expect(result.rows).toHaveLength(100); expect(result.partial).toBe(true); expect(result.error).toContain('429');
