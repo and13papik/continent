@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { getShiftRangeForDate } from './shifts.js';
 import { getOmToken, isPlaceholderToken } from './om-store.js';
-import { buildShiftAnalysis, type AnalysisPeriod, type RawMetric, type ShiftAnalysis, type Window } from '../../shiftAnalysis.js';
+import { analysisSignalSummary, buildShiftAnalysis, type AnalysisPeriod, type RawMetric, type ShiftAnalysis, type Window } from '../../shiftAnalysis.js';
 
 function kyivParts(now: Date) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(now);
@@ -114,5 +114,5 @@ export async function generateAnalysisAdvice(report: ShiftAnalysis): Promise<AiA
   const idMap = new Map(payload.map((f, i) => [f.id, selected[i].id]));
   const required = ['findingId', 'interpretation', 'check', 'experiment', 'successMetric', 'stopCondition'] as const;
   if (!parsed || typeof parsed.summary !== 'string' || parsed.summary.length > 3000 || !Array.isArray(parsed.actions) || parsed.actions.length > 6 || parsed.actions.some(a => !a || !idMap.has(a.findingId) || required.some(k => typeof a[k] !== 'string' || !a[k].trim() || a[k].length > 2500))) throw new Error('AI вернул неподтверждённый разбор');
-  return { ...parsed, actions: parsed.actions.map(a => ({ ...a, findingId: idMap.get(a.findingId)! })) };
+  return { summary: analysisSignalSummary(report), actions: parsed.actions.map(a => ({ ...a, findingId: idMap.get(a.findingId)! })) };
 }

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { requireSession, json } from '../_lib/auth.js';
 import { getSupabaseClient } from '../_lib/supabase.js';
 import { loadShiftAnalysis, generateAnalysisAdvice } from '../_lib/shift-analysis-service.js';
-import type { AnalysisPeriod, ShiftAnalysis } from '../../shiftAnalysis.js';
+import { analysisSignalSummary, type AnalysisPeriod, type ShiftAnalysis } from '../../shiftAnalysis.js';
 
 const CACHE = 'om_shift_analysis_cache', JOURNAL = 'om_shift_experiments';
 const validPeriods = new Set(['current', 'previous', 'day']);
@@ -45,7 +45,7 @@ export default async function handler(req: any, res: any) {
       if (report.partial || !report.findings.length) return json(res, 422, { error: 'Недостаточно полных данных для рекомендаций AI' });
       const aiId = `ai:${reportId}`;
       const { data: cached } = await db.from(CACHE).select('payload').eq('id', aiId).eq('kind', 'ai').maybeSingle();
-      if (cached) return json(res, 200, { advice: cached.payload, reportId });
+      if (cached) return json(res, 200, { advice: { ...cached.payload, summary: analysisSignalSummary(report) }, reportId });
       // A unique, durable budget slot prevents duplicate charges across instances/admins.
       const { error: locked } = await db.from(CACHE).insert({ id: `budget:${report.period}:${Math.floor(Date.now() / 900000)}`, kind: 'budget', payload: { reportId, actor: actor.id } });
       if (locked) return json(res, locked.code === '23505' ? 429 : 503, { error: locked.code === '23505' ? 'AI-разбор этого периода уже запускался. Следующий доступен в следующем 15-минутном интервале; расчёты можно обновлять сейчас.' : 'Не удалось зарезервировать AI-разбор' });
