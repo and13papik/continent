@@ -27,6 +27,7 @@ import {
 import { Eraser, AlertTriangle, CheckCircle2, ShieldAlert, Sparkles, RefreshCw, X, Trash2, LockKeyhole, Plus } from 'lucide-react';
 import PeriodBadge from '../components/PeriodBadge';
 import AuditHistory from '../components/AuditHistory';
+import { ShiftAnalysisSetting } from '../components/ShiftAnalysisSetting';
 import { runMigrationDryRun, MigrationDryRunResult } from '../scripts/dry_run_migration';
 
 interface SettingsProps {
@@ -570,6 +571,7 @@ const Settings: React.FC<SettingsProps> = ({ state, updateState, userRole }) => 
         </div>
       </section>}
 
+      <ShiftAnalysisSetting state={state} updateState={updateState} userRole={userRole} />
       {userRole === 'owner' && <AuditHistory />}
 
       {homelessCount > 0 && (

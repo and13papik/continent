@@ -279,6 +279,8 @@ export interface ModelGroup {
 }
 
 export interface AppState {
+  /** Owner-controlled visibility; absent means disabled. */
+  shiftAnalysisEnabled?: boolean;
   /** Server-derived admin view; never persisted as financial data. */
   accessScope?: 'admin';
   manualIncomeTotals?: Record<string, number>;

@@ -1,6 +1,7 @@
 import type { AppState, OwnerTask } from './types';
 
 export const PRIVATE_OWNER_FIELDS = ['ownerExpenses', 'ownerManualIncomes', 'ownerAdvances', 'ownerNotes', 'ownerDocument', 'completedDocument'] as const;
+export const ADMIN_READONLY_FIELDS = ['shiftAnalysisEnabled'] as const;
 export const ADMIN_FIELDS = ['lastUpdated', 'version', 'remoteVersion', 'syncRevision', 'operators', 'operatorWallets', 'models', 'modelGroups', 'admins', 'incomeData', 'operationsData', 'rosterData', 'operatorAssessments', 'priorityModels', 'inactiveModels', 'accountingPeriods', 'selectedPeriodId', 'modelRates', 'modelBonuses', 'paidStatuses', 'advanceRequests', 'totalTableEntries', 'modelDefaultGoals', 'modelMonthlyPlans', 'deletedIds', 'syncUrl', 'lastSyncedAt', 'notifiedInterns', 'telegramState'] as const;
 export const isAdminTask = (task: Pick<OwnerTask, 'assignedTo' | 'isForAdmins'>) => task.isForAdmins === true || ['Admins', 'All', 'Rector', 'Mentor'].includes(task.assignedTo);
 export const emptyOwnerField = (key: string) => key.endsWith('Document') ? '' : [];
@@ -12,7 +13,7 @@ export function adminRecoveryItem(item: { path: unknown[]; local: any; remote: a
 /** Explicit allowlist: a future owner field cannot accidentally become public to admins. */
 export function adminView(state: AppState): AppState {
   const result: any = {};
-  for (const key of ADMIN_FIELDS) if (Object.hasOwn(state, key)) result[key] = state[key];
+  for (const key of [...ADMIN_FIELDS, ...ADMIN_READONLY_FIELDS]) if (Object.hasOwn(state, key)) result[key] = state[key];
   for (const key of PRIVATE_OWNER_FIELDS) result[key] = emptyOwnerField(key);
   result.ownerTasks = (state.ownerTasks || []).filter(isAdminTask);
   result.accessScope = 'admin';
